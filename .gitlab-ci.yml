@@ -1,0 +1,257 @@
+# Continuous Integration and Deployment of Utopia Models Repository
+---
+# ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
+variables:
+  # Which Utopia base image to use
+  UTOPIA_BASE_IMAGE: ccees/utopia-base:v2.1
+
+  # Which repo to use for the framework and which branch to clone from
+  UTOPIA_CLONE_URL: ssh://git@ts-gitlab.iup.uni-heidelberg.de:10022/utopia/utopia.git
+  # NOTE This should always be the master; change this only for testing!
+  UTOPIA_BRANCH: master
+
+  # Subdirectory inside project directory to use for framework repository
+  UTOPIA_DIR: _framework
+
+  # Variables for Models Docker image deployment
+  MODELS_BASE_IMAGE_NAME: ccees/models-base
+  MODELS_BASE_IMAGE_VERSION: "1.1"
+  MODELS_BASE_IMAGE: "${MODELS_BASE_IMAGE_NAME}:v${MODELS_BASE_IMAGE_VERSION}"
+  # NOTE Do not forget to increment the MODELS_BASE_IMAGE_VERSION when changes
+  #      to the docker file are introduced.
+
+  # Docker Hub login command
+  DOCKER_HUB_LOGIN: docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
+  # NOTE Both variables here are secret and protected variables. While the
+  #      login command will complain, using --password-stdin actually EXPOSES
+  #      the variable! No no.
+
+  # Setting number of processes for build jobs and DIND jobs
+  CPUS_BUILD: 4
+  CPUS_TEST: 4
+
+  # Build flags
+  MAKE_FLAGS_BUILD: -j$CPUS_BUILD
+  MAKE_FLAGS_TEST: -j$CPUS_TEST
+
+  # ... for certain commands
+  RUN_IN_UTOPIA_ENV: $CI_PROJECT_DIR/build/run-in-utopia-env
+  ENTER_UTOPIA_ENV: source $CI_PROJECT_DIR/build/activate
+
+
+# Define the image to use for all stages
+image: ${MODELS_BASE_IMAGE}
+
+stages:
+  - setup     # set up the Docker base image for testing
+  - prep      # prepare the utopia framework repo and configure utopia
+  - build     # build models and tests
+  - test      # carry out tests
+
+
+# .. YAML Templates ...........................................................
+# This makes includes below easier using the `<<: *anchor_name` syntax
+
+# To install the python environment, the configuration needs access to
+# external but private repositories; by adding a deploy key to selected jobs,
+# the pull from these repositories becomes possible. The key is available under
+# the SSH_PRIVATE_KEY variable.
+.ssh-access: &ssh_access
+  before_script:
+    # For outside dependencies, use the "Utopia CI" deploy key
+    # Instructions:
+    #   https://docs.gitlab.com/ce/ci/ssh_keys/
+    # Run ssh-agent (inside the build environment)
+    - eval $(ssh-agent -s)
+
+    # Add the SSH key stored in SSH_PRIVATE_KEY variable to the agent store
+    # We're using tr to fix line endings which makes ed25519 keys work
+    # without extra base64 encoding.
+    # https://gitlab.com/gitlab-examples/ssh-private-key/issues/1#note_48526556
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    
+    # Create the SSH directory and give it the right permissions
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    
+    # Add the known hosts lists to ensure this ssh connection is the right one
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+
+
+# Create artifacts of the build directory
+.artifacts: &artifacts
+  artifacts:
+    name: "$CI_JOB_NAME"
+    paths:
+      - $CI_PROJECT_DIR/.config        # copied from ~/.config
+      - $CI_PROJECT_DIR/.cmake         # copied from ~/.cmake
+      - $CI_PROJECT_DIR/build          # created in build stage
+      - $CI_PROJECT_DIR/$UTOPIA_DIR    # framework paths (setup stage)
+    expire_in: 3 hours
+
+
+# Use the Docker-in-Docker executor and services, log into Docker Hub
+.dind: &dind
+  image: docker:stable
+  tags:
+    - dind
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  before_script:
+    - $DOCKER_HUB_LOGIN
+
+
+# ++ Job definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# -- Setup stage --------------------------------------------------------------
+# This stage takes care to build the Models base testing image
+
+setup:models-base:
+  <<: *dind
+  stage: setup
+  only:
+    - master
+    - web
+  script:
+    - docker build -f docker/models-base.dockerfile
+                   --build-arg UTOPIA_BASE_IMAGE=$UTOPIA_BASE_IMAGE
+                   -t $MODELS_BASE_IMAGE
+                   ./
+    - docker push $MODELS_BASE_IMAGE
+
+# -- Preparation stage --------------------------------------------------------
+# This stage sets up the Utopa framework, the main dependency of this repo
+
+prep:framework:
+  <<: [*ssh_access, *artifacts]
+  stage: prep
+  script:
+    # Clone the framework repo to a specific directory and check out the
+    # desired branch. By cloning into a subdirectory inside the project
+    # directory, artifacts can be used.
+    - git clone --recurse-submodules -b $UTOPIA_BRANCH $UTOPIA_CLONE_URL $UTOPIA_DIR 
+
+    # Create build directory and configure
+    - cd $UTOPIA_DIR && mkdir build && cd build
+    - cmake -DCMAKE_BUILD_TYPE=Release ..
+    # NOTE: Would actually have something like `make utopia`, but the current
+    #       INTERFACE library is no build target. Thus, build all its
+    #       dependencies here explicitly.
+    - make $MAKE_FLAGS_BUILD yaml-cpp
+    # ... no need to install.
+
+    # Now, move back to the project directory and configure, specifying the
+    # Utopia directory.
+    - cd $CI_PROJECT_DIR && mkdir build && cd build
+    - cmake -DUtopia_DIR=$CI_PROJECT_DIR/$UTOPIA_DIR/build ..
+
+    # Show available models
+    - $RUN_IN_UTOPIA_ENV utopia models ls
+
+    # Carry over user config directory (to have it available in artifacts)
+    - cp -r ~/.config $CI_PROJECT_DIR/
+
+    # Carry over CMake package registry
+    - cp -r ~/.cmake $CI_PROJECT_DIR/
+
+# -- Build stage --------------------------------------------------------------
+# In this stage, the models and their tests are built.
+# The artifacts of the tests and models jobs are needed in the test stage
+
+# Build the models and their tests; artifacts used in test stage
+build:models: &build
+  <<: *artifacts
+  stage: build
+  dependencies:
+    - prep:framework
+  before_script:
+    # Copy the frontend-generated configuration, carried over as artifacts,
+    # back into the home directory, where the frontend expects it.
+    # In the same manner, place the cmake registry where it is expected.
+    - &copy_config_to_home cp -r $CI_PROJECT_DIR/.config ~/
+    - &copy_cmake_reg_to_home cp -r $CI_PROJECT_DIR/.cmake ~/
+  script:
+    - cd build
+    - make $MAKE_FLAGS_BUILD all
+
+# Build in debug mode, once with gcc and once with clang
+build:debug: &build_debug
+  <<: *build
+  allow_failure: true
+  before_script:
+    - *copy_config_to_home
+    - *copy_cmake_reg_to_home
+  script:
+    - cd build
+    - cmake
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_CXX_FLAGS_DEBUG='-Werror'
+      ..
+    - make $MAKE_FLAGS_BUILD build_tests_models
+    - make $MAKE_FLAGS_BUILD all
+
+build:debug-clang:
+  <<: *build_debug
+  script:
+    - cd build
+    - cmake
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_C_COMPILER=clang
+        -DCMAKE_CXX_COMPILER=clang++
+        -DCMAKE_CXX_FLAGS_DEBUG='-Werror'
+      ..
+    - make $MAKE_FLAGS_BUILD build_tests_models
+    - make $MAKE_FLAGS_BUILD all
+
+# Build the documentation; artifacts retained for verification
+build:docs:
+  stage: build
+  <<: *ssh_access
+  artifacts:
+    name: "$CI_JOB_NAME"
+    paths:
+      - $CI_PROJECT_DIR/build/doc
+    expire_in: 1 day
+  script:
+    - cd build
+    - make doc
+
+
+# -- Test stage ---------------------------------------------------------------
+# Using the artifacts of the build stage, execute the model tests
+
+# Perform the explicit model tests, C++ and Python
+test:models: &model_defaults
+  <<: *artifacts
+  stage: test
+  dependencies:
+    # Use the debug build as dependency; needed for assert-based tests
+    - build:debug
+  before_script:
+    - *copy_config_to_home
+    - *copy_cmake_reg_to_home
+  script:
+    # Test all models using the testing framework
+    - cd build
+    - make $MAKE_FLAGS_TEST test_models
+
+
+# Run each model via the CLI, testing default model and plots configuration
+test:model_defaults:
+  <<: *model_defaults
+  dependencies:
+    - build:models
+  script:
+    - $ENTER_UTOPIA_ENV
+
+    - utopia run Amee --debug --sweep --no-plot
+    - utopia run Hierargrid --debug
+    - utopia run Hierarnet --debug
+    - utopia run mesonet --debug
+    - utopia run SavannaHeterogeneous --debug
+    - utopia run SavannaHomogeneous --debug
+
+    # NOTE Add your newly implemented model here (in alphabetical order)
