@@ -45,12 +45,14 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         hlpr.ax.scatter(v.data[0], v.data[1])
 
     def update():
-        for step in grp['vertices']:
+        for step in range(uni_cfg['write_start'],
+                          uni_cfg['num_steps']+uni_cfg['write_every'],
+                          uni_cfg['write_every']):
             hlpr.ax.clear()
 
-            v_data = grp['vertices'][step]
-            e_data = grp['edges'][step]
-            c_data = grp['cells'][step]
+            v_data = grp['vertices'][str(step)]
+            e_data = grp['edges'][str(step)]
+            c_data = grp['cells'][str(step)]
 
             for v_id in v_data.dim_1:
                 v = v_data.sel(dim_1=v_id)
@@ -72,6 +74,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             hlpr.invoke_helper('set_title', title="Time {}".format(step))
             # Done with this frame; yield control to the animation framework
             # which will grab the frame...
+            hlpr.invoke_helper('set_limits', x=[0, 800], y=[0, 800])
             yield
 
 
