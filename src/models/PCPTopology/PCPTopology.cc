@@ -2,16 +2,24 @@
 
 #include "PCPTopology.hh"
 
-using namespace Utopia::Models::PCPTopology;
+using namespace Utopia::Models::PCPVertex;
+using Utopia::get_as;
 
 
 int main (int, char** argv) {
     try {
         // Initialize the PseudoParent from config file path
         Utopia::PseudoParent pp(argv[1]);
+        auto model_cfg = pp.get_cfg()["PCPTopology"];
 
         // Initialize the main model instance and directly run it
-        PCPTopology("PCPTopology", pp).run();
+        if (get_as<bool>("periodic_bc", model_cfg["PCPVertex"])) {
+            PCPTopology<true>("PCPTopology", pp).run();
+        }
+        else
+        {
+            PCPTopology<false>("PCPTopology", pp).run();
+        }   
 
         // Done
         return 0;

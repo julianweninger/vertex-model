@@ -21,7 +21,7 @@ from ..tools import save_and_close
 
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
-                       time: int=0):
+                       datapath = 'PCPVertex', time: int=0):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -30,11 +30,11 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         hlpr (PlotHelper): The PlotHelper
     """
     # Get the group that all datasets are in
-    grp = uni['data/PCPVertex']
+    grp = uni['data/'+datapath]
 
     # Get the shape of the data
     uni_cfg = uni['cfg']
-    model_cfg = uni_cfg['PCPVertex']
+    # model_cfg = uni_cfg[datapath]
 
     # Prepare the figure ......................................................
     # Prepare the figure to have as many columns as there are properties

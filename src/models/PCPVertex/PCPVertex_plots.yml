@@ -6,6 +6,7 @@
 forces:
   based_on: .basic_uni.lineplots
   model_name: PCPVertex
+  file_ext: png
 
   to_plot: 
     forces:

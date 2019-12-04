@@ -11,30 +11,31 @@
 #include <utopia/core/model.hh>
 #include <utopia/core/types.hh>
 
+#include "../PCPVertex/geometry.hh"
 #include "../PCPVertex/PCPVertex.hh"
 
 
 namespace Utopia {
 namespace Models {
-namespace PCPTopology {
+namespace PCPVertex {
 
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// Type helper to define types used by the model
 using ModelTypes = Utopia::ModelTypes<>;
 
-
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
 /** TODO Add your class description here.
  *  ...
  */
+template <bool periodic_bc>
 class PCPTopology:
-    public Model<PCPTopology, ModelTypes>
+    public Model<PCPTopology<periodic_bc>, ModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPTopology, ModelTypes>;
+    using Base = Model<PCPTopology<periodic_bc>, ModelTypes>;
 
     /// Data type of the group to write model data to, holding datasets
     using DataGroup = typename Base::DataGroup;
@@ -48,7 +49,11 @@ private:
     // ... but you should definitely check out the documentation ;)
 
     // -- Members -------------------------------------------------------------
-
+    PCPVertex<periodic_bc> _vertex_model;
+    
+    std::shared_ptr<VertexContainer> _vertices;
+    std::shared_ptr<EdgeContainer> _edges;
+    std::shared_ptr<CellContainer> _cells;
 
     // .. Temporary objects ...................................................
 
@@ -70,16 +75,25 @@ public:
     PCPTopology (const std::string name, ParentModel& parent)
     :
         // Initialize first via base model
-        Base(name, parent)
-        // Now initialize members specific to this class
-        // ...
+        Base(name, parent),
+        
+        _vertex_model("PCPVertex", *this),
+
+        _vertices(nullptr),
+        _edges(nullptr),
+        _cells(nullptr)
+        // _vertices(_vertex_model.get_vertices_ptr()),
+        // _edges(_vertex_model.get_edges_ptr()),
+        // _cells(_vertex_model.get_cells_ptr())
 
         // Open the datasets
         // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
         //      or  _dset_state(this->create_dset("state", {num_states})) <- 2d
     {
-        // Can do remaining initialization steps here ...
-        // ...
+        if (_vertex_model.get_write_start() == 0) {
+            _vertex_model.write_data();
+            // NOTE Need this because env model is never run, but only iterated
+        }
     }
 
 
@@ -93,11 +107,8 @@ public:
     // .. Simulation Control ..................................................
 
     /// Iterate a single step
-    /** \details Here you can add a detailed description what exactly happens 
-      *         in a single iteration step
-      */
     void perform_step () {
-
+        _vertex_model.iterate();
     }
 
 

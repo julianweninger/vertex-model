@@ -53,11 +53,18 @@ private:
     CellContainer _cells;
 
     // PARAMETERS
-    double _dt = 0.1;    /// timestep scaling
+    double _dt;    /// timestep scaling
 
-    double _linetension = 10.;
-    double _area_elasticity = 0.01;
-    double _area_preferential = 1000.;
+    double _linetension;
+    double _area_elasticity;
+    double _area_preferential;
+
+    /// Tolerance fraction for equilibrium criterion
+    /** The fraction of characteristic length (defined by the average
+     *  preferential area) a vertex can maximal move to still be considered in
+     *  equilibrium
+     */
+    double _equilibrium_tolerance;
 
     // .. Temporary objects ...................................................
 
@@ -92,6 +99,8 @@ public:
         _linetension(get_as<double>("linetension", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
+
+        _equilibrium_tolerance(get_as<double>("equilibrium_tolerance", this->_cfg)),
 
         // Open the datasets
         // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
@@ -414,6 +423,73 @@ private:
     }
 
     // .. Helper functions ....................................................
+    std::function<void(Vertex_ptr&)> reset_forces = [](Vertex_ptr &v) {
+        v->fx = 0.;
+        v->fy = 0.;
+    };
+
+    std::function<void(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
+        double dx = e->b->x - e->a->x;
+        double dy = e->b->y - e->a->y;
+
+        if constexpr (periodic_bc) {
+            if (dx <= -Lx / 2.) { dx = dx + Lx; }
+            else if (dx > Lx / 2.) { dx = dx - Lx; }
+
+            if (dy <= -Ly / 2.) { dy = dy + Ly; }
+            else if (dy > Ly / 2.) { dy = dy - Ly; }
+        }
+
+        e->length = sqrt(pow(dx, 2.) + pow(dy, 2.));
+
+        const double fx = _linetension*dx/e->length;
+        const double fy = _linetension*dy/e->length;
+
+        e->a->fx += fx;
+        e->a->fy += fy;
+        e->b->fx -= fx;
+        e->b->fy -= fy;
+    };
+
+    std::function<void(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
+        double area = c->cell_area();
+
+        for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
+            auto e0_pair  = c->edges_ordered[std::max(0, edges_it - 1)];
+            if (edges_it == 0) { e0_pair = c->edges_ordered.back(); }
+            const auto e1_pair = c->edges_ordered[edges_it];
+            
+            // vertices in the anti-clockwise ordering
+            Vertex_ptr v_center, v_prior, v_post;
+            if (std::get<bool>(e0_pair)) {
+                v_center = std::get<Edge_ptr>(e0_pair)->a;
+                v_prior = std::get<Edge_ptr>(e0_pair)->b; 
+            }
+            else {
+                v_center = std::get<Edge_ptr>(e0_pair)->b;
+                v_prior = std::get<Edge_ptr>(e0_pair)->a;
+            }
+            if (std::get<bool>(e1_pair)) {
+                v_post = std::get<Edge_ptr>(e1_pair)->a;
+            }
+            else {
+                v_post = std::get<Edge_ptr>(e1_pair)->b;
+            }
+
+            double dA_dx = 0.5 * (v_post->y - v_prior->y) * c->area_sgn;
+            double dA_dy = 0.5 * (v_prior->x - v_post->x) * c->area_sgn;
+            // TODO periodicity and fix
+            
+            v_center->fx -= _area_elasticity * (c->area - _area_preferential)*dA_dx;
+            v_center->fy -= _area_elasticity * (c->area - _area_preferential)*dA_dy;
+        }
+    };
+    
+    std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
+        v->x += v->fx * _dt;
+        v->y += v->fy * _dt;
+    };
+
 
 public:
     // -- Public Interface ----------------------------------------------------
@@ -425,76 +501,16 @@ public:
       */
     void perform_step () {
         // reset forces
-        for (auto v : _vertices) {
-            v->fx = 0.;
-            v->fy = 0.;
-        }
+        std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
 
         // line tension
-        for (auto e : _edges) {
-            double dx = e->b->x - e->a->x;
-            double dy = e->b->y - e->a->y;
-
-            if constexpr (periodic_bc) {
-                if (dx <= -Lx / 2.) { dx = dx + Lx; }
-                else if (dx > Lx / 2.) { dx = dx - Lx; }
-
-                if (dy <= -Ly / 2.) { dy = dy + Ly; }
-                else if (dy > Ly / 2.) { dy = dy - Ly; }
-            }
-
-            e->length = sqrt(pow(dx, 2.) + pow(dy, 2.));
-
-            const double fx = _linetension*dx/e->length;
-            const double fy = _linetension*dy/e->length;
-
-            e->a->fx += fx;
-            e->a->fy += fy;
-            e->b->fx -= fx;
-            e->b->fy -= fy;
-        }
+        std::for_each(_edges.begin(), _edges.end(), line_tension);
         
-        // area elasticity
-        int cnt = 0;
-        for (auto c : _cells) {
-            double area = c->cell_area();
-
-            for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
-                auto e0_pair  = c->edges_ordered[std::max(0, edges_it - 1)];
-                if (edges_it == 0) { e0_pair = c->edges_ordered.back(); }
-                const auto e1_pair = c->edges_ordered[edges_it];
-                
-                // vertices in the anti-clockwise ordering
-                Vertex_ptr v_center, v_prior, v_post;
-                if (std::get<bool>(e0_pair)) {
-                    v_center = std::get<Edge_ptr>(e0_pair)->a;
-                    v_prior = std::get<Edge_ptr>(e0_pair)->b; 
-                }
-                else {
-                    v_center = std::get<Edge_ptr>(e0_pair)->b;
-                    v_prior = std::get<Edge_ptr>(e0_pair)->a;
-                }
-                if (std::get<bool>(e1_pair)) {
-                    v_post = std::get<Edge_ptr>(e1_pair)->a;
-                }
-                else {
-                    v_post = std::get<Edge_ptr>(e1_pair)->b;
-                }
-
-                double dA_dx = 0.5 * (v_post->y - v_prior->y) * c->area_sgn;
-                double dA_dy = 0.5 * (v_prior->x - v_post->x) * c->area_sgn;
-                // TODO periodicity and fix
-                
-                v_center->fx -= _area_elasticity * (c->area - _area_preferential)*dA_dx;
-                v_center->fy -= _area_elasticity * (c->area - _area_preferential)*dA_dy;
-            }
-        }
+        // area elasticity      
+        std::for_each(_cells.begin(), _cells.end(), area_elasticity);  
         
         // update vertex positions from forces
-        for (auto v : _vertices) {
-            v->x += v->fx * _dt;
-            v->y += v->fy * _dt;
-        }
+        std::for_each(_vertices.begin(), _vertices.end(), update_position);        
     }
 
 
@@ -563,18 +579,33 @@ public:
             return c->s->y;
         });
 
-        double tot_forces_2 = 0;
-        for (const auto &v : _vertices) {
-            tot_forces_2 += pow(v->fx, 2) + pow(v->fy, 2);
-        }
-        _dset_forces->write(sqrt(tot_forces_2)/_vertices.size());
-
+        _dset_forces->write(this->force_max_on_vertex());
     }
 
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+    
+    /// Getter for the maximum force on a single vertex
+    double force_max_on_vertex() const {
+        double max_forces_2 = 0;
+        for (const auto &v : _vertices) {
+            max_forces_2 = std::max(max_forces_2, pow(v->fx, 2) + pow(v->fy, 2));
+        }
 
+        return sqrt(max_forces_2);
+    }
+
+    /// Criterion for the equilibrium state
+    /** Equilibrium if maximum vertex deplacement less than a fraction
+     *  of the length scale given by mean preferential area.
+     *  
+     *  \param tolerance    The fraction of preferential area that a vertex may
+     *                      move being to still be considered in equilibrium
+     */
+    bool equilibrium_state_reached() const {
+        return (force_max_on_vertex() * _dt < _equilibrium_tolerance*sqrt(_area_preferential));
+    };
 };
 
 } // namespace PCPVertex

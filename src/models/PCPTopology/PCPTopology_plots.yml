@@ -2,4 +2,34 @@
 #
 # These can use the `based_on` feature with configurations specified in the
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
----
+---        
+cellular_structure:
+  creator: universe
+  universes: all
+  module: model_plots.PCPVertex
+  plot_func: cellular_structure
+  file_ext: png
+  datapath: PCPTopology/PCPVertex
+
+  helpers:
+    set_labels:
+      x: x [a.u.]
+      y: y [a.u.]
+    set_limits:
+      x: [0, 500]
+      y: [0, 500]
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs:  {}
