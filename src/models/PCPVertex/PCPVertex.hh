@@ -68,7 +68,8 @@ private:
     //      hide them inside a struct ...
     const std::shared_ptr<DataGroup> _grp_vertices;
     const std::shared_ptr<DataGroup> _grp_edges;
-    const std::shared_ptr<DataGroup> _grp_cells;
+    const std::shared_ptr<DataGroup> _grp_cells;    
+    const std::shared_ptr<DataSet> _dset_forces;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -97,7 +98,8 @@ public:
         //      or  _dset_state(this->create_dset("state", {num_states})) <- 2d
         _grp_vertices(this->_hdfgrp->open_group("vertices")),
         _grp_edges(this->_hdfgrp->open_group("edges")),
-        _grp_cells(this->_hdfgrp->open_group("cells"))
+        _grp_cells(this->_hdfgrp->open_group("cells")),
+        _dset_forces(this->create_dset("forces", {}))
     {
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
@@ -422,7 +424,77 @@ public:
       *         in a single iteration step
       */
     void perform_step () {
+        // reset forces
+        for (auto v : _vertices) {
+            v->fx = 0.;
+            v->fy = 0.;
+        }
 
+        // line tension
+        for (auto e : _edges) {
+            double dx = e->b->x - e->a->x;
+            double dy = e->b->y - e->a->y;
+
+            if constexpr (periodic_bc) {
+                if (dx <= -Lx / 2.) { dx = dx + Lx; }
+                else if (dx > Lx / 2.) { dx = dx - Lx; }
+
+                if (dy <= -Ly / 2.) { dy = dy + Ly; }
+                else if (dy > Ly / 2.) { dy = dy - Ly; }
+            }
+
+            e->length = sqrt(pow(dx, 2.) + pow(dy, 2.));
+
+            const double fx = _linetension*dx/e->length;
+            const double fy = _linetension*dy/e->length;
+
+            e->a->fx += fx;
+            e->a->fy += fy;
+            e->b->fx -= fx;
+            e->b->fy -= fy;
+        }
+        
+        // area elasticity
+        int cnt = 0;
+        for (auto c : _cells) {
+            double area = c->cell_area();
+
+            for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
+                auto e0_pair  = c->edges_ordered[std::max(0, edges_it - 1)];
+                if (edges_it == 0) { e0_pair = c->edges_ordered.back(); }
+                const auto e1_pair = c->edges_ordered[edges_it];
+                
+                // vertices in the anti-clockwise ordering
+                Vertex_ptr v_center, v_prior, v_post;
+                if (std::get<bool>(e0_pair)) {
+                    v_center = std::get<Edge_ptr>(e0_pair)->a;
+                    v_prior = std::get<Edge_ptr>(e0_pair)->b; 
+                }
+                else {
+                    v_center = std::get<Edge_ptr>(e0_pair)->b;
+                    v_prior = std::get<Edge_ptr>(e0_pair)->a;
+                }
+                if (std::get<bool>(e1_pair)) {
+                    v_post = std::get<Edge_ptr>(e1_pair)->a;
+                }
+                else {
+                    v_post = std::get<Edge_ptr>(e1_pair)->b;
+                }
+
+                double dA_dx = 0.5 * (v_post->y - v_prior->y) * c->area_sgn;
+                double dA_dy = 0.5 * (v_prior->x - v_post->x) * c->area_sgn;
+                // TODO periodicity and fix
+                
+                v_center->fx -= _area_elasticity * (c->area - _area_preferential)*dA_dx;
+                v_center->fy -= _area_elasticity * (c->area - _area_preferential)*dA_dy;
+            }
+        }
+        
+        // update vertex positions from forces
+        for (auto v : _vertices) {
+            v->x += v->fx * _dt;
+            v->y += v->fy * _dt;
+        }
     }
 
 
@@ -485,11 +557,17 @@ public:
         dset_cs->add_attribute("num_cells", num_cells);
 
         dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
-            return c->s->x;
+            return c->cell_center()->x;
         });
         dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
             return c->s->y;
         });
+
+        double tot_forces_2 = 0;
+        for (const auto &v : _vertices) {
+            tot_forces_2 += pow(v->fx, 2) + pow(v->fy, 2);
+        }
+        _dset_forces->write(sqrt(tot_forces_2)/_vertices.size());
 
     }
 

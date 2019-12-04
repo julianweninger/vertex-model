@@ -210,6 +210,8 @@ struct Cell {
     /// The area of a polygon cell
     double cell_area () {
         area = 0;
+        double center_x = 0;
+        double center_y = 0;
 
         double ref_x, ref_y; // the reference vertex
         if (std::get<bool>(edges_ordered.front())) {
@@ -249,7 +251,10 @@ struct Cell {
             }
 
             // ref is a, ref + (dx, dy) is b
-            area += ref_x * (ref_y + dy) - (ref_x + dx) * ref_y;
+            double da = ref_x * (ref_y + dy) - (ref_x + dx) * ref_y;
+            area += da;
+            center_x -= (ref_x + ref_x + dx) * da;
+            center_y -= (ref_y + ref_y + dy) * da;
 
             // set ref duplicate of b -- b will be a in next step
             ref_x = ref_x + dx;
@@ -261,8 +266,15 @@ struct Cell {
         else { area_sgn = 1;}
 
         area = 0.5 * abs(area);
+        s = std::make_shared<Site>(center_x/6/area, center_y/6/area);
 
         return area;
+    }
+
+    std::shared_ptr<Site> cell_center() {
+        cell_area();
+
+        return s;
     }
 };
 
