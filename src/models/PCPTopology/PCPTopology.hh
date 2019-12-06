@@ -55,6 +55,9 @@ private:
     std::shared_ptr<EdgeContainer> _edges;
     std::shared_ptr<CellContainer> _cells;
 
+    int _num_equilibration_steps;
+    double _equilibration_tolerance;
+
     // .. Temporary objects ...................................................
 
 
@@ -81,10 +84,15 @@ public:
 
         _vertices(nullptr),
         _edges(nullptr),
-        _cells(nullptr)
+        _cells(nullptr),
         // _vertices(_vertex_model.get_vertices_ptr()),
         // _edges(_vertex_model.get_edges_ptr()),
-        // _cells(_vertex_model.get_cells_ptr())
+        // _cells(_vertex_model.get_cells_ptr()),
+
+        _num_equilibration_steps(get_as<int>("num_equilibration_steps",
+                                             this->_cfg)),
+        _equilibration_tolerance(get_as<double>("equilibration_tolerance",
+                                             this->_cfg))
 
         // Open the datasets
         // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
@@ -94,6 +102,8 @@ public:
             _vertex_model.write_data();
             // NOTE Need this because env model is never run, but only iterated
         }
+
+        this->equilibrate_vertex_model();
     }
 
 
@@ -101,6 +111,26 @@ private:
     // .. Setup functions .....................................................
 
     // .. Helper functions ....................................................
+    void equilibrate_vertex_model() {
+        bool equilibrated = false;
+        int time_start = _vertex_model.get_time();
+        while (not equilibrated) {
+            this->_log->info("Iterating vertex model for equilibration from "
+                             "time {} to {}",
+                            _vertex_model.get_time(),
+                            _vertex_model.get_time() + _num_equilibration_steps);
+            for (int i = 0; i < _num_equilibration_steps; ++i) {
+                _vertex_model.iterate();
+            }
+            equilibrated = _vertex_model.equilibrium_state_reached(
+                                            _equilibration_tolerance);
+            if (_vertex_model.get_time() - time_start >= 1000) {
+                throw std::runtime_error("Equilibration not reached!");
+            }
+        }
+        this->_log->info("Vertex model equilibrated within {} steps", 
+                         _vertex_model.get_time() - time_start);
+    }
 
 public:
     // -- Public Interface ----------------------------------------------------
@@ -108,7 +138,7 @@ public:
 
     /// Iterate a single step
     void perform_step () {
-        _vertex_model.iterate();
+        // _vertex_model.iterate();
     }
 
 

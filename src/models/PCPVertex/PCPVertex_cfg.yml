@@ -24,13 +24,11 @@ periodic_bc: false
 
 dt: 0.1
 
-linetension: 10.
-area_elasticity: 0.001
-area_preferential: 5000.
+linetension: 0.1
+area_elasticity: 1
+area_preferential: 1
 
-equilibrium_tolerance: 0.1
-
-hexagon_size: 50.
+hexagon_size: 0.62
 lattice_rows: 10
 lattice_columns: 10
 

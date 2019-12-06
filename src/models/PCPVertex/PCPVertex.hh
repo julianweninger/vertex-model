@@ -59,13 +59,6 @@ private:
     double _area_elasticity;
     double _area_preferential;
 
-    /// Tolerance fraction for equilibrium criterion
-    /** The fraction of characteristic length (defined by the average
-     *  preferential area) a vertex can maximal move to still be considered in
-     *  equilibrium
-     */
-    double _equilibrium_tolerance;
-
     // .. Temporary objects ...................................................
 
 
@@ -99,8 +92,6 @@ public:
         _linetension(get_as<double>("linetension", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
-
-        _equilibrium_tolerance(get_as<double>("equilibrium_tolerance", this->_cfg)),
 
         // Open the datasets
         // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
@@ -579,7 +570,7 @@ public:
             return c->s->y;
         });
 
-        _dset_forces->write(this->force_max_on_vertex());
+        // _dset_forces->write(this->force_max_on_vertex());
     }
 
 
@@ -603,8 +594,11 @@ public:
      *  \param tolerance    The fraction of preferential area that a vertex may
      *                      move being to still be considered in equilibrium
      */
-    bool equilibrium_state_reached() const {
-        return (force_max_on_vertex() * _dt < _equilibrium_tolerance*sqrt(_area_preferential));
+    bool equilibrium_state_reached(double tolerance) const {
+        this->_log->debug("Equilibrium criterion is {} < {} ?",
+                          force_max_on_vertex(),
+                          tolerance*sqrt(_area_preferential));
+        return (force_max_on_vertex() < tolerance*sqrt(_area_preferential));
     };
 };
 

@@ -265,7 +265,7 @@ struct Cell {
         // else if (area == 0) { area_sgn = 0;} // NOTE don't care
         else { area_sgn = 1;}
 
-        area = 0.5 * abs(area);
+        area = 0.5 * area * area_sgn;
         s = std::make_shared<Site>(center_x/6/area, center_y/6/area);
 
         return area;
