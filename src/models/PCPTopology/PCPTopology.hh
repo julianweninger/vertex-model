@@ -55,8 +55,9 @@ private:
     std::shared_ptr<EdgeContainer> _edges;
     std::shared_ptr<CellContainer> _cells;
 
-    int _num_equilibration_steps;
     double _equilibration_tolerance;
+    int _num_equilibration_steps;
+    int _num_equilibration_iterations;
 
     // .. Temporary objects ...................................................
 
@@ -89,9 +90,11 @@ public:
         // _edges(_vertex_model.get_edges_ptr()),
         // _cells(_vertex_model.get_cells_ptr()),
 
+        _equilibration_tolerance(get_as<double>("equilibration_tolerance",
+                                             this->_cfg)),
         _num_equilibration_steps(get_as<int>("num_equilibration_steps",
                                              this->_cfg)),
-        _equilibration_tolerance(get_as<double>("equilibration_tolerance",
+        _num_equilibration_iterations(get_as<int>("num_equilibration_iterations",
                                              this->_cfg))
 
         // Open the datasets
@@ -104,6 +107,8 @@ public:
         }
 
         this->equilibrate_vertex_model();
+
+        this->_log->debug("Initialised model.");
     }
 
 
@@ -115,7 +120,7 @@ private:
         bool equilibrated = false;
         int time_start = _vertex_model.get_time();
         while (not equilibrated) {
-            this->_log->info("Iterating vertex model for equilibration from "
+            this->_log->debug("Iterating vertex model for equilibration from "
                              "time {} to {}",
                             _vertex_model.get_time(),
                             _vertex_model.get_time() + _num_equilibration_steps);
@@ -124,11 +129,16 @@ private:
             }
             equilibrated = _vertex_model.equilibrium_state_reached(
                                             _equilibration_tolerance);
-            if (_vertex_model.get_time() - time_start >= 1000) {
-                throw std::runtime_error("Equilibration not reached!");
+            int max_steps = _num_equilibration_steps * _num_equilibration_iterations;
+            if (_vertex_model.get_time() - time_start >= max_steps) {
+                throw std::runtime_error("Equilibration not reached within {} "
+                        "iterations of {} steps each at a tolerance of {}!",
+                        _num_equilibration_iterations,
+                        _num_equilibration_steps,
+                        _equilibration_tolerance);
             }
         }
-        this->_log->info("Vertex model equilibrated within {} steps", 
+        this->_log->debug("Vertex model equilibrated within {} steps", 
                          _vertex_model.get_time() - time_start);
     }
 
