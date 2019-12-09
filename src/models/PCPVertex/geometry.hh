@@ -17,6 +17,22 @@ const bool periodic_bc = false;
 double Lx = 100., Ly = 100.;
 double DX = 0.01, DY = 0.01;
 
+struct Site;
+struct Vertex;
+struct Edge;
+struct Cell;
+
+using Site_ptr = std::shared_ptr<Site>;
+using Vertex_ptr = std::shared_ptr<Vertex>;
+using Edge_ptr = std::shared_ptr<Edge>;
+using Cell_ptr = std::shared_ptr<Cell>;
+
+using SiteContainer = std::vector<Site_ptr>;
+using VertexContainer = std::vector<Vertex_ptr>;
+using EdgeContainer = std::vector<Edge_ptr>;
+using CellContainer = std::vector<Cell_ptr>;
+
+
 struct Site {
     double x, y;
     int current_id;
@@ -29,62 +45,55 @@ struct Site {
     { }
 };
 
-using Site_ptr = std::shared_ptr<Site>;
-
 /// The Vertex described by its coordinates (x,y)
 struct Vertex : Site {
     // double x, y
     double fx, fy;
 
-    Vertex(double x, double y)
+    /// Container of the adjacent edges
+    EdgeContainer adj_edges;
+
+    /// Container of the the adjacent cells
+    CellContainer adj_cells;
+
+    Vertex(double x, double y, EdgeContainer adj_es = {},
+           CellContainer adj_cs = {})
     :
         Site(x, y),
         fx(0.),
-        fy(0.)
+        fy(0.),
+        adj_edges(adj_es),
+        adj_cells(adj_cs)
     { }
-
-    Vertex(const Vertex &b)
-    :
-        Vertex(b.x, b.y)
-    {}
-
-    ~Vertex() { }
 };
-
-using Vertex_ptr = std::shared_ptr<Vertex>;
-
-/// The map of Vertexes to their Id
-using VertexContainer = std::vector<Vertex_ptr>;
 
 double distance(const Site_ptr &a, const Site_ptr &b) {
     sqrt(pow(b->x - b->x, 2) + pow(b->y - a->y, 2));
 }
 
+
 /// The Edge described by the ids of the Vertixes
-struct Edge {
-    const std::shared_ptr<Vertex> a, b;
+struct Edge {    
+    const Vertex_ptr a, b;
+
     double length;
     /** NOTE manual update */
 
-    std::shared_ptr<Edge> replace_edge;
+    Edge_ptr replace_edge;
 
-    Edge(std::shared_ptr<Vertex> a, std::shared_ptr<Vertex> b, double l = 0.)
+    /// Container of the the adjacent cells
+    CellContainer adj_cells;
+
+    Edge(Vertex_ptr a, Vertex_ptr b,
+         CellContainer adj_cs = {}, double l = 0.)
     :
         a(a),
         b(b),
         length(l),
-        replace_edge(nullptr)
+        replace_edge(nullptr),
+        adj_cells(adj_cs)
     { }
-
-    ~Edge() { }
 };
-
-
-using Edge_ptr = std::shared_ptr<Edge>;
-
-/// The Edges between two vertexes
-/** described by the Ids of the two Vertexes and its length */
-using EdgeContainer = std::vector<Edge_ptr>;
 
 /// The length of an edge
 double edge_length (Edge_ptr e) 
@@ -103,9 +112,9 @@ double edge_length (Edge_ptr e)
     return (sqrt(pow(dx, 2.) + pow(dy, 2.)));
 }
 
-/// The Cell defined by its id, its vertexes and its area
+/// The Cell defined by its id, its vertices and its area
 struct Cell {
-    VertexContainer vertexes;
+    VertexContainer vertices;
     /// The cell edges in order with the boolian flip
     /** The edges start at a random point, such that e0->a->x , e0->b->b
      *  From the endpoint b, the following edge fill continue to b', etc.
@@ -119,28 +128,20 @@ struct Cell {
     char area_sgn;
     /** NOTE updated together with area */
 
-    std::shared_ptr<Site> s; // for Voronoi construction
+    Site_ptr s; // for Voronoi construction
 
-    Cell(std::shared_ptr<Site> s, EdgeContainer &es, double a = 0.)
+    Cell(Site_ptr s, EdgeContainer &es, double a = 0.)
     :
         edges_ordered(),
         area(a),
         s(s)
     {
         order_edges(es);
-        return;
     }
-
-    Cell(EdgeContainer &es, double a = 0.)
-    :
-        Cell(nullptr, es, a)
-    { }
-
-    ~Cell() { }
 
     void order_edges(EdgeContainer es) {
         edges_ordered.clear();
-        vertexes.clear();
+        vertices.clear();
 
         if (es.empty()) { return; }
 
@@ -188,13 +189,13 @@ struct Cell {
             }
         }
 
-        // add vertexes from edges
+        // add vertices from edges
         for (const auto e : edges_ordered) {
             if (std::get<bool>(e)) { // flip
-                vertexes.push_back(std::get<Edge_ptr>(e)->b);
+                vertices.push_back(std::get<Edge_ptr>(e)->b);
             }
             else {
-                vertexes.push_back(std::get<Edge_ptr>(e)->a);
+                vertices.push_back(std::get<Edge_ptr>(e)->a);
             }
         }
     }
@@ -270,18 +271,7 @@ struct Cell {
 
         return area;
     }
-
-    std::shared_ptr<Site> cell_center() {
-        cell_area();
-
-        return s;
-    }
 };
-
-using Cell_ptr = std::shared_ptr<Cell>;
-
-/// The collection of cells
-using CellContainer = std::vector<Cell_ptr>;
 
 } // namespace PCPVertex
 } // namespace Models

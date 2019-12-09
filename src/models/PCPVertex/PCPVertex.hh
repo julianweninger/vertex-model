@@ -110,6 +110,24 @@ public:
         this->_log->info("Model initialized.");
     }
 
+    ~PCPVertex () {
+        std::for_each(_vertices.begin(), _vertices.end(), [](auto &v){
+            v->adj_edges.clear();
+            v->adj_cells.clear();
+        });
+        std::for_each(_edges.begin(), _edges.end(), [](auto &e){
+            e->replace_edge = nullptr;
+            e->adj_cells.clear();
+        });
+        std::for_each(_cells.begin(), _cells.end(), [](auto &c){
+            c->vertices.clear();
+            c->edges_ordered.clear();
+        });
+        _vertices.clear();
+        _edges.clear();
+        _cells.clear();
+    }
+
 
 private:
     // .. Setup functions .....................................................
@@ -268,6 +286,8 @@ private:
                     // lower left edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id], _vertices[2*c_id + 1] ));
+                    // _vertices[2 * c_id]->adj_edges.push_back(_edges.back());
+                    // _vertices[2*c_id + 1]->adj_edges.push_back(_edges.back());
                     // lower right edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id + 1],
@@ -564,7 +584,8 @@ public:
         dset_cs->add_attribute("num_cells", num_cells);
 
         dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
-            return c->cell_center()->x;
+            c->cell_area(); // update the cell center'
+            return c->s->x;
         });
         dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
             return c->s->y;
