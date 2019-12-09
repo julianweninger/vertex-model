@@ -131,11 +131,12 @@ private:
                                             _equilibration_tolerance);
             int max_steps = _num_equilibration_steps * _num_equilibration_iterations;
             if (_vertex_model.get_time() - time_start >= max_steps) {
-                throw std::runtime_error("Equilibration not reached within {} "
-                        "iterations of {} steps each at a tolerance of {}!",
-                        _num_equilibration_iterations,
-                        _num_equilibration_steps,
-                        _equilibration_tolerance);
+                throw std::runtime_error("Equilibration not reached within " +
+                        std::to_string(_num_equilibration_iterations) + 
+                        " iterations " + 
+                        std::to_string(_num_equilibration_steps) + " of " +
+                        std::to_string(_equilibration_tolerance) + 
+                        " steps each at a tolerance of {}!");
             }
         }
         this->_log->debug("Vertex model equilibrated within {} steps", 
