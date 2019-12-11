@@ -77,7 +77,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             hlpr.invoke_helper('set_title', title="Time {}".format(step))
             # Done with this frame; yield control to the animation framework
             # which will grab the frame...
-            # hlpr.invoke_helper('set_limits', x=[0, 500], y=[0, 500])
+            # hlpr.invoke_helper('set_limits', x=[0, 3.5], y=[0, 3])
             yield
 
 

@@ -13,7 +13,6 @@ namespace Utopia {
 namespace Models {
 namespace PCPVertex {
 
-const bool periodic_bc = false;
 double Lx = 100., Ly = 100.;
 double DX = 0.01, DY = 0.01;
 
@@ -37,11 +36,15 @@ struct Site {
     double x, y;
     int current_id;
 
+    /// Whether this object is to be removed 
+    bool remove;
+
     Site(double x, double y)
     :
         x(x),
         y(y),
-        current_id(0)
+        current_id(0),
+        remove(false)
     { }
 };
 
@@ -51,10 +54,11 @@ struct Vertex : Site {
     double fx, fy;
 
     /// Container of the adjacent edges
-    EdgeContainer adj_edges;
+    std::vector<std::weak_ptr<Edge>> adj_edges;
+    // TODO use weak ptr here
 
     /// Container of the the adjacent cells
-    CellContainer adj_cells;
+    std::vector<std::weak_ptr<Cell>> adj_cells;
 
     Vertex(double x, double y, EdgeContainer adj_es = {},
            CellContainer adj_cs = {})
@@ -62,27 +66,50 @@ struct Vertex : Site {
         Site(x, y),
         fx(0.),
         fy(0.),
-        adj_edges(adj_es),
-        adj_cells(adj_cs)
+        adj_edges(),
+        adj_cells()
+    {
+        for (auto e : adj_es) {
+            adj_edges.push_back(e);
+        }
+        for (auto c : adj_cs) {
+            adj_cells.push_back(c);
+        }
+    }
+
+    Vertex(Site_ptr s) : Vertex(s->x, s->y)
     { }
 };
 
+template <bool periodic_bc>
 double distance(const Site_ptr &a, const Site_ptr &b) {
-    sqrt(pow(b->x - b->x, 2) + pow(b->y - a->y, 2));
+    double dx = b->x - a->x;
+    double dy = b->y - a->y;
+
+    if constexpr (periodic_bc) {
+        if (dx <= -Lx / 2.) { dx += Lx; }
+        else if (dx > Lx / 2.) { dx -= Lx; }
+
+        if (dy <= -Ly / 2.) { dy += Ly; }
+        else if (dy > Ly / 2.) { dy -= Ly; }
+    }
+    
+    return sqrt(pow(dx, 2) + pow(dy, 2));
 }
 
 
 /// The Edge described by the ids of the Vertixes
 struct Edge {    
-    const Vertex_ptr a, b;
+    Vertex_ptr a, b;
 
     double length;
     /** NOTE manual update */
 
-    Edge_ptr replace_edge;
-
     /// Container of the the adjacent cells
-    CellContainer adj_cells;
+    std::vector<std::weak_ptr<Cell>> adj_cells;
+
+    /// Whether this object is to be removed 
+    bool remove;
 
     Edge(Vertex_ptr a, Vertex_ptr b,
          CellContainer adj_cs = {}, double l = 0.)
@@ -90,26 +117,20 @@ struct Edge {
         a(a),
         b(b),
         length(l),
-        replace_edge(nullptr),
-        adj_cells(adj_cs)
-    { }
+        adj_cells(),
+        remove(false)
+    {
+        for (auto c : adj_cs) {
+            adj_cells.push_back(c);
+        }
+    }
 };
 
 /// The length of an edge
+template <bool periodic_bc>
 double edge_length (Edge_ptr e) 
 {
-    double dx = e->b->x - e->a->x;
-    double dy = e->b->y - e->a->y;
-
-    if constexpr (periodic_bc) {
-        if (dx <= -Lx / 2.) { dx = dx + Lx; }
-        else if (dx > Lx / 2.) { dx = dx - Lx; }
-
-        if (dy <= -Ly / 2.) { dy = dy + Ly; }
-        else if (dy > Ly / 2.) { dy = dy - Ly; }
-    }
-
-    return (sqrt(pow(dx, 2.) + pow(dy, 2.)));
+    return distance<periodic_bc>(e->a, e->b);
 }
 
 /// The Cell defined by its id, its vertices and its area
@@ -128,13 +149,21 @@ struct Cell {
     char area_sgn;
     /** NOTE updated together with area */
 
-    Site_ptr s; // for Voronoi construction
+    Site_ptr s;
 
-    Cell(Site_ptr s, EdgeContainer &es, double a = 0.)
+    double area_preferential;
+
+    /// Whether this object is to be removed 
+    bool remove;
+
+    Cell(Site_ptr s, EdgeContainer &es, double area_preferential)
     :
         edges_ordered(),
-        area(a),
-        s(s)
+        area(0.),
+        area_sgn(0),
+        s(s),
+        area_preferential(area_preferential),
+        remove(false)
     {
         order_edges(es);
     }
@@ -209,6 +238,7 @@ struct Cell {
     }
 
     /// The area of a polygon cell
+    template <bool periodic_bc>
     double cell_area () {
         area = 0;
         double center_x = 0;

@@ -55,9 +55,14 @@ private:
     // PARAMETERS
     double _dt;    /// timestep scaling
 
+    /// Linetension constant Lambda
     double _linetension;
+    /// Area elasticity constant K
     double _area_elasticity;
+    /// The prefrentrial area of a cell
     double _area_preferential;
+    /// Cells with area smaller than this value are removed in T2 transition
+    double _area_threshold; 
 
     // .. Temporary objects ...................................................
 
@@ -92,6 +97,7 @@ public:
         _linetension(get_as<double>("linetension", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
+        _area_threshold(get_as<double>("area_threshold", this->_cfg)),
 
         // Open the datasets
         // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
@@ -116,7 +122,6 @@ public:
             v->adj_cells.clear();
         });
         std::for_each(_edges.begin(), _edges.end(), [](auto &e){
-            e->replace_edge = nullptr;
             e->adj_cells.clear();
         });
         std::for_each(_cells.begin(), _cells.end(), [](auto &c){
@@ -286,8 +291,6 @@ private:
                     // lower left edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id], _vertices[2*c_id + 1] ));
-                    // _vertices[2 * c_id]->adj_edges.push_back(_edges.back());
-                    // _vertices[2*c_id + 1]->adj_edges.push_back(_edges.back());
                     // lower right edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id + 1],
@@ -384,7 +387,8 @@ private:
                     // NOTE a pair row cannot be at periodic boundary
                     //      hence no need to handle periodicity
 
-                    _cells.push_back(std::make_shared<Cell>(center, edges));
+                    _cells.push_back(std::make_shared<Cell>(center, edges,
+                                                            _area_preferential));
                 }
             }
             else { // impare rows
@@ -408,7 +412,8 @@ private:
                     // upper right
                     edges.push_back(_edges[3*((q+1)%lim_columns + (r+1)%lim_rows * lim_columns)]);
 
-                    _cells.push_back(std::make_shared<Cell>(center, edges));
+                    _cells.push_back(std::make_shared<Cell>(center, edges,
+                                                            _area_preferential));
                 }
             }
         }
@@ -427,6 +432,20 @@ private:
             }
             else {
                 ++it; 
+            }
+        }
+
+        // crosslink the members
+        for (auto &e : _edges) {
+            e->a->adj_edges.push_back(e);
+            e->b->adj_edges.push_back(e);
+        }
+        for (auto &c : _cells) {
+            for (auto v : c->vertices) {
+                v->adj_cells.push_back(c);
+            }
+            for (auto e_pair : c->edges_ordered) {
+                std::get<Edge_ptr>(e_pair)->adj_cells.push_back(c);
             }
         }
 
@@ -451,8 +470,6 @@ private:
             else if (dy > Ly / 2.) { dy = dy - Ly; }
         }
 
-        e->length = sqrt(pow(dx, 2.) + pow(dy, 2.));
-
         const double fx = _linetension*dx/e->length;
         const double fy = _linetension*dy/e->length;
 
@@ -463,8 +480,6 @@ private:
     };
 
     std::function<void(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
-        double area = c->cell_area();
-
         for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
             auto e0_pair  = c->edges_ordered[std::max(0, edges_it - 1)];
             if (edges_it == 0) { e0_pair = c->edges_ordered.back(); }
@@ -487,12 +502,38 @@ private:
                 v_post = std::get<Edge_ptr>(e1_pair)->b;
             }
 
-            double dA_dx = 0.5 * (v_post->y - v_prior->y) * c->area_sgn;
-            double dA_dy = 0.5 * (v_prior->x - v_post->x) * c->area_sgn;
-            // TODO periodicity and fix
+            double dx, dy;
+            if constexpr (periodic_bc) {
+                double dx1 = v_prior->x - v_center->x;
+                if (dx1 <= -Lx / 2.) { dx1 += Lx; }
+                else if (dx1 > Lx / 2.) { dx1 -= Lx; }
+
+                double dx2 = v_center->x - v_post->x;
+                if (dx2 <= -Lx / 2.) { dx2 += Lx; }
+                else if (dx2 > Lx / 2.) { dx2 -= Lx; }
+
+                dx = dx1 + dx2;
+
+                double dy1 = v_post->y - v_center->y;
+                if (dy1 <= -Ly / 2.) { dy1 += Ly; }
+                else if (dy1 > Ly / 2.) { dy1 -= Ly; }
+
+                double dy2 = v_center->y - v_prior->y;
+                if (dy2 <= -Ly / 2.) { dy2 += Ly; }
+                else if (dy2 > Ly / 2.) { dy2 -= Ly; }
+
+                dy = dy1 + dy2;
+            }
+            else {
+                dx = v_prior->x - v_post->x;
+                dy = v_post->y - v_prior->y;
+            }
+
+            double dA_dx = 0.5 * dy * c->area_sgn;
+            double dA_dy = 0.5 * dx * c->area_sgn;
             
-            v_center->fx -= _area_elasticity * (c->area - _area_preferential)*dA_dx;
-            v_center->fy -= _area_elasticity * (c->area - _area_preferential)*dA_dy;
+            v_center->fx -= _area_elasticity * (c->area - c->area_preferential)*dA_dx;
+            v_center->fy -= _area_elasticity * (c->area - c->area_preferential)*dA_dy;
         }
     };
     
@@ -501,18 +542,144 @@ private:
         v->y += v->fy * _dt;
     };
 
+    /// Erase c_it from _cells while updating the topology
+    /** Removes the cell, its edges and its vertices and sets up a vertex at its
+     *  center.
+     * 
+     *  returns _cells.erase(c_it)
+     */
+    CellContainer::iterator T2_transition (CellContainer::iterator &cell_it) 
+    {
+        this->_log->debug("Removing cell in T2 transition..");
+
+        auto cell = *cell_it;
+        
+        // create a new vertex at the center of c
+        cell->cell_area<periodic_bc>(); // updates the center of c        
+        auto new_v = std::make_shared<Vertex>(cell->s);
+        _vertices.push_back(new_v);
+
+        // Tag the objects that are to be removed
+        cell->remove = true;
+        for (auto &v : cell->vertices) {
+            v->remove = true;
+        }
+        for (auto &e_pair : cell->edges_ordered) {
+            std::get<Edge_ptr>(e_pair)->remove = true;
+        }
+
+        // update cells
+        for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
+            auto c = *c_it;
+            
+            if (c->remove) {
+                ++c_it;
+                continue;
+            }
+
+            int num_vertices = c->vertices.size();
+
+            // remove links to removed vertexes
+            c->vertices.erase(
+                std::remove_if(
+                    c->vertices.begin(), c->vertices.end(),
+                    [](auto &v) { return v->remove; }),
+                c->vertices.end()
+            );
+
+            // remove links to removed edges
+            c->edges_ordered.erase(
+                std::remove_if(
+                    c->edges_ordered.begin(), c->edges_ordered.end(),
+                    [](auto &e_pair) { 
+                        return std::get<Edge_ptr>(e_pair)->remove; }),
+                c->edges_ordered.end()
+            );
+            // No new edge to add
+            
+            // NOTE edges will be still ordered once the edges are updates
+
+            // add new_v and update area
+            if (num_vertices > c->vertices.size()) {
+                c->vertices.push_back(new_v);
+                c->cell_area<periodic_bc>();
+            }
+
+            // continue iteration
+            ++c_it;
+        }
+
+        // update edges
+        for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
+            auto e = *e_it;
+            
+            if (e->remove) {
+                e_it = _edges.erase(e_it);
+                continue;
+            }
+
+            // replace vertices that have been removed
+            if (e->a->remove) {
+                e->a = new_v;
+                e->length = edge_length<periodic_bc>(e);
+            }
+            else if (e->b->remove) {
+                e->b = new_v;
+                e->length = edge_length<periodic_bc>(e);
+            }
+
+            ++e_it;
+        }
+
+        // remove vertices
+        _vertices.erase(
+            std::remove_if(
+                _vertices.begin(), _vertices.end(),
+                [](auto v) { return v->remove; }),
+            _vertices.end()
+        );
+
+        // remove cell
+        return _cells.erase(cell_it);
+    }
+
 
 public:
     // -- Public Interface ----------------------------------------------------
     // .. Simulation Control ..................................................
 
     /// Iterate a single step
-    /** \details Here you can add a detailed description what exactly happens 
-      *         in a single iteration step
-      */
+    /** \details Rules applied
+     *      1. reset vertex forces, calculate cell area and edge length
+     *      2. perform T2 transitions on cells
+     *      3. Linetension on edges
+     *      4. Area elasticity on cells
+     *      5. Update vertex positions on vertices
+     */
     void perform_step () {
         // reset forces
         std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
+
+        // calculate edge lengths
+        std::for_each(_edges.begin(), _edges.end(), [](auto &e){
+            e->length = edge_length<periodic_bc>(e);
+        });
+
+        // calculate cell area
+        for (auto &c : _cells) {
+            c->cell_area<periodic_bc>();
+        }
+
+        // T2 transitions -- cell extrusion
+        for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
+            if ((*c_it)->area > _area_threshold) {
+                ++c_it;
+            }
+            else {
+                // erase c_it and update topology
+                c_it = T2_transition(c_it);
+            }
+        }
 
         // line tension
         std::for_each(_edges.begin(), _edges.end(), line_tension);
@@ -521,16 +688,11 @@ public:
         std::for_each(_cells.begin(), _cells.end(), area_elasticity);  
         
         // update vertex positions from forces
-        std::for_each(_vertices.begin(), _vertices.end(), update_position);        
+        std::for_each(_vertices.begin(), _vertices.end(), update_position);
     }
 
 
     /// Monitor model information
-    /** \details Here, functions and values can be supplied to the monitor that
-     *          are then available to the frontend. The monitor() function is
-     *          _only_ called if a certain emit interval has passed; thus, the
-     *          performance hit is small.
-     */
     void monitor () {
         // Can supply information to the monitor here in two ways:
         // this->_monitor.set_entry("key", value);
@@ -583,8 +745,10 @@ public:
         auto dset_cs = _grp_cells->open_dataset(std::to_string(this->_time), {2, num_cells});
         dset_cs->add_attribute("num_cells", num_cells);
 
-        dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
-            c->cell_area(); // update the cell center'
+        for (auto c : _cells) { 
+            c->cell_area<periodic_bc>(); // update the cell center
+        }
+        dset_cs->write(_cells.begin(), _cells.end(), [this](auto c) {
             return c->s->x;
         });
         dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
