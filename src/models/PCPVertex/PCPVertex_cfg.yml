@@ -20,17 +20,18 @@
 
 # --- Initialization parameters
 # Add parameters and their documentation here ...
-periodic_bc: true
-dt: 0.1
+periodic_bc: false
+dt: 0.01
 
 linetension: 0.1
+length_threshold: 0.2
 area_elasticity: 1.
 area_preferential: 1.
 area_threshold: 0.2
 
 hexagon_size: 0.62
-lattice_rows: 8
-lattice_columns: 8
+lattice_rows: 4
+lattice_columns: 4
 
 # --- Dynamics
 # Add parameters and their documentation here ...

@@ -57,12 +57,15 @@ private:
 
     /// Linetension constant Lambda
     double _linetension;
+    /// Edges shorter than this value are replaced in a T1 transition
+    double _length_threshold; 
+    
     /// Area elasticity constant K
     double _area_elasticity;
     /// The prefrentrial area of a cell
     double _area_preferential;
     /// Cells with area smaller than this value are removed in T2 transition
-    double _area_threshold; 
+    double _area_threshold;
 
     // .. Temporary objects ...................................................
 
@@ -95,6 +98,7 @@ public:
         _dt(get_as<double>("dt", this->_cfg)),
 
         _linetension(get_as<double>("linetension", this->_cfg)),
+        _length_threshold(get_as<double>("length_threshold", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
@@ -112,35 +116,16 @@ public:
             get_as<int>("lattice_rows", this->_cfg),
             get_as<int>("lattice_columns", this->_cfg)
         );
+        _edges[_edges.size()/3 + 2]->linetension = 10*_linetension;
 
         this->_log->info("Model initialized.");
-    }
-
-    ~PCPVertex () {
-        std::for_each(_vertices.begin(), _vertices.end(), [](auto &v){
-            v->adj_edges.clear();
-            v->adj_cells.clear();
-        });
-        std::for_each(_edges.begin(), _edges.end(), [](auto &e){
-            e->adj_cells.clear();
-        });
-        std::for_each(_cells.begin(), _cells.end(), [](auto &c){
-            c->vertices.clear();
-            c->edges_ordered.clear();
-        });
-        _vertices.clear();
-        _edges.clear();
-        _cells.clear();
     }
 
 
 private:
     // .. Setup functions .....................................................
-/// https://courses.cs.washington.edu/courses/cse326/00wi/projects/voronoi.html
-    void initialise()
-    {
-        this->_log->debug("Initialising ..");
-    }
+    
+    // https://courses.cs.washington.edu/courses/cse326/00wi/projects/voronoi.html
 
     /** Initializes a odd-r horizontal layout
      *  https://www.redblobgames.com/grids/hexagons/
@@ -205,8 +190,6 @@ private:
      *      
      */
     void initialise_hexagonal(double size, int num_rows, int num_columns) {
-        this->_log->debug("Initialising hexagonal cells ..");
-
         double height = 2 * size;
         double width = sqrt(3) * size;
 
@@ -251,7 +234,6 @@ private:
                 _vertices.push_back(std::make_shared<Vertex>(
                     q*width, r * 0.75 * height) );
                 _vertices.push_back(std::make_shared<Vertex>(
-                    // y = ((r+1)*0.75 + 0.25) * h
                     (q+0.5)*width, (r * 0.75 + 0.25) * height) );
             }
             }
@@ -290,15 +272,18 @@ private:
                     c_id = q + r * lim_columns;
                     // lower left edge
                     _edges.push_back(std::make_shared<Edge>(
-                        _vertices[2 * c_id], _vertices[2*c_id + 1] ));
+                        _vertices[2 * c_id], _vertices[2*c_id + 1],
+                        _linetension));
                     // lower right edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id + 1],
-                        _vertices[2*((q+1)%lim_columns + r*lim_columns)]));
+                        _vertices[2*((q+1)%lim_columns + r*lim_columns)],
+                        _linetension));
                     // left edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id],
-                        _vertices[2*(q + ((r+1)%lim_rows)*lim_columns)]));
+                        _vertices[2*(q + ((r+1)%lim_rows)*lim_columns)],
+                        _linetension));
                 }
                 // delete not needed edges
                 if constexpr (not periodic_bc) {
@@ -337,18 +322,21 @@ private:
                     // lower left edge
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2*c_id],
-                        _vertices[2*c_id + 1]));
+                        _vertices[2*c_id + 1],
+                        _linetension));
                     // lower right edge
                     // connects the lower vertex with
                     // the lower left vertex of the cell to the right
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id + 1],
-                        _vertices[2*((q+1)%lim_columns + r*lim_columns)]));
+                        _vertices[2*((q+1)%lim_columns + r*lim_columns)],
+                        _linetension));
                     // left edge connects the lower left vertex with
                     // the upper vertex of the cell in the row above
                     _edges.push_back(std::make_shared<Edge>(
                         _vertices[2 * c_id + 1],
-                        _vertices[2*(q + ((r+1)%lim_rows)*lim_columns) + 1]));
+                        _vertices[2*(q + ((r+1)%lim_rows)*lim_columns) + 1],
+                        _linetension));
                 }
                 // delete not needed edges
                 if constexpr (not periodic_bc) {
@@ -418,6 +406,7 @@ private:
             }
         }
 
+        // TODO erase remove ideom
         for (auto it = _edges.begin(); it != _edges.end(); /*void*/) {
             if (!it->get()) { // nullptr here
                 it = _edges.erase(it);
@@ -470,8 +459,8 @@ private:
             else if (dy > Ly / 2.) { dy = dy - Ly; }
         }
 
-        const double fx = _linetension*dx/e->length;
-        const double fy = _linetension*dy/e->length;
+        const double fx = e->linetension*dx/e->length;
+        const double fy = e->linetension*dy/e->length;
 
         e->a->fx += fx;
         e->a->fy += fy;
@@ -643,6 +632,211 @@ private:
         return _cells.erase(cell_it);
     }
 
+    /// Perform a T1 transition on the edge edge_it in _edges
+    /** edge_it will be removed and a new edge orthogonal to edge will be created
+     * 
+     */
+    EdgeContainer::iterator T1_transition (EdgeContainer::iterator edge_it)
+    {
+        this->_log->debug("Removing edge in T1 transition..");
+
+        auto edge = *edge_it;
+
+        if (edge->adj_cells.size() != 2)
+        {
+            throw std::runtime_error("Not implemented error: In T1 transition "
+                "(edge length below threshold value) expected 2 adj_cells to "
+                "an edge, but encountered " + 
+                std::to_string(edge->a->adj_cells.size()) + "! "
+                "This would correspond e.g. to an edge at the boundary.");
+        }
+
+        // tag objects to be removed
+        edge->remove = true;
+        edge->a->remove = true;
+        edge->b->remove = true;
+
+        // the adj cells that are currently neighbours sharing edge
+        // NOTE a, b arbitrary
+        Cell_ptr adj_cell_a = edge->adj_cells[0].lock();
+        Cell_ptr adj_cell_b = edge->adj_cells[1].lock();
+
+        // the two cells that become neighbours in this T1 transition
+        // NOTE c is the cell adjoint to vertex edge->a (arbitrary)
+        //      d is the cell adjoint to vertex edge->b
+        Cell_ptr adj_cell_c, adj_cell_d;
+        if (edge->a->adj_cells.size() != 3) {
+            throw std::runtime_error("Not implemented error: In T1 transition "
+                "(edge length < threshold) expected 3 adj_cells to a vertex, "
+                "but encountered " + 
+                std::to_string(edge->a->adj_cells.size()) + "! "
+                "This would be e.g. an edge orthogonal to the outer boundary of "
+                "a collection of cells.");
+        }
+        if (edge->b->adj_cells.size() != 3) {
+            throw std::runtime_error("Not implemented error: In T1 transition "
+                "(edge length < threshold) expected 3 adj_cells to a vertex, "
+                "but encountered " + 
+                std::to_string(edge->b->adj_cells.size()) + "! "
+                "This would be e.g. an edge orthogonal to the outer boundary of "
+                "a collection of cells.");
+        }
+        for (auto &c_weak : edge->a->adj_cells) {
+            auto c = c_weak.lock();
+            if (c != adj_cell_a and c != adj_cell_b) {
+                adj_cell_c = c;
+            }
+        }
+        for (auto &c_weak : edge->b->adj_cells) {
+            auto c = c_weak.lock();
+            if (c != adj_cell_a and c != adj_cell_b) {
+                adj_cell_d = c;
+            }
+        }
+
+        // The involved edges
+        // (a, b) and (c, d) currently share a vertex
+        // (a, c) and (b, c) currently share an adjoint cell a, resp. b
+        // they will share a vertex a (resp. b) after transition
+        Edge_ptr adj_edge_a, adj_edge_b, adj_edge_c, adj_edge_d;
+        if (edge->a->adj_edges.size() != 3 or edge->b->adj_edges.size() != 3) {
+            throw std::runtime_error("Expected 3 adj_edges to a vertex, but "
+                    "encountered " + std::to_string(edge->a->adj_edges.size())
+                    + "!");
+        }
+        for (auto &e_weak : edge->a->adj_edges) {
+            auto e = e_weak.lock();
+            if (e != edge) {
+                if (std::find_if(
+                            e->adj_cells.begin(),
+                            e->adj_cells.end(),
+                            [adj_cell_a](auto c) { return c.lock() == adj_cell_a; }
+                        ) != e->adj_cells.end()
+                ) {
+                    // edge a is associated with cell a
+                    adj_edge_a = e;
+                }
+                else {
+                    adj_edge_b = e;
+                }
+            }
+        }
+        for (auto &e_weak : edge->b->adj_edges) {
+            auto e = e_weak.lock();
+            if (e != edge) {
+                if (std::find_if(
+                            e->adj_cells.begin(),
+                            e->adj_cells.end(),
+                            [adj_cell_a](auto c) { return c.lock() == adj_cell_a; }
+                        ) != e->adj_cells.end()
+                ) {
+                    // edge c is associated with cell a
+                    adj_edge_c = e;
+                }
+                else {
+                    adj_edge_d = e;
+                }
+            }
+        }
+
+        // create two new vertices that create an edge of threshold length 
+        // pointing from cell a to b
+        auto vector_AB = displacement<periodic_bc>(adj_cell_a->s,
+                                                   adj_cell_b->s);
+        auto length = distance<periodic_bc>(adj_cell_a->s, adj_cell_b->s);
+        double dx = std::get<0>(vector_AB) / length * _length_threshold;
+        double dy = std::get<1>(vector_AB) / length * _length_threshold;
+        auto new_v_a = std::make_shared<Vertex>(
+                                0.5 * (edge->a->x + edge->b->x) - dx / 2.,
+                                0.5 * (edge->a->y + edge->b->y) - dy / 2.);
+        auto new_v_b = std::make_shared<Vertex>(
+                                0.5 * (edge->a->x + edge->b->x) + dx / 2.,
+                                0.5 * (edge->a->y + edge->b->y) + dy / 2.);
+        correct_periodic_bc<periodic_bc>(new_v_a);
+        correct_periodic_bc<periodic_bc>(new_v_b);
+        _vertices.push_back(new_v_a);
+        _vertices.push_back(new_v_b);
+
+        // create a new edge
+        auto new_edge = std::make_shared<Edge>(new_v_a, new_v_b, _linetension);        
+        new_v_a->adj_edges = {new_edge, adj_edge_a, adj_edge_c};    
+        new_v_b->adj_edges = {new_edge, adj_edge_b, adj_edge_d};
+
+        // remove objects
+        _vertices.erase(
+            std::remove_if(
+                _vertices.begin(), _vertices.end(),
+                [](auto v) { return v->remove; }),
+            _vertices.end()
+        );
+        for (auto &c : {adj_cell_a, adj_cell_b, adj_cell_c, adj_cell_d}) {
+            c->vertices.erase(
+                std::remove_if(
+                    c->vertices.begin(), c->vertices.end(), 
+                    [](auto v) { return v->remove; }),
+                c->vertices.end()
+            );
+        }
+        // NOTE edge_it will be removed at the very end
+        // NOTE a and b will be replaced within edges
+
+        // remove edge from adj_cells a and b
+        // NOTE the neighbouring edges now have a common vertex, hence order of
+        //      edges is maintained
+        for (auto &c : {adj_cell_a, adj_cell_b}) {
+            c->edges_ordered.erase(
+                std::remove_if(c->edges_ordered.begin(),
+                               c->edges_ordered.end(), 
+                               [](auto e_pair) {
+                                    return std::get<Edge_ptr>(e_pair)->remove; }),
+                c->edges_ordered.end()
+            );
+        }
+        
+        // replace vertices in edges
+        // NOTE a, c share cell a; b, d share cell b
+        //      hence, new_v_a associated with cell a
+        //      and new_v_b associated with cell b
+        for (auto &e : {adj_edge_a, adj_edge_c}) {
+            if (e->a->remove) { e->a = new_v_a; }
+            else { e->b = new_v_a; }
+        }
+        for (auto &e : {adj_edge_b, adj_edge_d}) {
+            if (e->a->remove) { e->a = new_v_b; }
+            else { e->b = new_v_b; }
+        }
+
+        // add new vertices to cells
+        // NOTE vertex a is associated with cell a; 
+        //      vertex b is associated with cell b
+        //      both associated with cells c and d
+        for (auto c : {adj_cell_a, adj_cell_c, adj_cell_d}) {
+            c->vertices.push_back(new_v_a);
+        }
+        for (auto c : {adj_cell_b, adj_cell_c, adj_cell_d}) {
+            c->vertices.push_back(new_v_b);
+        }
+        new_v_a->adj_cells = {adj_cell_a, adj_cell_c, adj_cell_d};
+        new_v_b->adj_cells = {adj_cell_b, adj_cell_c, adj_cell_d};
+
+        // make a new edge in adj_cells c and d
+        // NOTE this is symmetric, directionality is given by void order_edges()
+        for (auto &c : {adj_cell_c, adj_cell_d}) {
+            c->edges_ordered.push_back(
+                std::make_pair(new_edge, false) );
+            c->order_edges();
+        }
+        new_edge->adj_cells = {adj_cell_c, adj_cell_d};
+
+        adj_cell_a->cell_area<periodic_bc>();
+        adj_cell_b->cell_area<periodic_bc>();
+        adj_cell_c->cell_area<periodic_bc>();
+        adj_cell_d->cell_area<periodic_bc>();
+
+        edge_it = _edges.erase(edge_it);
+        edge_it = _edges.insert(edge_it, new_edge);
+        return ++edge_it;
+    }
 
 public:
     // -- Public Interface ----------------------------------------------------
@@ -657,6 +851,7 @@ public:
      *      5. Update vertex positions on vertices
      */
     void perform_step () {
+
         // reset forces
         std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
 
@@ -689,6 +884,17 @@ public:
         
         // update vertex positions from forces
         std::for_each(_vertices.begin(), _vertices.end(), update_position);
+
+        // T1 transition -- neighborhood change
+        for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
+            if ((*e_it)->length < _length_threshold)
+            {
+                e_it = T1_transition(e_it);
+            }
+            else {
+                ++e_it;
+            }
+        }
     }
 
 
@@ -732,7 +938,8 @@ public:
             return v->y;
         });
 
-        auto dset_es = _grp_edges->open_dataset(std::to_string(this->_time), {2, num_edges});
+        auto dset_es = _grp_edges->open_dataset(std::to_string(this->_time),
+                                                {2, num_edges});
         dset_es->add_attribute("num_edges", num_edges);
         
         dset_es->write(_edges.begin(), _edges.end(), [&](auto e) {
@@ -742,7 +949,8 @@ public:
             return e->b->current_id;
         });
         
-        auto dset_cs = _grp_cells->open_dataset(std::to_string(this->_time), {2, num_cells});
+        auto dset_cs = _grp_cells->open_dataset(std::to_string(this->_time),
+                                                {2, num_cells});
         dset_cs->add_attribute("num_cells", num_cells);
 
         for (auto c : _cells) { 
@@ -761,6 +969,31 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+    std::vector<std::weak_ptr<Vertex>> vertices () {
+        std::vector<std::weak_ptr<Vertex>> vs;
+        for (auto &v : _vertices) {
+            vs.push_back(v);
+        }
+        return vs;
+    }
+
+
+    std::vector<std::weak_ptr<Edge>> edges () {
+        std::vector<std::weak_ptr<Edge>> es;
+        for (auto &e : _edges) {
+            es.push_back(e);
+        }
+        return es;
+    }
+
+
+    std::vector<std::weak_ptr<Cell>> cells () {
+        std::vector<std::weak_ptr<Cell>> cs;
+        for (auto &c : _cells) {
+            cs.push_back(c);
+        }
+        return cs;
+    }
     
     /// Getter for the maximum force on a single vertex
     double force_max_on_vertex() const {

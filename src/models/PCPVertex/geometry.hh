@@ -82,7 +82,21 @@ struct Vertex : Site {
 };
 
 template <bool periodic_bc>
-double distance(const Site_ptr &a, const Site_ptr &b) {
+void correct_periodic_bc(Site_ptr s)
+{
+    if constexpr (periodic_bc) {
+        if (s->x >= Lx) { s->x -= Lx; }
+        else if (s->x < 0) { s->x += Lx; }
+        if (s->y >= Ly) { s->y -= Ly; }
+        else if (s->y < 0) { s->y += Ly; }
+    }
+
+    return;
+}
+
+template <bool periodic_bc>
+std::pair<double, double> displacement(const Site_ptr &a, const Site_ptr &b) 
+{
     double dx = b->x - a->x;
     double dy = b->y - a->y;
 
@@ -93,10 +107,17 @@ double distance(const Site_ptr &a, const Site_ptr &b) {
         if (dy <= -Ly / 2.) { dy += Ly; }
         else if (dy > Ly / 2.) { dy -= Ly; }
     }
-    
-    return sqrt(pow(dx, 2) + pow(dy, 2));
+
+    return std::make_pair(dx, dy);
 }
 
+template <bool periodic_bc>
+double distance(const Site_ptr &a, const Site_ptr &b) {
+    auto v_ab = displacement<periodic_bc>(a, b);
+
+    return std::max(sqrt(pow(std::get<0>(v_ab), 2) + pow(std::get<1>(v_ab), 2)),
+                    1e-10);
+}
 
 /// The Edge described by the ids of the Vertixes
 struct Edge {    
@@ -105,18 +126,21 @@ struct Edge {
     double length;
     /** NOTE manual update */
 
+    double linetension;
+
     /// Container of the the adjacent cells
     std::vector<std::weak_ptr<Cell>> adj_cells;
 
     /// Whether this object is to be removed 
     bool remove;
 
-    Edge(Vertex_ptr a, Vertex_ptr b,
+    Edge(Vertex_ptr a, Vertex_ptr b, double linetension,
          CellContainer adj_cs = {}, double l = 0.)
     :
         a(a),
         b(b),
         length(l),
+        linetension(linetension),
         adj_cells(),
         remove(false)
     {
@@ -158,6 +182,7 @@ struct Cell {
 
     Cell(Site_ptr s, EdgeContainer &es, double area_preferential)
     :
+        vertices(),
         edges_ordered(),
         area(0.),
         area_sgn(0),
@@ -297,7 +322,30 @@ struct Cell {
         else { area_sgn = 1;}
 
         area = 0.5 * area * area_sgn;
-        s = std::make_shared<Site>(center_x/6/area, center_y/6/area);
+        if constexpr (periodic_bc) {
+            double x = -area_sgn * center_x / 6 / area;
+            double y = -area_sgn * center_y / 6 / area;
+            
+            if (x >= Lx) {
+                x -= Lx;
+            }
+            else if (x < 0) {
+                x += Lx;
+            }
+            if (y >= Ly) {
+                x -= Ly;
+            }
+            else if (y < 0) {
+                y += Ly;
+            }
+
+            s = std::make_shared<Site>(x, y);
+        }
+        else {
+            s = std::make_shared<Site>(-area_sgn * center_x / 6 / area, 
+                                       -area_sgn * center_y / 6 / area);
+        }
+        correct_periodic_bc<periodic_bc>(s);
 
         return area;
     }
