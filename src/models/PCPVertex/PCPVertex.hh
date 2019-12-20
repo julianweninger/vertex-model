@@ -405,23 +405,15 @@ private:
             }
         }
 
-        // TODO erase remove ideom
-        for (auto it = _edges.begin(); it != _edges.end(); /*void*/) {
-            if (!it->get()) { // nullptr here
-                it = _edges.erase(it);
-            }
-            else {
-                ++it; 
-            }
-        }
-        for (auto it = _vertices.begin(); it != _vertices.end(); /*void*/) {
-            if (!it->get()) { // nullptr here
-                it = _vertices.erase(it);
-            }
-            else {
-                ++it; 
-            }
-        }
+        // remove expired objects
+        _vertices.erase(
+            std::remove_if(_vertices.begin(), _vertices.end(),
+                           [](auto v) { return v == nullptr; }),
+            _vertices.end());
+        _edges.erase(
+            std::remove_if(_edges.begin(), _edges.end(),
+                           [](auto e) { return e == nullptr; }),
+            _edges.end());
 
         // crosslink the members
         for (auto &e : _edges) {
