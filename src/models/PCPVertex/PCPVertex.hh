@@ -116,7 +116,6 @@ public:
             get_as<int>("lattice_rows", this->_cfg),
             get_as<int>("lattice_columns", this->_cfg)
         );
-        _edges[_edges.size()/3 + 2]->linetension = 10*_linetension;
 
         this->_log->info("Model initialized.");
     }
@@ -969,7 +968,7 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
-    std::vector<std::weak_ptr<Vertex>> vertices () {
+    std::vector<std::weak_ptr<Vertex>> get_vertices () {
         std::vector<std::weak_ptr<Vertex>> vs;
         for (auto &v : _vertices) {
             vs.push_back(v);
@@ -978,7 +977,7 @@ public:
     }
 
 
-    std::vector<std::weak_ptr<Edge>> edges () {
+    std::vector<std::weak_ptr<Edge>> get_edges () {
         std::vector<std::weak_ptr<Edge>> es;
         for (auto &e : _edges) {
             es.push_back(e);
@@ -987,7 +986,7 @@ public:
     }
 
 
-    std::vector<std::weak_ptr<Cell>> cells () {
+    std::vector<std::weak_ptr<Cell>> get_cells () {
         std::vector<std::weak_ptr<Cell>> cs;
         for (auto &c : _cells) {
             cs.push_back(c);
