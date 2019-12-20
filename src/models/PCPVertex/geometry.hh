@@ -14,7 +14,6 @@ namespace Models {
 namespace PCPVertex {
 
 double Lx = 100., Ly = 100.;
-double DX = 0.01, DY = 0.01;
 
 struct Site;
 struct Vertex;

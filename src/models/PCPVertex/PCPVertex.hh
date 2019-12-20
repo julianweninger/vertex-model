@@ -24,9 +24,24 @@ using ModelTypes = Utopia::ModelTypes<>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-/// The PCPVertex Model; the bare-basics a model needs
-/** TODO Add your class description here.
- *  ...
+/// The PCPVertex Model
+/** This model implements the relaxation of an energy function of a planar
+ *  cell polarity system towards a local minimum.
+ * 
+ *  The energy function currently includes the following terms
+ *      - area elasticity
+ *      - line tension, alias surface tension
+ * 
+ *  The energy relaxation is performed in one of the following ways
+ *      - along steepest descent with fixed step size
+ * 
+ *  The model accounts for the following topological changes
+ *      - T1 transition: cell intercalation changes neighbourhood of cells,
+ *          i.e. an edge shrinks to neglecting length and is replaced with 
+ *          an orthogonal edge connecting the two next neighbour cells.
+ *          Thus the cells adjacent to the removed edge are no longer neighbours
+ *      - T2 transition: cell extrusion when cell area shrinks below threshold
+ *          value
  */
 template<bool periodic_bc>
 class PCPVertex:
@@ -48,12 +63,16 @@ private:
     // ... but you should definitely check out the documentation ;)
 
     // -- Members -------------------------------------------------------------
+    /// Container of vertices
     VertexContainer _vertices;
+    /// Container of edges
     EdgeContainer _edges;
+    /// Container of cells
     CellContainer _cells;
 
     // PARAMETERS
-    double _dt;    /// timestep scaling
+    /// timestep scaling
+    double _dt;
 
     /// Linetension constant Lambda
     double _linetension;
@@ -74,9 +93,16 @@ private:
     // NOTE They should be named '_dset_<name>', where <name> is the
     //      dataset's actual name as set in its constructor. Ideally, do not
     //      hide them inside a struct ...
+    /// Group to write Vertices positions.
+    /** NOTE a new DataSet is created for every step */
     const std::shared_ptr<DataGroup> _grp_vertices;
+    /// Group to write Edges. Writes the ids of e->a and e->b
+    /** NOTE a new DataSet is created for every step */
     const std::shared_ptr<DataGroup> _grp_edges;
+    /// Group to write Cells positions.
+    /** NOTE a new DataSet is created for every step */
     const std::shared_ptr<DataGroup> _grp_cells;    
+    /// DataSet to write the maximum forces on a vertex
     const std::shared_ptr<DataSet> _dset_forces;
 
 public:
@@ -90,13 +116,13 @@ public:
     :
         // Initialize first via base model
         Base(name, parent),
-        // Get member paramters from cfg
+        
         _vertices(),
         _edges(),
         _cells(),
         
+        // Get member paramters from cfg
         _dt(get_as<double>("dt", this->_cfg)),
-
         _linetension(get_as<double>("linetension", this->_cfg)),
         _length_threshold(get_as<double>("length_threshold", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -104,8 +130,6 @@ public:
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
 
         // Open the datasets
-        // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
-        //      or  _dset_state(this->create_dset("state", {num_states})) <- 2d
         _grp_vertices(this->_hdfgrp->open_group("vertices")),
         _grp_edges(this->_hdfgrp->open_group("edges")),
         _grp_cells(this->_hdfgrp->open_group("cells")),
@@ -126,67 +150,85 @@ private:
     
     // https://courses.cs.washington.edu/courses/cse326/00wi/projects/voronoi.html
 
-    /** Initializes a odd-r horizontal layout
-     *  https://www.redblobgames.com/grids/hexagons/
-     *  
-     *  odd-r horizontal layout
+    /** Initialiser for randomly distributed cells.
+     * Use a Voronoi decomposition from randomly distributed cell centres
      * 
-     *  The cells of even row have the following locations
-     *      center = [(q + 1)*width, (1.5*r + 0.5) * height]
-     *      with q and r the column and row id
-     *  The cells of odd rows have the follwing locations
-     *      center = [(q+0.5)*width, (1.5*r + 1.25) * height]
-     *  The id of any cell is given as
-     *      c_id = q + r*num_columns
-     *      notice, that in non-periodic boundary condition one additional
-     *      column and row is simulated
-     *  
-     *  For every cell 2 vertices are created, for even rows these are
-     *      [q*width, (0.75 * r + 0.25) * height))]
-     *      [(q+0.5)*width, 0.75 * r * height))]
-     *  and for odd rows
-     *      [q*width, r * 0.75 * height) )]
-     *      [(q+0.5)*width, (r * 0.75 + 0.25) * height) )]
-     *  Thereby the ids of the 6 vertices of every cell have the following ids
-     *      bottom left     2*c_id(q, r)
-     *      bottom          2*c_id(q, r) + 1
-     *      bottom right    2*c_id(q+1, r)
-     *      top left        2*c_id(q, r+1)
-     *      top             2*c_id(q, r+1) + 1
-     *      top right       2*c_id(q+1, r+1)
+     */
+    void initialise_voronoi(int num_cells) {
+        throw std::logic_error("Initialise Voronoi function not yet "
+            "implemented.");
+    }
+
+    /** Initialiser for a hexagonal arrangement of cells.
+     *  Initializes a odd-r horizontal layout of hexagonal cells
      * 
-     *          where e.g. c_id((q+1)%lim_columns, r) denotes the id of the cell
+     *  @param  size        The size (area) of a single cell
+     *  @param  num_rows    The number of cells in a row.
+     *                      Note, that this number has to be even in a periodic
+     *                      setup
+     *  @param  num_columns The number of cells in a column
+     *  
+     *  Cells
+     *      - The cells of even row have the following locations
+     *          - center = [(q + 1)*width, (1.5*r + 0.5) * height],
+     *              with q and r the column and row id     * 
+     *      - The cells of odd rows have the follwing locations
+     *          - center = [(q+0.5)*width, (1.5*r + 1.25) * height]     * 
+     *      - The id of any cell is given as
+     *          - c_id = q + r*num_columns;
+     *              notice, that in non-periodic boundary condition one additional
+     *              column and row is simulated
+     *  
+     *  For every cell 2 vertices are created
+     *      - for even rows these are
+     *          - [q*width, (0.75 * r + 0.25) * height))]
+     *          - [(q+0.5)*width, 0.75 * r * height))]
+     * 
+     *      - for odd rows
+     *          - [q*width, r * 0.75 * height) )]
+     *          - [(q+0.5)*width, (r * 0.75 + 0.25) * height) )]
+     * 
+     *      - Thereby the ids of the 6 vertices of every cell have the following ids
+     *          - bottom left     2*c_id(q, r)
+     *          - bottom          2*c_id(q, r) + 1
+     *          - bottom right    2*c_id(q+1, r)
+     *          - top left        2*c_id(q, r+1)
+     *          - top             2*c_id(q, r+1) + 1
+     *          - top right       2*c_id(q+1, r+1)
+     * 
+     *      - where e.g. c_id((q+1)%lim_columns, r) denotes the id of the cell
      *          to the right, which might be a periodic boundary
      *          lim_columns = num_columns in periodic bc, but 
      *          lim_columns = num_columns+1 otherwise, with the additional
      *          last cell of the row having periodic bc
      * 
      *  For every cell 3 edges are created
-     *      pair rows
-     *          The edges are created as the lower left, lower right and
+     *      - pair rows
+     *          - The edges are created as the lower left, lower right and
      *          left edge of every cell.
-     *          Their enumeration is in this order, thus
+     *          - Their enumeration is in this order, thus
      *              e_bottom_left = 3 * (q + r*num_cols)
      *              e_bottom_right = 3 * (q + r*num_cols) + 1
      *              e_left = 3 * (q + r*num_cols) + 2
-     *          Thereby the remaining edges have the following ids
+     *          - Thereby the remaining edges have the following ids
      *              e_top_left = 3 * (q + (r+1)*num_cols)
      *              e_top_right = 3 * (q + (r+1)*num_cols) + 1
      *              e_right = 3 * ((q+1) + r*num_cols) + 2
      *                  i.e. the left edge of the cell to the right
-     *          Note that the last to edges originate from impair rows
-     *      impair rows
-     *          The edges are created forming a T around the lower left vertex
+     *          - Note that the last to edges originate from impair rows
+     *      - impair rows
+     *          - The edges are created forming a T around the lower left vertex
      *          of every cell in the order of lower left, lower right, and left
-     *          Thus
-     *              e_bottom_left = 3 * (q + r*num_cols) + 1
-     *              e_left = 3 * (q + r*num_cols) + 2
-     *              e_bottom_right = 3 * ((q+1) + r*num_cols)
-     *          And the remaining edges have the following ids
-     *              e_top_left = 3 * (q + (r+1)*num_cols) + 1
-     *              e_right = 3 * ((q+1) + r*num_cols) + 2
-     *              e_top_right = 3 * ((q+1) + (r+1)*num_cols)
-     *      
+     *          - Thus
+     *              - e_bottom_left = 3 * (q + r*num_cols) + 1
+     *              - e_left = 3 * (q + r*num_cols) + 2
+     *              - e_bottom_right = 3 * ((q+1) + r*num_cols)
+     *          - And the remaining edges have the following ids
+     *              - e_top_left = 3 * (q + (r+1)*num_cols) + 1
+     *              - e_right = 3 * ((q+1) + r*num_cols) + 2
+     *              - e_top_right = 3 * ((q+1) + (r+1)*num_cols)
+     * 
+     *  for additional details see https://www.redblobgames.com/grids/hexagons/
      */
     void initialise_hexagonal(double size, int num_rows, int num_columns) {
         double height = 2 * size;
@@ -433,11 +475,20 @@ private:
     }
 
     // .. Helper functions ....................................................
+    /// Resets the forces of this vertex
     std::function<void(Vertex_ptr&)> reset_forces = [](Vertex_ptr &v) {
         v->fx = 0.;
         v->fy = 0.;
     };
 
+    /** Calculates the forces from linetension
+     * 
+     *  Contractive force of the edge where energy is proportional to the edge's
+     *  length.
+     * 
+     *  @param  e   Pointer to the edge for which to calculate the forces
+     *              NOTE that forces only act on vertices
+     */
     std::function<void(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
         double dx = e->b->x - e->a->x;
         double dy = e->b->y - e->a->y;
@@ -459,13 +510,24 @@ private:
         e->b->fy -= fy;
     };
 
+    /** Calculates the forces from area elasticity
+     * 
+     *  Response force to a deformation in area where the energy is 
+     *  K/2 * (A - A0)**2
+     * 
+     *  @param c    Pointer to the cell for which to calculate the forces
+     *              NOTE that forces only act on vertices
+     */
     std::function<void(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
         for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
+            // the edge prior the vertex
             auto e0_pair  = c->edges_ordered[std::max(0, edges_it - 1)];
             if (edges_it == 0) { e0_pair = c->edges_ordered.back(); }
+
+            // the edge post the vertex
             const auto e1_pair = c->edges_ordered[edges_it];
             
-            // vertices in the anti-clockwise ordering
+            // vertices in ordering
             Vertex_ptr v_center, v_prior, v_post;
             if (std::get<bool>(e0_pair)) {
                 v_center = std::get<Edge_ptr>(e0_pair)->a;
@@ -512,21 +574,29 @@ private:
             double dA_dx = 0.5 * dy * c->area_sgn;
             double dA_dy = 0.5 * dx * c->area_sgn;
             
+            // this is the force on this vertex
             v_center->fx -= _area_elasticity * (c->area - c->area_preferential)*dA_dx;
             v_center->fy -= _area_elasticity * (c->area - c->area_preferential)*dA_dy;
         }
     };
     
+    /** The update of position
+     * 
+     *  Move vertex proportional to the gradient of energy (force)
+     * 
+     *  @param v    The pointer to the vertex to update
+     */
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
         v->x += v->fx * _dt;
         v->y += v->fy * _dt;
     };
 
-    /// Erase c_it from _cells while updating the topology
-    /** Removes the cell, its edges and its vertices and sets up a vertex at its
-     *  center.
+    /** Erase cell from _cells while updating the topology (T2 transition)
      * 
-     *  returns _cells.erase(c_it)
+     *  Removes the cell, its edges and its vertices and sets up a vertex at its
+     *  centre.
+     * 
+     *  returns _cells.erase(cell_it)
      */
     CellContainer::iterator T2_transition (CellContainer::iterator &cell_it) 
     {
@@ -623,9 +693,9 @@ private:
         return _cells.erase(cell_it);
     }
 
-    /// Perform a T1 transition on the edge edge_it in _edges
-    /** edge_it will be removed and a new edge orthogonal to edge will be created
+    /** Perform a T1 transition on the edge edge_it in _edges
      * 
+     *  edge_it will be removed and a new edge orthogonal to edge will be created
      */
     EdgeContainer::iterator T1_transition (EdgeContainer::iterator edge_it)
     {
@@ -819,13 +889,23 @@ private:
         }
         new_edge->adj_cells = {adj_cell_c, adj_cell_d};
 
+        // update the objects
         adj_cell_a->cell_area<periodic_bc>();
         adj_cell_b->cell_area<periodic_bc>();
         adj_cell_c->cell_area<periodic_bc>();
         adj_cell_d->cell_area<periodic_bc>();
 
+        new_edge->length = edge_length<periodic_bc>(new_edge);
+        adj_edge_a->length = edge_length<periodic_bc>(adj_edge_a);
+        adj_edge_b->length = edge_length<periodic_bc>(adj_edge_b);
+        adj_edge_c->length = edge_length<periodic_bc>(adj_edge_c);
+        adj_edge_d->length = edge_length<periodic_bc>(adj_edge_d);
+
+        // replace the edge at adge_it
         edge_it = _edges.erase(edge_it);
         edge_it = _edges.insert(edge_it, new_edge);
+
+        // Done
         return ++edge_it;
     }
 
@@ -835,11 +915,12 @@ public:
 
     /// Iterate a single step
     /** \details Rules applied
-     *      1. reset vertex forces, calculate cell area and edge length
-     *      2. perform T2 transitions on cells
-     *      3. Linetension on edges
-     *      4. Area elasticity on cells
-     *      5. Update vertex positions on vertices
+     *      -# reset vertex forces, calculate cell area and edge length
+     *      -# perform T2 transitions on cells
+     *      -# perform T1 transitions on edges 
+     *      -# Linetension on edges
+     *      -# Area elasticity on cells
+     *      -# Update vertex positions on vertices
      */
     void perform_step () {
 
@@ -867,15 +948,6 @@ public:
             }
         }
 
-        // line tension
-        std::for_each(_edges.begin(), _edges.end(), line_tension);
-        
-        // area elasticity      
-        std::for_each(_cells.begin(), _cells.end(), area_elasticity);  
-        
-        // update vertex positions from forces
-        std::for_each(_vertices.begin(), _vertices.end(), update_position);
-
         // T1 transition -- neighborhood change
         for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
             if ((*e_it)->length < _length_threshold)
@@ -886,6 +958,15 @@ public:
                 ++e_it;
             }
         }
+
+        // line tension
+        std::for_each(_edges.begin(), _edges.end(), line_tension);
+        
+        // area elasticity      
+        std::for_each(_cells.begin(), _cells.end(), area_elasticity);  
+        
+        // update vertex positions from forces
+        std::for_each(_vertices.begin(), _vertices.end(), update_position);
     }
 
 
@@ -960,6 +1041,8 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+
+    /// Getter for vertices
     std::vector<std::weak_ptr<Vertex>> get_vertices () {
         std::vector<std::weak_ptr<Vertex>> vs;
         for (auto &v : _vertices) {
@@ -968,7 +1051,7 @@ public:
         return vs;
     }
 
-
+    /// Getter for edges
     std::vector<std::weak_ptr<Edge>> get_edges () {
         std::vector<std::weak_ptr<Edge>> es;
         for (auto &e : _edges) {
@@ -977,7 +1060,7 @@ public:
         return es;
     }
 
-
+    /// Getter for cells
     std::vector<std::weak_ptr<Cell>> get_cells () {
         std::vector<std::weak_ptr<Cell>> cs;
         for (auto &c : _cells) {
@@ -996,8 +1079,9 @@ public:
         return sqrt(max_forces_2);
     }
 
-    /// Criterion for the equilibrium state
-    /** Equilibrium if maximum vertex deplacement less than a fraction
+    /** Criterion for the equilibrium state
+     * 
+     *  Equilibrium if maximum vertex deplacement less than a fraction
      *  of the length scale given by mean preferential area.
      *  
      *  \param tolerance    The fraction of preferential area that a vertex may
