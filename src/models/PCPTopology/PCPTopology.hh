@@ -49,14 +49,28 @@ private:
     // ... but you should definitely check out the documentation ;)
 
     // -- Members -------------------------------------------------------------
+    /// The Vertex model
     PCPVertex<periodic_bc> _vertex_model;
     
-    std::shared_ptr<VertexContainer> _vertices;
-    std::shared_ptr<EdgeContainer> _edges;
-    std::shared_ptr<CellContainer> _cells;
+    /// VertexContainer
+    /// NOTE insert and delete in VertexModel not updated automatically
+    std::vector<std::weak_ptr<Vertex>> _vertices;
+    
+    /// EdgeContainer
+    /// NOTE insert and delete in VertexModel not updated automatically    
+    std::vector<std::weak_ptr<Edge>> _edges;
 
+    /// CellContainer
+    /// NOTE insert and delete in VertexModel not updated automatically
+    std::vector<std::weak_ptr<Cell>> _cells;
+
+    /// A tolerance value for equilibrium
     double _equilibration_tolerance;
+
+    /// Number of steps performed in VertexModel per iteration
     int _num_equilibration_steps;
+
+    /// Number of max iterations performed in VertexModel before aborting
     int _num_equilibration_iterations;
 
     // .. Temporary objects ...................................................
@@ -83,12 +97,9 @@ public:
         
         _vertex_model("PCPVertex", *this),
 
-        _vertices(nullptr),
-        _edges(nullptr),
-        _cells(nullptr),
-        // _vertices(_vertex_model.get_vertices_ptr()),
-        // _edges(_vertex_model.get_edges_ptr()),
-        // _cells(_vertex_model.get_cells_ptr()),
+        _vertices(_vertex_model.get_vertices()),
+        _edges(_vertex_model.get_edges()),
+        _cells(_vertex_model.get_cells()),
 
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
                                              this->_cfg)),
@@ -108,6 +119,9 @@ public:
 
         this->equilibrate_vertex_model();
 
+        // update the vertices, edges, and cell container
+        this->update_object_containers();
+
         this->_log->debug("Initialised model.");
     }
 
@@ -116,14 +130,37 @@ private:
     // .. Setup functions .....................................................
 
     // .. Helper functions ....................................................
+    /// Updates the Containers of vertices, edges, and cells
+    /** NOTE insert and deletion opterations to these containers are not 
+     *       updated automatically for changes within the vertex model
+    */
+    void update_object_containers() {
+        _vertices = _vertex_model.get_vertices();
+        _edges = _vertex_model.get_edges();
+        _cells = _vertex_model.get_cells();
+    }
+
+    /// Equilibrates the vertex model
+    /** Iterate the vertex model until it reaches an equilibrium state
+     *  (see PCPVertex<periodic_bc>::equilibrium_state_reached(double tolerance) const)
+     *  with tolerance = _equilibrium_tolerance
+     * 
+     *  More precisely, the _vertex_model is iterated for 
+     *  _num_equilibration_steps, then the equilibrium condition (see above)
+     *  is checked:
+     * 
+     *      If true, iteration is stopped and update_object_containers() called
+     * 
+     *      If false, _vertex_model is iterated again for _num_equilibration_steps 
+     *          this is repeated for a maximum of _num_equilibration_iterations
+     */
     void equilibrate_vertex_model() {
         bool equilibrated = false;
         int time_start = _vertex_model.get_time();
         while (not equilibrated) {
             this->_log->debug("Iterating vertex model for equilibration from "
-                             "time {} to {}",
-                            _vertex_model.get_time(),
-                            _vertex_model.get_time() + _num_equilibration_steps);
+                "time {} to {}", _vertex_model.get_time(),
+                _vertex_model.get_time() + _num_equilibration_steps);
             for (int i = 0; i < _num_equilibration_steps; ++i) {
                 _vertex_model.iterate();
             }
@@ -139,6 +176,10 @@ private:
                         " steps each at a tolerance of {}!");
             }
         }
+
+        // update the vertices, edges, and cell container
+        this->update_object_containers();
+
         this->_log->debug("Vertex model equilibrated within {} steps", 
                          _vertex_model.get_time() - time_start);
     }
