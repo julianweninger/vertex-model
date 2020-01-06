@@ -20,21 +20,29 @@
 
 # --- Initialization parameters
 PCPVertex:
+  # space periodicity
   periodic_bc: false
 
-  dt: 0.1
-
+  # damping factor
+  dt: 0.01
+  
+  # Linetension parameter
   linetension: 0.1
+  length_threshold: 0.
+
+  # Area elasticity parameter
   area_elasticity: 1
   area_preferential: 1.
+  area_threshold: 0.
 
-
+  # Topology parameter
   hexagon_size: 0.62
   lattice_rows: 10
   lattice_columns: 10
 
+# Equilibration parameter
 equilibration_tolerance: 0.005
-num_equilibration_steps: 100
+num_equilibration_steps: 1000
 max_equilibration_iterations: 10
 
 # --- Dynamics

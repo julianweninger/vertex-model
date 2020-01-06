@@ -19,16 +19,23 @@
 # The physical space this model is embedded in
 
 # --- Initialization parameters
-# Add parameters and their documentation here ...
+
+# space periodicity
 periodic_bc: false
+
+# damping factor
 dt: 0.01
 
+# Linetension parameter
 linetension: 0.1
 length_threshold: 0.2
+
+# Area elasticity parameter
 area_elasticity: 1.
 area_preferential: 1.
 area_threshold: 0.2
 
+# Topology parameter
 hexagon_size: 0.62
 lattice_rows: 4
 lattice_columns: 4

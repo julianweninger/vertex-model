@@ -71,7 +71,7 @@ private:
     int _num_equilibration_steps;
 
     /// Number of max iterations performed in VertexModel before aborting
-    int _num_equilibration_iterations;
+    int _max_equilibration_iterations;
 
     // .. Temporary objects ...................................................
 
@@ -105,7 +105,7 @@ public:
                                              this->_cfg)),
         _num_equilibration_steps(get_as<int>("num_equilibration_steps",
                                              this->_cfg)),
-        _num_equilibration_iterations(get_as<int>("num_equilibration_iterations",
+        _max_equilibration_iterations(get_as<int>("max_equilibration_iterations",
                                              this->_cfg))
 
         // Open the datasets
@@ -152,7 +152,7 @@ private:
      *      If true, iteration is stopped and update_object_containers() called
      * 
      *      If false, _vertex_model is iterated again for _num_equilibration_steps 
-     *          this is repeated for a maximum of _num_equilibration_iterations
+     *          this is repeated for a maximum of _max_equilibration_iterations
      */
     void equilibrate_vertex_model() {
         bool equilibrated = false;
@@ -166,10 +166,10 @@ private:
             }
             equilibrated = _vertex_model.equilibrium_state_reached(
                                             _equilibration_tolerance);
-            int max_steps = _num_equilibration_steps * _num_equilibration_iterations;
+            int max_steps = _num_equilibration_steps * _max_equilibration_iterations;
             if (_vertex_model.get_time() - time_start >= max_steps) {
                 throw std::runtime_error("Equilibration not reached within " +
-                        std::to_string(_num_equilibration_iterations) + 
+                        std::to_string(_max_equilibration_iterations) + 
                         " iterations " + 
                         std::to_string(_num_equilibration_steps) + " of " +
                         std::to_string(_equilibration_tolerance) + 
