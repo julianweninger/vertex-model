@@ -24,6 +24,22 @@ PCPVertex<periodic_bc> model_factory(std::string cfg) {
     return PCPVertex<periodic_bc>("PCPVertex", pp);
 }
 
+/// Destructor for the model
+/** Besides destructing the model it is also necessary to destruct the logger
+ *  and to free the datapath to construct a new model from the same config
+ * 
+ *  NOTE the models output_path needs to be "test_data.h5" 
+ * 
+ */
+template<typename Model>
+void destruct_model_factory(Model model) 
+{
+    model.get_logger()->info("Tear the model down");
+    spdlog::drop_all();
+    std::remove("test_data.h5");
+}
+
+
 template<bool periodic_bc>
 void test_T1_transition (std::string cfg)
 {
@@ -48,19 +64,17 @@ void test_T1_transition (std::string cfg)
     // check that the number of egdes did not change
     BOOST_TEST(model.get_edges().size() == edges.size());
 
-    model.get_logger()->info("Tear it down");
-    spdlog::drop_all();
-    std::remove("test_data.h5");
+    destruct_model_factory(model);
 }
 
 BOOST_AUTO_TEST_CASE(T1_transition_periodic)
 {
-    test_T1_transition<true>("test_transition_periodic.yml");
+    test_T1_transition<true>("test_periodic.yml");
 }
 
 BOOST_AUTO_TEST_CASE(T1_transition_non_periodic)
 {
-    test_T1_transition<false>("test_transition_non_periodic.yml");
+    test_T1_transition<false>("test_non_periodic.yml");
 }
 
 
@@ -90,19 +104,104 @@ void test_T2_transition (std::string cfg)
     // check that the number of egdes did not change
     BOOST_TEST(model.get_cells().size() == cells.size() - 1);
 
-    model.get_logger()->info("Tear it down");
-    spdlog::drop_all();
-    std::remove("test_data.h5");
+    destruct_model_factory(model);
 }
 
 BOOST_AUTO_TEST_CASE(T2_transition_periodic)
 {
-    test_T2_transition<true>("test_transition_periodic.yml");
+    test_T2_transition<true>("test_periodic.yml");
 }
 
 BOOST_AUTO_TEST_CASE(T2_transition_non_periodic)
 {
-    test_T2_transition<false>("test_transition_non_periodic.yml");
+    test_T2_transition<false>("test_non_periodic.yml");
 }
 
+
+
+template<bool periodic_bc>
+void test_cell_division (std::string cfg)
+{
+    std::vector<int> test_cases;
+    if constexpr (periodic_bc) {
+        test_cases = {15, 1, 4, 5};
+    }
+    else { test_cases = {5}; }
+
+    for (int cell_pos : test_cases) {
+    auto model = model_factory<periodic_bc>(cfg);
+
+    auto vertices = model.get_vertices();
+    auto edges = model.get_edges();
+    auto cells = model.get_cells();
+
+    model.divide_cell(cells[cell_pos].lock(), 0.); 
+    // this is a cell not at the boundary
+
+
+    auto new_vertices = model.get_vertices();
+    auto new_edges = model.get_edges();
+    auto new_cells = model.get_cells();
+
+    // assert that the right number of objects has been added during division
+    assert(cells.size() == new_cells.size()-1);
+    assert(edges.size() == new_edges.size()-3);
+    assert(vertices.size() == new_vertices.size()-2);
+
+    for (auto v : new_vertices) {
+        assert(not v.expired());
+        assert(not v.lock()->remove);            
+    }
+    for (auto e : new_edges) {
+        assert(not e.expired());
+        assert(not e.lock()->remove);
+    }
+    for (auto c : new_cells) {
+        assert(not c.expired());
+        assert(not c.lock()->remove);
+    }
+
+    int cnt_expired = 0;
+    for (auto c : cells) {
+        cnt_expired += c.expired();
+    }
+    assert(cnt_expired == 1);
+    cnt_expired = 0;
+    for (auto e : edges) {
+        cnt_expired += e.expired();
+    }
+    assert(cnt_expired == 2);
+    cnt_expired = 0;
+    for (auto v : vertices) {
+        cnt_expired += v.expired();
+    }
+    assert(cnt_expired == 0);
+
+    if constexpr (periodic_bc)
+    {
+        for (auto v : new_vertices) {
+            assert(v.lock()->adj_edges.size() == 3);
+            assert(v.lock()->adj_cells.size() == 3);
+        }
+        for (auto e : new_edges) {
+            assert(e.lock()->adj_cells.size() == 2);
+        }
+    }
+
+    model.run();
+
+
+    destruct_model_factory(model);
+    }
+}
+
+BOOST_AUTO_TEST_CASE(cell_division_non_periodic)
+{
+    test_cell_division<false>("test_non_periodic.yml");
+}
+
+BOOST_AUTO_TEST_CASE(cell_division_periodic)
+{
+    test_cell_division<true>("test_periodic.yml");
+}
 

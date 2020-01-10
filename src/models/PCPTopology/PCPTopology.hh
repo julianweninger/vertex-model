@@ -1,6 +1,5 @@
 #ifndef UTOPIA_MODELS_PCPTOPOLOGY_HH
 #define UTOPIA_MODELS_PCPTOPOLOGY_HH
-// TODO Adjust above include guard (and at bottom of file)
 
 // standard library includes
 #include <random>
@@ -26,9 +25,6 @@ using ModelTypes = Utopia::ModelTypes<>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
-/** TODO Add your class description here.
- *  ...
- */
 template <bool periodic_bc>
 class PCPTopology:
     public Model<PCPTopology<periodic_bc>, ModelTypes>
@@ -73,6 +69,11 @@ private:
     /// Number of max iterations performed in VertexModel before aborting
     int _max_equilibration_iterations;
 
+    double _cell_divisions_per_step;
+    
+    /// A [0,1]-range uniform distribution used for evaluating probabilities
+    std::uniform_real_distribution<double> _prob_distr;
+
     // .. Temporary objects ...................................................
 
 
@@ -106,11 +107,10 @@ public:
         _num_equilibration_steps(get_as<int>("num_equilibration_steps",
                                              this->_cfg)),
         _max_equilibration_iterations(get_as<int>("max_equilibration_iterations",
-                                             this->_cfg))
-
-        // Open the datasets
-        // e.g. via _dset_state(this->create_dset("state", {})) <- 1d
-        //      or  _dset_state(this->create_dset("state", {num_states})) <- 2d
+                                                  this->_cfg)),
+        _cell_divisions_per_step(get_as<double>("cell_divisions_per_step",
+                                                this->_cfg)),
+        _prob_distr(0.,1.)
     {
         if (_vertex_model.get_write_start() == 0) {
             _vertex_model.write_data();
@@ -168,12 +168,12 @@ private:
                                             _equilibration_tolerance);
             int max_steps = _num_equilibration_steps * _max_equilibration_iterations;
             if (_vertex_model.get_time() - time_start >= max_steps) {
-                throw std::runtime_error("Equilibration not reached within " +
+                throw std::runtime_error("Equilibrium not reached within " +
                         std::to_string(_max_equilibration_iterations) + 
-                        " iterations " + 
-                        std::to_string(_num_equilibration_steps) + " of " +
-                        std::to_string(_equilibration_tolerance) + 
-                        " steps each at a tolerance of {}!");
+                        " iterations of " + 
+                        std::to_string(_num_equilibration_steps) + " steps each "
+                        "at a tolerance of " +
+                        std::to_string(_equilibration_tolerance) + "!");
             }
         }
 
@@ -187,40 +187,37 @@ private:
 public:
     // -- Public Interface ----------------------------------------------------
     // .. Simulation Control ..................................................
+    /// Perform N cell divisions
+    /** \param num_cell_divisions number of cell divisions to be performed
+     * 
+     */
+   void perform_cell_divisions(double num_cell_divisions) {
+        int i;
+        for (i = 1; i <= num_cell_divisions; ++i) {
+            _vertex_model.divide_random_cell();
+        }
+        i -= 1;
+        if (num_cell_divisions - i > 0 and 
+                _prob_distr(*this->_rng) < num_cell_divisions - i)
+        {
+            _vertex_model.divide_random_cell();
+        }
+
+        equilibrate_vertex_model();
+    }
 
     /// Iterate a single step
     void perform_step () {
-        // _vertex_model.iterate();
+        perform_cell_divisions(_cell_divisions_per_step);
     }
 
 
     /// Monitor model information
-    /** \details Here, functions and values can be supplied to the monitor that
-     *          are then available to the frontend. The monitor() function is
-     *          _only_ called if a certain emit interval has passed; thus, the
-     *          performance hit is small.
-     */
-    void monitor () {
-        // Can supply information to the monitor here in two ways:
-        // this->_monitor.set_entry("key", value);
-        // this->_monitor.set_entry("key", [this](){return 42.;});
-    }
+    void monitor () { }
 
 
     /// Write data
-    /** \details This function is called to write out data. It should be called
-      *         at the end of the model constructor to write out the initial
-      *         state. After that, the configuration determines at which times
-      *         data is written.
-      *         See \ref Utopia::DataIO::Dataset::write
-      */
-    void write_data () {
-        // Example:
-        // _dset_foo->write(it.begin(), it.end(),
-        //     [](const auto& element) {
-        //         return element.get_value();
-        // });
-    }
+    void write_data () { }
 
 
     // Getters and setters ....................................................

@@ -1,17 +1,20 @@
 ---
 PCPVertex: 
+  periodic_bc: false
+  
+  dt: 0.01
+  
+  linetension: 0.1
+  length_threshold: 0.2
+
   area_elasticity: 1.0
   area_preferential: 1.0
   area_threshold: 0.2
-  dt: 0.01
 
   hexagon_size: 0.62
   lattice_columns: 4
   lattice_rows: 4
-  length_threshold: 0.2
 
-  linetension: 0.1
-  periodic_bc: false
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 1000

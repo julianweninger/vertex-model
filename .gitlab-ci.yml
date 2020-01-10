@@ -251,6 +251,10 @@ test:model_defaults:
     - utopia run Hierargrid --debug
     - utopia run Hierarnet --debug
     - utopia run mesonet --debug
+    - utopia run MovCo --debug
+    - utopia run MovCoAktipis --debug
+    - utopia run PCPVertex --debug
+    - utopia run PCPTopology --debug
     - utopia run SavannaHeterogeneous --debug
     - utopia run SavannaHomogeneous --debug
 

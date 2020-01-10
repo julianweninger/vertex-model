@@ -3,6 +3,7 @@
 
 // standard library includes
 #include <random>
+#include <math.h>
 
 // third-party library includes
 
@@ -11,6 +12,10 @@
 #include <utopia/core/types.hh>
 
 #include "geometry.hh"
+
+#ifndef PI
+#define PI 3.14159265
+#endif
 
 
 namespace Utopia {
@@ -85,6 +90,9 @@ private:
     double _area_preferential;
     /// Cells with area smaller than this value are removed in T2 transition
     double _area_threshold;
+    
+    /// A [0,1]-range uniform distribution used for evaluating probabilities
+    std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
 
@@ -128,6 +136,7 @@ public:
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
+        _prob_distr(0.,1.),
 
         // Open the datasets
         _grp_vertices(this->_hdfgrp->open_group("vertices")),
@@ -589,6 +598,8 @@ private:
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
         v->x += v->fx * _dt;
         v->y += v->fy * _dt;
+        
+        correct_periodic_bc<periodic_bc>(v);
     };
 
     /** Erase cell from _cells while updating the topology (T2 transition)
@@ -671,11 +682,11 @@ private:
             // replace vertices that have been removed
             if (e->a->remove) {
                 e->a = new_v;
-                e->length = edge_length<periodic_bc>(e);
+                e->update_length<periodic_bc>();
             }
             else if (e->b->remove) {
                 e->b = new_v;
-                e->length = edge_length<periodic_bc>(e);
+                e->update_length<periodic_bc>();
             }
 
             ++e_it;
@@ -765,6 +776,11 @@ private:
                     "encountered " + std::to_string(edge->a->adj_edges.size())
                     + "!");
         }
+        if (edge->b->adj_edges.size() != 3) {
+            throw std::runtime_error("Expected 3 adj_edges to a vertex, but "
+                    "encountered " + std::to_string(edge->b->adj_edges.size())
+                    + "!");
+        }
         for (auto &e_weak : edge->a->adj_edges) {
             auto e = e_weak.lock();
             if (e != edge) {
@@ -802,9 +818,9 @@ private:
 
         // create two new vertices that create an edge of threshold length 
         // pointing from cell a to b
-        auto vector_AB = displacement<periodic_bc>(adj_cell_a->s,
-                                                   adj_cell_b->s);
-        auto length = distance<periodic_bc>(adj_cell_a->s, adj_cell_b->s);
+        auto vector_AB = displacement<periodic_bc>(*(adj_cell_a->s),
+                                                   *(adj_cell_b->s));
+        auto length = distance<periodic_bc>(*(adj_cell_a->s), *(adj_cell_b->s));
         double dx = std::get<0>(vector_AB) / length * _length_threshold;
         double dy = std::get<1>(vector_AB) / length * _length_threshold;
         auto new_v_a = std::make_shared<Vertex>(
@@ -895,23 +911,331 @@ private:
         adj_cell_c->cell_area<periodic_bc>();
         adj_cell_d->cell_area<periodic_bc>();
 
-        new_edge->length = edge_length<periodic_bc>(new_edge);
-        adj_edge_a->length = edge_length<periodic_bc>(adj_edge_a);
-        adj_edge_b->length = edge_length<periodic_bc>(adj_edge_b);
-        adj_edge_c->length = edge_length<periodic_bc>(adj_edge_c);
-        adj_edge_d->length = edge_length<periodic_bc>(adj_edge_d);
+        new_edge->update_length<periodic_bc>();
+        adj_edge_a->update_length<periodic_bc>();
+        adj_edge_b->update_length<periodic_bc>();
+        adj_edge_c->update_length<periodic_bc>();
+        adj_edge_d->update_length<periodic_bc>();
 
         // replace the edge at adge_it
         edge_it = _edges.erase(edge_it);
         edge_it = _edges.insert(edge_it, new_edge);
 
-        // Done
         return ++edge_it;
+    }
+
+    /// Perform a cell division on specific cell
+    /** Divides a specific cell into two identical cells with properties derived
+     *  from the common parent cell. 
+     *  The division is performed at a given angle through the parent cell's
+     *  center. This defines the axis of division that will form a new edge 
+     *  between the two new cells.
+     * 
+     *  The new edge has properties as given for initialisation.
+     * 
+     *  \param cell_it      iterator to the cell within _cells that is to be 
+     *                      divided
+     *  \param division_angle   angle (in rad) at which the cell
+     * 
+     *  \return iterator to the element following cell_it
+     */
+    CellContainer::iterator divide_cell(CellContainer::iterator cell_it,
+                                        double division_angle)
+    {
+        this->_log->debug("Dividing cell..");
+
+        // The cell to be divided
+        auto cell = *cell_it;
+        cell->remove = true;
+        cell_it = _cells.erase(cell_it);
+        auto cell_center = std::make_shared<Vertex>(cell->s);
+
+        // generate the axis of division
+        double dx = cos(division_angle);
+        double dy = sin(division_angle);
+        auto tmp_vertex = std::make_shared<Vertex>(cell_center->x + dx, 
+                                                   cell_center->y + dy);
+        auto division_axis = std::make_shared<Edge>(cell_center, tmp_vertex, 0.);
+
+        // determine the new vertices from this axis
+        // These are the intersections of the division axis with edges of cell
+        // NOTE there must be exactly 2 intersections for nicely shaped cells
+        std::vector<Vertex_ptr> new_vertices;
+        for (auto e_pair : cell->edges_ordered) {
+            auto e = std::get<Edge_ptr>(e_pair);
+
+            // calculate the intersection
+            auto inter = intersection<periodic_bc>(*e, *division_axis,
+                                                   true, false);
+            
+            // if no intersection end here
+            if (not inter) { continue; }
+
+            // create a new vertex at the intersection site
+            auto new_v = std::make_shared<Vertex>(inter);
+            new_v->adj_cells = e->adj_cells;
+            new_v->adj_edges.push_back(e);
+            // NOTE this link is used later and removed thereafter
+            
+            // keep track of this vertex
+            _vertices.push_back(new_v);
+            new_vertices.push_back(new_v);
+
+            // the edge itself will be divided and removed
+            e->remove = true;
+        }
+        if (new_vertices.size() != 2) {
+            throw std::runtime_error("During cell division, expected 2 new "
+                "vertices, but got " + std::to_string(new_vertices.size()) + "!");
+        }
+
+        // the 2 edges that are divided by the new edge
+        auto edge_a = new_vertices[0]->adj_edges.back().lock();
+        auto edge_b = new_vertices[1]->adj_edges.back().lock();
+        // remove them, they will be replaced by 2 new edges each
+        _edges.erase(std::remove_if(_edges.begin(), _edges.end(), 
+                                    [](auto e){ return e->remove;}),
+                     _edges.end());
+        new_vertices[0]->adj_edges.clear();
+        new_vertices[1]->adj_edges.clear();
+
+        // create a new edge connecting the 2 new vertices
+        // NOTE it has properties as at model initialisation
+        auto new_edge = std::make_shared<Edge>(new_vertices[0], 
+                                               new_vertices[1], _linetension);
+        _edges.push_back(new_edge);
+        // crosslinking of objects
+        new_vertices[0]->adj_edges.push_back(new_edge);
+        new_vertices[1]->adj_edges.push_back(new_edge);
+
+        // this is how to divide an edge at a pivot vertex
+        /* \param e     The Edge to divide
+         * \param flip  The direction of e
+         * \param pivot The Vertex where to divide e
+         * 
+         * \return  the first half of e from a to pivot, the second half of e 
+         *          from pivot to b
+         */
+        auto divide_edge = [cell](Edge_ptr e, bool flip, Vertex_ptr pivot)
+        {
+            // The start and end of e, considering the direction within the 
+            // iteration
+            Vertex_ptr a, b;
+            if (flip) {
+                a = e->b;
+                b = e->a;
+            }
+            else {
+                a = e->a;
+                b = e->b;
+            }
+
+            for (auto v : {a, b}) {
+                v->adj_edges.erase(
+                    std::remove_if(
+                        v->adj_edges.begin(),
+                        v->adj_edges.end(),
+                        [](auto e){ return e.lock()->remove; }),
+                    v->adj_edges.end());
+            }
+
+            // The first half of the edge from a to pivot
+            auto new_edge_0 = std::make_shared<Edge>(a, pivot, e->linetension);
+            new_edge_0->adj_cells = e->adj_cells;
+
+            // the second half of the edge from pivot to b
+            auto new_edge_1 = std::make_shared<Edge>(b, pivot, e->linetension);
+            new_edge_1->adj_cells = e->adj_cells;
+
+            // update the crosslinks in the adj vertices
+            a->adj_edges.push_back(new_edge_0);
+            pivot->adj_edges.push_back(new_edge_0);
+
+            b->adj_edges.push_back(new_edge_1);
+            pivot->adj_edges.push_back(new_edge_1);
+
+            // update the crosslinks in the adj cells
+            for (auto c_weak : e->adj_cells) {
+                if (c_weak.lock() == cell) { continue; }
+                else {
+                    auto c = c_weak.lock();
+                    c->edges_ordered.erase(
+                        std::remove_if(
+                            c->edges_ordered.begin(), c->edges_ordered.end(),
+                            [](auto e_pair){ 
+                                return std::get<Edge_ptr>(e_pair)->remove; }
+                        ),
+                        c->edges_ordered.end()
+                    );
+                    c->edges_ordered.push_back(std::make_pair(new_edge_0, 
+                                                              false));
+                    c->edges_ordered.push_back(std::make_pair(new_edge_1, 
+                                                              false));
+                    
+                    c->order_edges();
+                }
+            }
+
+            return std::make_pair(new_edge_0, new_edge_1);
+        };
+                
+        // separate the edges to form 2 cells
+        EdgeContainer new_edges_cell_0, new_edges_cell_1;
+        
+        // the new edge (division axis) is in both cells
+        new_edges_cell_0.push_back(new_edge);
+        new_edges_cell_1.push_back(new_edge);
+
+        /* 1. start iteration of ordered edges of cell at random point, add
+         *    edges to 1st cell.
+         * 2. stop the iteration when edge_a or _b is reached, divide this edge
+         *    into 2 new edges at its intersection with the division axis.
+         * 3. continue iteration from second half of this divided edge, but add
+         *    these edges to the 2nd cell.
+         * 4. stop iteration at other edge_b or _a, resp. divide this edge as
+         *    before.
+         * 5. finish iteration from second half of this divided edge, but again 
+         *    add to 1st cell.
+         */
+        int it_edges;
+        // 1. start iteration
+        for (it_edges = 0; it_edges < cell->edges_ordered.size(); it_edges++) {
+            auto e_pair = cell->edges_ordered[it_edges];
+            auto e = std::get<Edge_ptr>(e_pair);
+            // check whether edge_a or _b reached
+            if (e == edge_a or e == edge_b) {
+                // the intersection with the division axis
+                Vertex_ptr edge_pivot;
+                if (e == edge_a) { edge_pivot = new_vertices[0]; }
+                else { edge_pivot = new_vertices[1]; }
+
+                Edge_ptr new_edge_0, new_edge_1;
+                tie(new_edge_0, new_edge_1) = divide_edge(e,
+                                                    std::get<bool>(e_pair), 
+                                                    edge_pivot);
+
+                _edges.push_back(new_edge_0);
+                _edges.push_back(new_edge_1);
+
+                new_edges_cell_0.push_back(new_edge_0);
+                new_edges_cell_1.push_back(new_edge_1);
+
+                // 2. stop iteration here
+                break;
+            }
+            else {
+                // (1.) this edge is in 1st cell.
+                new_edges_cell_0.push_back(e);
+            }
+        }
+        // 3. continue iteration for edges in 2nd cell
+        for (it_edges += 1; it_edges < cell->edges_ordered.size(); it_edges++) {
+            auto e_pair = cell->edges_ordered[it_edges];
+            auto e = std::get<Edge_ptr>(e_pair);
+            // check whether edge_a or _b reached
+            if (e == edge_a or e == edge_b) {
+                // the intersection with the division axis
+                Vertex_ptr edge_pivot;
+                if (e == edge_a) { edge_pivot = new_vertices[0]; }
+                else { edge_pivot = new_vertices[1]; }
+
+                Edge_ptr new_edge_0, new_edge_1;
+                tie(new_edge_0, new_edge_1) = divide_edge(e,
+                                                    std::get<bool>(e_pair), 
+                                                    edge_pivot);
+
+                _edges.push_back(new_edge_0);
+                _edges.push_back(new_edge_1);
+
+                new_edges_cell_1.push_back(new_edge_0);
+                new_edges_cell_0.push_back(new_edge_1);
+
+                // 4. stop iteration here
+                break;
+            }
+            else {
+                // (3.) this edge is in 2nd cell.
+                new_edges_cell_1.push_back(e);
+            }
+        }
+        // 5. finish iteration for cells in 1st cell
+        for (it_edges += 1; it_edges < cell->edges_ordered.size(); it_edges++) {
+            auto e_pair = cell->edges_ordered[it_edges];
+            auto e = std::get<Edge_ptr>(e_pair);
+            new_edges_cell_0.push_back(e);
+        }
+
+        // create 2 new cells
+        auto new_cell_0 = std::make_shared<Cell>(cell_center, new_edges_cell_0, 
+                                                 cell->area_preferential);
+        auto new_cell_1 = std::make_shared<Cell>(cell_center, new_edges_cell_1, 
+                                                 cell->area_preferential);
+        _cells.push_back(new_cell_0);
+        _cells.push_back(new_cell_1);
+        
+        // update crosslinks
+        for (auto new_c : {new_cell_0, new_cell_1}) {
+            // crosslinks of vertices wrt adj_cells
+            for (auto v : new_c->vertices) {
+                v->adj_cells.erase(std::remove_if(v->adj_cells.begin(),
+                                                v->adj_cells.end(),
+                                                [cell](auto c){
+                                                    return c.lock() == cell;}),
+                                v->adj_cells.end());
+                v->adj_cells.push_back(new_c);
+            }
+            // crosslinks of edges wrt adj_cells
+            for (auto e_pair : new_c->edges_ordered) {
+                auto e = std::get<Edge_ptr>(e_pair);
+                e->adj_cells.erase(std::remove_if(e->adj_cells.begin(),
+                                                  e->adj_cells.end(),
+                                                  [cell](auto c){
+                                                     return c.lock() == cell;}),
+                                   e->adj_cells.end());
+                e->adj_cells.push_back(new_c);
+            }
+        }
+
+        return cell_it;
     }
 
 public:
     // -- Public Interface ----------------------------------------------------
     // .. Simulation Control ..................................................
+    
+    /// Perform a cell division on specific cell
+    /** Divides a specific cell into two identical cells with properties derived
+     *  from the common parent cell. 
+     *  The division is performed at a given angle through the parent cell's
+     *  center. This defines the axis of division that will form a new edge 
+     *  between the two new cells.
+     * 
+     *  \param cell     pointer to the cell that is to be divided
+     *  \param division_angle   angle (in rad) at which the cell
+     */
+    void divide_cell(Cell_ptr cell, double division_angle)
+    {
+        auto cell_it = std::find(_cells.begin(), _cells.end(), cell);
+
+        if (cell_it == _cells.end()) {
+            throw std::invalid_argument("Cannot divide cell at position "
+                "({}, {}), because its not a member of cells in vertex model!");
+        }
+
+        this->divide_cell(cell_it, division_angle);
+    }
+
+    /// Perform a cell division on a random cell
+    /** Divides a random cell into two daughter cells.
+     *  The cell is divided at an axis through it's center at a random angle, 
+     *  which creates an edge between the two daughter cells.
+     */
+    void divide_random_cell() {
+        std::uniform_int_distribution<> int_dist(0, _cells.size() - 1);
+        
+        this->divide_cell(_cells.begin()+int_dist(*this->_rng),
+                          _prob_distr(*this->_rng) * PI);
+    }
 
     /// Iterate a single step
     /** \details Rules applied
@@ -923,14 +1247,13 @@ public:
      *      -# Update vertex positions on vertices
      */
     void perform_step () {
-
         // reset forces
         std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
 
         // calculate edge lengths
-        std::for_each(_edges.begin(), _edges.end(), [](auto &e){
-            e->length = edge_length<periodic_bc>(e);
-        });
+        for (auto &e : _edges) {
+            e->update_length<periodic_bc>();
+        }
 
         // calculate cell area
         for (auto &c : _cells) {
@@ -971,20 +1294,10 @@ public:
 
 
     /// Monitor model information
-    void monitor () {
-        // Can supply information to the monitor here in two ways:
-        // this->_monitor.set_entry("key", value);
-        // this->_monitor.set_entry("key", [this](){return 42.;});
-    }
+    void monitor () { }
 
 
     /// Write data
-    /** \details This function is called to write out data. It should be called
-      *         at the end of the model constructor to write out the initial
-      *         state. After that, the configuration determines at which times
-      *         data is written.
-      *         See \ref Utopia::DataIO::Dataset::write
-      */
     void write_data () {
         const auto num_vertices = _vertices.size();
         const auto num_edges = _edges.size();
@@ -1081,7 +1394,7 @@ public:
 
     /** Criterion for the equilibrium state
      * 
-     *  Equilibrium if maximum vertex deplacement less than a fraction
+     *  Equilibrium if maximum vertex displacement less than a fraction
      *  of the length scale given by mean preferential area.
      *  
      *  \param tolerance    The fraction of preferential area that a vertex may

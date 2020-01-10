@@ -30,14 +30,18 @@ using VertexContainer = std::vector<Vertex_ptr>;
 using EdgeContainer = std::vector<Edge_ptr>;
 using CellContainer = std::vector<Cell_ptr>;
 
-
+/// The Site described by its coordinates (x,y)
 struct Site {
+    /// The position
     double x, y;
+
+    /// An id unique within the current container of vertices
     int current_id;
 
     /// Whether this object is to be removed 
     bool remove;
 
+    /// Constructor
     Site(double x, double y)
     :
         x(x),
@@ -47,18 +51,18 @@ struct Site {
     { }
 };
 
-/// The Vertex described by its coordinates (x,y)
+/// The Vertex as a positional node within the cell boundary network 
 struct Vertex : Site {
     // double x, y
     double fx, fy;
 
     /// Container of the adjacent edges
     std::vector<std::weak_ptr<Edge>> adj_edges;
-    // TODO use weak ptr here
 
     /// Container of the the adjacent cells
     std::vector<std::weak_ptr<Cell>> adj_cells;
 
+    /// Constructor
     Vertex(double x, double y, EdgeContainer adj_es = {},
            CellContainer adj_cs = {})
     :
@@ -76,10 +80,20 @@ struct Vertex : Site {
         }
     }
 
-    Vertex(Site_ptr s) : Vertex(s->x, s->y)
+    /// Derive a vertex from a Site_ptr
+    Vertex(Site_ptr s, EdgeContainer adj_es = {},
+           CellContainer adj_cs = {})
+    : Vertex(s->x, s->y, adj_es, adj_cs)
+    { }
+
+    /// Derive a vertex from a Site
+    Vertex(Site s, EdgeContainer adj_es = {},
+           CellContainer adj_cs = {})
+    : Vertex(s.x, s.y, adj_es, adj_cs) 
     { }
 };
 
+/// Corrects the position of s wrt to boundaries
 template <bool periodic_bc>
 void correct_periodic_bc(Site_ptr s)
 {
@@ -93,11 +107,32 @@ void correct_periodic_bc(Site_ptr s)
     return;
 }
 
+/// Creates an object-copy, that is at true distance to another object
 template <bool periodic_bc>
-std::pair<double, double> displacement(const Site_ptr &a, const Site_ptr &b) 
+Site periodic_copy(const Site s, const Site s_fixed)
 {
-    double dx = b->x - a->x;
-    double dy = b->y - a->y;
+    if constexpr (not periodic_bc) {
+        return Site(s.x, s.y);
+    }
+
+    double dx = s.x - s_fixed.x;
+    double dy = s.y - s_fixed.y;
+
+    if (dx <= -Lx / 2.) { dx += Lx; }
+    else if (dx > Lx / 2.) { dx -= Lx; }
+
+    if (dy <= -Ly / 2.) { dy += Ly; }
+    else if (dy > Ly / 2.) { dy -= Ly; }
+
+    return Site(s_fixed.x + dx, s_fixed.y + dy);
+}
+
+/// The displacement vector from a to b
+template <bool periodic_bc>
+std::pair<double, double> displacement(const Site &a, const Site &b) 
+{
+    double dx = b.x - a.x;
+    double dy = b.y - a.y;
 
     if constexpr (periodic_bc) {
         if (dx <= -Lx / 2.) { dx += Lx; }
@@ -110,21 +145,34 @@ std::pair<double, double> displacement(const Site_ptr &a, const Site_ptr &b)
     return std::make_pair(dx, dy);
 }
 
+/// The distance of two sites
 template <bool periodic_bc>
-double distance(const Site_ptr &a, const Site_ptr &b) {
+double distance(const Site &a, const Site &b) {
     auto v_ab = displacement<periodic_bc>(a, b);
 
     return std::max(sqrt(pow(std::get<0>(v_ab), 2) + pow(std::get<1>(v_ab), 2)),
                     1e-10);
 }
 
-/// The Edge described by the ids of the Vertixes
-struct Edge {    
+/// The Edge object
+/** It is defined as the shortest connection between two vertices a and b
+ */
+struct Edge {
+    /// Start and end vertices of this edge
     Vertex_ptr a, b;
 
+    /// Length of the edge
+    /** \warning manual update */
     double length;
-    /** NOTE manual update */
 
+    /// Update the length of the edge
+    template <bool periodic_bc>
+    double update_length() {
+        length = distance<periodic_bc>(*a, *b);
+        return length;
+    }
+
+    /// The linetension parameter property to this edge
     double linetension;
 
     /// Container of the the adjacent cells
@@ -133,6 +181,13 @@ struct Edge {
     /// Whether this object is to be removed 
     bool remove;
 
+    /// Constructor
+    /** \param a    Start Vertex
+     *  \param b    End Vertex
+     *  \param linetension  The linetension property
+     *  \param adj_cs   The adjacent cells to this edge
+     *  \param l    The distance from a to b, length of this edge
+     */
     Edge(Vertex_ptr a, Vertex_ptr b, double linetension,
          CellContainer adj_cs = {}, double l = 0.)
     :
@@ -149,29 +204,143 @@ struct Edge {
     }
 };
 
-/// The length of an edge
+/// Intersection site of two Edges
+/** \param e0           the first edge
+ *  \param e1           the second edge
+ *  \param finite_e0    if false, edge a extends beyond the vertices that define
+ *                      its direction
+ *  \param finite_e0    if false, edge b extends beyond the vertices that define
+ *                      its direction
+ *  
+ *  \tparam periodic_bc the periodicity of space, periodic if true, non-periodic
+ *                      otherwise.
+ *                      
+ *  \warning    The approach in periodic boundary conditions creates a periodic
+ *              copy of e1, such that e1->a is considered a periodic copy of 
+ *              itself wrt e0->a, the end vertices are then periodic copies wrt
+ *              the start vertex of the resp edge. This approach should be
+ *              possible as long as an edge is considered the shortest
+ *              connection between the start and end vertex. To be double checked.
+ *              See periodic_copy(const Site_ptr s, const Site_ptr s_fixed)
+ * 
+ *  \return shared pointer to the intersection of edges e0 and e1, resp. 
+ *          infinite lines through their start and endpoint. Nullptr if no
+ *          intersection.
+ */
 template <bool periodic_bc>
-double edge_length (Edge_ptr e) 
+Site_ptr intersection(const Edge e0, const Edge e1, 
+                     const bool finite_e0 = true, const bool finite_e1 = true) 
 {
-    return distance<periodic_bc>(e->a, e->b);
+    // the start vertices of the resp. edges
+    Site va = Site(e0.a->x, e0.a->y);
+    Site vc = periodic_copy<periodic_bc>(Site(e1.a->x, e1.a->y), va);
+    
+    // the end vertices of the resp. edges
+    Site vb = periodic_copy<periodic_bc>(Site(e0.b->x, e0.b->y), va);
+    Site vd = periodic_copy<periodic_bc>(Site(e1.b->x, e1.b->y), vc);
+
+    auto vector_e0 = displacement<periodic_bc>(va, *(e0.b));
+    auto vector_e1 = displacement<periodic_bc>(*(e1.a), *(e1.b));
+
+    // line defined by e0: y0 = a + bx
+    double a, b;
+    if (std::get<0>(vector_e0) == 0.) {
+        vb.x += 1e-8;
+        vector_e0 = displacement<periodic_bc>(va, vb);
+    }
+    b = std::get<1>(vector_e0) / std::get<0>(vector_e0);
+    a = va.y - b * va.x;
+
+    // line defined by e1: y1 = c + dx
+    double c, d;
+    if (std::get<0>(vector_e1) == 0.) {
+        vd.x += 1e-8;
+        vector_e1 = displacement<periodic_bc>(vc, vd);
+    }
+    d = std::get<1>(vector_e1) / std::get<0>(vector_e1);
+    c = vc.y - d * vc.x;
+
+    // parallel lines
+    if (b == d) {
+        return nullptr;
+    }
+
+    // coordinates of line intersection
+    double x = (c-a) / (b-d);
+    double y = a + b*x;
+
+    // check validity with edges
+    if (finite_e0) {
+        double ax, bx;
+        ax = va.x;
+        bx = ax + std::get<0>(vector_e0);
+
+        if (ax <= bx and (x < ax - 1e-10 or x > bx + 1e-10)) {
+            return nullptr;
+        }
+        if (ax > bx and (x > ax + 1e-10 or x < bx - 1e-10)) {
+            return nullptr;
+        }
+    }
+    if (finite_e1) {
+        double ax, bx;
+        ax = vc.x;
+        bx = ax + std::get<0>(vector_e1);
+
+        if (ax <= bx and (x < ax - 1e-10 or x > bx + 1e-10)) {
+            return nullptr;
+        }
+        if (ax > bx and (x > ax + 1e-10 or x < bx - 1e-10)) {
+            return nullptr;
+        }
+    }
+
+    auto site = std::make_shared<Site>(x, y);
+    correct_periodic_bc<periodic_bc>(site);
+
+    return site;
 }
 
 /// The Cell defined by its id, its vertices and its area
 struct Cell {
+    /// The vertices that bound the cell
     VertexContainer vertices;
-    /// The cell edges in order with the boolian flip
-    /** The edges start at a random point, such that e0->a->x , e0->b->b
-     *  From the endpoint b, the following edge fill continue to b', etc.
-     *  Edges are thus ordered anti-clockwise from e0->a to eN->b = e0->a
+
+    /// The cell edges in order (clockwise or anti-clockwise)
+    /** The edges start with a random edge e0.
+     *  From the endpoint e0->b, the following edge connects e0->b = e1->a with
+     *  b' = e1->b, etc.
+     *  Edges are thus ordered clockwise or anti-clockwise from e0->a to 
+     *  eN->b = e0->a.
+     * 
+     *  The edges have a priori random assignment of start and endpoint a and b,
+     *  which are thus exchangable.
+     *  Therefore the boolian refers to the flip condition: if flip, then
+     *  exchange a and b in this edge to obtain a closed loop of vertices.
+     * 
+     *  The order of the edges is eventually clockwise, or anti-clockwise.
+     *  When calculating the area of a polygon clockwise-ordered vertices 
+     *  result in a negative value for the area, which absolute value
+     *  corresponds to the area of the anti-clockwise ordered equivalent.
+     * 
+     *  NOTE manual update with cell_area
      */
     std::vector<std::pair<Edge_ptr, bool>> edges_ordered;
-    /** NOTE manual update with cell_area*/
 
-    double area;
+    /// The area of the cell
     /** NOTE manual update */
+    double area;
+    
+    /// The order of the edges
+    /** If 1, then the edges are ordered anti-clockwise. Otherwise ordered 
+     *  clockwise.
+     * 
+     *  NOTE updated together with area
+     */
     char area_sgn;
-    /** NOTE updated together with area */
 
+    /// center of the cell
+    /** NOTE updated together with area */
     Site_ptr s;
 
     double area_preferential;
@@ -216,6 +385,8 @@ struct Cell {
         es.pop_back();
         const auto a0 = a;
 
+        int cnt_iteration = 0;
+        int cnt_max = 2*(es.size()+1);
         while (a0 != b)
         {
             for (auto e_it = es.begin(); e_it != es.end(); /*void*/) {
@@ -240,6 +411,33 @@ struct Cell {
                     ++e_it;
                 }
             }
+
+            #ifndef NDEBUG
+            if (cnt_iteration++ > cnt_max) {
+                std::cout << "\nFailed to order these edges: \n";
+                for (auto e_pair : edges_ordered) {
+                    auto e = std::get<Edge_ptr>(e_pair);
+                    if (not std::get<bool>(e_pair)) {
+                        std::cout << " (" << e->a->x << ", " << e->a->y << ") "
+                            "to (" << e->b->x << ", " << e->b->y << ")\n";
+                    }
+                    else {
+                        std::cout << " (" << e->b->x << ", " << e->b->y << ") "
+                            "to (" << e->a->x << ", " << e->a->y << ")\n";
+                    }
+                }
+                std::cout << " stopped here.\n";
+                for (auto e : es) {
+                    std::cout << " (" << e->a->x << ", " << e->a->y << ") "
+                        "to (" << e->b->x << ", " << e->b->y << ")\n";
+                }
+                std::cout << std::flush;
+
+                throw std::runtime_error("Could not order edges of cell at (" +
+                    std::to_string(s->x) + ", " + std::to_string(s->y) + "). "
+                    "Edges to order are listed above.");
+            }
+            #endif
         }
 
         // add vertices from edges
