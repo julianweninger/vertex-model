@@ -48,8 +48,11 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     num_rows = vertex_cfg['lattice_rows']
     num_columns = vertex_cfg['lattice_columns']
   # [4 * sqrt(3) * size_hexagonal, 1.5 * num_columns * size_hexagonal]
-    periodic_limits = [num_rows * 3**0.5 * hexagon_size, 
-                       num_columns * 1.5 * hexagon_size]
+    if (vertex_cfg['periodic_bc']):
+        periodic_limits = [num_rows * 3**0.5 * hexagon_size, 
+                           num_columns * 1.5 * hexagon_size]
+    else:
+        periodic_limits = None
     # model_cfg = uni_cfg[datapath]
 
     # Prepare the figure ......................................................
@@ -126,9 +129,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 hlpr.ax.scatter(c.data[0], c.data[1], c='red')
 
             hlpr.invoke_helper('set_title', title="Time {}".format(step))
-            # Done with this frame; yield control to the animation framework
-            # which will grab the frame...
-            hlpr.invoke_helper('set_limits', x=[-1, 5], y=[-1, 4])
             yield
 
 
