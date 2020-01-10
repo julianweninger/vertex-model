@@ -348,13 +348,13 @@ struct Cell {
     /// Whether this object is to be removed 
     bool remove;
 
-    Cell(Site_ptr s, EdgeContainer &es, double area_preferential)
+    Cell(Site s, EdgeContainer &es, double area_preferential)
     :
         vertices(),
         edges_ordered(),
         area(0.),
         area_sgn(0),
-        s(s),
+        s(std::make_shared<Site>(s)),
         area_preferential(area_preferential),
         remove(false)
     {
@@ -462,56 +462,33 @@ struct Cell {
     /// The area of a polygon cell
     template <bool periodic_bc>
     double cell_area () {
+        // reset the area
         area = 0;
-        double center_x = 0;
-        double center_y = 0;
 
-        double ref_x, ref_y; // the reference vertex
+        // The new center of the cell
+        Site center(0., 0.);
+
+        // The starting vertex for iteration
+        // periodic copies will be made wrt to this point
+        Site start_vertex = *std::get<Edge_ptr>(edges_ordered.front())->a;
         if (std::get<bool>(edges_ordered.front())) {
-            auto v_ref = std::get<Edge_ptr>(edges_ordered.front())->b;
-            ref_x = v_ref->x;
-            ref_y = v_ref->y;
-        }
-        else {
-            auto v_ref = std::get<Edge_ptr>(edges_ordered.front())->a;
-            ref_x = v_ref->x;
-            ref_y = v_ref->y;
+            start_vertex = *std::get<Edge_ptr>(edges_ordered.front())->b;
         }
 
         for (const auto e_pair : edges_ordered) {
             const auto e = std::get<Edge_ptr>(e_pair);
-            Vertex_ptr a, b;
-            if (std::get<bool>(e_pair)) {
-                a = e->b;
-                b = e->a;
-            }
-            else {
-                a = e->a;
-                b = e->b;
+            
+            auto a = periodic_copy<periodic_bc>(*e->a, start_vertex);
+            auto b = periodic_copy<periodic_bc>(*e->b, start_vertex);
+
+            if (std::get<bool>(e_pair)) { 
+                std::swap(a, b);
             }
 
-            double bx = b->x;
-            double by = b->y;
-            double dx = bx - ref_x;
-            double dy = by - ref_y;
-
-            if constexpr (periodic_bc) {
-                if (dx <= -Lx / 2.) { dx = dx + Lx; }
-                else if (dx > Lx / 2.) { dx = dx - Lx; }
-
-                if (dy <= -Ly / 2.) { dy = dy + Ly; }
-                else if (dy > Ly / 2.) { dy = dy - Ly; }
-            }
-
-            // ref is a, ref + (dx, dy) is b
-            double da = ref_x * (ref_y + dy) - (ref_x + dx) * ref_y;
+            double da = a.x * b.y - b.x * a.y;
             area += da;
-            center_x -= (ref_x + ref_x + dx) * da;
-            center_y -= (ref_y + ref_y + dy) * da;
-
-            // set ref duplicate of b -- b will be a in next step
-            ref_x = ref_x + dx;
-            ref_y = ref_y + dy;
+            center.x += (a.x + b.x) * da;
+            center.y += (a.y + b.y) * da;
         }
 
         if (area < 0) { area_sgn = -1; }
@@ -519,29 +496,14 @@ struct Cell {
         else { area_sgn = 1;}
 
         area = 0.5 * area * area_sgn;
-        if constexpr (periodic_bc) {
-            double x = -area_sgn * center_x / 6 / area;
-            double y = -area_sgn * center_y / 6 / area;
-            
-            if (x >= Lx) {
-                x -= Lx;
-            }
-            else if (x < 0) {
-                x += Lx;
-            }
-            if (y >= Ly) {
-                x -= Ly;
-            }
-            else if (y < 0) {
-                y += Ly;
-            }
+        
 
-            s = std::make_shared<Site>(x, y);
-        }
-        else {
-            s = std::make_shared<Site>(-area_sgn * center_x / 6 / area, 
-                                       -area_sgn * center_y / 6 / area);
-        }
+
+        center.x = area_sgn * center.x / 6 / area;
+        center.y = area_sgn * center.y / 6 / area; 
+        
+        // update the center site s
+        s->x = center.x; s->y = center.y;
         correct_periodic_bc<periodic_bc>(s);
 
         return area;
