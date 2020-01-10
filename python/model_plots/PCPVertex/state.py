@@ -29,11 +29,27 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         uni (int): The universe to use
         hlpr (PlotHelper): The PlotHelper
     """
+    def scatter_vertex(x, y, ax):
+        ax.scatter(x, y, c='black')
+
+    def plot_edge(x0, y0, x1, y1, ax):
+        ax.arrow(x0, y0, x1, y1, head_width=0., head_length=0., color='black')
+
+
     # Get the group that all datasets are in
     grp = uni['data/'+datapath]
 
     # Get the shape of the data
     uni_cfg = uni['cfg']
+    vertex_cfg = uni_cfg
+    for level in datapath.split('/'):
+        vertex_cfg = vertex_cfg[level]
+    hexagon_size = vertex_cfg['hexagon_size']
+    num_rows = vertex_cfg['lattice_rows']
+    num_columns = vertex_cfg['lattice_columns']
+  # [4 * sqrt(3) * size_hexagonal, 1.5 * num_columns * size_hexagonal]
+    periodic_limits = [num_rows * 3**0.5 * hexagon_size, 
+                       num_columns * 1.5 * hexagon_size]
     # model_cfg = uni_cfg[datapath]
 
     # Prepare the figure ......................................................
@@ -59,7 +75,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             for v_id in v_data.dim_1:
                 v = v_data.sel(dim_1=v_id)
-                hlpr.ax.scatter(v.data[0], v.data[1], c='black')
+                scatter_vertex(v.data[0], v.data[1], hlpr.ax)
 
             for e_id in e_data.dim_1:
                 e = e_data.sel(dim_1=e_id)
@@ -67,8 +83,43 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 ay = v_data.sel(dim_1=e[0])[1]
                 bx = v_data.sel(dim_1=e[1])[0]
                 by = v_data.sel(dim_1=e[1])[1]
-                hlpr.ax.arrow(ax, ay, bx-ax, by-ay, 
-                         head_width=0., head_length=0., color='black')
+
+                if (periodic_limits):
+                    dx = bx - ax
+                    dy = by - ay
+                    Lx = periodic_limits[0]
+                    Ly = periodic_limits[1]
+                    if (dx >= Lx/2. and dy >= Ly/2.):
+                        plot_edge(ax+Lx, ay+Ly, dx-Lx, dy-Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx-Lx, dy-Ly, hlpr.ax)
+                    elif (dx <= -Lx/2. and dy <= -Ly/2.):
+                        plot_edge(ax-Lx, ay-Ly, dx+Lx, dy+Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx+Lx, dy+Ly, hlpr.ax)
+                    elif (dx >= Lx/2. and dy <= -Ly/2.):
+                        plot_edge(ax+Lx, ay-Ly, dx-Lx, dy+Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx-Lx, dy+Ly, hlpr.ax)
+                    elif (dx <= -Lx/2. and dy >= Ly/2.):
+                        plot_edge(ax-Lx, ay+Ly, dx+Lx, dy-Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx+Lx, dy-Ly, hlpr.ax)
+
+                    elif (dx >= Lx/2.):
+                        plot_edge(ax+Lx, ay, dx-Lx, dy, hlpr.ax)
+                        plot_edge(ax, ay, dx-Lx, dy, hlpr.ax)
+                    elif (dx <= -Lx/2.):
+                        plot_edge(ax-Lx, ay, dx+Lx, dy, hlpr.ax)
+                        plot_edge(ax, ay, dx+Lx, dy, hlpr.ax)
+                    elif (dy >= Ly/2.):
+                        plot_edge(ax, ay+Ly, dx, dy-Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx, dy-Ly, hlpr.ax)
+                    elif (dy <= -Ly/2.):
+                        plot_edge(ax, ay-Ly, dx, dy+Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx, dy+Ly, hlpr.ax)
+                    else:
+                        plot_edge(ax, ay, dx, dy, hlpr.ax)
+
+                    
+                else:
+                    plot_edge(ax, ay, bx-ax, by-ay, hlpr.ax)
 
             for c_id in c_data.dim_1:
                 c = c_data.sel(dim_1=c_id)
@@ -77,7 +128,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             hlpr.invoke_helper('set_title', title="Time {}".format(step))
             # Done with this frame; yield control to the animation framework
             # which will grab the frame...
-            # hlpr.invoke_helper('set_limits', x=[0, 3.5], y=[0, 3])
+            hlpr.invoke_helper('set_limits', x=[-1, 5], y=[-1, 4])
             yield
 
 
