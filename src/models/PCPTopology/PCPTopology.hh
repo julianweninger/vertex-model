@@ -213,7 +213,9 @@ public:
 
 
     /// Monitor model information
-    void monitor () { }
+    void monitor () {        
+        this->_monitor.set_entry("num cells", _cells.size());
+    }
 
 
     /// Write data

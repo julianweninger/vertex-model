@@ -28,12 +28,12 @@ PCPVertex:
   
   # Linetension parameter
   linetension: 0.1
-  length_threshold: 0.0
+  length_threshold: 0.001
 
   # Area elasticity parameter
   area_elasticity: 1
   area_preferential: 1.
-  area_threshold: 0.1
+  area_threshold: 0.01
 
   # Topology parameter
   hexagon_size: 0.62
@@ -41,7 +41,7 @@ PCPVertex:
   lattice_columns: 4
 
 # Equilibration parameter
-equilibration_tolerance: 0.05
+equilibration_tolerance: 0.5
 num_equilibration_steps: 1000
 max_equilibration_iterations: 50
 
