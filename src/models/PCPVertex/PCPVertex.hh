@@ -1229,11 +1229,26 @@ public:
     /** Divides a random cell into two daughter cells.
      *  The cell is divided at an axis through it's center at a random angle, 
      *  which creates an edge between the two daughter cells.
+     * 
+     *  \param threshold    Fraction of the area_preferential at which cell
+     *                      is not divided
      */
-    void divide_random_cell() {
+    void divide_random_cell(double threshold = 0.5) {
         std::uniform_int_distribution<> int_dist(0, _cells.size() - 1);
         
-        this->divide_cell(_cells.begin()+int_dist(*this->_rng),
+        auto rn = int_dist(*this->_rng);
+        int cnt = 0;
+        while(_cells[rn]->area < threshold * _cells[rn]->area_preferential) {
+            cnt++;
+            if (cnt > 9) {
+                this->_log->warn("Could not find a cell to divide! cell area: {}"
+                    " and preferential area: {}", _cells[rn]->area, 
+                    _cells[rn]->area_preferential);
+                return;
+            }
+            rn = int_dist(*this->_rng);
+        }
+        this->divide_cell(_cells.begin()+rn,
                           _prob_distr(*this->_rng) * PI);
     }
 
