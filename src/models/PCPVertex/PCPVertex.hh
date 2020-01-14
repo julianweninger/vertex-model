@@ -425,7 +425,7 @@ private:
                     // NOTE a pair row cannot be at periodic boundary
                     //      hence no need to handle periodicity
 
-                    _cells.push_back(std::make_shared<Cell>(center, edges,
+                    _cells.push_back(std::make_shared<Cell>(*center, edges,
                                                             _area_preferential));
                 }
             }
@@ -450,7 +450,7 @@ private:
                     // upper right
                     edges.push_back(_edges[3*((q+1)%lim_columns + (r+1)%lim_rows * lim_columns)]);
 
-                    _cells.push_back(std::make_shared<Cell>(center, edges,
+                    _cells.push_back(std::make_shared<Cell>(*center, edges,
                                                             _area_preferential));
                 }
             }
@@ -1166,9 +1166,9 @@ private:
         }
 
         // create 2 new cells
-        auto new_cell_0 = std::make_shared<Cell>(cell_center, new_edges_cell_0, 
+        auto new_cell_0 = std::make_shared<Cell>(*cell_center, new_edges_cell_0, 
                                                  cell->area_preferential);
-        auto new_cell_1 = std::make_shared<Cell>(cell_center, new_edges_cell_1, 
+        auto new_cell_1 = std::make_shared<Cell>(*cell_center, new_edges_cell_1, 
                                                  cell->area_preferential);
         _cells.push_back(new_cell_0);
         _cells.push_back(new_cell_1);
