@@ -1,10 +1,18 @@
 #include <iostream>
 
 #include "PCPVertex.hh"
+#include "PCPVertex_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;
+using namespace DataIO;
 using Utopia::get_as;
 
+/// Factory for model 
+template<bool periodic_bc, typename ParentType>
+PCPVertex<periodic_bc> model_factory(ParentType parent) {
+    return PCPVertex<periodic_bc>("PCPVertex", parent, time_adaptor,
+        vertex_position_adaptor, cell_position_adaptor, edge_link_adaptor);
+}
 
 int main (int, char** argv) {
     try {
@@ -14,11 +22,13 @@ int main (int, char** argv) {
 
         // Initialize the main model instance and directly run it
         if (get_as<bool>("periodic_bc", model_cfg)) {
-            PCPVertex<true>("PCPVertex", pp).run();
+            auto model = model_factory<true>(pp);
+            model.run();
         }
         else
         {
-            PCPVertex<false>("PCPVertex", pp).run();
+            auto model = model_factory<false>(pp);
+            model.run();
         }        
 
         // Done

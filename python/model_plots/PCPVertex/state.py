@@ -47,7 +47,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hexagon_size = vertex_cfg['hexagon_size']
     num_rows = vertex_cfg['lattice_rows']
     num_columns = vertex_cfg['lattice_columns']
-  # [4 * sqrt(3) * size_hexagonal, 1.5 * num_columns * size_hexagonal]
+    # [4 * sqrt(3) * size_hexagonal, 1.5 * num_columns * size_hexagonal]
     if (vertex_cfg['periodic_bc']):
         periodic_limits = [num_rows * 3**0.5 * hexagon_size, 
                            num_columns * 1.5 * hexagon_size]
@@ -59,22 +59,13 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure()
 
-    for id in grp['vertices']['0'].dim_1:
-        v = grp['vertices']['0'].sel(dim_1=id)
-        hlpr.ax.scatter(v.data[0], v.data[1])
-
-    steps = []
-    for step in grp['vertices']:
-        steps.append(int(step))
-    steps.sort()
-
     def update():
-        for step in steps:
+        for time in grp['Time']:
             hlpr.ax.clear()
 
-            v_data = grp['vertices'][str(step)]
-            e_data = grp['edges'][str(step)]
-            c_data = grp['cells'][str(step)]
+            v_data = grp['Vertex_position'][str(time.data)]
+            e_data = grp['Edge_link'][str(time.data)]
+            c_data = grp['Cell_position'][str(time.data)]
 
             for v_id in v_data.dim_1:
                 v = v_data.sel(dim_1=v_id)
@@ -82,10 +73,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             for e_id in e_data.dim_1:
                 e = e_data.sel(dim_1=e_id)
-                ax = v_data.sel(dim_1=e[0])[0]
-                ay = v_data.sel(dim_1=e[0])[1]
-                bx = v_data.sel(dim_1=e[1])[0]
-                by = v_data.sel(dim_1=e[1])[1]
+                ax = v_data.sel(dim_1=e[0].data)[0]
+                ay = v_data.sel(dim_1=e[0].data)[1]
+                bx = v_data.sel(dim_1=e[1].data)[0]
+                by = v_data.sel(dim_1=e[1].data)[1]
 
                 if (periodic_limits):
                     dx = bx - ax
@@ -128,7 +119,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 c = c_data.sel(dim_1=c_id)
                 hlpr.ax.scatter(c.data[0], c.data[1], c='red')
 
-            hlpr.invoke_helper('set_title', title="Time {}".format(step))
+            hlpr.invoke_helper('set_title', title="Time {}".format(time.data))
             yield
 
 

@@ -12,6 +12,7 @@
 
 #include "../PCPVertex/geometry.hh"
 #include "../PCPVertex/PCPVertex.hh"
+#include "../PCPVertex/PCPVertex_write_tasks.hh"
 
 
 namespace Utopia {
@@ -21,24 +22,17 @@ namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// Type helper to define types used by the model
-using ModelTypes = Utopia::ModelTypes<>;
+using PCPTopologyModelTypes = Utopia::ModelTypes<>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
 template <bool periodic_bc>
 class PCPTopology:
-    public Model<PCPTopology<periodic_bc>, ModelTypes>
+    public Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPTopology<periodic_bc>, ModelTypes>;
-
-    /// Data type of the group to write model data to, holding datasets
-    using DataGroup = typename Base::DataGroup;
-
-    /// Data type for a dataset
-    using DataSet = typename Base::DataSet;
-
+    using Base = Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>;
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
@@ -95,8 +89,16 @@ public:
     :
         // Initialize first via base model
         Base(name, parent),
+
+        _num_equilibration_steps(get_as<int>("num_equilibration_steps",
+                                             this->_cfg)),
+        _max_equilibration_iterations(get_as<int>("max_equilibration_iterations",
+                                                  this->_cfg)),
         
-        _vertex_model("PCPVertex", *this),
+        // construct the vertex model with an external maximum time stamp
+        _vertex_model("PCPVertex", *this,
+                      DataIO::time_adaptor, DataIO::vertex_position_adaptor,  
+                      DataIO::cell_position_adaptor, DataIO::edge_link_adaptor),
 
         _vertices(_vertex_model.get_vertices()),
         _edges(_vertex_model.get_edges()),
@@ -104,19 +106,12 @@ public:
 
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
                                              this->_cfg)),
-        _num_equilibration_steps(get_as<int>("num_equilibration_steps",
-                                             this->_cfg)),
-        _max_equilibration_iterations(get_as<int>("max_equilibration_iterations",
-                                                  this->_cfg)),
         _cell_divisions_per_step(get_as<double>("cell_divisions_per_step",
                                                 this->_cfg)),
         _prob_distr(0.,1.)
     {
-        if (_vertex_model.get_write_start() == 0) {
-            _vertex_model.write_data();
-            // NOTE Need this because env model is never run, but only iterated
-        }
-
+        _vertex_model.write_data_initial();
+        
         this->equilibrate_vertex_model();
 
         // update the vertices, edges, and cell container
@@ -217,10 +212,7 @@ public:
         this->_monitor.set_entry("num cells", _cells.size());
     }
 
-
-    /// Write data
     void write_data () { }
-
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model

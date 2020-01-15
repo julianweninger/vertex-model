@@ -25,7 +25,7 @@ namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// Type helper to define types used by the model
-using ModelTypes = Utopia::ModelTypes<>;
+using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -56,11 +56,8 @@ public:
     /// The type of the Model base class of this derived class
     using Base = Model<PCPVertex<periodic_bc>, ModelTypes>;
 
-    /// Data type of the group to write model data to, holding datasets
-    using DataGroup = typename Base::DataGroup;
-
-    /// Data type for a dataset
-    using DataSet = typename Base::DataSet;
+    /// Data type for the model time
+    using Time = typename ModelTypes::Time;
 
 
 private:
@@ -79,6 +76,9 @@ private:
     /// timestep scaling
     double _dt;
 
+    /// A model-external maximum time stamp
+    const Time _time_max_external;
+
     /// Linetension constant Lambda
     double _linetension;
     /// Edges shorter than this value are replaced in a T1 transition
@@ -96,34 +96,19 @@ private:
 
     // .. Temporary objects ...................................................
 
-
-    // .. Datasets ............................................................
-    // NOTE They should be named '_dset_<name>', where <name> is the
-    //      dataset's actual name as set in its constructor. Ideally, do not
-    //      hide them inside a struct ...
-    /// Group to write Vertices positions.
-    /** NOTE a new DataSet is created for every step */
-    const std::shared_ptr<DataGroup> _grp_vertices;
-    /// Group to write Edges. Writes the ids of e->a and e->b
-    /** NOTE a new DataSet is created for every step */
-    const std::shared_ptr<DataGroup> _grp_edges;
-    /// Group to write Cells positions.
-    /** NOTE a new DataSet is created for every step */
-    const std::shared_ptr<DataGroup> _grp_cells;    
-    /// DataSet to write the maximum forces on a vertex
-    const std::shared_ptr<DataSet> _dset_forces;
-
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
     /** \param name     Name of this model instance
      *  \param parent   The parent model this model instance resides in
+     *  \param time_max The external maximum time stamp
      */
-    template<class ParentModel>
-    PCPVertex (const std::string name, ParentModel& parent)
+    template<class ParentModel, typename... Taskargs>
+    PCPVertex (const std::string name, ParentModel& parent, 
+               Taskargs&&... taskargs)
     :
         // Initialize first via base model
-        Base(name, parent),
+        Base(name, parent, std::forward<Taskargs>(taskargs)...),
         
         _vertices(),
         _edges(),
@@ -131,18 +116,14 @@ public:
         
         // Get member paramters from cfg
         _dt(get_as<double>("dt", this->_cfg)),
+        _time_max_external(get_as<int>("external_time_max", 
+                                       this->_cfg, this->get_time_max())),
         _linetension(get_as<double>("linetension", this->_cfg)),
         _length_threshold(get_as<double>("length_threshold", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
-        _prob_distr(0.,1.),
-
-        // Open the datasets
-        _grp_vertices(this->_hdfgrp->open_group("vertices")),
-        _grp_edges(this->_hdfgrp->open_group("edges")),
-        _grp_cells(this->_hdfgrp->open_group("cells")),
-        _dset_forces(this->create_dset("forces", {}))
+        _prob_distr(0.,1.)
     {
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
@@ -1312,63 +1293,22 @@ public:
     void monitor () { }
 
 
-    /// Write data
-    void write_data () {
-        const auto num_vertices = _vertices.size();
-        const auto num_edges = _edges.size();
-        const auto num_cells = _cells.size();
-
-        // Get a logger to use here (Note: needs to have been setup beforehand)
-        auto log = spdlog::get("data_io");
-        log->info("Saving graph with {} vertices and {} edges ...",
-                num_vertices,
-                num_edges);
-
-        // Store additional metadata in the group attributes
-        auto dset_vs = _grp_vertices->open_dataset(std::to_string(this->_time),
-                                                   {2, num_vertices});
-        dset_vs->add_attribute("num_vertices", num_vertices);
-
-        int running_id = 0;
-        dset_vs->write(_vertices.begin(), _vertices.end(), [&](auto v) {
-            v->current_id = running_id++;
-            return v->x;
-        });
-        dset_vs->write(_vertices.begin(), _vertices.end(), [&](auto v) {
-            return v->y;
-        });
-
-        auto dset_es = _grp_edges->open_dataset(std::to_string(this->_time),
-                                                {2, num_edges});
-        dset_es->add_attribute("num_edges", num_edges);
-        
-        dset_es->write(_edges.begin(), _edges.end(), [&](auto e) {
-            return e->a->current_id;
-        });
-        dset_es->write(_edges.begin(), _edges.end(), [&](auto e) {
-            return e->b->current_id;
-        });
-        
-        auto dset_cs = _grp_cells->open_dataset(std::to_string(this->_time),
-                                                {2, num_cells});
-        dset_cs->add_attribute("num_cells", num_cells);
-
-        for (auto c : _cells) { 
-            c->cell_area<periodic_bc>(); // update the cell center
-        }
-        dset_cs->write(_cells.begin(), _cells.end(), [this](auto c) {
-            return c->s->x;
-        });
-        dset_cs->write(_cells.begin(), _cells.end(), [&](auto c) {
-            return c->s->y;
-        });
-
-        // _dset_forces->write(this->force_max_on_vertex());
+    /// Writes the initial data
+    /** This function is taken care of in the run mode, but not in an iterated
+     *  mode
+     */ 
+    void write_data_initial () {
+        this->_datamanager(*this);
     }
 
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+
+    /// Getter for external maximum time stamp
+    Time get_time_max_external () const {
+        return _time_max_external;
+    }
 
     /// Getter for vertices
     std::vector<std::weak_ptr<Vertex>> get_vertices () {
@@ -1421,7 +1361,7 @@ public:
                           tolerance*sqrt(_area_preferential));
         return (force_max_on_vertex() < tolerance*sqrt(_area_preferential));
     };
-};
+}; // class PCPVertex
 
 } // namespace PCPVertex
 } // namespace Models

@@ -5,6 +5,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "../PCPVertex.hh"
+#include "../PCPVertex_write_tasks.hh"
 
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex;
@@ -21,7 +22,9 @@ PCPVertex<periodic_bc> model_factory(std::string cfg) {
 
     BOOST_TEST(get_as<bool>("periodic_bc", model_cfg) == periodic_bc);
 
-    return PCPVertex<periodic_bc>("PCPVertex", pp);
+    using Utopia::Models::PCPVertex::DataIO::time_adaptor;
+
+    return PCPVertex<periodic_bc>("PCPVertex", pp, time_adaptor);
 }
 
 /// Destructor for the model
