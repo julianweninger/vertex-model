@@ -33,7 +33,7 @@ PCPVertex:
 
   # Area elasticity parameter
   area_elasticity: 1
-  area_preferential: 1.
+  area_preferential: 1.5
   area_threshold: 0.001
 
   # Topology parameter

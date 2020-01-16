@@ -221,12 +221,10 @@ private:
      *  for additional details see https://www.redblobgames.com/grids/hexagons/
      */
     void initialise_hexagonal(double size, int num_rows, int num_columns) {
-        double height = 2 * size;
         double width = sqrt(3) * size;
+        double height = 2 * size;
 
         if constexpr (periodic_bc) {
-            this->_log->warn("Resizing the domain!!");
-            
             Lx = num_columns * width;
             Ly = 0.75 * num_rows * height;
 
@@ -236,7 +234,18 @@ private:
                     "of rows, but received impair number. Requested "
                     "number of rows was " + std::to_string(num_columns) + "!");
             }
+
+            // set up with relative coordinates
+            width = width / Lx;
+            height = height / Ly;
         }
+        else {
+            Lx = (num_columns + 0.5) * width;
+            Ly = (0.75 * num_rows + 0.5) * height;
+        }
+            
+        width = 1. / double(num_columns);
+        height = 4. / (3. * num_rows);
 
         // Add vertices
         // NOTE one more row and column of vertices initialized in
@@ -480,16 +489,7 @@ private:
      *              NOTE that forces only act on vertices
      */
     std::function<void(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
-        double dx = e->b->x - e->a->x;
-        double dy = e->b->y - e->a->y;
-
-        if constexpr (periodic_bc) {
-            if (dx <= -Lx / 2.) { dx = dx + Lx; }
-            else if (dx > Lx / 2.) { dx = dx - Lx; }
-
-            if (dy <= -Ly / 2.) { dy = dy + Ly; }
-            else if (dy > Ly / 2.) { dy = dy - Ly; }
-        }
+        auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b);
 
         const double fx = e->linetension*dx/e->length;
         const double fy = e->linetension*dy/e->length;
@@ -498,6 +498,8 @@ private:
         e->a->fy += fy;
         e->b->fx -= fx;
         e->b->fy -= fy;
+
+        // return e->linetension * e->length;
     };
 
     /** Calculates the forces from area elasticity
@@ -511,62 +513,39 @@ private:
     std::function<void(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
         for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
             // the edge prior the vertex
-            auto e0_pair  = c->edges_ordered[std::max(0, edges_it - 1)];
-            if (edges_it == 0) { e0_pair = c->edges_ordered.back(); }
+            auto [e0, e0_flip]  = c->edges_ordered[std::max(0, edges_it - 1)];
+            if (edges_it == 0) { std::tie(e0, e0_flip) = c->edges_ordered.back(); }
 
             // the edge post the vertex
-            const auto e1_pair = c->edges_ordered[edges_it];
+            const auto [e1, e1_flip] = c->edges_ordered[edges_it];
             
             // vertices in ordering
-            Vertex_ptr v_center, v_prior, v_post;
-            if (std::get<bool>(e0_pair)) {
-                v_center = std::get<Edge_ptr>(e0_pair)->a;
-                v_prior = std::get<Edge_ptr>(e0_pair)->b; 
+            Vertex_ptr v_center = e0->b, v_prior = e0->a;
+            if (e0_flip) {
+                std::swap(v_center, v_prior);
+            }
+
+            Vertex_ptr v_post;
+            if (e1_flip) {
+                v_post = e1->a;
             }
             else {
-                v_center = std::get<Edge_ptr>(e0_pair)->b;
-                v_prior = std::get<Edge_ptr>(e0_pair)->a;
-            }
-            if (std::get<bool>(e1_pair)) {
-                v_post = std::get<Edge_ptr>(e1_pair)->a;
-            }
-            else {
-                v_post = std::get<Edge_ptr>(e1_pair)->b;
+                v_post = e1->b;
             }
 
-            double dx, dy;
-            if constexpr (periodic_bc) {
-                double dx1 = v_prior->x - v_center->x;
-                if (dx1 <= -Lx / 2.) { dx1 += Lx; }
-                else if (dx1 > Lx / 2.) { dx1 -= Lx; }
+            auto [dx1, dy1] = displacement_absolute<periodic_bc>(*v_center,
+                                                                 *v_prior);
+            auto [dx2, dy2] = displacement_absolute<periodic_bc>(*v_post,
+                                                                 *v_center);
 
-                double dx2 = v_center->x - v_post->x;
-                if (dx2 <= -Lx / 2.) { dx2 += Lx; }
-                else if (dx2 > Lx / 2.) { dx2 -= Lx; }
-
-                dx = dx1 + dx2;
-
-                double dy1 = v_post->y - v_center->y;
-                if (dy1 <= -Ly / 2.) { dy1 += Ly; }
-                else if (dy1 > Ly / 2.) { dy1 -= Ly; }
-
-                double dy2 = v_center->y - v_prior->y;
-                if (dy2 <= -Ly / 2.) { dy2 += Ly; }
-                else if (dy2 > Ly / 2.) { dy2 -= Ly; }
-
-                dy = dy1 + dy2;
-            }
-            else {
-                dx = v_prior->x - v_post->x;
-                dy = v_post->y - v_prior->y;
-            }
-
-            double dA_dx = 0.5 * dy * c->area_sgn;
-            double dA_dy = 0.5 * dx * c->area_sgn;
+            double dA_dx = -0.5 * (dy1 + dy2) * c->area_sgn;
+            double dA_dy = 0.5 * (dx1 + dx2) * c->area_sgn;
             
             // this is the force on this vertex
             v_center->fx -= _area_elasticity * (c->area - c->area_preferential)*dA_dx;
             v_center->fy -= _area_elasticity * (c->area - c->area_preferential)*dA_dy;
+
+            // return 0.5 * _area_elasticity * pow(c->area - c->area_preferential, 2);
         }
     };
     
@@ -577,8 +556,8 @@ private:
      *  @param v    The pointer to the vertex to update
      */
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
-        v->x += v->fx * _dt;
-        v->y += v->fy * _dt;
+        v->x += v->fx * _dt / Lx;
+        v->y += v->fy * _dt / Ly;
         
         correct_periodic_bc<periodic_bc>(v);
     };
@@ -799,11 +778,11 @@ private:
 
         // create two new vertices that create an edge of threshold length 
         // pointing from cell a to b
-        auto vector_AB = displacement<periodic_bc>(*(adj_cell_a->s),
-                                                   *(adj_cell_b->s));
+        auto [dx, dy] = displacement_absolute<periodic_bc>(*(adj_cell_a->s),
+                                                           *(adj_cell_b->s));
         auto length = distance<periodic_bc>(*(adj_cell_a->s), *(adj_cell_b->s));
-        double dx = std::get<0>(vector_AB) / length * _length_threshold;
-        double dy = std::get<1>(vector_AB) / length * _length_threshold;
+        dx = dx / length * _length_threshold / Lx;
+        dy = dy / length * _length_threshold / Ly;
         auto new_v_a = std::make_shared<Vertex>(
                                 0.5 * (edge->a->x + edge->b->x) - dx / 2.,
                                 0.5 * (edge->a->y + edge->b->y) - dy / 2.);
@@ -816,7 +795,7 @@ private:
         _vertices.push_back(new_v_b);
 
         // create a new edge
-        auto new_edge = std::make_shared<Edge>(new_v_a, new_v_b, _linetension);        
+        Edge_ptr new_edge = std::make_shared<Edge>(new_v_a, new_v_b, _linetension);        
         new_v_a->adj_edges = {new_edge, adj_edge_a, adj_edge_c};    
         new_v_b->adj_edges = {new_edge, adj_edge_b, adj_edge_d};
 
@@ -891,7 +870,7 @@ private:
         adj_cell_b->cell_area<periodic_bc>();
         adj_cell_c->cell_area<periodic_bc>();
         adj_cell_d->cell_area<periodic_bc>();
-
+        
         new_edge->update_length<periodic_bc>();
         adj_edge_a->update_length<periodic_bc>();
         adj_edge_b->update_length<periodic_bc>();
@@ -932,8 +911,8 @@ private:
         auto cell_center = std::make_shared<Vertex>(cell->s);
 
         // generate the axis of division
-        double dx = cos(division_angle);
-        double dy = sin(division_angle);
+        double dx = cos(division_angle) / Lx;
+        double dy = sin(division_angle) / Ly;
         auto tmp_vertex = std::make_shared<Vertex>(cell_center->x + dx, 
                                                    cell_center->y + dy);
         auto division_axis = std::make_shared<Edge>(cell_center, tmp_vertex, 0.);

@@ -13,6 +13,7 @@ namespace Utopia {
 namespace Models {
 namespace PCPVertex {
 
+/// the domain size
 double Lx = 100., Ly = 100.;
 
 struct Site;
@@ -30,10 +31,13 @@ using VertexContainer = std::vector<Vertex_ptr>;
 using EdgeContainer = std::vector<Edge_ptr>;
 using CellContainer = std::vector<Cell_ptr>;
 
-/// The Site described by its coordinates (x,y)
+/// The Site described by its relative coordinates (x,y)
 struct Site {
-    /// The position
-    double x, y;
+    /// The relative x position within the domain
+    double x;
+
+    /// The relative y position within the domain
+    double y;
 
     /// An id unique within the current container of vertices
     int current_id;
@@ -42,6 +46,8 @@ struct Site {
     bool remove;
 
     /// Constructor
+    /** \param x, y     relative position within the domain
+     */
     Site(double x, double y)
     :
         x(x),
@@ -53,7 +59,8 @@ struct Site {
 
 /// The Vertex as a positional node within the cell boundary network 
 struct Vertex : Site {
-    // double x, y
+    // double x, y  relative positions
+    /// the steepest gradient slope
     double fx, fy;
 
     /// Container of the adjacent edges
@@ -63,6 +70,8 @@ struct Vertex : Site {
     std::vector<std::weak_ptr<Cell>> adj_cells;
 
     /// Constructor
+    /** \param x, y     relative position within the domain
+     */
     Vertex(double x, double y, EdgeContainer adj_es = {},
            CellContainer adj_cs = {})
     :
@@ -98,13 +107,46 @@ template <bool periodic_bc>
 void correct_periodic_bc(Site_ptr s)
 {
     if constexpr (periodic_bc) {
-        if (s->x >= Lx) { s->x -= Lx; }
-        else if (s->x < 0) { s->x += Lx; }
-        if (s->y >= Ly) { s->y -= Ly; }
-        else if (s->y < 0) { s->y += Ly; }
+        if (s->x >= 1.) { s->x -= 1.; }
+        else if (s->x < 0.) { s->x += 1.; }
+        if (s->y >= 1.) { s->y -= 1.; }
+        else if (s->y < 0.) { s->y += 1.; }
     }
 
     return;
+}
+
+/// The relative displacement vector from a to b
+template <bool periodic_bc>
+std::pair<double, double> displacement(const Site &a, const Site &b) 
+{
+    double dx = b.x - a.x;
+    double dy = b.y - a.y;
+
+    if (dx <= -0.5) { dx += 1.; }
+    else if (dx > 0.5) { dx -= 1.; }
+
+    if (dy <= -0.5) { dy += 1.; }
+    else if (dy > 0.5) { dy -= 1.; }
+
+    return std::make_pair(dx, dy);
+}
+
+/// The absolute displacement vector from a to b
+template <bool periodic_bc>
+std::pair<double, double> displacement_absolute(const Site &a, const Site &b) 
+{
+    auto [dx, dy] = displacement<periodic_bc>(a, b);
+
+    return std::make_pair(Lx*dx, Ly*dy);
+}
+
+/// The absolute distance of two sites
+template <bool periodic_bc>
+double distance(const Site &a, const Site &b) {
+    auto [dx, dy] = displacement_absolute<periodic_bc>(a, b);
+
+    return std::max(sqrt(pow(dx, 2) + pow(dy, 2)), 1e-10);
 }
 
 /// Creates an object-copy, that is at true distance to another object
@@ -115,43 +157,9 @@ Site periodic_copy(const Site s, const Site s_fixed)
         return Site(s.x, s.y);
     }
 
-    double dx = s.x - s_fixed.x;
-    double dy = s.y - s_fixed.y;
-
-    if (dx <= -Lx / 2.) { dx += Lx; }
-    else if (dx > Lx / 2.) { dx -= Lx; }
-
-    if (dy <= -Ly / 2.) { dy += Ly; }
-    else if (dy > Ly / 2.) { dy -= Ly; }
+    auto [dx, dy] = displacement<periodic_bc>(s_fixed, s);
 
     return Site(s_fixed.x + dx, s_fixed.y + dy);
-}
-
-/// The displacement vector from a to b
-template <bool periodic_bc>
-std::pair<double, double> displacement(const Site &a, const Site &b) 
-{
-    double dx = b.x - a.x;
-    double dy = b.y - a.y;
-
-    if constexpr (periodic_bc) {
-        if (dx <= -Lx / 2.) { dx += Lx; }
-        else if (dx > Lx / 2.) { dx -= Lx; }
-
-        if (dy <= -Ly / 2.) { dy += Ly; }
-        else if (dy > Ly / 2.) { dy -= Ly; }
-    }
-
-    return std::make_pair(dx, dy);
-}
-
-/// The distance of two sites
-template <bool periodic_bc>
-double distance(const Site &a, const Site &b) {
-    auto v_ab = displacement<periodic_bc>(a, b);
-
-    return std::max(sqrt(pow(std::get<0>(v_ab), 2) + pow(std::get<1>(v_ab), 2)),
-                    1e-10);
 }
 
 /// The Edge object
@@ -161,7 +169,7 @@ struct Edge {
     /// Start and end vertices of this edge
     Vertex_ptr a, b;
 
-    /// Length of the edge
+    /// Absolute length of the edge
     /** \warning manual update */
     double length;
 
@@ -232,15 +240,15 @@ Site_ptr intersection(const Edge e0, const Edge e1,
                      const bool finite_e0 = true, const bool finite_e1 = true) 
 {
     // the start vertices of the resp. edges
-    Site va = Site(e0.a->x, e0.a->y);
-    Site vc = periodic_copy<periodic_bc>(Site(e1.a->x, e1.a->y), va);
+    Site va = *e0.a;
+    Site vc = periodic_copy<periodic_bc>(*e1.a, va);
     
     // the end vertices of the resp. edges
-    Site vb = periodic_copy<periodic_bc>(Site(e0.b->x, e0.b->y), va);
-    Site vd = periodic_copy<periodic_bc>(Site(e1.b->x, e1.b->y), vc);
+    Site vb = periodic_copy<periodic_bc>(*e0.b, va);
+    Site vd = periodic_copy<periodic_bc>(*e1.b, vc);
 
-    auto vector_e0 = displacement<periodic_bc>(va, *(e0.b));
-    auto vector_e1 = displacement<periodic_bc>(*(e1.a), *(e1.b));
+    auto vector_e0 = displacement<periodic_bc>(va, vb);
+    auto vector_e1 = displacement<periodic_bc>(vc, vd);
 
     // line defined by e0: y0 = a + bx
     double a, b;
@@ -327,7 +335,7 @@ struct Cell {
      */
     std::vector<std::pair<Edge_ptr, bool>> edges_ordered;
 
-    /// The area of the cell
+    /// The absolute area of the cell
     /** NOTE manual update */
     double area;
     
@@ -372,7 +380,7 @@ struct Cell {
 
         // put b to the right of a
         double dx = e->b->x - e->a->x;
-        if ((dx < 0 and dx > -Lx / 2.) or dx > Lx / 2.) {
+        if ((dx < 0 and dx > -0.5) or dx > 0.5) {
             edges_ordered.push_back(std::make_pair(e, true));
             a = e->b;
             b = e->a;
@@ -496,8 +504,6 @@ struct Cell {
         else { area_sgn = 1;}
 
         area = 0.5 * area * area_sgn;
-        
-
 
         center.x = area_sgn * center.x / 6 / area;
         center.y = area_sgn * center.y / 6 / area; 
@@ -505,6 +511,8 @@ struct Cell {
         // update the center site s
         s->x = center.x; s->y = center.y;
         correct_periodic_bc<periodic_bc>(s);
+
+        area = Lx*Ly * area;
 
         return area;
     }
