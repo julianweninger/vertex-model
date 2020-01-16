@@ -5,7 +5,7 @@ PCPVertex:
   dt: 0.01
   
   linetension: 0.1
-  length_threshold: 0.2
+  length_threshold: 0.05
 
   area_elasticity: 1.0
   area_preferential: 1.0

@@ -94,8 +94,7 @@ void test_T2_transition (std::string cfg)
     auto c = cells[cells.size() / 2 + 1];
 
     // contract this inner cell
-    double area_threshold = get_as<double>("area_threshold",
-                                                    model_cfg);
+    double area_threshold = get_as<double>("area_threshold", model_cfg);
     c.lock()->area_preferential = 0.5 * area_threshold;
 
     // run the model
