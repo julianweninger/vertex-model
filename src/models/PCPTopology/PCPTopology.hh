@@ -41,18 +41,6 @@ private:
     // -- Members -------------------------------------------------------------
     /// The Vertex model
     PCPVertex<periodic_bc> _vertex_model;
-    
-    /// VertexContainer
-    /// NOTE insert and delete in VertexModel not updated automatically
-    std::vector<std::weak_ptr<Vertex>> _vertices;
-    
-    /// EdgeContainer
-    /// NOTE insert and delete in VertexModel not updated automatically    
-    std::vector<std::weak_ptr<Edge>> _edges;
-
-    /// CellContainer
-    /// NOTE insert and delete in VertexModel not updated automatically
-    std::vector<std::weak_ptr<Cell>> _cells;
 
     /// A tolerance value for equilibrium
     double _equilibration_tolerance;
@@ -100,10 +88,6 @@ public:
                       DataIO::time_adaptor, DataIO::vertex_position_adaptor,  
                       DataIO::cell_position_adaptor, DataIO::edge_link_adaptor),
 
-        _vertices(_vertex_model.get_vertices()),
-        _edges(_vertex_model.get_edges()),
-        _cells(_vertex_model.get_cells()),
-
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
                                              this->_cfg)),
         _cell_divisions_per_step(get_as<double>("cell_divisions_per_step",
@@ -111,13 +95,12 @@ public:
         _prob_distr(0.,1.)
     {
         _vertex_model.write_data_initial();
+
+        this->_log->info("Equilibrating vertex model ...");
         
         this->equilibrate_vertex_model();
 
-        // update the vertices, edges, and cell container
-        this->update_object_containers();
-
-        this->_log->debug("Initialised model.");
+        this->_log->info("Model initialised.");
     }
 
 
@@ -125,16 +108,6 @@ private:
     // .. Setup functions .....................................................
 
     // .. Helper functions ....................................................
-    /// Updates the Containers of vertices, edges, and cells
-    /** NOTE insert and deletion opterations to these containers are not 
-     *       updated automatically for changes within the vertex model
-    */
-    void update_object_containers() {
-        _vertices = _vertex_model.get_vertices();
-        _edges = _vertex_model.get_edges();
-        _cells = _vertex_model.get_cells();
-    }
-
     /// Equilibrates the vertex model
     /** Iterate the vertex model until it reaches an equilibrium state
      *  (see PCPVertex<periodic_bc>::equilibrium_state_reached(double tolerance) const)
@@ -158,6 +131,12 @@ private:
                 _vertex_model.get_time() + _num_equilibration_steps);
             for (int i = 0; i < _num_equilibration_steps; ++i) {
                 _vertex_model.iterate();
+
+                if (stop_now.load()) {
+                    this->_log->warn("Was told to stop. Not iterating vertex "
+                        "model further ...");
+                    throw GotSignal(received_signum.load());
+                }
             }
             equilibrated = _vertex_model.equilibrium_state_reached(
                                             _equilibration_tolerance);
@@ -172,11 +151,54 @@ private:
             }
         }
 
-        // update the vertices, edges, and cell container
-        this->update_object_containers();
-
         this->_log->debug("Vertex model equilibrated within {} steps", 
                          _vertex_model.get_time() - time_start);
+    }
+
+    /// Perform a cell division on a random cell
+    /** Divides a random cell into two daughter cells.
+     *  The cell is first expanded to the double of its preferential area.
+     *  The cell is then divided at an axis through it's center at a random
+     *  angle, which creates an edge between the two daughter cells.
+     * 
+     *  \param threshold    Fraction of the area_preferential at which cell
+     *                      is not divided
+     */
+    void divide_random_cell(double threshold = 0.5) {
+        auto cells = _vertex_model.get_cells();
+        std::uniform_int_distribution<> int_dist(0, cells.size() - 1);
+        
+        int cnt = 0;
+        auto c = cells[int_dist(*this->_rng)].lock();
+        auto [Lx, Ly] = _vertex_model.get_domain_size();
+        while(c->area_abs(Lx, Ly) < threshold * c->area_preferential) {
+            if (cnt++ > 9) {
+                this->_log->warn("Could not find a cell to divide! cell area: {}"
+                    " and preferential area: {}", c->area, 
+                    c->area_preferential);
+                return;
+            }
+            c = cells[int_dist(*this->_rng)].lock();
+        }
+
+        _vertex_model.increase_domain_size(c->area_preferential);
+        c->area_preferential *= 2;
+
+        equilibrate_vertex_model();
+
+        if (c->area_abs(Lx, Ly) < 0.9 * c->area_preferential) {
+            this->_log->warn("Could not divide cell, because it would "
+                "not grow to sufficient area. For division requested area: "
+                "75\% of {}. Area reached: {}. !!ABORTING!!",
+                c->area_preferential, c->area_abs(Lx, Ly));
+            throw std::runtime_error("Cell division not possible!");
+        }
+
+        c->area_preferential /= 2;
+
+        _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
+
+        equilibrate_vertex_model();
     }
 
 public:
@@ -189,16 +211,14 @@ public:
    void perform_cell_divisions(double num_cell_divisions) {
         int i;
         for (i = 1; i <= num_cell_divisions; ++i) {
-            _vertex_model.divide_random_cell();
+            divide_random_cell();
         }
         i -= 1;
         if (num_cell_divisions - i > 0 and 
                 _prob_distr(*this->_rng) < num_cell_divisions - i)
         {
-            _vertex_model.divide_random_cell();
+            divide_random_cell();
         }
-
-        equilibrate_vertex_model();
     }
 
     /// Iterate a single step
@@ -209,7 +229,7 @@ public:
 
     /// Monitor model information
     void monitor () {        
-        this->_monitor.set_entry("num cells", _cells.size());
+        this->_monitor.set_entry("num cells", _vertex_model.get_cells().size());
     }
 
     void write_data () { }

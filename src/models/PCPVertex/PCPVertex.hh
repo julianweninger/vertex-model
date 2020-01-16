@@ -79,6 +79,11 @@ private:
     /// A model-external maximum time stamp
     const Time _time_max_external;
 
+    /// The domain size in x
+    double _Lx;
+    /// The domain size in y
+    double _Ly;
+
     /// Linetension constant Lambda
     double _linetension;
     /// Edges shorter than this value are replaced in a T1 transition
@@ -118,6 +123,7 @@ public:
         _dt(get_as<double>("dt", this->_cfg)),
         _time_max_external(get_as<int>("external_time_max", 
                                        this->_cfg, this->get_time_max())),
+        _Lx(100.), _Ly(100.),
         _linetension(get_as<double>("linetension", this->_cfg)),
         _length_threshold(get_as<double>("length_threshold", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -225,8 +231,8 @@ private:
         double height = 2 * size;
 
         if constexpr (periodic_bc) {
-            Lx = num_columns * width;
-            Ly = 0.75 * num_rows * height;
+            _Lx = num_columns * width;
+            _Ly = 0.75 * num_rows * height;
 
             if (num_rows % 2 != 0) {
                 throw std::invalid_argument( "\nERROR with periodic boundary "
@@ -236,12 +242,12 @@ private:
             }
 
             // set up with relative coordinates
-            width = width / Lx;
-            height = height / Ly;
+            width = width / _Lx;
+            height = height / _Ly;
         }
         else {
-            Lx = (num_columns + 0.5) * width;
-            Ly = (0.75 * num_rows + 0.5) * height;
+            _Lx = (num_columns + 0.5) * width;
+            _Ly = (0.75 * num_rows + 0.5) * height;
         }
             
         width = 1. / double(num_columns);
@@ -489,7 +495,8 @@ private:
      *              NOTE that forces only act on vertices
      */
     std::function<void(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
-        auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b);
+        auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
+                                                           _Lx, _Ly);
 
         const double fx = e->linetension*dx/e->length;
         const double fy = e->linetension*dy/e->length;
@@ -534,18 +541,18 @@ private:
             }
 
             auto [dx1, dy1] = displacement_absolute<periodic_bc>(*v_center,
-                                                                 *v_prior);
+                                    *v_prior, _Lx, _Ly);
             auto [dx2, dy2] = displacement_absolute<periodic_bc>(*v_post,
-                                                                 *v_center);
+                                    *v_center, _Lx, _Ly);
 
             double dA_dx = -0.5 * (dy1 + dy2) * c->area_sgn;
             double dA_dy = 0.5 * (dx1 + dx2) * c->area_sgn;
             
             // this is the force on this vertex
-            v_center->fx -= _area_elasticity * (c->area - c->area_preferential)*dA_dx;
-            v_center->fy -= _area_elasticity * (c->area - c->area_preferential)*dA_dy;
+            v_center->fx -= _area_elasticity * (c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dx;
+            v_center->fy -= _area_elasticity * (c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dy;
 
-            // return 0.5 * _area_elasticity * pow(c->area - c->area_preferential, 2);
+            // return 0.5 * _area_elasticity * pow(c->area_abs(_Lx, _Ly) - c->area_preferential, 2);
         }
     };
     
@@ -556,8 +563,8 @@ private:
      *  @param v    The pointer to the vertex to update
      */
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
-        v->x += v->fx * _dt / Lx;
-        v->y += v->fy * _dt / Ly;
+        v->x += v->fx * _dt / _Lx;
+        v->y += v->fy * _dt / _Ly;
         
         correct_periodic_bc<periodic_bc>(v);
     };
@@ -642,11 +649,11 @@ private:
             // replace vertices that have been removed
             if (e->a->remove) {
                 e->a = new_v;
-                e->update_length<periodic_bc>();
+                e->update_length<periodic_bc>(_Lx, _Ly);
             }
             else if (e->b->remove) {
                 e->b = new_v;
-                e->update_length<periodic_bc>();
+                e->update_length<periodic_bc>(_Lx, _Ly);
             }
 
             ++e_it;
@@ -778,11 +785,13 @@ private:
 
         // create two new vertices that create an edge of threshold length 
         // pointing from cell a to b
-        auto [dx, dy] = displacement_absolute<periodic_bc>(*(adj_cell_a->s),
-                                                           *(adj_cell_b->s));
-        auto length = distance<periodic_bc>(*(adj_cell_a->s), *(adj_cell_b->s));
-        dx = dx / length * _length_threshold / Lx;
-        dy = dy / length * _length_threshold / Ly;
+        auto [dx, dy] = displacement_absolute<periodic_bc>(*adj_cell_a->s,
+                                                           *adj_cell_b->s, 
+                                                           _Lx, _Ly);
+        auto length = distance<periodic_bc>(*adj_cell_a->s, 
+                                            *adj_cell_b->s, _Lx, _Ly);
+        dx = dx / length * _length_threshold / _Lx;
+        dy = dy / length * _length_threshold / _Ly;
         auto new_v_a = std::make_shared<Vertex>(
                                 0.5 * (edge->a->x + edge->b->x) - dx / 2.,
                                 0.5 * (edge->a->y + edge->b->y) - dy / 2.);
@@ -871,11 +880,11 @@ private:
         adj_cell_c->cell_area<periodic_bc>();
         adj_cell_d->cell_area<periodic_bc>();
         
-        new_edge->update_length<periodic_bc>();
-        adj_edge_a->update_length<periodic_bc>();
-        adj_edge_b->update_length<periodic_bc>();
-        adj_edge_c->update_length<periodic_bc>();
-        adj_edge_d->update_length<periodic_bc>();
+        new_edge->update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_a->update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_b->update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_c->update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_d->update_length<periodic_bc>(_Lx, _Ly);
 
         // replace the edge at adge_it
         edge_it = _edges.erase(edge_it);
@@ -911,8 +920,8 @@ private:
         auto cell_center = std::make_shared<Vertex>(cell->s);
 
         // generate the axis of division
-        double dx = cos(division_angle) / Lx;
-        double dy = sin(division_angle) / Ly;
+        double dx = cos(division_angle) / _Lx;
+        double dy = sin(division_angle) / _Ly;
         auto tmp_vertex = std::make_shared<Vertex>(cell_center->x + dx, 
                                                    cell_center->y + dy);
         auto division_axis = std::make_shared<Edge>(cell_center, tmp_vertex, 0.);
@@ -1185,33 +1194,6 @@ public:
         this->divide_cell(cell_it, division_angle);
     }
 
-    /// Perform a cell division on a random cell
-    /** Divides a random cell into two daughter cells.
-     *  The cell is divided at an axis through it's center at a random angle, 
-     *  which creates an edge between the two daughter cells.
-     * 
-     *  \param threshold    Fraction of the area_preferential at which cell
-     *                      is not divided
-     */
-    void divide_random_cell(double threshold = 0.5) {
-        std::uniform_int_distribution<> int_dist(0, _cells.size() - 1);
-        
-        auto rn = int_dist(*this->_rng);
-        int cnt = 0;
-        while(_cells[rn]->area < threshold * _cells[rn]->area_preferential) {
-            cnt++;
-            if (cnt > 9) {
-                this->_log->warn("Could not find a cell to divide! cell area: {}"
-                    " and preferential area: {}", _cells[rn]->area, 
-                    _cells[rn]->area_preferential);
-                return;
-            }
-            rn = int_dist(*this->_rng);
-        }
-        this->divide_cell(_cells.begin()+rn,
-                          _prob_distr(*this->_rng) * PI);
-    }
-
     /// Iterate a single step
     /** \details Rules applied
      *      -# reset vertex forces, calculate cell area and edge length
@@ -1227,7 +1209,7 @@ public:
 
         // calculate edge lengths
         for (auto &e : _edges) {
-            e->update_length<periodic_bc>();
+            e->update_length<periodic_bc>(_Lx, _Ly);
         }
 
         // calculate cell area
@@ -1237,7 +1219,7 @@ public:
 
         // T2 transitions -- cell extrusion
         for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
-            if ((*c_it)->area > _area_threshold) {
+            if ((*c_it)->area_abs(_Lx, _Ly) > _area_threshold) {
                 ++c_it;
             }
             else {
@@ -1289,6 +1271,10 @@ public:
         return _time_max_external;
     }
 
+    const std::pair<double, double> get_domain_size () const {
+        return std::make_pair(_Lx, _Ly);
+    }
+
     /// Getter for vertices
     std::vector<std::weak_ptr<Vertex>> get_vertices () {
         std::vector<std::weak_ptr<Vertex>> vs;
@@ -1314,6 +1300,12 @@ public:
             cs.push_back(c);
         }
         return cs;
+    }
+
+    void increase_domain_size(double area) {
+        double ratio = _Lx / double(_Ly);
+        _Ly = std::sqrt(_Ly*_Ly + area / ratio);
+        _Lx = ratio * _Ly;
     }
     
     /// Getter for the maximum force on a single vertex

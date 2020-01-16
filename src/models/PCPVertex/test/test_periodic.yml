@@ -41,4 +41,3 @@ output_path: test_data.h5
 seed: 42
 write_every: 25
 write_start: 0
-

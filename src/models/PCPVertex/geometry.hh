@@ -13,9 +13,6 @@ namespace Utopia {
 namespace Models {
 namespace PCPVertex {
 
-/// the domain size
-double Lx = 100., Ly = 100.;
-
 struct Site;
 struct Vertex;
 struct Edge;
@@ -134,7 +131,8 @@ std::pair<double, double> displacement(const Site &a, const Site &b)
 
 /// The absolute displacement vector from a to b
 template <bool periodic_bc>
-std::pair<double, double> displacement_absolute(const Site &a, const Site &b) 
+std::pair<double, double> displacement_absolute(const Site &a, const Site &b,
+                                                double Lx, double Ly)
 {
     auto [dx, dy] = displacement<periodic_bc>(a, b);
 
@@ -143,8 +141,8 @@ std::pair<double, double> displacement_absolute(const Site &a, const Site &b)
 
 /// The absolute distance of two sites
 template <bool periodic_bc>
-double distance(const Site &a, const Site &b) {
-    auto [dx, dy] = displacement_absolute<periodic_bc>(a, b);
+double distance(const Site &a, const Site &b, double Lx, double Ly) {
+    auto [dx, dy] = displacement_absolute<periodic_bc>(a, b, Lx, Ly);
 
     return std::max(sqrt(pow(dx, 2) + pow(dy, 2)), 1e-10);
 }
@@ -174,9 +172,11 @@ struct Edge {
     double length;
 
     /// Update the length of the edge
+    /** \param Lx, Ly   Domain size 
+     */
     template <bool periodic_bc>
-    double update_length() {
-        length = distance<periodic_bc>(*a, *b);
+    double update_length(double Lx, double Ly) {
+        length = distance<periodic_bc>(*a, *b, Lx, Ly);
         return length;
     }
 
@@ -335,9 +335,16 @@ struct Cell {
      */
     std::vector<std::pair<Edge_ptr, bool>> edges_ordered;
 
-    /// The absolute area of the cell
+    /// The relative area of the cell
     /** NOTE manual update */
     double area;
+
+    /// The absolute area of the cell
+    /** \param Lx, Ly   Domain size
+     */
+    double area_abs(double Lx, double Ly) const {
+        return area * Lx * Ly;
+    }
     
     /// The order of the edges
     /** If 1, then the edges are ordered anti-clockwise. Otherwise ordered 
@@ -511,8 +518,6 @@ struct Cell {
         // update the center site s
         s->x = center.x; s->y = center.y;
         correct_periodic_bc<periodic_bc>(s);
-
-        area = Lx*Ly * area;
 
         return area;
     }
