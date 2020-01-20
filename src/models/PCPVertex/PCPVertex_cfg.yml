@@ -28,12 +28,12 @@ dt: 0.01
 
 # Linetension parameter
 linetension: 0.1
-length_threshold: 0.01
+length_threshold: 0.001
 
 # Area elasticity parameter
 area_elasticity: 1.
 area_preferential: 1.
-area_threshold: 0.001
+area_threshold: 0.0001
 
 # Topology parameter
 hexagon_size: 0.62
@@ -60,7 +60,7 @@ data_manager:
       args:
         start: 0
         stop: 1000000
-        step: 100
+        step: 10000
 
     write_at_last:
       type: once
@@ -94,6 +94,11 @@ data_manager:
     Time:
       active: true
       <<: *times
+
+    Energy: 
+      active: true
+      trigger: build_once
+      decider: write_always
 
     Vertex_position:
       <<: &position

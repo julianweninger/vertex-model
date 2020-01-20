@@ -85,7 +85,8 @@ public:
         
         // construct the vertex model with an external maximum time stamp
         _vertex_model("PCPVertex", *this,
-                      DataIO::time_adaptor, DataIO::vertex_position_adaptor,  
+                      DataIO::time_adaptor, DataIO::energy_adaptor, 
+                      DataIO::vertex_position_adaptor,  
                       DataIO::cell_position_adaptor, DataIO::edge_link_adaptor),
 
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
@@ -168,18 +169,8 @@ private:
         auto cells = _vertex_model.get_cells();
         std::uniform_int_distribution<> int_dist(0, cells.size() - 1);
         
-        int cnt = 0;
         auto c = cells[int_dist(*this->_rng)].lock();
         auto [Lx, Ly] = _vertex_model.get_domain_size();
-        while(c->area_abs(Lx, Ly) < threshold * c->area_preferential) {
-            if (cnt++ > 9) {
-                this->_log->warn("Could not find a cell to divide! cell area: {}"
-                    " and preferential area: {}", c->area, 
-                    c->area_preferential);
-                return;
-            }
-            c = cells[int_dist(*this->_rng)].lock();
-        }
 
         _vertex_model.increase_domain_size(c->area_preferential);
         c->area_preferential *= 2;

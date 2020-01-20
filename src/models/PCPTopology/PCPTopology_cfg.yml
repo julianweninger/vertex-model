@@ -25,22 +25,24 @@ PCPVertex:
 
   # damping factor
   dt: 0.01
-  external_time_max: 100000000
   
   # Linetension parameter
   linetension: 0.1
   length_threshold: 0.001
 
   # Area elasticity parameter
-  area_elasticity: 1
+  area_elasticity: 1.
   area_preferential: 1.
   area_threshold: 0.0001
 
   # Topology parameter
   hexagon_size: 0.62
-  lattice_rows: 4
-  lattice_columns: 4
+  lattice_rows: 6
+  lattice_columns: 6
 
+
+
+  # anchor for the configuration of the Times task
   <<: &times
     decider: write_slice
     trigger: build_once
@@ -56,7 +58,7 @@ PCPVertex:
         args:
           start: 0
           stop: 1000000
-          step: 10000
+          step: 2000
 
       write_at_last:
         type: once
@@ -89,8 +91,12 @@ PCPVertex:
     tasks:
       Time:
         active: true
-        decider: write_slice
+        <<: *times
+
+      Energy: 
+        active: true
         trigger: build_once
+        decider: write_always
 
       Vertex_position:
         <<: &position
@@ -105,9 +111,9 @@ PCPVertex:
         <<: *position
 
 # Equilibration parameter
-equilibration_tolerance: 0.01
-num_equilibration_steps: 250
-max_equilibration_iterations: 50
+equilibration_tolerance: 0.00000001
+num_equilibration_steps: 100
+max_equilibration_iterations: 100
 
 # --- Dynamics
 # cell division rate

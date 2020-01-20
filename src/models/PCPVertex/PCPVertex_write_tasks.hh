@@ -38,6 +38,37 @@ auto time_adaptor = std::make_tuple(
     }
 ); // end time_adaptor
 
+/// Datamanager adaptor for total energy
+auto energy_adaptor = std::make_tuple(
+
+    // name of the task
+    "Energy",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp;
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_energy());
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset("Energy");
+    },
+    
+    // attribute writer for basegroup
+    [](auto& grp, auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "write_energy");
+    }
+); // end energy_adaptor
+
 /// Datamanager adaptor for vertex-position
 auto vertex_position_adaptor = std::make_tuple(
 

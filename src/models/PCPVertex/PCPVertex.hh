@@ -76,9 +76,6 @@ private:
     /// timestep scaling
     double _dt;
 
-    /// A model-external maximum time stamp
-    const Time _time_max_external;
-
     /// The domain size in x
     double _Lx;
     /// The domain size in y
@@ -100,13 +97,15 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+    double _energy;
+
+    double _energy_previous_step;
 
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
     /** \param name     Name of this model instance
      *  \param parent   The parent model this model instance resides in
-     *  \param time_max The external maximum time stamp
      */
     template<class ParentModel, typename... Taskargs>
     PCPVertex (const std::string name, ParentModel& parent, 
@@ -121,21 +120,48 @@ public:
         
         // Get member paramters from cfg
         _dt(get_as<double>("dt", this->_cfg)),
-        _time_max_external(get_as<int>("external_time_max", 
-                                       this->_cfg, this->get_time_max())),
         _Lx(100.), _Ly(100.),
         _linetension(get_as<double>("linetension", this->_cfg)),
         _length_threshold(get_as<double>("length_threshold", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
-        _prob_distr(0.,1.)
+        _prob_distr(0.,1.),
+        _energy(0.),
+        _energy_previous_step(0.)
     {
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
             get_as<int>("lattice_rows", this->_cfg),
             get_as<int>("lattice_columns", this->_cfg)
         );
+
+        // calculate edge lengths
+        for (auto &e : _edges) {
+            e->update_length<periodic_bc>(_Lx, _Ly);
+        }
+
+        // calculate cell area
+        for (auto &c : _cells) {
+            c->cell_area<periodic_bc>();
+        }
+
+
+        // line tension
+        double energy_linetension = 0;
+        for (auto &e : _edges) {
+            energy_linetension += line_tension(e);
+        }
+        
+        // area elasticity
+        double energy_areaelasticity = 0;
+        for (auto &c : _cells) {
+            energy_areaelasticity += area_elasticity(c);
+        }
+
+
+        // update new energy
+        _energy = energy_linetension + energy_areaelasticity;
 
         this->_log->info("Model initialized.");
     }
@@ -493,8 +519,10 @@ private:
      * 
      *  @param  e   Pointer to the edge for which to calculate the forces
      *              NOTE that forces only act on vertices
+     * 
+     *  \return energy associated with this edge
      */
-    std::function<void(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
+    std::function<double(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
         auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
                                                            _Lx, _Ly);
 
@@ -506,7 +534,7 @@ private:
         e->b->fx -= fx;
         e->b->fy -= fy;
 
-        // return e->linetension * e->length;
+        return e->linetension * e->length;
     };
 
     /** Calculates the forces from area elasticity
@@ -516,8 +544,10 @@ private:
      * 
      *  @param c    Pointer to the cell for which to calculate the forces
      *              NOTE that forces only act on vertices
+     * 
+     *  \return energy associated with this edge
      */
-    std::function<void(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
+    std::function<double(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
         for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
             // the edge prior the vertex
             auto [e0, e0_flip]  = c->edges_ordered[std::max(0, edges_it - 1)];
@@ -551,9 +581,9 @@ private:
             // this is the force on this vertex
             v_center->fx -= _area_elasticity * (c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dx;
             v_center->fy -= _area_elasticity * (c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dy;
-
-            // return 0.5 * _area_elasticity * pow(c->area_abs(_Lx, _Ly) - c->area_preferential, 2);
         }
+
+        return 0.5 * _area_elasticity * pow(c->area_abs(_Lx, _Ly) - c->area_preferential, 2);
     };
     
     /** The update of position
@@ -565,6 +595,8 @@ private:
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
         v->x += v->fx * _dt / _Lx;
         v->y += v->fy * _dt / _Ly;
+        // v->x += (0.975 + 0.05 * _prob_distr(*this->_rng)) * v->fx * _dt / _Lx;
+        // v->y += (0.975 + 0.05 * _prob_distr(*this->_rng)) * v->fy * _dt / _Ly;
         
         correct_periodic_bc<periodic_bc>(v);
     };
@@ -1204,6 +1236,9 @@ public:
      *      -# Update vertex positions on vertices
      */
     void perform_step () {
+        // store previous energy
+        _energy_previous_step = _energy;
+
         // reset forces
         std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
 
@@ -1240,13 +1275,22 @@ public:
         }
 
         // line tension
-        std::for_each(_edges.begin(), _edges.end(), line_tension);
+        double energy_linetension = 0;
+        for (auto &e : _edges) {
+            energy_linetension += line_tension(e);
+        }
         
-        // area elasticity      
-        std::for_each(_cells.begin(), _cells.end(), area_elasticity);  
+        // area elasticity
+        double energy_areaelasticity = 0;
+        for (auto &c : _cells) {
+            energy_areaelasticity += area_elasticity(c);
+        }
         
         // update vertex positions from forces
         std::for_each(_vertices.begin(), _vertices.end(), update_position);
+
+        // update new energy
+        _energy = energy_linetension + energy_areaelasticity;
     }
 
 
@@ -1266,9 +1310,9 @@ public:
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-    /// Getter for external maximum time stamp
-    Time get_time_max_external () const {
-        return _time_max_external;
+    /// Getter for energy
+    double get_energy () const {
+        return _energy;
     }
 
     const std::pair<double, double> get_domain_size () const {
@@ -1307,30 +1351,15 @@ public:
         _Ly = std::sqrt(_Ly*_Ly + area / ratio);
         _Lx = ratio * _Ly;
     }
-    
-    /// Getter for the maximum force on a single vertex
-    double force_max_on_vertex() const {
-        double max_forces_2 = 0;
-        for (const auto &v : _vertices) {
-            max_forces_2 = std::max(max_forces_2, pow(v->fx, 2) + pow(v->fy, 2));
-        }
-
-        return sqrt(max_forces_2);
-    }
 
     /** Criterion for the equilibrium state
      * 
-     *  Equilibrium if maximum vertex displacement less than a fraction
-     *  of the length scale given by mean preferential area.
+     *  Equilibrium if relative energy change is smaller than threshold
      *  
-     *  \param tolerance    The fraction of preferential area that a vertex may
-     *                      move being to still be considered in equilibrium
+     *  \param threshold    The equilibrium threshold
      */
-    bool equilibrium_state_reached(double tolerance) const {
-        this->_log->debug("Equilibrium criterion is {} < {} ?",
-                          force_max_on_vertex(),
-                          tolerance*sqrt(_area_preferential));
-        return (force_max_on_vertex() < tolerance*sqrt(_area_preferential));
+    bool equilibrium_state_reached(double threshold) const {
+        return  abs(_energy - _energy_previous_step) / _energy < threshold;
     };
 }; // class PCPVertex
 

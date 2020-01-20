@@ -2,7 +2,21 @@
 #
 # These can use the `based_on` feature with configurations specified in the
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
----        
+---
+energy:
+  based_on: .basic_uni.lineplots
+  model_name: PCPTopology/PCPVertex
+  file_ext: png
+
+  to_plot: 
+    Energy:
+      label: Energy
+
+  helpers:
+    set_labels:
+      x: time
+      y: energy [a.u.]
+
 cellular_structure:
   creator: universe
   universes: all
