@@ -252,7 +252,7 @@ Site_ptr intersection(const Edge e0, const Edge e1,
 
     // line defined by e0: y0 = a + bx
     double a, b;
-    if (std::get<0>(vector_e0) == 0.) {
+    if (fabs(std::get<0>(vector_e0)) < 1e-8) {
         vb.x += 1e-8;
         vector_e0 = displacement<periodic_bc>(va, vb);
     }
@@ -261,7 +261,7 @@ Site_ptr intersection(const Edge e0, const Edge e1,
 
     // line defined by e1: y1 = c + dx
     double c, d;
-    if (std::get<0>(vector_e1) == 0.) {
+    if (fabs(std::get<0>(vector_e1)) < 1e-8) {
         vd.x += 1e-8;
         vector_e1 = displacement<periodic_bc>(vc, vd);
     }
@@ -269,7 +269,7 @@ Site_ptr intersection(const Edge e0, const Edge e1,
     c = vc.y - d * vc.x;
 
     // parallel lines
-    if (b == d) {
+    if (fabs(d - b) < 1e-8) {
         return nullptr;
     }
 
