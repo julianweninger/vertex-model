@@ -51,7 +51,7 @@ auto energy_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy());
+        dataset->write(model.get_energy_normalised());
     },
 
     // builder function
@@ -68,6 +68,68 @@ auto energy_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "write_energy");
     }
 ); // end energy_adaptor
+
+/// Datamanager adaptor for total energy
+auto linetension_adaptor = std::make_tuple(
+
+    // name of the task
+    "Energy_linetension",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp;
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_energy_linetension_normalised());
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset("Energy_linetension");
+    },
+    
+    // attribute writer for basegroup
+    [](auto& grp, auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "write_energy");
+    }
+); // end linetension_adaptor
+
+/// Datamanager adaptor for total energy
+auto areaelasticity_adaptor = std::make_tuple(
+
+    // name of the task
+    "Energy_areaelasticity",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp;
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_energy_areaelasticity_normalised());
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset("Energy_areaelasticity");
+    },
+    
+    // attribute writer for basegroup
+    [](auto& grp, auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "write_energy");
+    }
+); // end areaelasticity_adaptor
 
 /// Datamanager adaptor for vertex-position
 auto vertex_position_adaptor = std::make_tuple(

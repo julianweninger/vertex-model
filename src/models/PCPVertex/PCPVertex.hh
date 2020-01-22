@@ -97,7 +97,9 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
-    double _energy;
+    double _energy_areaelasticity;
+
+    double _energy_linetension;
 
     double _energy_previous_step;
 
@@ -127,14 +129,15 @@ public:
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
         _prob_distr(0.,1.),
-        _energy(0.),
+        _energy_areaelasticity(0.),
+        _energy_linetension(0.),
         _energy_previous_step(0.)
     {
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
             get_as<int>("lattice_rows", this->_cfg),
             get_as<int>("lattice_columns", this->_cfg)
-        );
+        );      
 
         // calculate edge lengths
         for (auto &e : _edges) {
@@ -146,22 +149,19 @@ public:
             c->cell_area<periodic_bc>();
         }
 
-
         // line tension
-        double energy_linetension = 0;
+        _energy_linetension = 0;
         for (auto &e : _edges) {
-            energy_linetension += line_tension(e);
+            _energy_linetension += line_tension(e);
         }
         
         // area elasticity
-        double energy_areaelasticity = 0;
+        _energy_areaelasticity = 0;
         for (auto &c : _cells) {
-            energy_areaelasticity += area_elasticity(c);
+            _energy_areaelasticity += area_elasticity(c);
         }
 
 
-        // update new energy
-        _energy = energy_linetension + energy_areaelasticity;
 
         this->_log->info("Model initialized.");
     }
@@ -1237,7 +1237,7 @@ public:
      */
     void perform_step () {
         // store previous energy
-        _energy_previous_step = _energy;
+        _energy_previous_step = this->get_energy();
 
         // reset forces
         std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
@@ -1245,6 +1245,34 @@ public:
         // calculate edge lengths
         for (auto &e : _edges) {
             e->update_length<periodic_bc>(_Lx, _Ly);
+
+            // breakpoint in debug mode
+            #ifndef NDEBUG
+                // periodic bc only defined if edge defines shortest distance
+                // between two points 
+                if (periodic_bc and e->length > 0.9 * 0.25 * sqrt(_Lx*_Ly)) {
+                    auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a,
+                                        *e->b, _Lx, _Ly);
+                    if (dx > 0.9 * _Lx) {
+                        throw std::runtime_error("Edge is supposed to connect "
+                            "two vertices, that are separated by " +
+                            std::to_string(dx) + " on a periodic domain, "
+                            "that measures " + std::to_string(_Lx) + " in x. "
+                            "This is only defined as long as the edge defines "
+                            "the shortest path between the two vertices. "
+                            "Hence it is no longer defined for dx -> Lx / 2");
+                    }
+                    if (dy > 0.9 * _Ly) {
+                        throw std::runtime_error("Edge is supposed to connect "
+                            "two vertices, that are separated by " +
+                            std::to_string(dy) + " on a periodic domain, "
+                            "that measures " + std::to_string(_Ly) + " in y. "
+                            "This is only defined as long as the edge defines "
+                            "the shortest path between the two vertices. "
+                            "Hence it is no longer defined for dy -> Ly / 2");
+                    }
+                }
+            #endif
         }
 
         // calculate cell area
@@ -1275,22 +1303,19 @@ public:
         }
 
         // line tension
-        double energy_linetension = 0;
+        _energy_linetension = 0.;
         for (auto &e : _edges) {
-            energy_linetension += line_tension(e);
+            _energy_linetension += line_tension(e);
         }
         
         // area elasticity
-        double energy_areaelasticity = 0;
+        _energy_areaelasticity = 0.;
         for (auto &c : _cells) {
-            energy_areaelasticity += area_elasticity(c);
+            _energy_areaelasticity += area_elasticity(c);
         }
         
         // update vertex positions from forces
         std::for_each(_vertices.begin(), _vertices.end(), update_position);
-
-        // update new energy
-        _energy = energy_linetension + energy_areaelasticity;
     }
 
 
@@ -1310,11 +1335,41 @@ public:
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-    /// Getter for energy
-    double get_energy () const {
-        return _energy;
+    /// Getter for energy associated with linetension
+    /** The energy is normalised to the number of edges
+     */
+    double get_energy_linetension_normalised () const {
+        return _energy_linetension / double(_edges.size());
     }
 
+    /// Getter for energy associated with area elasticity
+    /** The energy is normalised to the number of cells
+     */
+    double get_energy_areaelasticity_normalised () const {
+        return _energy_areaelasticity / double(_cells.size());
+    }
+
+    /// Getter for energy
+    double get_energy () const {
+        return _energy_linetension + _energy_areaelasticity;
+    }
+
+    /// Getter for normalised energy
+    /** The energy is normalised wrt number of vertices, edges, or cells, 
+     *  respectively.
+     */
+    double get_energy_normalised () const {
+        return get_energy_linetension_normalised() + 
+               get_energy_areaelasticity_normalised();
+    }
+
+    /// Getter for the relative energy change from previous to last step
+    double get_rel_energy_change () const {
+        double energy_change = abs(get_energy() - _energy_previous_step);
+        return energy_change / get_energy();
+    }
+
+    /// Getter for the domain size
     const std::pair<double, double> get_domain_size () const {
         return std::make_pair(_Lx, _Ly);
     }
@@ -1346,6 +1401,13 @@ public:
         return cs;
     }
 
+    /// Increase the domain size by a certain area
+    /** This remaps the domain of size A to size A + dA while keeping the 
+     *  relation of Lx to Ly constant.
+     * 
+     *  Thereby proliferation of cells can be performed in a periodic setup
+     *  without changing the parameters of the system. 
+     */
     void increase_domain_size(double area) {
         double ratio = _Lx / double(_Ly);
         _Ly = std::sqrt(_Ly*_Ly + area / ratio);
@@ -1359,7 +1421,7 @@ public:
      *  \param threshold    The equilibrium threshold
      */
     bool equilibrium_state_reached(double threshold) const {
-        return  abs(_energy - _energy_previous_step) / _energy < threshold;
+        return get_rel_energy_change() < threshold;
     };
 }; // class PCPVertex
 

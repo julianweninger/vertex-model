@@ -18,7 +18,19 @@
 # --- Space
 # The physical space this model is embedded in
 
+
+
 # --- Initialization parameters
+
+# Equilibration parameter
+equilibration_tolerance: 0.00000001
+num_equilibration_steps: 100
+max_equilibration_iterations: 100
+
+# --- Dynamics
+# cell division rate
+cell_divisions_per_step: 1
+
 PCPVertex:
   # space periodicity
   periodic_bc: true
@@ -27,11 +39,11 @@ PCPVertex:
   dt: 0.01
   
   # Linetension parameter
-  linetension: 0.1
+  linetension: 1.
   length_threshold: 0.001
 
   # Area elasticity parameter
-  area_elasticity: 1.
+  area_elasticity: 100.
   area_preferential: 1.
   area_threshold: 0.0001
 
@@ -39,8 +51,6 @@ PCPVertex:
   hexagon_size: 0.62
   lattice_rows: 6
   lattice_columns: 6
-
-
 
   # anchor for the configuration of the Times task
   <<: &times
@@ -93,10 +103,16 @@ PCPVertex:
         active: true
         <<: *times
 
-      Energy: 
+      Energy: &energy
         active: true
         trigger: build_once
         decider: write_always
+
+      Energy_linetension: 
+        <<: *energy
+
+      Energy_areaelasticity: 
+        <<: *energy
 
       Vertex_position:
         <<: &position
@@ -109,13 +125,4 @@ PCPVertex:
 
       Edge_link:
         <<: *position
-
-# Equilibration parameter
-equilibration_tolerance: 0.00000001
-num_equilibration_steps: 100
-max_equilibration_iterations: 100
-
-# --- Dynamics
-# cell division rate
-cell_divisions_per_step: 1
 

@@ -85,7 +85,9 @@ public:
         
         // construct the vertex model with an external maximum time stamp
         _vertex_model("PCPVertex", *this,
-                      DataIO::time_adaptor, DataIO::energy_adaptor, 
+                      DataIO::time_adaptor, DataIO::energy_adaptor,
+                      DataIO::areaelasticity_adaptor,
+                      DataIO::linetension_adaptor,
                       DataIO::vertex_position_adaptor,  
                       DataIO::cell_position_adaptor, DataIO::edge_link_adaptor),
 
@@ -148,7 +150,10 @@ private:
                         " iterations of " + 
                         std::to_string(_num_equilibration_steps) + " steps each "
                         "at a tolerance of " +
-                        std::to_string(_equilibration_tolerance) + "!");
+                        std::to_string(_equilibration_tolerance) + "! "
+                        "The relative change in energy in last step was " +
+                        std::to_string(_vertex_model.get_rel_energy_change()) + 
+                        ".");
             }
         }
 

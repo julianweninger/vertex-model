@@ -11,8 +11,8 @@ using Utopia::get_as;
 template<bool periodic_bc, typename ParentType>
 PCPVertex<periodic_bc> model_factory(ParentType parent) {
     return PCPVertex<periodic_bc>("PCPVertex", parent, time_adaptor,
-        energy_adaptor, vertex_position_adaptor, cell_position_adaptor,
-        edge_link_adaptor);
+        energy_adaptor, linetension_adaptor, areaelasticity_adaptor,
+        vertex_position_adaptor, cell_position_adaptor, edge_link_adaptor);
 }
 
 int main (int, char** argv) {

@@ -426,7 +426,8 @@ struct Cell {
                     ++e_it;
                 }
             }
-
+            
+            // Breakpoint in debug mode
             #ifndef NDEBUG
             if (cnt_iteration++ > cnt_max) {
                 std::cout << "\nFailed to order these edges: \n";

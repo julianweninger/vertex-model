@@ -24,14 +24,14 @@
 periodic_bc: true
 
 # damping factor
-dt: 0.01
+dt: 0.001
 
 # Linetension parameter
-linetension: 0.1
+linetension: 1.
 length_threshold: 0.001
 
 # Area elasticity parameter
-area_elasticity: 1.
+area_elasticity: 100.
 area_preferential: 1.
 area_threshold: 0.0001
 
@@ -60,7 +60,7 @@ data_manager:
       args:
         start: 0
         stop: 1000000
-        step: 10000
+        step: 5000
 
     write_at_last:
       type: once
@@ -95,10 +95,16 @@ data_manager:
       active: true
       <<: *times
 
-    Energy: 
+    Energy: &energy
       active: true
       trigger: build_once
       decider: write_always
+
+    Energy_linetension: 
+      <<: *energy
+
+    Energy_areaelasticity: 
+      <<: *energy
 
     Vertex_position:
       <<: &position

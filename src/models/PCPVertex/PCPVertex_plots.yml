@@ -11,6 +11,10 @@ energy:
   to_plot: 
     Energy:
       label: Energy
+    Energy_linetension:
+      label: line-tension
+    Energy_areaelasticity:
+      label: area-elasticity
 
   helpers:
     set_labels:
