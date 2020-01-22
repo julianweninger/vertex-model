@@ -23,7 +23,7 @@
 # --- Initialization parameters
 
 # Equilibration parameter
-equilibration_tolerance: 0.00000001
+equilibration_tolerance: 0.000001
 num_equilibration_steps: 100
 max_equilibration_iterations: 100
 
@@ -39,11 +39,11 @@ PCPVertex:
   dt: 0.01
   
   # Linetension parameter
-  linetension: 1.
+  linetension: 0.01
   length_threshold: 0.001
 
   # Area elasticity parameter
-  area_elasticity: 100.
+  area_elasticity: 1.
   area_preferential: 1.
   area_threshold: 0.0001
 
