@@ -56,8 +56,6 @@ from Farhadifar et al [2007] and Aigouy et al. [2010]
     .. math::
         E = \sum_\alpha \frac{\Gamma_\alpha}{2} L_\alpha^2
 
-    Not implemented
-
 
 **PCP protein interaction**
     Not implemented
