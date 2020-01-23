@@ -14,6 +14,9 @@ PCPVertex:
   hexagon_size: 0.62
   lattice_columns: 4
   lattice_rows: 4
+  
+  noise_constant: 0.0
+  noise_linear: 0.0
 
   data_manager:
     # this builds the deciders

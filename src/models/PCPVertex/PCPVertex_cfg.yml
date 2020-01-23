@@ -42,7 +42,7 @@ lattice_columns: 4
 
 # Noise
 noise_constant: 0.0
-noise_linear: 0.000
+noise_linear: 0.0
 
 # --- Dynamics
 # Add parameters and their documentation here ...
