@@ -92,9 +92,18 @@ private:
     double _area_preferential;
     /// Cells with area smaller than this value are removed in T2 transition
     double _area_threshold;
+
+    /// Noise applied in order zero of forces
+    double _noise_constant;
+
+    /// Noise applied in first order of forces
+    double _noise_linear;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
+    
+    /// A [-1,1]-range uniform distribution used for evaluating noise
+    std::uniform_real_distribution<double> _prob_distr_2;
 
     // .. Temporary objects ...................................................
     double _energy_areaelasticity;
@@ -128,7 +137,10 @@ public:
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
+        _noise_constant(get_as<double>("noise_constant", this->_cfg)),
+        _noise_linear(get_as<double>("noise_linear", this->_cfg)),
         _prob_distr(0.,1.),
+        _prob_distr_2(-1.,1.),
         _energy_areaelasticity(0.),
         _energy_linetension(0.),
         _energy_previous_step(0.)
@@ -593,10 +605,13 @@ private:
      *  @param v    The pointer to the vertex to update
      */
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
-        v->x += v->fx * _dt / _Lx;
-        v->y += v->fy * _dt / _Ly;
-        // v->x += (0.975 + 0.05 * _prob_distr(*this->_rng)) * v->fx * _dt / _Lx;
-        // v->y += (0.975 + 0.05 * _prob_distr(*this->_rng)) * v->fy * _dt / _Ly;
+        double Df_lin = _noise_linear * _prob_distr_2(*this->_rng);
+        double Df_const = _noise_constant * _prob_distr_2(*this->_rng);
+        v->x += ((1 + Df_lin) * v->fx + Df_const) * _dt / _Lx;
+
+        Df_lin = _noise_linear * _prob_distr_2(*this->_rng);
+        Df_const = _noise_constant * _prob_distr_2(*this->_rng);
+        v->y += ((1 + Df_lin) * v->fy + Df_const) * _dt / _Ly;
         
         correct_periodic_bc<periodic_bc>(v);
     };
@@ -956,7 +971,7 @@ private:
         double dy = sin(division_angle) / _Ly;
         auto tmp_vertex = std::make_shared<Vertex>(cell_center->x + dx, 
                                                    cell_center->y + dy);
-        auto division_axis = std::make_shared<Edge>(cell_center, tmp_vertex, 0.);
+        auto division_axis = Edge(cell_center, tmp_vertex, 0.);
 
         // determine the new vertices from this axis
         // These are the intersections of the division axis with edges of cell
@@ -966,7 +981,7 @@ private:
             auto e = std::get<Edge_ptr>(e_pair);
 
             // calculate the intersection
-            auto inter = intersection<periodic_bc>(*e, *division_axis,
+            auto inter = intersection<periodic_bc>(*e, division_axis,
                                                    true, false);
             
             // if no intersection end here
@@ -986,6 +1001,27 @@ private:
             e->remove = true;
         }
         if (new_vertices.size() != 2) {
+            this->_log->warn("Cannot perform cell division on cell at ({}, {}), "
+                "with a division angle of {}.", cell->s->x, cell->s->y,
+                division_angle / 2 / PI * 360);
+            this->_log->warn("division axis is {}, {} -> {}, {}",
+                division_axis.a->x, division_axis.a->y,
+                division_axis.b->x, division_axis.b->y);
+            this->_log->warn("Edges of cell are:");
+            for (auto [e, flip] : cell->edges_ordered) {
+                if (flip) {
+                    this->_log->warn("   {}, {} -> {}, {}", e->b->x, e->b->y,
+                        e->a->x, e->a->y);
+                }
+                else {
+                    this->_log->warn("   {}, {} -> {}, {}", e->a->x, e->a->y,
+                        e->b->x, e->b->y);
+                }
+            }
+            this->_log->warn("Intersections are:");
+            for (auto v : new_vertices) {
+                this->_log->warn("   {}, {}", v->x, v->y);
+            }
             throw std::runtime_error("During cell division, expected 2 new "
                 "vertices, but got " + std::to_string(new_vertices.size()) + "!");
         }
@@ -1365,7 +1401,7 @@ public:
 
     /// Getter for the relative energy change from previous to last step
     double get_rel_energy_change () const {
-        double energy_change = abs(get_energy() - _energy_previous_step);
+        double energy_change = fabs(get_energy() - _energy_previous_step);
         return energy_change / get_energy();
     }
 

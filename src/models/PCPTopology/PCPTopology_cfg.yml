@@ -25,7 +25,7 @@
 # Equilibration parameter
 equilibration_tolerance: 0.000001
 num_equilibration_steps: 100
-max_equilibration_iterations: 100
+max_equilibration_iterations: 500
 
 # --- Dynamics
 # cell division rate
@@ -49,8 +49,12 @@ PCPVertex:
 
   # Topology parameter
   hexagon_size: 0.62
-  lattice_rows: 6
-  lattice_columns: 6
+  lattice_rows: 4
+  lattice_columns: 4
+
+  # Noise
+  noise_constant: 0.
+  noise_linear: 0.
 
   # anchor for the configuration of the Times task
   <<: &times
@@ -68,7 +72,7 @@ PCPVertex:
         args:
           start: 0
           stop: 1000000
-          step: 2000
+          step: 6000
 
       write_at_last:
         type: once
