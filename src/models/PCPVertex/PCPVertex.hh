@@ -93,6 +93,11 @@ private:
     /// Cells with area smaller than this value are removed in T2 transition
     double _area_threshold;
 
+    /// Contractility of cell perimeter
+    /** This reflects mechanics and contractility of the actin-myosin ring
+     */
+    double _contractility;
+
     /// Noise applied in order zero of forces
     double _noise_constant;
 
@@ -106,10 +111,16 @@ private:
     std::uniform_real_distribution<double> _prob_distr_2;
 
     // .. Temporary objects ...................................................
-    double _energy_areaelasticity;
-
+    /// The current energy of area elasticity
     double _energy_linetension;
 
+    /// The current energy of area elasticity
+    double _energy_areaelasticity;
+
+    /// The current energy of contractility
+    double _energy_contractility;
+
+    /// The total energy in the last step
     double _energy_previous_step;
 
 public:
@@ -137,19 +148,21 @@ public:
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
+        _contractility(get_as<double>("contractility", this->_cfg)),
         _noise_constant(get_as<double>("noise_constant", this->_cfg)),
         _noise_linear(get_as<double>("noise_linear", this->_cfg)),
         _prob_distr(0.,1.),
         _prob_distr_2(-1.,1.),
-        _energy_areaelasticity(0.),
         _energy_linetension(0.),
+        _energy_areaelasticity(0.),
+        _energy_contractility(0.),
         _energy_previous_step(0.)
     {
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
             get_as<int>("lattice_rows", this->_cfg),
             get_as<int>("lattice_columns", this->_cfg)
-        );      
+        );
 
         // calculate edge lengths
         for (auto &e : _edges) {
@@ -172,8 +185,12 @@ public:
         for (auto &c : _cells) {
             _energy_areaelasticity += area_elasticity(c);
         }
-
-
+        
+        // area elasticity
+        _energy_contractility = 0;
+        for (auto &c : _cells) {
+            _energy_contractility += contractility(c);
+        }
 
         this->_log->info("Model initialized.");
     }
@@ -460,7 +477,8 @@ private:
                     //      hence no need to handle periodicity
 
                     _cells.push_back(std::make_shared<Cell>(*center, edges,
-                                                            _area_preferential));
+                                                            _area_preferential,
+                                                            _contractility));
                 }
             }
             else { // impare rows
@@ -485,7 +503,8 @@ private:
                     edges.push_back(_edges[3*((q+1)%lim_columns + (r+1)%lim_rows * lim_columns)]);
 
                     _cells.push_back(std::make_shared<Cell>(*center, edges,
-                                                            _area_preferential));
+                                                            _area_preferential,
+                                                            _contractility));
                 }
             }
         }
@@ -596,6 +615,36 @@ private:
         }
 
         return 0.5 * _area_elasticity * pow(c->area_abs(_Lx, _Ly) - c->area_preferential, 2);
+    };
+
+    /// Contractility of the cell perimeter
+    /** Associated energy per cell is 
+     *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
+     */
+    std::function<double(Cell_ptr&)> contractility = [this](Cell_ptr &c) {
+        double perimeter = 0.;
+
+        for (auto [e, flip] : c->edges_ordered) {
+            perimeter += e->length;
+        }
+
+        for (auto [e, flip] : c->edges_ordered) {
+            auto a = e->a; auto b = e->b;
+            if (flip) {
+                std::swap(a, b);
+            }
+            auto [dx, dy] = displacement_absolute<periodic_bc>(*a, *b, _Lx, _Ly);
+            
+            double fx = c->contractility * perimeter * dx / e->length;
+            double fy = c->contractility * perimeter * dy / e->length;
+
+            a->fx += fx;
+            a->fy += fy;
+            b->fx += -fx;
+            b->fy += -fy;
+        }
+
+        return 0.5 *c->contractility * std::pow(perimeter, 2);
     };
     
     /** The update of position
@@ -1204,9 +1253,11 @@ private:
 
         // create 2 new cells
         auto new_cell_0 = std::make_shared<Cell>(*cell_center, new_edges_cell_0, 
-                                                 cell->area_preferential);
+                                                 cell->area_preferential,
+                                                 cell->contractility);
         auto new_cell_1 = std::make_shared<Cell>(*cell_center, new_edges_cell_1, 
-                                                 cell->area_preferential);
+                                                 cell->area_preferential,
+                                                 cell->contractility);
         _cells.push_back(new_cell_0);
         _cells.push_back(new_cell_1);
         
@@ -1350,6 +1401,12 @@ public:
             _energy_areaelasticity += area_elasticity(c);
         }
         
+        // contractility of perimeter
+        _energy_contractility = 0.;
+        for (auto &c : _cells) {
+            _energy_contractility += contractility(c);
+        }
+        
         // update vertex positions from forces
         std::for_each(_vertices.begin(), _vertices.end(), update_position);
     }
@@ -1385,9 +1442,17 @@ public:
         return _energy_areaelasticity / double(_cells.size());
     }
 
+    /// Getter for energy associated with contractility
+    /** The energy is normalised to the number of cells
+     */
+    double get_energy_contractility_normalised () const {
+        return _energy_contractility / double(_cells.size());
+    }
+
     /// Getter for energy
     double get_energy () const {
-        return _energy_linetension + _energy_areaelasticity;
+        return _energy_linetension + _energy_areaelasticity + 
+               _energy_contractility;
     }
 
     /// Getter for normalised energy
@@ -1396,7 +1461,8 @@ public:
      */
     double get_energy_normalised () const {
         return get_energy_linetension_normalised() + 
-               get_energy_areaelasticity_normalised();
+               get_energy_areaelasticity_normalised() +
+               get_energy_contractility_normalised();
     }
 
     /// Getter for the relative energy change from previous to last step

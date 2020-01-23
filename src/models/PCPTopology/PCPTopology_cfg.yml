@@ -47,6 +47,9 @@ PCPVertex:
   area_preferential: 1.
   area_threshold: 0.0001
 
+  # Contractility of perimeter
+  contractility: 0.
+
   # Topology parameter
   hexagon_size: 0.62
   lattice_rows: 4
@@ -116,6 +119,9 @@ PCPVertex:
         <<: *energy
 
       Energy_areaelasticity: 
+        <<: *energy
+
+      Energy_contractility: 
         <<: *energy
 
       Vertex_position:

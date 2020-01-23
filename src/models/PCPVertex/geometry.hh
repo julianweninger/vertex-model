@@ -358,12 +358,25 @@ struct Cell {
     /** NOTE updated together with area */
     Site_ptr s;
 
+    /// The preferential area of the cell
     double area_preferential;
+
+    /// The contractility of the cell
+    double contractility;
 
     /// Whether this object is to be removed 
     bool remove;
 
-    Cell(Site s, EdgeContainer &es, double area_preferential)
+    /// Constructor of a cell
+    /** \param s    The center of the cell
+     *  \param es   The edges defining the boundary of the cell in arbitrary
+     *              order and direction
+     *  \param area_preferential    The preferential size of this cell
+     *  \param contractility        The contractility of the cell associated
+     *                              with contractility of the actin-myosin ring
+     */
+    Cell(Site s, EdgeContainer &es, double area_preferential, 
+         double contractility)
     :
         vertices(),
         edges_ordered(),
@@ -371,6 +384,7 @@ struct Cell {
         area_sgn(0),
         s(std::make_shared<Site>(s)),
         area_preferential(area_preferential),
+        contractility(contractility),
         remove(false)
     {
         order_edges(es);

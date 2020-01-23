@@ -11,6 +11,9 @@ PCPVertex:
   area_preferential: 1.0
   area_threshold: 0.2
 
+  # Contractility of perimeter
+  contractility: 0.
+
   hexagon_size: 0.62
   lattice_columns: 4
   lattice_rows: 4
