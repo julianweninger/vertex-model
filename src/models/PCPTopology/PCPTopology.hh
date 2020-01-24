@@ -88,6 +88,7 @@ public:
                       DataIO::time_adaptor, DataIO::energy_adaptor,
                       DataIO::areaelasticity_adaptor,
                       DataIO::linetension_adaptor,
+                      DataIO::contractility_adaptor,
                       DataIO::vertex_position_adaptor,  
                       DataIO::cell_position_adaptor, DataIO::edge_link_adaptor),
 
