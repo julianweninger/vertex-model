@@ -107,8 +107,11 @@ private:
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
     
-    /// A [-1,1]-range uniform distribution used for evaluating noise
-    std::uniform_real_distribution<double> _prob_distr_2;
+    /// A normal distribution used for evaluating noise of order zero
+    std::normal_distribution<double> _distr_noise_const;
+
+    /// A normal distribution used for evaluating noise of order one
+    std::normal_distribution<double> _distr_noise_linear;
 
     // .. Temporary objects ...................................................
     /// The current energy of area elasticity
@@ -149,10 +152,9 @@ public:
         _area_preferential(get_as<double>("area_preferential", this->_cfg)),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
         _contractility(get_as<double>("contractility", this->_cfg)),
-        _noise_constant(get_as<double>("noise_constant", this->_cfg)),
-        _noise_linear(get_as<double>("noise_linear", this->_cfg)),
         _prob_distr(0.,1.),
-        _prob_distr_2(-1.,1.),
+        _distr_noise_const(0., get_as<double>("noise_constant", this->_cfg)),
+        _distr_noise_linear(0., get_as<double>("noise_linear", this->_cfg)),
         _energy_linetension(0.),
         _energy_areaelasticity(0.),
         _energy_contractility(0.),
@@ -654,12 +656,12 @@ private:
      *  @param v    The pointer to the vertex to update
      */
     std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
-        double Df_lin = _noise_linear * _prob_distr_2(*this->_rng);
-        double Df_const = _noise_constant * _prob_distr_2(*this->_rng);
+        double Df_lin = _distr_noise_linear(*this->_rng);
+        double Df_const = _distr_noise_const(*this->_rng);
         v->x += ((1 + Df_lin) * v->fx + Df_const) * _dt / _Lx;
 
-        Df_lin = _noise_linear * _prob_distr_2(*this->_rng);
-        Df_const = _noise_constant * _prob_distr_2(*this->_rng);
+        Df_lin = _distr_noise_linear(*this->_rng);
+        Df_const = _distr_noise_const(*this->_rng);
         v->y += ((1 + Df_lin) * v->fy + Df_const) * _dt / _Ly;
         
         correct_periodic_bc<periodic_bc>(v);
@@ -1515,6 +1517,17 @@ public:
         _Ly = std::sqrt(_Ly*_Ly + area / ratio);
         _Lx = ratio * _Ly;
     }
+
+    /// Change the const noise distribution
+    void set_noise_const (double stddev) {
+        _distr_noise_const = std::normal_distribution<double>(0., stddev);
+    }
+
+    /// Change the linear noise distribution
+    void set_noise_linear (double stddev) {
+        _distr_noise_linear = std::normal_distribution<double>(0., stddev);
+    }
+
 
     /** Criterion for the equilibrium state
      * 

@@ -183,7 +183,7 @@ private:
 
         equilibrate_vertex_model();
 
-        if (c->area_abs(Lx, Ly) < 0.9 * c->area_preferential) {
+        if (c->area_abs(Lx, Ly) < threshold * c->area_preferential) {
             this->_log->warn("Could not divide cell, because it would "
                 "not grow to sufficient area. For division requested area: "
                 "75\% of {}. Area reached: {}. !!ABORTING!!",
@@ -230,6 +230,40 @@ public:
     }
 
     void write_data () { }
+
+    void epilog () {
+        if (not this->_cfg["epilog"]) {
+            this->_log->info("Finished epilog");
+            return;
+        }
+        auto epilog_cfg = this->_cfg["epilog"];
+        if (epilog_cfg["set_noise_const"]) {
+            _vertex_model.set_noise_const(get_as<double>("set_noise_const",
+                                                         epilog_cfg));
+        }
+        if (epilog_cfg["set_noise_linear"]) {
+            _vertex_model.set_noise_linear(get_as<double>("set_noise_linear",
+                                                          epilog_cfg));
+        }
+
+        int time_start = _vertex_model.get_time();
+        int num_steps = get_as<int>("num_epilog_steps", epilog_cfg);
+
+        this->_log->info("Iterating vertex model from time {} to {}", 
+                         time_start, time_start + num_steps);
+
+        for (int i = 0; i < num_steps; ++i) {
+            _vertex_model.iterate();
+
+            if (stop_now.load()) {
+                this->_log->warn("Was told to stop. Not iterating vertex "
+                    "model further ...");
+                throw GotSignal(received_signum.load());
+            }
+        }
+
+        this->_log->info("Finished epilog");
+    }
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model

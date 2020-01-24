@@ -25,21 +25,27 @@
 # Equilibration parameter
 equilibration_tolerance: 0.000001
 num_equilibration_steps: 100
-max_equilibration_iterations: 500
+max_equilibration_iterations: 5000
+
 
 # --- Dynamics
 # cell division rate
 cell_divisions_per_step: 1
+
+epilog:
+  set_noise_const: 1.
+  set_noise_linear: 0.01
+  num_epilog_steps: 150000
 
 PCPVertex:
   # space periodicity
   periodic_bc: true
 
   # damping factor
-  dt: 0.01
+  dt: 0.05
   
   # Linetension parameter
-  linetension: 0.01
+  linetension: 0.12
   length_threshold: 0.001
 
   # Area elasticity parameter
@@ -48,7 +54,7 @@ PCPVertex:
   area_threshold: 0.0001
 
   # Contractility of perimeter
-  contractility: 0.
+  contractility: 0.04
 
   # Topology parameter
   hexagon_size: 0.62
@@ -56,8 +62,8 @@ PCPVertex:
   lattice_columns: 4
 
   # Noise
-  noise_constant: 0.
-  noise_linear: 0.
+  noise_constant: 0.005
+  noise_linear: 0.05
 
   # anchor for the configuration of the Times task
   <<: &times
@@ -75,7 +81,7 @@ PCPVertex:
         args:
           start: 0
           stop: 1000000
-          step: 6000
+          step: 10000
 
       write_at_last:
         type: once
