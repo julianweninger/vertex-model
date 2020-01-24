@@ -166,12 +166,12 @@ public:
 
         // calculate edge lengths
         for (auto &e : _edges) {
-            e->update_length<periodic_bc>(_Lx, _Ly);
+            e->template update_length<periodic_bc>(_Lx, _Ly);
         }
 
         // calculate cell area
         for (auto &c : _cells) {
-            c->cell_area<periodic_bc>();
+            c->template cell_area<periodic_bc>();
         }
 
         // line tension
@@ -679,7 +679,7 @@ private:
         auto cell = *cell_it;
         
         // create a new vertex at the center of c
-        cell->cell_area<periodic_bc>(); // updates the center of c        
+        cell->template cell_area<periodic_bc>(); // updates the center of c        
         auto new_v = std::make_shared<Vertex>(cell->s);
         _vertices.push_back(new_v);
 
@@ -726,7 +726,7 @@ private:
             // add new_v and update area
             if (num_vertices > c->vertices.size()) {
                 c->vertices.push_back(new_v);
-                c->cell_area<periodic_bc>();
+                c->template cell_area<periodic_bc>();
             }
 
             // continue iteration
@@ -745,11 +745,11 @@ private:
             // replace vertices that have been removed
             if (e->a->remove) {
                 e->a = new_v;
-                e->update_length<periodic_bc>(_Lx, _Ly);
+                e->template update_length<periodic_bc>(_Lx, _Ly);
             }
             else if (e->b->remove) {
                 e->b = new_v;
-                e->update_length<periodic_bc>(_Lx, _Ly);
+                e->template update_length<periodic_bc>(_Lx, _Ly);
             }
 
             ++e_it;
@@ -971,16 +971,16 @@ private:
         new_edge->adj_cells = {adj_cell_c, adj_cell_d};
 
         // update the objects
-        adj_cell_a->cell_area<periodic_bc>();
-        adj_cell_b->cell_area<periodic_bc>();
-        adj_cell_c->cell_area<periodic_bc>();
-        adj_cell_d->cell_area<periodic_bc>();
+        adj_cell_a->template cell_area<periodic_bc>();
+        adj_cell_b->template cell_area<periodic_bc>();
+        adj_cell_c->template cell_area<periodic_bc>();
+        adj_cell_d->template cell_area<periodic_bc>();
         
-        new_edge->update_length<periodic_bc>(_Lx, _Ly);
-        adj_edge_a->update_length<periodic_bc>(_Lx, _Ly);
-        adj_edge_b->update_length<periodic_bc>(_Lx, _Ly);
-        adj_edge_c->update_length<periodic_bc>(_Lx, _Ly);
-        adj_edge_d->update_length<periodic_bc>(_Lx, _Ly);
+        new_edge->template update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_a->template update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_b->template update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_c->template update_length<periodic_bc>(_Lx, _Ly);
+        adj_edge_d->template update_length<periodic_bc>(_Lx, _Ly);
 
         // replace the edge at adge_it
         edge_it = _edges.erase(edge_it);
@@ -1331,7 +1331,7 @@ public:
 
         // calculate edge lengths
         for (auto &e : _edges) {
-            e->update_length<periodic_bc>(_Lx, _Ly);
+            e->template update_length<periodic_bc>(_Lx, _Ly);
 
             // breakpoint in debug mode
             #ifndef NDEBUG
@@ -1364,7 +1364,7 @@ public:
 
         // calculate cell area
         for (auto &c : _cells) {
-            c->cell_area<periodic_bc>();
+            c->template cell_area<periodic_bc>();
         }
 
         // T2 transitions -- cell extrusion
