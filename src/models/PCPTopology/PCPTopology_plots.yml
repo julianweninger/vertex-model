@@ -23,6 +23,69 @@ energy:
       x: time
       y: energy [a.u.]
 
+
+cell_neighbourhood:
+  creator: universe
+  universes: all
+  module: model_plots.PCPTopology
+  plot_func: cell_neighbourhood
+  file_ext: png
+  datapath: PCPTopology
+
+  helpers:
+    set_labels:
+      x: bins [1]
+      y: counts [1]
+    set_limits:
+      x: [0, 9]
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs:  {}
+
+equilibrium_cellular_structure:
+  creator: universe
+  universes: all
+  module: model_plots.PCPVertex
+  plot_func: cellular_structure
+  file_ext: png
+  datapath: PCPTopology
+  cfgpath: PCPTopology/PCPVertex
+
+  helpers:
+    set_labels:
+      x: x [a.u.]
+      y: y [a.u.]
+    set_limits:
+      x: [0, 500]
+      y: [0, 500]
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs:  {}
+
 cellular_structure:
   creator: universe
   universes: all
@@ -30,6 +93,7 @@ cellular_structure:
   plot_func: cellular_structure
   file_ext: png
   datapath: PCPTopology/PCPVertex
+  cfgpath: PCPTopology/PCPVertex
 
   helpers:
     set_labels:

@@ -10,7 +10,7 @@ using Utopia::get_as;
 /// Factory for model 
 template<bool periodic_bc, typename ParentType>
 PCPVertex<periodic_bc> model_factory(ParentType parent) {
-    return PCPVertex<periodic_bc>("PCPVertex", parent, time_adaptor,
+    return PCPVertex<periodic_bc>("PCPVertex", parent, time_energy_adaptor,
         energy_adaptor, linetension_adaptor, areaelasticity_adaptor,
         contractility_adaptor,
         vertex_position_adaptor, cell_position_adaptor, edge_link_adaptor);

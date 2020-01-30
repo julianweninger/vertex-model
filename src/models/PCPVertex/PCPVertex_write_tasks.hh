@@ -8,10 +8,10 @@ using namespace Utopia::DataIO;
 namespace Utopia::Models::PCPVertex::DataIO{
 
 /// Datamanager adaptor for timepoints
-auto time_adaptor = std::make_tuple(
+auto time_energy_adaptor = std::make_tuple(
 
     // name of the task
-    "Time",
+    "Time_energy",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
@@ -25,18 +25,17 @@ auto time_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset("Time");
+        return group->open_dataset("Time_energy");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
-    ,
+    [](auto& grp, auto& m) {},
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "write_time");
+        hdfdataset->add_attribute("dim_name__0", "time");
     }
-); // end time_adaptor
+); // end time_energy_adaptor
 
 /// Datamanager adaptor for total energy
 auto energy_adaptor = std::make_tuple(
@@ -60,12 +59,13 @@ auto energy_adaptor = std::make_tuple(
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
-    ,
+    [](auto& grp, auto& m) {},
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "write_energy");
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time_energy");
     }
 ); // end energy_adaptor
 
@@ -96,7 +96,9 @@ auto linetension_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "write_energy");
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time_energy");
     }
 ); // end linetension_adaptor
 
@@ -127,7 +129,9 @@ auto areaelasticity_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "write_energy");
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time_energy");
     }
 ); // end areaelasticity_adaptor
 
@@ -158,7 +162,9 @@ auto contractility_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "write_energy");
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time_energy");
     }
 ); // end contractility_adaptor
 
@@ -198,11 +204,10 @@ auto vertex_position_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        // hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("dim_name__0", "idcs");
+        hdfdataset->add_attribute("dim_name__0", "coordinate");
+        hdfdataset->add_attribute("dim_name__1", "id");
         // For ids, the dimensions are trivial
-        hdfdataset->add_attribute("coords_mode__idcs", "start_and_step");
-        hdfdataset->add_attribute("coords__idcs", std::vector<std::size_t>{1, 1});
+        // hdfdataset->add_attribute("coords__coordinate", std::vector<std::size_t>{1, 1});
     }
     
 ); // end vertex position adaptor
@@ -243,11 +248,8 @@ auto cell_position_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        // hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("dim_name__0", "idcs");
-        // For ids, the dimensions are trivial
-        hdfdataset->add_attribute("coords_mode__idcs", "start_and_step");
-        hdfdataset->add_attribute("coords__idcs", std::vector<std::size_t>{1, 1});
+        hdfdataset->add_attribute("dim_name__0", "coordinate");
+        hdfdataset->add_attribute("dim_name__1", "id");
     }    
 ); // end cell position adaptor
 
@@ -293,11 +295,8 @@ auto edge_link_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        // hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("dim_name__0", "idcs");
-        // For ids, the dimensions are trivial
-        hdfdataset->add_attribute("coords_mode__idcs", "start_and_step");
-        hdfdataset->add_attribute("coords__idcs", std::vector<std::size_t>{1, 1});
+        hdfdataset->add_attribute("dim_name__0", "coordinate");
+        hdfdataset->add_attribute("dim_name__1", "id");
     }    
 ); // end edge link adaptor
 

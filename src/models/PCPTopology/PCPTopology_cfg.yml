@@ -25,24 +25,24 @@
 # Equilibration parameter
 equilibration_tolerance: 0.000001
 num_equilibration_steps: 100
-max_equilibration_iterations: 5000
+max_equilibration_iterations: 200
 
 
 # --- Dynamics
 # cell division rate
 cell_divisions_per_step: 1
 
-epilog:
-  set_noise_const: 1.
-  set_noise_linear: 0.01
-  num_epilog_steps: 150000
+# epilog:
+#   set_noise_const: 0.1
+#   # set_noise_linear: 0.01
+#   num_epilog_steps: 150000
 
 PCPVertex:
   # space periodicity
   periodic_bc: true
 
   # damping factor
-  dt: 0.05
+  dt: 0.01
   
   # Linetension parameter
   linetension: 0.12
@@ -62,15 +62,10 @@ PCPVertex:
   lattice_columns: 4
 
   # Noise
-  noise_constant: 0.005
-  noise_linear: 0.05
+  noise_constant: 0.0
+  noise_linear: 0.0
 
-  # anchor for the configuration of the Times task
-  <<: &times
-    decider: write_slice
-    trigger: build_once
-
-  data_manager:
+  data_manager: &data_manager
     # this builds the deciders
     deciders:
       write_always:
@@ -108,37 +103,97 @@ PCPVertex:
       build_at_last:
         type: once
         args: 
-          time: 1000000
-      
+          time: 1000000      
 
     tasks:
-      Time:
-        active: true
-        <<: *times
-
-      Energy: &energy
+      Time_energy: &energy
         active: true
         trigger: build_once
         decider: write_always
 
+      Energy:
+        <<: *energy
+        active: false
+
       Energy_linetension: 
         <<: *energy
+        active: false
 
       Energy_areaelasticity: 
         <<: *energy
+        active: false
 
       Energy_contractility: 
         <<: *energy
+        active: false
 
-      Vertex_position:
-        <<: &position
-          active: true
-          decider: write_slice
-          trigger: build_slice
+      Vertex_position: &position_vertex
+        active: false
+        decider: write_slice
+        trigger: build_slice
 
       Cell_position:
-        <<: *position
+        <<: *position_vertex
 
       Edge_link:
-        <<: *position
+        <<: *position_vertex
+
+data_manager:
+  # this builds the deciders
+  deciders:
+    write_always:
+      type: always
+    
+    write_slice: &slicer_2
+      type: slice
+      args:
+        start: 0
+        stop: 10000
+        step: 16
+
+    write_at_last:
+      type: once
+      args: 
+        time: 1000000
+
+  # this builds the triggers, here deciders are used
+  triggers:
+    build_slice: *slicer_2
+
+    build_once:
+      type: once
+      args:
+        time: 0
+    
+    build_once_at_1:
+      type: once
+      args:
+        time: 1
+    
+    build_always:
+      type: always
+
+    build_at_last:
+      type: once
+      args: 
+        time: 1000000   
+  tasks:
+    Time_histogram: &neighbourhood
+      active: true
+      trigger: build_once
+      decider: write_slice
+
+    Cell_neighbourhood:
+      <<: *neighbourhood
+
+    Vertex_position: &position_topology
+        active: true
+        decider: write_slice
+        trigger: build_slice
+
+    Cell_position:
+      <<: *position_topology
+
+    Edge_link:
+      <<: *position_topology
 

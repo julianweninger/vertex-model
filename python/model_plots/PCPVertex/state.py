@@ -21,7 +21,8 @@ from ..tools import save_and_close
 
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
-                       datapath = 'PCPVertex', time: int=0):
+                       datapath: str='PCPVertex', cfgpath: str='PCPVertex',
+                       time: int=0):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -38,39 +39,39 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     # Get the group that all datasets are in
     grp = uni['data/'+datapath]
-
     # Get the shape of the data
     uni_cfg = uni['cfg']
     vertex_cfg = uni_cfg
-    for level in datapath.split('/'):
+    for level in cfgpath.split('/'):
         vertex_cfg = vertex_cfg[level]
     hexagon_size = vertex_cfg['hexagon_size']
     num_rows = vertex_cfg['lattice_rows']
     num_columns = vertex_cfg['lattice_columns']
     # model_cfg = uni_cfg[datapath]
 
+
     # Prepare the figure ......................................................
     # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure()
 
     def update():
-        for time in grp['Time']:
+        for time in grp['Vertex_position']:
             hlpr.ax.clear()
 
-            v_data = grp['Vertex_position'][str(time.data)]
-            e_data = grp['Edge_link'][str(time.data)]
-            c_data = grp['Cell_position'][str(time.data)]
+            v_data = grp['Vertex_position'][time]
+            e_data = grp['Edge_link'][time]
+            c_data = grp['Cell_position'][time]
 
-            for v_id in v_data.dim_1:
-                v = v_data.sel(dim_1=v_id)
+            for v_id in v_data.id:
+                v = v_data.sel(id=v_id)
                 scatter_vertex(v.data[0], v.data[1], hlpr.ax)
 
-            for e_id in e_data.dim_1:
-                e = e_data.sel(dim_1=e_id)
-                ax = v_data.sel(dim_1=e[0].data)[0]
-                ay = v_data.sel(dim_1=e[0].data)[1]
-                bx = v_data.sel(dim_1=e[1].data)[0]
-                by = v_data.sel(dim_1=e[1].data)[1]
+            for e_id in e_data.id:
+                e = e_data.sel(id=e_id)
+                ax = v_data.sel(id=e[0].data)[0]
+                ay = v_data.sel(id=e[0].data)[1]
+                bx = v_data.sel(id=e[1].data)[0]
+                by = v_data.sel(id=e[1].data)[1]
 
                 if (vertex_cfg['periodic_bc']):
                     dx = bx - ax
@@ -107,11 +108,11 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 else:
                     plot_edge(ax, ay, bx-ax, by-ay, hlpr.ax)
 
-            for c_id in c_data.dim_1:
-                c = c_data.sel(dim_1=c_id)
+            for c_id in c_data.id:
+                c = c_data.sel(id=c_id)
                 hlpr.ax.scatter(c.data[0], c.data[1], c='red')
 
-            hlpr.invoke_helper('set_title', title="Time {}".format(time.data))
+            hlpr.invoke_helper('set_title', title="Time {}".format(time))
 
             if (vertex_cfg['periodic_bc']):
                 hlpr.invoke_helper('set_limits', x=(-0.1,1.05), y=(-0.1,1.05))

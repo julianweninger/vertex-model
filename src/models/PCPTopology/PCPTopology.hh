@@ -22,7 +22,8 @@ namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// Type helper to define types used by the model
-using PCPTopologyModelTypes = Utopia::ModelTypes<>;
+using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG,
+                                                 WriteMode::managed>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
@@ -72,11 +73,12 @@ public:
     /** \param name     Name of this model instance
      *  \param parent   The parent model this model instance resides in
      */
-    template<class ParentModel>
-    PCPTopology (const std::string name, ParentModel& parent)
+    template<class ParentModel, typename... Taskargs>
+    PCPTopology (const std::string name, ParentModel& parent, 
+                 Taskargs&&... taskargs)
     :
         // Initialize first via base model
-        Base(name, parent),
+        Base(name, parent, std::forward<Taskargs>(taskargs)...),
 
         _num_equilibration_steps(get_as<int>("num_equilibration_steps",
                                              this->_cfg)),
@@ -85,7 +87,7 @@ public:
         
         // construct the vertex model with an external maximum time stamp
         _vertex_model("PCPVertex", *this,
-                      DataIO::time_adaptor, DataIO::energy_adaptor,
+                      DataIO::time_energy_adaptor, DataIO::energy_adaptor,
                       DataIO::areaelasticity_adaptor,
                       DataIO::linetension_adaptor,
                       DataIO::contractility_adaptor,
@@ -267,6 +269,36 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+    std::array<int, 9> get_cell_neighbourhood_histogram () {
+        auto cells = _vertex_model.get_cells();
+        std::array<int, 9> histogram = {0};
+        for (auto c : cells) {
+            int neighbours = c.lock()->edges_ordered.size();
+            if (neighbours < 8) {
+                histogram[neighbours]++;
+            }
+            else {
+                histogram[8]++;
+            }
+        }
+
+        return histogram;
+    }
+
+    /// Getter for vertices
+    std::vector<std::weak_ptr<Vertex>> get_vertices () {
+        return _vertex_model.get_vertices();
+    }
+
+    /// Getter for edges
+    std::vector<std::weak_ptr<Edge>> get_edges () {
+        return _vertex_model.get_edges();
+    }
+
+    /// Getter for cells
+    std::vector<std::weak_ptr<Cell>> get_cells () {
+        return _vertex_model.get_cells();
+    }
 
 };
 
