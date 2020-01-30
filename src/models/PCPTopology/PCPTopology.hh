@@ -269,20 +269,49 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+
+    /// Histogram with number of cells with a specific number of neighbours
+    /** bins are range(1, 10), the number of neighbouring cells, where
+     *  - last bin for 9 or more neighbours
+     */
     std::array<int, 9> get_cell_neighbourhood_histogram () {
         auto cells = _vertex_model.get_cells();
         std::array<int, 9> histogram = {0};
         for (auto c : cells) {
             int neighbours = c.lock()->edges_ordered.size();
-            if (neighbours < 8) {
-                histogram[neighbours]++;
-            }
-            else {
-                histogram[8]++;
-            }
+            neighbours = std::min(neighbours, 9);
+            histogram[neighbours - 1]++;
         }
 
         return histogram;
+    }
+    
+    /// Average cell size for cells with specific number of neighbours
+    /** bins are range(0, num_bins), the number of neighbouring cells, where
+     *  - first bin for global average 
+     *  - last bin for 9 or more neighbours
+     */
+    std::array<double, 10> get_cell_size_average () {
+        auto cells = _vertex_model.get_cells();
+        std::array<int, 10> histogram = {0};
+        std::array<double, 10> area = {0};
+        histogram[0] = cells.size();
+        for (auto c_weak : cells) {
+            auto c = c_weak.lock();
+            int neighbours = c->edges_ordered.size();
+            neighbours = std::min(neighbours, 9);
+            histogram[neighbours]++;
+
+            area[neighbours] += c->template cell_area<periodic_bc>();
+        }
+        for (int i = 1; i < 10; i++) {
+            if (histogram[i] == 0) { continue; }
+            area[0] += area[i];
+            area[i] /= double(histogram[i]);
+        }
+        area[0] /= double(histogram[0]);
+
+        return area;
     }
 
     /// Getter for vertices

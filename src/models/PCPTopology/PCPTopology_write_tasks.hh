@@ -74,6 +74,43 @@ auto cell_neighbourhood_adaptor = std::make_tuple(
     
 ); // end cell neighbourhood adaptor
 
+/// Datamanager adaptor for vertex-position
+auto cell_size_adaptor = std::make_tuple(
+
+    // name of the task
+    "Cell_size",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp;
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_cell_size_average());
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset("Cell_size", {H5S_UNLIMITED, 10});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time_histogram");
+
+        hdfdataset->add_attribute("dim_name__1", "bin");
+        hdfdataset->add_attribute("coords_mode__bin", "start_and_step");
+        hdfdataset->add_attribute("coords__bin", std::vector<std::size_t>{0, 1});
+    }
+    
+); // end cell neighbourhood adaptor
+
 
 } // namespace Utopia::Models::PCPVertex::DataIO
 

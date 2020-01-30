@@ -181,6 +181,9 @@ data_manager:
       active: true
       trigger: build_once
       decider: write_slice
+      
+    Cell_size:
+      <<: *neighbourhood
 
     Time_histogram:
       <<: *neighbourhood

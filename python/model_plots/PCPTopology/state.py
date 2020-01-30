@@ -39,17 +39,33 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     # Prepare the figure ......................................................
     # Prepare the figure to have as many columns as there are properties
-    hlpr.setup_figure()
+    hlpr.setup_figure(ncols=2)
 
-    data = grp['Cell_neighbourhood']
+    histogram_data = grp['Cell_neighbourhood']
+    area_data = grp['Cell_size']
+    area_data = area_data / area_data.sel(bin=0)
 
     def update():
-        for time in data.time:
+        for time in histogram_data.time:
+
+            hlpr.select_axis(col=0, row=0)
             hlpr.ax.clear()
 
-            hlpr.ax.bar(x=range(9), height=data.sel(time=time).data)
+            histogram = histogram_data.sel(time=time)
+            hlpr.ax.bar(x=histogram.bin, height=histogram)
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time.data))
+            hlpr.invoke_helper('set_labels', x='number of neighbours',
+                               y='count')
+
+
+            hlpr.select_axis(col=1, row=0)
+            hlpr.ax.clear()
+
+            area = area_data.sel(time=time)
+            hlpr.ax.plot(area.bin[1:], area[1:], '-s')
+            hlpr.invoke_helper('set_labels', x='number of neighbours',
+                               y='<$A_n$>/<A>')
             yield
 
 

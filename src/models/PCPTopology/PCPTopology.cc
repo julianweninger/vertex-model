@@ -11,7 +11,7 @@ using Utopia::get_as;
 template<bool periodic_bc, typename ParentType>
 PCPTopology<periodic_bc> model_factory(ParentType parent) {
     return PCPTopology<periodic_bc>("PCPTopology", parent, 
-        time_histogram_adaptor, cell_neighbourhood_adaptor,
+        time_histogram_adaptor, cell_neighbourhood_adaptor, cell_size_adaptor,
         vertex_position_adaptor, cell_position_adaptor, edge_link_adaptor);
 }
 
