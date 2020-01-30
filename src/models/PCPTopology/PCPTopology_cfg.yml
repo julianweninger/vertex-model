@@ -104,39 +104,35 @@ PCPVertex:
         type: once
         args: 
           time: 1000000      
-
+  
+    # these are the datasets written
     tasks:
-      Time_energy: &energy
+      Energy: &energy
         active: true
         trigger: build_once
         decider: write_always
 
-      Energy:
-        <<: *energy
-        active: false
-
       Energy_linetension: 
         <<: *energy
-        active: false
 
       Energy_areaelasticity: 
         <<: *energy
-        active: false
 
       Energy_contractility: 
         <<: *energy
-        active: false
+      
+      Time_energy:
+        <<: *energy
 
-      Vertex_position: &position_vertex
+      Vertex_position: &position
         active: false
         decider: write_slice
         trigger: build_slice
 
       Cell_position:
-        <<: *position_vertex
+        <<: *position
 
       Edge_link:
-        <<: *position_vertex
 
 data_manager:
   # this builds the deciders
@@ -176,14 +172,15 @@ data_manager:
     build_at_last:
       type: once
       args: 
-        time: 1000000   
+        time: 1000000
+  
+  # these are the datasets written
   tasks:
-    Time_histogram: &neighbourhood
+    Cell_neighbourhood: &neighbourhood
       active: true
       trigger: build_once
       decider: write_slice
-
-    Cell_neighbourhood:
+    Time_histogram:
       <<: *neighbourhood
 
     Vertex_position: &position_topology

@@ -50,12 +50,6 @@ noise_linear: 0.0
 # --- Dynamics
 # Add parameters and their documentation here ...
 
-
-# anchor for the configuration of the Times task
-<<: &times
-  decider: write_slice
-  trigger: build_once
-
 data_manager:
   # this builds the deciders
   deciders:
@@ -72,7 +66,7 @@ data_manager:
     write_at_last:
       type: once
       args: 
-        time: 1000000
+        time: 3000
 
   # this builds the triggers, here deciders are used
   triggers:
@@ -95,13 +89,9 @@ data_manager:
       type: once
       args: 
         time: 1000000
-    
-
+  
+  # these are the datasets written
   tasks:
-    Time:
-      active: true
-      <<: *times
-
     Energy: &energy
       active: true
       trigger: build_once
@@ -115,12 +105,14 @@ data_manager:
 
     Energy_contractility: 
       <<: *energy
+    
+    Time_energy:
+      <<: *energy
 
-    Vertex_position:
-      <<: &position
-        active: true
-        decider: write_slice
-        trigger: build_slice
+    Vertex_position: &position
+      active: false
+      decider: write_slice
+      trigger: build_slice
 
     Cell_position:
       <<: *position
