@@ -22,9 +22,9 @@ PCPVertex<periodic_bc> model_factory(std::string cfg) {
 
     BOOST_TEST(get_as<bool>("periodic_bc", model_cfg) == periodic_bc);
 
-    using Utopia::Models::PCPVertex::DataIO::time_adaptor;
+    using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
-    return PCPVertex<periodic_bc>("PCPVertex", pp, time_adaptor);
+    return PCPVertex<periodic_bc>("PCPVertex", pp, time_energy_adaptor);
 }
 
 /// Destructor for the model
