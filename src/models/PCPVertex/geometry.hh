@@ -162,6 +162,9 @@ Site periodic_copy(const Site s, const Site s_fixed)
 
 /// The Edge object
 /** It is defined as the shortest connection between two vertices a and b
+ * 
+ *  Every edge has two adjoint cells, one to either side, except boundary edges
+ *  have only one.
  */
 struct Edge {
     /// Start and end vertices of this edge
@@ -183,8 +186,11 @@ struct Edge {
     /// The linetension parameter property to this edge
     double linetension;
 
-    /// Container of the the adjacent cells
-    std::vector<std::weak_ptr<Cell>> adj_cells;
+    /// The first adjoint cell
+    std::weak_ptr<Cell> adj_cell_a;
+
+    /// The second adjoint cell
+    std::weak_ptr<Cell> adj_cell_b;
 
     /// Whether this object is to be removed 
     bool remove;
@@ -197,19 +203,15 @@ struct Edge {
      *  \param l    The distance from a to b, length of this edge
      */
     Edge(Vertex_ptr a, Vertex_ptr b, double linetension,
-         CellContainer adj_cs = {}, double l = 0.)
+         Cell_ptr adj_cell_a = nullptr, Cell_ptr adj_cell_b = nullptr, double l = 0.)
     :
         a(a),
         b(b),
         length(l),
         linetension(linetension),
-        adj_cells(),
+        adj_cell_a(adj_cell_a), adj_cell_b(adj_cell_b),
         remove(false)
-    {
-        for (auto c : adj_cs) {
-            adj_cells.push_back(c);
-        }
-    }
+    { }
 };
 
 /// Intersection site of two Edges

@@ -186,7 +186,8 @@ void test_cell_division (std::string cfg)
             assert(v.lock()->adj_cells.size() == 3);
         }
         for (auto e : new_edges) {
-            assert(e.lock()->adj_cells.size() == 2);
+            assert(not e.lock()->adj_cell_a.expired() and
+                   not e.lock()->adj_cell_b.expired());
         }
     }
 

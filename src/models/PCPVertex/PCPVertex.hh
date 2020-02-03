@@ -530,8 +530,13 @@ private:
             for (auto v : c->vertices) {
                 v->adj_cells.push_back(c);
             }
-            for (auto e_pair : c->edges_ordered) {
-                std::get<Edge_ptr>(e_pair)->adj_cells.push_back(c);
+            for (auto [e, flip] : c->edges_ordered) {
+                if (e->adj_cell_a.expired()) {
+                    e->adj_cell_a = c;
+                }
+                else {
+                    e->adj_cell_b = c;
+                }
             }
         }
 
@@ -779,15 +784,6 @@ private:
 
         auto edge = *edge_it;
 
-        if (edge->adj_cells.size() != 2)
-        {
-            throw std::runtime_error("Not implemented error: In T1 transition "
-                "(edge length below threshold value) expected 2 adj_cells to "
-                "an edge, but encountered " + 
-                std::to_string(edge->a->adj_cells.size()) + "! "
-                "This would correspond e.g. to an edge at the boundary.");
-        }
-
         // tag objects to be removed
         edge->remove = true;
         edge->a->remove = true;
@@ -795,8 +791,8 @@ private:
 
         // the adj cells that are currently neighbours sharing edge
         // NOTE a, b arbitrary
-        Cell_ptr adj_cell_a = edge->adj_cells[0].lock();
-        Cell_ptr adj_cell_b = edge->adj_cells[1].lock();
+        Cell_ptr adj_cell_a = edge->adj_cell_a.lock();
+        Cell_ptr adj_cell_b = edge->adj_cell_b.lock();
 
         // the two cells that become neighbours in this T1 transition
         // NOTE c is the cell adjoint to vertex edge->a (arbitrary)
@@ -849,13 +845,9 @@ private:
         for (auto &e_weak : edge->a->adj_edges) {
             auto e = e_weak.lock();
             if (e != edge) {
-                if (std::find_if(
-                            e->adj_cells.begin(),
-                            e->adj_cells.end(),
-                            [adj_cell_a](auto c) { return c.lock() == adj_cell_a; }
-                        ) != e->adj_cells.end()
-                ) {
-                    // edge a is associated with cell a
+                if (e->adj_cell_a.lock() == adj_cell_a or
+                    e->adj_cell_b.lock() == adj_cell_a)
+                {
                     adj_edge_a = e;
                 }
                 else {
@@ -866,13 +858,9 @@ private:
         for (auto &e_weak : edge->b->adj_edges) {
             auto e = e_weak.lock();
             if (e != edge) {
-                if (std::find_if(
-                            e->adj_cells.begin(),
-                            e->adj_cells.end(),
-                            [adj_cell_a](auto c) { return c.lock() == adj_cell_a; }
-                        ) != e->adj_cells.end()
-                ) {
-                    // edge c is associated with cell a
+                if (e->adj_cell_a.lock() == adj_cell_a or
+                    e->adj_cell_b.lock() == adj_cell_a)
+                {
                     adj_edge_c = e;
                 }
                 else {
@@ -970,7 +958,8 @@ private:
                 std::make_pair(new_edge, false) );
             c->order_edges();
         }
-        new_edge->adj_cells = {adj_cell_c, adj_cell_d};
+        new_edge->adj_cell_a = adj_cell_c;
+        new_edge->adj_cell_b = adj_cell_d;
 
         // update the objects
         adj_cell_a->template cell_area<periodic_bc>();
@@ -1040,7 +1029,7 @@ private:
 
             // create a new vertex at the intersection site
             auto new_v = std::make_shared<Vertex>(inter);
-            new_v->adj_cells = e->adj_cells;
+            new_v->adj_cells = {e->adj_cell_a, e->adj_cell_b};
             new_v->adj_edges.push_back(e);
             // NOTE this link is used later and removed thereafter
             
@@ -1129,11 +1118,13 @@ private:
 
             // The first half of the edge from a to pivot
             auto new_edge_0 = std::make_shared<Edge>(a, pivot, e->linetension);
-            new_edge_0->adj_cells = e->adj_cells;
+            new_edge_0->adj_cell_a = e->adj_cell_a;
+            new_edge_0->adj_cell_b = e->adj_cell_b;
 
             // the second half of the edge from pivot to b
             auto new_edge_1 = std::make_shared<Edge>(b, pivot, e->linetension);
-            new_edge_1->adj_cells = e->adj_cells;
+            new_edge_1->adj_cell_a = e->adj_cell_a;
+            new_edge_1->adj_cell_b = e->adj_cell_b;
 
             // update the crosslinks in the adj vertices
             a->adj_edges.push_back(new_edge_0);
@@ -1143,7 +1134,7 @@ private:
             pivot->adj_edges.push_back(new_edge_1);
 
             // update the crosslinks in the adj cells
-            for (auto c_weak : e->adj_cells) {
+            for (auto c_weak : {e->adj_cell_a, e->adj_cell_b}) {
                 if (c_weak.lock() == cell) { continue; }
                 else {
                     auto c = c_weak.lock();
@@ -1277,12 +1268,12 @@ private:
             // crosslinks of edges wrt adj_cells
             for (auto e_pair : new_c->edges_ordered) {
                 auto e = std::get<Edge_ptr>(e_pair);
-                e->adj_cells.erase(std::remove_if(e->adj_cells.begin(),
-                                                  e->adj_cells.end(),
-                                                  [cell](auto c){
-                                                     return c.lock() == cell;}),
-                                   e->adj_cells.end());
-                e->adj_cells.push_back(new_c);
+                if (e->adj_cell_a.lock() == cell or e->adj_cell_a.expired()) {
+                    e->adj_cell_a = new_c;
+                }
+                else if (e->adj_cell_b.lock() == cell or e->adj_cell_b.expired()) {
+                    e->adj_cell_b = new_c;
+                }
             }
         }
 
