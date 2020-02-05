@@ -166,7 +166,7 @@ Site periodic_copy(const Site s, const Site s_fixed)
  *  Every edge has two adjoint cells, one to either side, except boundary edges
  *  have only one.
  */
-struct Edge {
+struct Edge : public std::enable_shared_from_this<Edge> {
     /// Start and end vertices of this edge
     Vertex_ptr a, b;
 
@@ -212,6 +212,12 @@ struct Edge {
         adj_cell_a(adj_cell_a), adj_cell_b(adj_cell_b),
         remove(false)
     { }
+
+    /// Set the weak pointer to this for members
+    void link_members () {
+        a->adj_edges.push_back(weak_from_this());
+        b->adj_edges.push_back(weak_from_this());
+    }
 };
 
 /// Intersection site of two Edges
@@ -312,7 +318,7 @@ Site_ptr intersection(const Edge e0, const Edge e1,
 }
 
 /// The Cell defined by its id, its vertices and its area
-struct Cell {
+struct Cell : public std::enable_shared_from_this<Cell> {
     /// The vertices that bound the cell
     VertexContainer vertices;
 
@@ -377,7 +383,7 @@ struct Cell {
      *  \param contractility        The contractility of the cell associated
      *                              with contractility of the actin-myosin ring
      */
-    Cell(Site s, EdgeContainer &es, double area_preferential, 
+    Cell(Site s, EdgeContainer es, double area_preferential, 
          double contractility)
     :
         vertices(),
@@ -392,6 +398,25 @@ struct Cell {
         order_edges(es);
     }
 
+    /// Set the weak pointer to this for members
+    void link_members () {
+        for (auto v : vertices) {
+            v->adj_cells.push_back(weak_from_this());
+        }
+        for (auto [e, flip] : edges_ordered) {
+            if (e->adj_cell_a.expired()) {
+                e->adj_cell_a = weak_from_this();
+            }
+            else if (e->adj_cell_b.expired()) {
+                e->adj_cell_b = weak_from_this();
+            }
+        }
+    }
+    
+    /// Reset the cell's boundary to new edges es
+    /** Removes the current edges and vertices and sets them anew from es.
+     *  The new edges are ordered.
+     */
     void order_edges(EdgeContainer es) {
         edges_ordered.clear();
         vertices.clear();
@@ -483,6 +508,9 @@ struct Cell {
         }
     }
 
+    /// Update the ordering of edges
+    /** Edges are ordered to be clockwise or anti-clockwise
+     */
     void order_edges() {
         EdgeContainer es;
         for (const auto e_pair : edges_ordered) {

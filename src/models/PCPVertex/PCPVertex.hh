@@ -481,6 +481,7 @@ private:
                     _cells.push_back(std::make_shared<Cell>(*center, edges,
                                                             _area_preferential,
                                                             _contractility));
+                    _cells.back()->link_members();                    
                 }
             }
             else { // impare rows
@@ -507,6 +508,7 @@ private:
                     _cells.push_back(std::make_shared<Cell>(*center, edges,
                                                             _area_preferential,
                                                             _contractility));
+                    _cells.back()->link_members();
                 }
             }
         }
@@ -521,23 +523,8 @@ private:
                            [](auto e) { return e == nullptr; }),
             _edges.end());
 
-        // crosslink the members
-        for (auto &e : _edges) {
-            e->a->adj_edges.push_back(e);
-            e->b->adj_edges.push_back(e);
-        }
-        for (auto &c : _cells) {
-            for (auto v : c->vertices) {
-                v->adj_cells.push_back(c);
-            }
-            for (auto [e, flip] : c->edges_ordered) {
-                if (e->adj_cell_a.expired()) {
-                    e->adj_cell_a = c;
-                }
-                else {
-                    e->adj_cell_b = c;
-                }
-            }
+        for (auto e : _edges) {
+            e->link_members();
         }
 
         this->_log->info("Initialised hexagonal cells.");
@@ -880,19 +867,26 @@ private:
         dy = dy / length * _length_threshold / _Ly;
         auto new_v_a = std::make_shared<Vertex>(
                                 0.5 * (edge->a->x + edge->b->x) - dx / 2.,
-                                0.5 * (edge->a->y + edge->b->y) - dy / 2.);
+                                0.5 * (edge->a->y + edge->b->y) - dy / 2.,
+                                EdgeContainer({adj_edge_a, adj_edge_c}),
+                                CellContainer({adj_cell_a, adj_cell_c,
+                                               adj_cell_d}));
         auto new_v_b = std::make_shared<Vertex>(
                                 0.5 * (edge->a->x + edge->b->x) + dx / 2.,
-                                0.5 * (edge->a->y + edge->b->y) + dy / 2.);
+                                0.5 * (edge->a->y + edge->b->y) + dy / 2.,
+                                EdgeContainer({adj_edge_b, adj_edge_d}),
+                                CellContainer({adj_cell_b, adj_cell_c,
+                                               adj_cell_d}));
         correct_periodic_bc<periodic_bc>(new_v_a);
         correct_periodic_bc<periodic_bc>(new_v_b);
         _vertices.push_back(new_v_a);
         _vertices.push_back(new_v_b);
 
         // create a new edge
-        Edge_ptr new_edge = std::make_shared<Edge>(new_v_a, new_v_b, _linetension);        
-        new_v_a->adj_edges = {new_edge, adj_edge_a, adj_edge_c};    
-        new_v_b->adj_edges = {new_edge, adj_edge_b, adj_edge_d};
+        Edge_ptr new_edge = std::make_shared<Edge>(new_v_a, new_v_b,
+                                                   _linetension, adj_cell_c,
+                                                   adj_cell_d);
+        new_edge->link_members();
 
         // remove objects
         _vertices.erase(
@@ -948,8 +942,6 @@ private:
         for (auto c : {adj_cell_b, adj_cell_c, adj_cell_d}) {
             c->vertices.push_back(new_v_b);
         }
-        new_v_a->adj_cells = {adj_cell_a, adj_cell_c, adj_cell_d};
-        new_v_b->adj_cells = {adj_cell_b, adj_cell_c, adj_cell_d};
 
         // make a new edge in adj_cells c and d
         // NOTE this is symmetric, directionality is given by void order_edges()
@@ -958,8 +950,6 @@ private:
                 std::make_pair(new_edge, false) );
             c->order_edges();
         }
-        new_edge->adj_cell_a = adj_cell_c;
-        new_edge->adj_cell_b = adj_cell_d;
 
         // update the objects
         adj_cell_a->template cell_area<periodic_bc>();
@@ -1028,10 +1018,10 @@ private:
             if (not inter) { continue; }
 
             // create a new vertex at the intersection site
-            auto new_v = std::make_shared<Vertex>(inter);
-            new_v->adj_cells = {e->adj_cell_a, e->adj_cell_b};
-            new_v->adj_edges.push_back(e);
-            // NOTE this link is used later and removed thereafter
+            auto new_v = std::make_shared<Vertex>(inter, EdgeContainer({e}),
+                                CellContainer({e->adj_cell_a.lock(),
+                                               e->adj_cell_b.lock()}));
+            // NOTE the edge link is used later and removed thereafter
             
             // keep track of this vertex
             _vertices.push_back(new_v);
@@ -1080,10 +1070,8 @@ private:
         // NOTE it has properties as at model initialisation
         auto new_edge = std::make_shared<Edge>(new_vertices[0], 
                                                new_vertices[1], _linetension);
+        new_edge->link_members();
         _edges.push_back(new_edge);
-        // crosslinking of objects
-        new_vertices[0]->adj_edges.push_back(new_edge);
-        new_vertices[1]->adj_edges.push_back(new_edge);
 
         // this is how to divide an edge at a pivot vertex
         /* \param e     The Edge to divide
@@ -1117,21 +1105,16 @@ private:
             }
 
             // The first half of the edge from a to pivot
-            auto new_edge_0 = std::make_shared<Edge>(a, pivot, e->linetension);
-            new_edge_0->adj_cell_a = e->adj_cell_a;
-            new_edge_0->adj_cell_b = e->adj_cell_b;
+            auto new_edge_0 = std::make_shared<Edge>(a, pivot, e->linetension,
+                                        e->adj_cell_a.lock(),
+                                        e->adj_cell_b.lock());
+            new_edge_0->link_members();
 
             // the second half of the edge from pivot to b
-            auto new_edge_1 = std::make_shared<Edge>(b, pivot, e->linetension);
-            new_edge_1->adj_cell_a = e->adj_cell_a;
-            new_edge_1->adj_cell_b = e->adj_cell_b;
-
-            // update the crosslinks in the adj vertices
-            a->adj_edges.push_back(new_edge_0);
-            pivot->adj_edges.push_back(new_edge_0);
-
-            b->adj_edges.push_back(new_edge_1);
-            pivot->adj_edges.push_back(new_edge_1);
+            auto new_edge_1 = std::make_shared<Edge>(b, pivot, e->linetension,
+                                        e->adj_cell_a.lock(),
+                                        e->adj_cell_b.lock());
+            new_edge_1->link_members();
 
             // update the crosslinks in the adj cells
             for (auto c_weak : {e->adj_cell_a, e->adj_cell_b}) {
@@ -1248,30 +1231,29 @@ private:
         auto new_cell_0 = std::make_shared<Cell>(*cell_center, new_edges_cell_0, 
                                                  cell->area_preferential,
                                                  cell->contractility);
+        new_cell_0->link_members();
         auto new_cell_1 = std::make_shared<Cell>(*cell_center, new_edges_cell_1, 
                                                  cell->area_preferential,
                                                  cell->contractility);
+        new_cell_1->link_members();
         _cells.push_back(new_cell_0);
         _cells.push_back(new_cell_1);
         
-        // update crosslinks
+        // remove expired crosslinks
         for (auto new_c : {new_cell_0, new_cell_1}) {
-            // crosslinks of vertices wrt adj_cells
             for (auto v : new_c->vertices) {
                 v->adj_cells.erase(std::remove_if(v->adj_cells.begin(),
                                                 v->adj_cells.end(),
                                                 [cell](auto c){
                                                     return c.lock() == cell;}),
                                 v->adj_cells.end());
-                v->adj_cells.push_back(new_c);
             }
-            // crosslinks of edges wrt adj_cells
             for (auto e_pair : new_c->edges_ordered) {
                 auto e = std::get<Edge_ptr>(e_pair);
-                if (e->adj_cell_a.lock() == cell or e->adj_cell_a.expired()) {
+                if (e->adj_cell_a.lock() == cell) {
                     e->adj_cell_a = new_c;
                 }
-                else if (e->adj_cell_b.lock() == cell or e->adj_cell_b.expired()) {
+                else if (e->adj_cell_b.lock() == cell) {
                     e->adj_cell_b = new_c;
                 }
             }

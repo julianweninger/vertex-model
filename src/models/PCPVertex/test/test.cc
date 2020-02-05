@@ -44,6 +44,59 @@ void destruct_model_factory(Model model)
 
 
 template<bool periodic_bc>
+void test_initialisation_hexagon (std::string cfg)
+{
+    auto model = model_factory<periodic_bc>(cfg);
+    auto model_cfg = model.get_cfg();
+
+    auto vertices = model.get_vertices();
+    auto edges = model.get_edges();
+    auto cells = model.get_cells();
+
+    if constexpr (periodic_bc) {
+        for (auto v : vertices) {
+            assert(v.lock()->adj_edges.size() == 3);
+            assert(v.lock()->adj_cells.size() == 3);
+        }
+        for (auto e : edges) {
+            assert(not e.lock()->adj_cell_a.expired() and
+                   not e.lock()->adj_cell_b.expired());
+        }
+        for (auto c : cells) {
+            assert (c.lock()->vertices.size() == 6);
+            assert (c.lock()->edges_ordered.size() == 6);
+        }
+    }
+    // else {
+    //     for (auto v : vertices) {
+    //         assert(v.lock()->adj_edges.size() <= 3);
+    //         assert(v.lock()->adj_cells.size() <= 3);
+    //     }
+    //     for (auto e : edges) {
+    //         assert(not e.lock()->adj_cell_a.expired() or 
+    //                not e.lock()->adj_cell_b.expired());
+    //     }
+    //     for (auto c : cells) {
+    //         assert (c.lock()->vertices.size() == 6);
+    //         assert (c.lock()->edges_ordered.size() == 6);
+    //     }
+    // }
+
+    destruct_model_factory(model);
+}
+
+BOOST_AUTO_TEST_CASE(Initialisation_hexagon_periodic)
+{
+    test_initialisation_hexagon<true>("test_periodic.yml");
+}
+
+BOOST_AUTO_TEST_CASE(Initialisation_hexagon_non_periodic)
+{
+    test_initialisation_hexagon<false>("test_non_periodic.yml");
+}
+
+
+template<bool periodic_bc>
 void test_T1_transition (std::string cfg)
 {
     auto model = model_factory<periodic_bc>(cfg);
