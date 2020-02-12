@@ -1,6 +1,8 @@
 #include <iostream>
 
 #include "PCPVertex.hh"
+#include "initialisation.hh"
+#include "transitions.hh"
 #include "PCPVertex_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;

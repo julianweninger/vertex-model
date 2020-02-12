@@ -12,6 +12,8 @@
 
 #include "../PCPVertex/geometry.hh"
 #include "../PCPVertex/PCPVertex.hh"
+#include "../PCPVertex/initialisation.hh"
+#include "../PCPVertex/transitions.hh"
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 
 

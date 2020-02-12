@@ -5,6 +5,8 @@
 #include <boost/test/unit_test.hpp>
 
 #include "../PCPVertex.hh"
+#include "../initialisation.hh"
+#include "../transitions.hh"
 #include "../PCPVertex_write_tasks.hh"
 
 using namespace Utopia;
