@@ -107,13 +107,7 @@ public:
                                                 this->_cfg)),
         _prob_distr(0.,1.)
     {
-        _vertex_model.write_data_initial();
-
-        this->_log->info("Equilibrating vertex model ...");
-        
-        this->equilibrate_vertex_model();
-
-        this->_log->info("Model initialised.");
+        this->_log->info("Model set up.");
     }
 
 
@@ -232,19 +226,38 @@ public:
         perform_cell_divisions(_cell_divisions_per_step);
     }
 
-
     /// Monitor model information
     void monitor () {        
         this->_monitor.set_entry("num cells", _vertex_model.get_cells().size());
     }
 
-    void write_data () { }
+    /// The prolog
+    /** Performs the following tasks:
+     *      1. call prolog of vertex model
+     *      2. equilibrate vertex model
+     *      3. default prolog tasks
+     */
+    void prolog () {
+        _vertex_model.prolog();
 
+        this->_log->info("Equilibrating vertex model ...");        
+        this->equilibrate_vertex_model();
+
+        this->_log->info("Model initialised with equilibrated vertex model.");
+
+        this->__prolog();
+    }
+
+    /// The epilog
+    /** Performs the following tasks:
+     *      1. (optional) Equilibrate the vertex model with changed noise level
+     *      2. default epilog tasks
+     */
     void epilog () {
         if (not this->_cfg["epilog"]) {
-            this->_log->info("Finished epilog");
-            return;
+            return this->__epilog();
         }
+
         auto epilog_cfg = this->_cfg["epilog"];
         if (epilog_cfg["set_noise_const"]) {
             _vertex_model.set_noise_const(get_as<double>("set_noise_const",
@@ -271,7 +284,7 @@ public:
             }
         }
 
-        this->_log->info("Finished epilog");
+        return this->__epilog();
     }
 
     // Getters and setters ....................................................

@@ -200,64 +200,6 @@ public:
         this->initialise_polarity_random(get_as<double>(
                 "cell_initialisation_protein_level", this->_cfg));
 
-        // calculate edge lengths
-        for (auto &e : _edges) {
-            e->template update_length<periodic_bc>(_Lx, _Ly);
-        }
-
-        // calculate cell area
-        for (auto &c : _cells) {
-            c->template cell_area<periodic_bc>();
-        }
-
-        // initialise the energy terms
-        // NOTE since no update is performed, the position of the vertices and
-        //      the level of polarity is not changed
-
-        // line tension
-        _energy_linetension = 0;
-        for (auto &e : _edges) {
-            _energy_linetension += this->line_tension(e);
-        }
-        
-        // area elasticity
-        _energy_areaelasticity = 0;
-        for (auto &c : _cells) {
-            _energy_areaelasticity += this->area_elasticity(c);
-        }
-        
-        // area elasticity
-        _energy_contractility = 0;
-        for (auto &c : _cells) {
-            _energy_contractility += this->contractility(c);
-        }
-
-        if constexpr (polarity_proteins) {
-            _energy_cell_cell_polarity = 0.;
-            for (auto &e : _edges) {
-                _energy_cell_cell_polarity += this->cell_cell_polarity(e);
-            }
-
-            _energy_polarity_exclusion = 0.;
-            for (auto &c : _cells) {
-                _energy_polarity_exclusion += this->apply_polarity_exclusion(c);
-            }
-
-            _energy_lagrange_net_polarisation = 0.;
-            for (auto &c : _cells) {
-                _energy_lagrange_net_polarisation += 
-                        this->lagrange_net_polarisation(c);
-                c->lagrange_net_polarisation = 0.; // NOTE undo changes
-            }
-
-            _energy_lagrange_const_concentration = 0.;
-            for (auto &c : _cells) {
-                _energy_lagrange_const_concentration += 
-                        this->lagrange_const_concentration(c);
-                c->lagrange_const_concentration = 0.; // NOTE undo changes
-            }
-        }
-
         this->_log->info("Model initialized.");
     }
 
@@ -587,6 +529,16 @@ private:
 
         for (auto e : _edges) {
             e->link_members();
+        }
+
+        // calculate edge lengths
+        for (auto &e : _edges) {
+            e->template update_length<periodic_bc>(_Lx, _Ly);
+        }
+
+        // calculate cell area
+        for (auto &c : _cells) {
+            c->template cell_area<periodic_bc>();
         }
 
         this->_log->info("Initialised hexagonal cells.");
@@ -1698,6 +1650,74 @@ public:
      */ 
     void write_data_initial () {
         this->_datamanager(*this);
+    }
+
+    /// The prolog
+    /** Performs the following tasks:
+     *      1. update the edges lengths and cells areas
+     *      2. calculate the energies
+     *      3. default prolog tasks
+     */
+    void prolog () {
+        // calculate edge lengths
+        for (auto &e : _edges) {
+            e->template update_length<periodic_bc>(_Lx, _Ly);
+        }
+
+        // calculate cell area
+        for (auto &c : _cells) {
+            c->template cell_area<periodic_bc>();
+        }
+
+        // initialise the energy terms
+        // NOTE since no update is performed, the position of the vertices and
+        //      the level of polarity is not changed
+
+        // line tension
+        _energy_linetension = 0;
+        for (auto &e : _edges) {
+            _energy_linetension += this->line_tension(e);
+        }
+        
+        // area elasticity
+        _energy_areaelasticity = 0;
+        for (auto &c : _cells) {
+            _energy_areaelasticity += this->area_elasticity(c);
+        }
+        
+        // area elasticity
+        _energy_contractility = 0;
+        for (auto &c : _cells) {
+            _energy_contractility += this->contractility(c);
+        }
+
+        if constexpr (polarity_proteins) {
+            _energy_cell_cell_polarity = 0.;
+            for (auto &e : _edges) {
+                _energy_cell_cell_polarity += this->cell_cell_polarity(e);
+            }
+
+            _energy_polarity_exclusion = 0.;
+            for (auto &c : _cells) {
+                _energy_polarity_exclusion += this->apply_polarity_exclusion(c);
+            }
+
+            _energy_lagrange_net_polarisation = 0.;
+            for (auto &c : _cells) {
+                _energy_lagrange_net_polarisation += 
+                        this->lagrange_net_polarisation(c);
+                c->lagrange_net_polarisation = 0.; // NOTE undo changes
+            }
+
+            _energy_lagrange_const_concentration = 0.;
+            for (auto &c : _cells) {
+                _energy_lagrange_const_concentration += 
+                        this->lagrange_const_concentration(c);
+                c->lagrange_const_concentration = 0.; // NOTE undo changes
+            }
+        }
+
+        return this->__prolog();
     }
 
 
