@@ -27,13 +27,15 @@ using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG,
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
-template <bool periodic_bc>
+template <bool periodic_bc, bool polarity_proteins>
 class PCPTopology:
-    public Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>
+    public Model<PCPTopology<periodic_bc, polarity_proteins>,
+                 PCPTopologyModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>;
+    using Base = Model<PCPTopology<periodic_bc, polarity_proteins>,
+                                   PCPTopologyModelTypes>;
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
@@ -41,7 +43,7 @@ private:
 
     // -- Members -------------------------------------------------------------
     /// The Vertex model
-    PCPVertex<periodic_bc> _vertex_model;
+    PCPVertex<periodic_bc, polarity_proteins> _vertex_model;
 
     /// A tolerance value for equilibrium
     double _equilibration_tolerance;
@@ -91,8 +93,13 @@ public:
                       DataIO::areaelasticity_adaptor,
                       DataIO::linetension_adaptor,
                       DataIO::contractility_adaptor,
+                      DataIO::cell_cell_polarity_adaptor,
+                      DataIO::polarity_exclusion_adaptor,
+                      DataIO::lagrange_net_polarisation_adaptor,
+                      DataIO::lagrange_const_concentration_adaptor,
                       DataIO::vertex_position_adaptor,  
-                      DataIO::cell_position_adaptor, DataIO::edge_link_adaptor),
+                      DataIO::cell_position_adaptor<periodic_bc>,
+                      DataIO::edge_link_adaptor),
 
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
                                              this->_cfg)),

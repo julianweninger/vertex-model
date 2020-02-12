@@ -13,7 +13,7 @@ using namespace Utopia::Models::PCPVertex;
 
 // Factory for model
 template<bool periodic_bc>
-PCPVertex<periodic_bc> model_factory(std::string cfg) {
+PCPVertex<periodic_bc, false> model_factory(std::string cfg) {
     // initialize pp inside to avoid problems with datamanager and memory 
     // access
     PseudoParent pp(cfg);
@@ -24,7 +24,7 @@ PCPVertex<periodic_bc> model_factory(std::string cfg) {
 
     using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
-    return PCPVertex<periodic_bc>("PCPVertex", pp, time_energy_adaptor);
+    return PCPVertex<periodic_bc, false>("PCPVertex", pp, time_energy_adaptor);
 }
 
 /// Destructor for the model

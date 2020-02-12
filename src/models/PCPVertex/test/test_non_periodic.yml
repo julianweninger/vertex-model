@@ -2,17 +2,23 @@
 PCPVertex: 
   periodic_bc: false
   
-  dt: 0.01
+  dt: 0.001
   
-  linetension: 0.1
-  length_threshold: 0.05
+  linetension: 1.
+  length_threshold: 0.1
 
-  area_elasticity: 1.0
+  area_elasticity: 100.
   area_preferential: 1.0
-  area_threshold: 0.1
+  area_threshold: 0.2
 
   # Contractility of perimeter
   contractility: 0.
+
+  # Polarity interaction
+  gamma: 0.
+  cell_cell_polarity_interaction: 0.
+  cell_polarity_exclusion: 0.
+  cell_initialisation_protein_level: 0.
 
   hexagon_size: 0.62
   lattice_columns: 4
@@ -35,14 +41,14 @@ PCPVertex:
           time: 0
 
     tasks:
-      Time_energy:
+      Energy_time:
         active: true
         decider: write_always
         trigger: build_once
 
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: debug}
 monitor_emit_interval: 2.0
-num_steps: 1000
+num_steps: 5000
 output_path: test_data.h5
 seed: 42
 write_every: 25

@@ -8,11 +8,12 @@ using namespace DataIO;
 using Utopia::get_as;
 
 /// Factory for model 
-template<bool periodic_bc, typename ParentType>
-PCPTopology<periodic_bc> model_factory(ParentType parent) {
-    return PCPTopology<periodic_bc>("PCPTopology", parent, 
+template<bool periodic_bc, bool polarity_proteins, typename ParentType>
+auto model_factory(ParentType parent) {
+    return PCPTopology<periodic_bc, polarity_proteins>("PCPTopology", parent, 
         time_histogram_adaptor, cell_neighbourhood_adaptor, cell_size_adaptor,
-        vertex_position_adaptor, cell_position_adaptor, edge_link_adaptor);
+        vertex_position_adaptor, cell_position_adaptor<periodic_bc>,
+        edge_link_adaptor);
 }
 
 
@@ -23,15 +24,27 @@ int main (int, char** argv) {
         auto model_cfg = pp.get_cfg()["PCPTopology"];
 
         // Initialize the main model instance and directly run it
-        if (get_as<bool>("periodic_bc", model_cfg["PCPVertex"])) {
-            auto model = model_factory<true>(pp);
+        if (get_as<bool>("periodic_bc", model_cfg["PCPVertex"]) and 
+            get_as<double>("gamma", model_cfg["PCPVertex"]) > 0)
+        {
+            auto model = model_factory<true, true>(pp);
+            model.run();
+        }
+        else if (get_as<bool>("periodic_bc", model_cfg["PCPVertex"]))
+        {
+            auto model = model_factory<true, false>(pp);
+            model.run();
+        }
+        else if (get_as<double>("gamma", model_cfg["PCPVertex"]) > 0.)
+        {
+            auto model = model_factory<false, true>(pp);
             model.run();
         }
         else
         {
-            auto model = model_factory<false>(pp);
+            auto model = model_factory<false, false>(pp);
             model.run();
-        }   
+        }    
 
         // Done
         return 0;

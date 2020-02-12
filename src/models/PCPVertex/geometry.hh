@@ -192,6 +192,70 @@ struct Edge : public std::enable_shared_from_this<Edge> {
     /// The second adjoint cell
     std::weak_ptr<Cell> adj_cell_b;
 
+    /// Polartity protein level on side to cell a
+    double sigma_a;
+
+    /// Polartity protein level on side to cell b
+    double sigma_b;
+
+    double get_sigma(Cell_ptr c) const {
+        if (c == adj_cell_a.lock()) {
+            return sigma_a;
+        }
+        else if (c == adj_cell_b.lock()) {
+            return sigma_b;
+        }
+        else {
+            throw std::runtime_error("The provided cell is not an adjoint cell"
+                " of this edge!");
+        }
+    }
+
+    void set_sigma(Cell_ptr c, double value) {
+        if (c == adj_cell_a.lock()) {
+            sigma_a = value;
+        }
+        else if (c == adj_cell_b.lock()) {
+            sigma_b = value;
+        }
+        else {
+            throw std::runtime_error("The provided cell is not an adjoint cell"
+                " of this edge!");
+        }
+    }
+
+    /// Steepest descent in protein level (side a)
+    double d_sigma_a;
+
+    /// Steepest descent in protein level (side b)
+    double d_sigma_b;
+
+    double get_d_sigma(Cell_ptr c) const {
+        if (c == adj_cell_a.lock()) {
+            return d_sigma_a;
+        }
+        else if (c == adj_cell_b.lock()) {
+            return d_sigma_b;
+        }
+        else {
+            throw std::runtime_error("The provided cell is not an adjoint cell"
+                " of this edge!");
+        }
+    }
+
+    void set_d_sigma(Cell_ptr c, double value) {
+        if (c == adj_cell_a.lock()) {
+            d_sigma_a = value;
+        }
+        else if (c == adj_cell_b.lock()) {
+            d_sigma_b = value;
+        }
+        else {
+            throw std::runtime_error("The provided cell is not an adjoint cell"
+                " of this edge!");
+        }
+    }
+
     /// Whether this object is to be removed 
     bool remove;
 
@@ -203,13 +267,16 @@ struct Edge : public std::enable_shared_from_this<Edge> {
      *  \param l    The distance from a to b, length of this edge
      */
     Edge(Vertex_ptr a, Vertex_ptr b, double linetension,
-         Cell_ptr adj_cell_a = nullptr, Cell_ptr adj_cell_b = nullptr, double l = 0.)
+         Cell_ptr adj_cell_a = nullptr, Cell_ptr adj_cell_b = nullptr,
+         double sigma_a = 0., double sigma_b = 0., double l = 0.)
     :
         a(a),
         b(b),
         length(l),
         linetension(linetension),
         adj_cell_a(adj_cell_a), adj_cell_b(adj_cell_b),
+        sigma_a(sigma_a), sigma_b(sigma_b),
+        d_sigma_a(0.), d_sigma_b(0.),
         remove(false)
     { }
 
@@ -245,7 +312,7 @@ struct Edge : public std::enable_shared_from_this<Edge> {
  */
 template <bool periodic_bc>
 Site_ptr intersection(const Edge e0, const Edge e1, 
-                     const bool finite_e0 = true, const bool finite_e1 = true) 
+                      const bool finite_e0 = true, const bool finite_e1 = true) 
 {
     // the start vertices of the resp. edges
     Site va = *e0.a;
@@ -372,6 +439,19 @@ struct Cell : public std::enable_shared_from_this<Cell> {
     /// The contractility of the cell
     double contractility;
 
+    /// Lagrange multiplier I
+    /** Constraint of zero net polarisation
+     */
+    double lagrange_net_polarisation;
+
+    /// Lagrange multiplier II
+    /** Constraint of constant protein level
+     */
+    double lagrange_const_concentration;
+
+    /// The initial protein concentration
+    const double protein_concentration;
+
     /// Whether this object is to be removed 
     bool remove;
 
@@ -384,7 +464,7 @@ struct Cell : public std::enable_shared_from_this<Cell> {
      *                              with contractility of the actin-myosin ring
      */
     Cell(Site s, EdgeContainer es, double area_preferential, 
-         double contractility)
+         double contractility, double protein_concentration = 0.)
     :
         vertices(),
         edges_ordered(),
@@ -393,6 +473,9 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         s(std::make_shared<Site>(s)),
         area_preferential(area_preferential),
         contractility(contractility),
+        lagrange_net_polarisation(0.),
+        lagrange_const_concentration(0.),
+        protein_concentration(protein_concentration),
         remove(false)
     {
         order_edges(es);

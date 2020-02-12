@@ -56,6 +56,12 @@ PCPVertex:
   # Contractility of perimeter
   contractility: 0.04
 
+  # Polarity interaction
+  gamma: 0.
+  cell_cell_polarity_interaction: 0.
+  cell_polarity_exclusion: 0.
+  cell_initialisation_protein_level: 0.
+
   # Topology parameter
   hexagon_size: 0.62
   lattice_rows: 4
@@ -107,22 +113,32 @@ PCPVertex:
   
     # these are the datasets written
     tasks:
-      Energy: &energy
+      Energy_total: &energy
         active: true
         trigger: build_once
         decider: write_always
-
       Energy_linetension: 
         <<: *energy
-
       Energy_areaelasticity: 
         <<: *energy
-
       Energy_contractility: 
         <<: *energy
-      
-      Time_energy:
+      Energy_time:
         <<: *energy
+
+      # the polarity energies
+      Energy_cell_cell_polarity: 
+        <<: *energy
+        active: false
+      Energy_polarity_exclusion: 
+        <<: *energy
+        active: false
+      Energy_lagrange_net_polarisation: 
+        <<: *energy
+        active: false
+      Energy_lagrange_const_concentration: 
+        <<: *energy
+        active: false
 
       Vertex_position: &position
         active: false

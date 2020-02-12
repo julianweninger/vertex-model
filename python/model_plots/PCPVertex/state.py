@@ -33,8 +33,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     def scatter_vertex(x, y, ax):
         ax.scatter(x, y, c='black')
 
-    def plot_edge(x0, y0, x1, y1, ax):
-        ax.arrow(x0, y0, x1, y1, head_width=0., head_length=0., color='black')
+    def plot_edge(x0, y0, dx, dy, ax):
+        ax.arrow(x0, y0, dx, dy, head_width=0., head_length=0., color='black')
+
+    def plot_arrow(x0, y0, dx, dy, ax):
+        ax.arrow(x0, y0, dx, dy, head_width=0.01, head_length=0.01,
+                 color='black')
 
 
     # Get the group that all datasets are in
@@ -110,7 +114,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             for c_id in c_data.id:
                 c = c_data.sel(id=c_id)
-                hlpr.ax.scatter(c.data[0], c.data[1], c='red')
+                dx = c.data[2] / 5.
+                dy = c.data[3] / 5.
+                plot_arrow(c.data[0] - dx/2, c.data[1] - dy/2., dx, dy, hlpr.ax)
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
 

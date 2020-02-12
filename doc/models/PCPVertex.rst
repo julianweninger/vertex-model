@@ -23,7 +23,8 @@ The model accounts for the following topological changes
 The energy function and its gradient
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-from Farhadifar et al [2007] and Aigouy et al. [2010]
+from Farhadifar et al [2007].
+In the following i and j denote edges, :math:`\alpha` and :math:`\beta` denot cells.
 
 **Area elasitcity**
     .. math::
@@ -57,8 +58,30 @@ from Farhadifar et al [2007] and Aigouy et al. [2010]
         E = \sum_\alpha \frac{\Gamma_\alpha}{2} L_\alpha^2
 
 
+
 **PCP protein interaction**
-    Not implemented
+    from Aigouy et al. [2010]. These add a layer of development without coupling
+    to the tissue mechanics.
+
+    Cell-cell polarity interaction between two cells across a common bond
+
+    .. math::
+        E = J_1 \sum_i \sigma_i^\alpha \sigma_i^\beta
+
+    Cell intrinsic polarity exclusion on two neighbouring edges
+
+    .. math::
+        E = - J_2 \sum_{<i, j>} \sigma_i^\alpha \sigma_j^\alpha
+
+    Lagrange constrain of zero net polarisation per cell
+
+    .. math::
+        E = - \sum_\alpha \lambda_I^\alpha \sum_i \sigma_i^\alpha
+
+    Lagrange constrain of constant levels of proteins per cell
+
+    .. math::
+        E = - \sum_\alpha \lambda_{II}^\alpha (\sum_i (\sigma_i^\alpha)^2 - c) 
 
 
 Implementation Details
@@ -73,6 +96,7 @@ Process ordering
 #. Linetension on edges
 #. Area elasticity on cells
 #. Update vertex positions on vertices
+#. If activated: polarity terms in above order, then their update.
 
 
 Default Model Configuration
@@ -84,6 +108,8 @@ Below are the default configuration parameters for the ``PCPVertex`` model.
    :language: yaml
    :start-after: ---
 
+Polarity proteins are only activated if :math:`\gamma > 0`. For efficiency, deactivate the corresponding energy-datasets.
+deactivate
 
 References
 ----------
