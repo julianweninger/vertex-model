@@ -4,30 +4,18 @@ parameter_space:
   PCPVertex: !model
     model_name: PCPVertex
     
-    gamma: 0.01
-    cell_cell_polarity_interaction: 2.
-    cell_polarity_exclusion: 1.
-    cell_initialisation_protein_level: 1.
+    gamma: 0.0
+    cell_cell_polarity_interaction: 0.
+    cell_polarity_exclusion: 0.
+    cell_initialisation_protein_level: 0.
 
     data_manager:
       tasks:
-        Energy_total: &energy
-          active: true
-          trigger: build_once
-          decider: write_always
-        Energy_linetension: 
-          <<: *energy
-        Energy_areaelasticity: 
-          <<: *energy
-        Energy_contractility: 
-          <<: *energy
         Energy_cell_cell_polarity: 
-          <<: *energy
+          active: false
         Energy_polarity_exclusion: 
-          <<: *energy
+          active: false
         Energy_lagrange_net_polarisation: 
-          <<: *energy
+          active: false
         Energy_lagrange_const_concentration: 
-          <<: *energy
-        Energy_time:
-          <<: *energy
+          active: false

@@ -87,3 +87,55 @@ def test_modes():
 
     # Assert that data was loaded, i.e. that data was written
     assert len(mv.dm)
+
+def test_output():
+    # Create a Multiverse using the configuration for the original equations
+    mv, dm = mtc.create_run_load(from_cfg="test_mode_no_polarity_proteins.yml")
+
+    data = dm['multiverse'][0]['data']['PCPVertex']
+
+    assert 'Energy' in data
+    assert 'Time' in data['Energy']
+    assert 'Total' in data['Energy']
+    assert 'Linetension' in data['Energy']
+    assert 'Areaelasticity' in data['Energy']
+    assert 'Contractility' in data['Energy']
+
+    # assert that initial state was written
+    assert len(data['Energy']['Time'].data) == 4
+
+    assert 'Vertex_position' in data
+    assert 'Edge_link' in data
+    assert 'Cell_position' in data
+
+    assert len(data['Vertex_position']) == 4
+    assert len(data['Edge_link']) == 4
+    assert len(data['Cell_position']) == 4
+
+    
+    # Create a Multiverse using the configuration for the original equations
+    mv, dm = mtc.create_run_load(from_cfg="test_mode_polarity_proteins.yml")
+
+    data = dm['multiverse'][0]['data']['PCPVertex']
+
+    assert 'Energy' in data
+    assert 'Time' in data['Energy']
+    assert 'Total' in data['Energy']
+    assert 'Linetension' in data['Energy']
+    assert 'Areaelasticity' in data['Energy']
+    assert 'Contractility' in data['Energy']
+    assert 'Cell_cell_polarity' in data['Energy']
+    assert 'Polarity_exclusion' in data['Energy']
+    assert 'Lagrange_net_polarisation' in data['Energy']
+    assert 'Lagrange_const_concentration' in data['Energy']
+
+    # assert that initial state was written
+    assert len(data['Energy']['Time'].data) == 4
+
+    assert 'Vertex_position' in data
+    assert 'Edge_link' in data
+    assert 'Cell_position' in data
+
+    assert len(data['Vertex_position']) == 4
+    assert len(data['Edge_link']) == 4
+    assert len(data['Cell_position']) == 4

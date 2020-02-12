@@ -1340,6 +1340,7 @@ private:
 
             // update the crosslinks in the adj cells
             for (auto c_weak : {e->adj_cell_a, e->adj_cell_b}) {
+                if (c_weak.expired()) { continue; }
                 if (c_weak.lock() == cell) { continue; }
                 else {
                     auto c = c_weak.lock();

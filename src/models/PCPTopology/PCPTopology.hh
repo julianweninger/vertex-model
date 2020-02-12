@@ -148,7 +148,9 @@ private:
             equilibrated = _vertex_model.equilibrium_state_reached(
                                             _equilibration_tolerance);
             int max_steps = _num_equilibration_steps * _max_equilibration_iterations;
-            if (_vertex_model.get_time() - time_start >= max_steps) {
+            if (_vertex_model.get_time() - time_start >= max_steps and 
+                not equilibrated)
+            {
                 throw std::runtime_error("Equilibrium not reached within " +
                         std::to_string(_max_equilibration_iterations) + 
                         " iterations of " + 
