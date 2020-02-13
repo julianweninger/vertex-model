@@ -58,6 +58,8 @@ private:
 
     /// The frequency of cell divisions
     double _cell_divisions_per_step;
+
+    std::pair<double, double> _tissue_stretch_speed;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -105,9 +107,11 @@ public:
                     DataIO::edge_link_adaptor),
 
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
-                                             this->_cfg)),
+                                                this->_cfg)),
         _cell_divisions_per_step(get_as<double>("cell_divisions_per_step",
                                                 this->_cfg)),
+        _tissue_stretch_speed(get_as<std::pair<double, double>>(
+                                    "tissue_stretch_speed", this->_cfg)),
         _prob_distr(0.,1.)
     {
         this->_log->info("Model set up.");
@@ -206,9 +210,6 @@ private:
         equilibrate_vertex_model();
     }
 
-public:
-    // -- Public Interface ----------------------------------------------------
-    // .. Simulation Control ..................................................
     /// Perform N cell divisions
     /** \param num_cell_divisions number of cell divisions to be performed
      * 
@@ -226,9 +227,21 @@ public:
         }
     }
 
+public:
+    // -- Public Interface ----------------------------------------------------
+    // .. Simulation Control ..................................................
     /// Iterate a single step
     void perform_step () {
-        perform_cell_divisions(_cell_divisions_per_step);
+        this->perform_cell_divisions(_cell_divisions_per_step);
+
+        if (std::get<0>(_tissue_stretch_speed) != 0 or 
+            std::get<1>(_tissue_stretch_speed) != 0)
+        {
+            _vertex_model.stretch_domain(std::get<0>(_tissue_stretch_speed),
+                                         std::get<1>(_tissue_stretch_speed),
+                                         true);
+            this->equilibrate_vertex_model();
+        }
     }
 
     /// Monitor model information
@@ -295,7 +308,7 @@ public:
         auto epilog_cfg = this->_cfg["epilog"];
         if (epilog_cfg["set_noise_const"]) {
             _vertex_model.set_noise_const(get_as<double>("set_noise_const",
-                                                         epilog_cfg));
+                                                          epilog_cfg));
         }
         if (epilog_cfg["set_noise_linear"]) {
             _vertex_model.set_noise_linear(get_as<double>("set_noise_linear",

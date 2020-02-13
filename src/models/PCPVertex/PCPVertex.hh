@@ -567,7 +567,6 @@ private:
 
 public:
     // -- Public Interface ----------------------------------------------------
-    // .. Simulation Control ..................................................
     
     /// Perform a cell division on specific cell
     /** Divides a specific cell into two identical cells with properties derived
@@ -590,6 +589,54 @@ public:
 
         this->divide_cell(cell_it, division_angle);
     }
+
+    /// Increase the domain size by a certain area
+    /** This remaps the domain of size A to size A + dA while keeping the 
+     *  relation of Lx to Ly constant.
+     * 
+     *  Thereby proliferation of cells can be performed in a periodic setup
+     *  without changing the parameters of the system. 
+     */
+    void increase_domain_size(double area) {
+        if (-1. * area > _Lx * _Ly) {
+            throw std::invalid_argument("Cannot decrease the domain size by "
+                    "an area larger than the domain size. dA = " + 
+                    std::to_string(area) + " and A = " +
+                    std::to_string(_Lx * _Ly));
+        }
+        double ratio = _Lx / double(_Ly);
+        _Ly = std::sqrt(_Ly*_Ly + area / ratio);
+        _Lx = ratio * _Ly;
+    }
+
+    /// Stretch the domain size
+    /** \param dx   The stretching distance in x
+     *  \param dy   The stretching distance in y
+     *  \param compensate   Whether to compensate the growth of the dissue by 
+     *                      increase of preferential area
+     */
+    void stretch_domain(double dx, double dy, bool compensate) {        
+        _Lx += dx;
+        _Ly += dy;
+
+        if (not compensate) {
+            return;
+        }
+
+        double dA = dx * _Ly + dy * _Lx;
+        dA /= _cells.size();
+
+        std::function<void(Cell_ptr&)> compensate_dA = [dA](Cell_ptr& cell) {
+            cell->area_preferential += dA;
+            return;
+        };
+
+        std::for_each(_cells.begin(), _cells.end(), compensate_dA);
+
+        return;
+    }
+
+    // .. Simulation Control ..................................................
 
     /// Iterate a single step
     /** \details Rules applied
@@ -851,19 +898,6 @@ public:
             cs.push_back(c);
         }
         return cs;
-    }
-
-    /// Increase the domain size by a certain area
-    /** This remaps the domain of size A to size A + dA while keeping the 
-     *  relation of Lx to Ly constant.
-     * 
-     *  Thereby proliferation of cells can be performed in a periodic setup
-     *  without changing the parameters of the system. 
-     */
-    void increase_domain_size(double area) {
-        double ratio = _Lx / double(_Ly);
-        _Ly = std::sqrt(_Ly*_Ly + area / ratio);
-        _Lx = ratio * _Ly;
     }
 
     /// Change the const noise distribution

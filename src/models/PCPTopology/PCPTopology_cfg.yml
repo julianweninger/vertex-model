@@ -29,11 +29,12 @@ max_equilibration_iterations: 200
 
 
 # --- Dynamics
-# cell division rate
 cell_divisions_per_step: 0
 
+tissue_stretch_speed: [0.1, 0.]
+
 proliferation:
-  num_cell_divisions: 8
+  num_cell_divisions: 16
   emit_interval: 4
 
 # epilog:
@@ -166,7 +167,7 @@ data_manager:
       args:
         start: 0
         stop: 10000
-        step: 16
+        step: 10
 
     write_at_last:
       type: once

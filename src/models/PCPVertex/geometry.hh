@@ -434,6 +434,8 @@ struct Cell : public std::enable_shared_from_this<Cell> {
     Site_ptr s;
 
     /// The preferential area of the cell
+    /** In absolute coordinates
+     */
     double area_preferential;
 
     /// The contractility of the cell
