@@ -5,8 +5,11 @@ parameter_space:
     model_name: PCPTopology
     
     equilibration_tolerance: 100000.
-    num_equilibration_steps: 1000
+    num_equilibration_steps: 200
     max_equilibration_iterations: 1
+
+    proliferation:
+      num_cell_divisions: 1
 
     PCPVertex:    
       periodic_bc: false
@@ -18,7 +21,7 @@ parameter_space:
             args:
               start: 0
               stop: 1000000
-              step: 1000
+              step: 200
         triggers:
           build_slice: *slicer
         tasks:

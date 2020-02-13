@@ -1,7 +1,6 @@
 #include <iostream>
 
 #include "PCPTopology.hh"
-#include "PCPTopology_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;
 using namespace DataIO;
@@ -15,7 +14,6 @@ auto model_factory(ParentType parent) {
         vertex_position_adaptor, cell_position_adaptor<periodic_bc>,
         edge_link_adaptor);
 }
-
 
 int main (int, char** argv) {
     try {

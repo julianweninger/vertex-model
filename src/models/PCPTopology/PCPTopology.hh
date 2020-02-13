@@ -15,12 +15,12 @@
 #include "../PCPVertex/initialisation.hh"
 #include "../PCPVertex/transitions.hh"
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
+#include "PCPTopology_write_tasks.hh"
 
 
 namespace Utopia {
 namespace Models {
 namespace PCPVertex {
-
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// Type helper to define types used by the model
@@ -56,6 +56,7 @@ private:
     /// Number of max iterations performed in VertexModel before aborting
     int _max_equilibration_iterations;
 
+    /// The frequency of cell divisions
     double _cell_divisions_per_step;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
@@ -91,17 +92,17 @@ public:
         
         // construct the vertex model with an external maximum time stamp
         _vertex_model("PCPVertex", *this,
-                      DataIO::time_energy_adaptor, DataIO::energy_adaptor,
-                      DataIO::areaelasticity_adaptor,
-                      DataIO::linetension_adaptor,
-                      DataIO::contractility_adaptor,
-                      DataIO::cell_cell_polarity_adaptor,
-                      DataIO::polarity_exclusion_adaptor,
-                      DataIO::lagrange_net_polarisation_adaptor,
-                      DataIO::lagrange_const_concentration_adaptor,
-                      DataIO::vertex_position_adaptor,  
-                      DataIO::cell_position_adaptor<periodic_bc>,
-                      DataIO::edge_link_adaptor),
+                    DataIO::time_energy_adaptor, DataIO::energy_adaptor,
+                    DataIO::areaelasticity_adaptor,
+                    DataIO::linetension_adaptor,
+                    DataIO::contractility_adaptor,
+                    DataIO::cell_cell_polarity_adaptor,
+                    DataIO::polarity_exclusion_adaptor,
+                    DataIO::lagrange_net_polarisation_adaptor,
+                    DataIO::lagrange_const_concentration_adaptor,
+                    DataIO::vertex_position_adaptor,  
+                    DataIO::cell_position_adaptor<periodic_bc>,
+                    DataIO::edge_link_adaptor),
 
         _equilibration_tolerance(get_as<double>("equilibration_tolerance",
                                              this->_cfg)),
@@ -244,12 +245,41 @@ public:
     void prolog () {
         _vertex_model.prolog();
 
-        this->_log->info("Equilibrating vertex model ...");        
-        this->equilibrate_vertex_model();
+        if (not this->_cfg["proliferation"]) {
+            this->_log->info("Equilibrating vertex model ...");        
+            this->equilibrate_vertex_model();
 
-        this->_log->info("Model initialised with equilibrated vertex model.");
+            this->_log->info("Model initialised with equilibrated vertex "
+                             "model.");
+        }
+        else {
+            auto num_divisions = get_as<int>("num_cell_divisions",
+                                             this->_cfg["proliferation"]);
+            int emit_interval = get_as<int>("emit_interval",
+                                            this->_cfg["proliferation"], 1);
+                                            
+            this->_log->info("Performing {} consecutive cell divisions ...",
+                             num_divisions);
 
-        this->__prolog();
+            this->equilibrate_vertex_model();
+            for (int i = 0; i < num_divisions; i++) {
+                if (i % emit_interval == 0) {
+                    this->_log->info("   Performing cell division {} of {} "
+                                      "...", i + 1, num_divisions);
+                }
+                else {
+                    this->_log->debug("   Performing cell division {} of {} "
+                                      "...", i + 1, num_divisions);
+                }
+                this->perform_cell_divisions(1.0);
+            }
+
+            this->_log->info("Model initialised with proliferated vertex model. "
+                             "There are {} cells on equilibrated tissue.",
+                             _vertex_model.get_cells().size());
+        }        
+
+        return this->__prolog();
     }
 
     /// The epilog

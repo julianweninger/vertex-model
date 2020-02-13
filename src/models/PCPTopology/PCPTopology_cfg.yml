@@ -32,6 +32,10 @@ max_equilibration_iterations: 200
 # cell division rate
 cell_divisions_per_step: 1
 
+proliferation:
+  num_cell_divisions: 0
+  emit_interval: 4
+
 # epilog:
 #   set_noise_const: 0.1
 #   # set_noise_linear: 0.01

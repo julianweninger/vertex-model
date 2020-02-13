@@ -102,25 +102,25 @@ def test_output():
     assert 'Contractility' in data['PCPVertex']['Energy']
 
     # assert that initial state was written
-    assert len(data['PCPVertex']['Energy']['Time'].data) == 7001
+    assert len(data['PCPVertex']['Energy']['Time'].data) == 1801
     # NOTE number of steps iterated is:
     #          1 initial state
-    #       1000 during prolog
-    #       2000 per step (3 steps run)
-    #       Total 7001
+    #       600 during prolog (equilibration + 1 cell division)
+    #       400 per step (3 steps run)
+    #       Total 1801
 
     assert 'Vertex_position' in data['PCPVertex']
     assert 'Edge_link' in data['PCPVertex']
     assert 'Cell_position' in data['PCPVertex']
 
-    assert len(data['PCPVertex']['Vertex_position']) == 8
-    assert len(data['PCPVertex']['Edge_link']) == 8
-    assert len(data['PCPVertex']['Cell_position']) == 8
+    assert len(data['PCPVertex']['Vertex_position']) == 10
+    assert len(data['PCPVertex']['Edge_link']) == 10
+    assert len(data['PCPVertex']['Cell_position']) == 10
     # NOTE number of writes is:
     #       1 initial state
-    #       1 during prolog
+    #       3 during prolog
     #       2 per step (3 steps run)
-    #       Total 8
+    #       Total 10
 
     assert 'Vertex_position' in data
     assert 'Edge_link' in data
@@ -144,25 +144,25 @@ def test_output():
     assert 'Lagrange_const_concentration' in data['PCPVertex']['Energy']
 
     # assert that initial state was written
-    assert len(data['PCPVertex']['Energy']['Time'].data) == 7001
+    assert len(data['PCPVertex']['Energy']['Time'].data) == 1801
     # NOTE number of steps iterated is:
     #          1 initial state
-    #       1000 during prolog
-    #       2000 per step (3 steps run)
-    #       Total 7001
+    #       600 during prolog (equilibration + 1 cell division)
+    #       400 per step (3 steps run)
+    #       Total 1801
 
     assert 'Vertex_position' in data['PCPVertex']
     assert 'Edge_link' in data['PCPVertex']
     assert 'Cell_position' in data['PCPVertex']
 
-    assert len(data['PCPVertex']['Vertex_position']) == 8
-    assert len(data['PCPVertex']['Edge_link']) == 8
-    assert len(data['PCPVertex']['Cell_position']) == 8
+    assert len(data['PCPVertex']['Vertex_position']) == 10
+    assert len(data['PCPVertex']['Edge_link']) == 10
+    assert len(data['PCPVertex']['Cell_position']) == 10
     # NOTE number of writes is:
     #       1 initial state
-    #       1 during prolog
+    #       3 during prolog
     #       2 per step (3 steps run)
-    #       Total 8
+    #       Total 10
 
     assert 'Vertex_position' in data
     assert 'Edge_link' in data
