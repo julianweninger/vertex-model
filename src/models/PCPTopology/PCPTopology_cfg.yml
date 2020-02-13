@@ -30,10 +30,10 @@ max_equilibration_iterations: 200
 
 # --- Dynamics
 # cell division rate
-cell_divisions_per_step: 1
+cell_divisions_per_step: 0
 
 proliferation:
-  num_cell_divisions: 0
+  num_cell_divisions: 8
   emit_interval: 4
 
 # epilog:

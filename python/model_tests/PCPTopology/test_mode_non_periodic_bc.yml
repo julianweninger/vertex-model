@@ -7,6 +7,8 @@ parameter_space:
     equilibration_tolerance: 100000.
     num_equilibration_steps: 200
     max_equilibration_iterations: 1
+    
+    cell_divisions_per_step: 1
 
     proliferation:
       num_cell_divisions: 1
