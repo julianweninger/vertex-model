@@ -290,7 +290,10 @@ public:
             this->_log->info("Model initialised with proliferated vertex model. "
                              "There are {} cells on equilibrated tissue.",
                              _vertex_model.get_cells().size());
-        }        
+        }
+
+        auto [Lx, Ly] = _vertex_model.get_domain_size();
+        this->_log->info("Domain size is {} x {}.", Lx, Ly);
 
         return this->__prolog();
     }
@@ -301,6 +304,9 @@ public:
      *      2. default epilog tasks
      */
     void epilog () {
+        auto [Lx, Ly] = _vertex_model.get_domain_size();
+        this->_log->info("Domain size is {} x {}.", Lx, Ly);
+
         if (not this->_cfg["epilog"]) {
             return this->__epilog();
         }

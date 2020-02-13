@@ -148,6 +148,10 @@ private:
     /// The total energy in the last step
     double _energy_previous_step;
 
+    int _energy_change_history_length;
+
+    std::list<double> _energy_change_history;
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
@@ -189,7 +193,10 @@ public:
         _energy_polarity_exclusion(0.),
         _energy_lagrange_net_polarisation(0.),
         _energy_lagrange_const_concentration(0.),
-        _energy_previous_step(0.)
+        _energy_previous_step(0.),
+        _energy_change_history_length(get_as<int>(
+            "energy_change_history_length", this->_cfg)),
+        _energy_change_history(_energy_change_history_length, 0.)
     {
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
@@ -649,6 +656,8 @@ public:
      */
     void perform_step () {
         // store previous energy
+        _energy_change_history.pop_front();
+        _energy_change_history.push_back(get_rel_energy_change ());
         _energy_previous_step = this->get_energy();
 
         // reset forces
@@ -918,7 +927,9 @@ public:
      *  \param threshold    The equilibrium threshold
      */
     bool equilibrium_state_reached(double threshold) const {
-        return get_rel_energy_change() < threshold;
+        return std::accumulate(_energy_change_history.begin(),
+                               _energy_change_history.end(),
+                               0.0) / _energy_change_history.size() < threshold;
     };
 }; // class PCPVertex
 

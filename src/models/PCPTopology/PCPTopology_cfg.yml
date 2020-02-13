@@ -23,7 +23,7 @@
 # --- Initialization parameters
 
 # Equilibration parameter
-equilibration_tolerance: 0.000001
+equilibration_tolerance: 0.00001
 num_equilibration_steps: 100
 max_equilibration_iterations: 200
 
@@ -31,7 +31,7 @@ max_equilibration_iterations: 200
 # --- Dynamics
 cell_divisions_per_step: 0
 
-tissue_stretch_speed: [0.1, 0.]
+tissue_stretch_speed: [0.05, 0.]
 
 proliferation:
   num_cell_divisions: 16
@@ -75,6 +75,8 @@ PCPVertex:
   # Noise
   noise_constant: 0.0
   noise_linear: 0.0
+
+  energy_change_history_length: 10
 
   data_manager: &data_manager
     # this builds the deciders
@@ -167,7 +169,7 @@ data_manager:
       args:
         start: 0
         stop: 10000
-        step: 10
+        step: 50
 
     write_at_last:
       type: once

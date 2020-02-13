@@ -26,6 +26,8 @@ PCPVertex:
   
   noise_constant: 0.0
   noise_linear: 0.0
+  
+  energy_change_history_length: 10
 
   data_manager:
     # this builds the deciders
