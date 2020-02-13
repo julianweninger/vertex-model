@@ -55,6 +55,10 @@ void test_initialisation_hexagon (std::string cfg)
     auto edges = model.get_edges();
     auto cells = model.get_cells();
 
+    int num_rows = get_as<int>("lattice_rows", model_cfg);
+    int num_columns = get_as<int>("lattice_columns", model_cfg);
+    assert (cells.size() == num_rows * num_columns);
+
     if constexpr (periodic_bc) {
         for (auto v : vertices) {
             assert(v.lock()->adj_edges.size() == 3);
@@ -69,20 +73,20 @@ void test_initialisation_hexagon (std::string cfg)
             assert (c.lock()->edges_ordered.size() == 6);
         }
     }
-    // else {
-    //     for (auto v : vertices) {
-    //         assert(v.lock()->adj_edges.size() <= 3);
-    //         assert(v.lock()->adj_cells.size() <= 3);
-    //     }
-    //     for (auto e : edges) {
-    //         assert(not e.lock()->adj_cell_a.expired() or 
-    //                not e.lock()->adj_cell_b.expired());
-    //     }
-    //     for (auto c : cells) {
-    //         assert (c.lock()->vertices.size() == 6);
-    //         assert (c.lock()->edges_ordered.size() == 6);
-    //     }
-    // }
+    else {
+        for (auto v : vertices) {
+            assert(v.lock()->adj_edges.size() <= 3);
+            assert(v.lock()->adj_cells.size() <= 3);
+        }
+        for (auto e : edges) {
+            assert(not e.lock()->adj_cell_a.expired() or 
+                   not e.lock()->adj_cell_b.expired());
+        }
+        for (auto c : cells) {
+            assert (c.lock()->vertices.size() == 6);
+            assert (c.lock()->edges_ordered.size() == 6);
+        }
+    }
 
     destruct_model_factory(model);
 }
