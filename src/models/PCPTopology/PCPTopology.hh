@@ -402,6 +402,10 @@ public:
         return _vertex_model.get_cells();
     }
 
+    auto get_domain_size() const {
+        return _vertex_model.get_domain_size();
+    }
+
 };
 
 } // namespace PCPTopology

@@ -340,6 +340,9 @@ auto vertex_position_adaptor = std::make_tuple(
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "coordinate");
         hdfdataset->add_attribute("dim_name__1", "id");
+        auto [Lx, Ly] = model.get_domain_size();
+        hdfdataset->add_attribute("Lx", Lx);
+        hdfdataset->add_attribute("Ly", Ly);
         // For ids, the dimensions are trivial
         // hdfdataset->add_attribute("coords__coordinate", std::vector<std::size_t>{1, 1});
     }
@@ -420,6 +423,9 @@ auto cell_position_adaptor = std::make_tuple(
                                                             "polarity_x",
                                                             "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
+        auto [Lx, Ly] = model.get_domain_size();
+        hdfdataset->add_attribute("Lx", Lx);
+        hdfdataset->add_attribute("Ly", Ly);
     }    
 ); // end cell position adaptor
 
