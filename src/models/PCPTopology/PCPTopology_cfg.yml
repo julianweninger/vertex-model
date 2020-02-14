@@ -54,7 +54,7 @@ PCPVertex:
   length_threshold: 0.001
 
   # Area elasticity parameter
-  area_elasticity: 1.
+  area_elasticity: 10.
   area_preferential: 1.
   area_threshold: 0.0001
 
