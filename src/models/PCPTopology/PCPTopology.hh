@@ -304,6 +304,8 @@ public:
      *      2. default epilog tasks
      */
     void epilog () {
+        _vertex_model.epilog();
+        
         auto [Lx, Ly] = _vertex_model.get_domain_size();
         this->_log->info("Domain size is {} x {}.", Lx, Ly);
 
