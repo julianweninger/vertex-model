@@ -190,6 +190,19 @@ private:
         auto c = cells[int_dist(*this->_rng)].lock();
         auto [Lx, Ly] = _vertex_model.get_domain_size();
 
+        if constexpr (not periodic_bc) {
+            for (auto [e, flip] : c->edges_ordered) {
+                if (e->adj_cell_a.expired() or e->adj_cell_b.expired()) {
+                    this->_log->warn("Cannot divide randomly chosen cell, "
+                                      "because it is a boundary cell. Division "
+                                      "od boundary cells in non-periodic "
+                                      "boundary conditions is not implemented."
+                                      "CONTINUING WITHOUT DIVISION.");
+                    return;
+                }
+            }
+        }
+
         _vertex_model.increase_domain_size(c->area_preferential);
         c->area_preferential *= 2;
 
