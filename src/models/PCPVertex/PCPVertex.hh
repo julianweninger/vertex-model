@@ -276,22 +276,23 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    std::function<double(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {
+    std::function<double(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {        
         for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
-            // the edge prior the vertex
-            auto [e0, e0_flip]  = c->edges_ordered[std::max(0, edges_it - 1)];
-            if (edges_it == 0) { std::tie(e0, e0_flip) = c->edges_ordered.back(); }
+            Vertex_ptr v_center, v_prior, v_post;
 
-            // the edge post the vertex
+            auto [e0, e0_flip]  = c->edges_ordered[std::max(0, edges_it - 1)];
+            if (edges_it == 0) { 
+                std::tie(e0, e0_flip) = c->edges_ordered.back();
+            }
+
             const auto [e1, e1_flip] = c->edges_ordered[edges_it];
             
             // vertices in ordering
-            Vertex_ptr v_center = e0->b, v_prior = e0->a;
+            v_center = e0->b, v_prior = e0->a;
             if (e0_flip) {
                 std::swap(v_center, v_prior);
             }
 
-            Vertex_ptr v_post;
             if (e1_flip) {
                 v_post = e1->a;
             }
@@ -299,17 +300,18 @@ private:
                 v_post = e1->b;
             }
 
-            auto [dx1, dy1] = displacement_absolute<periodic_bc>(*v_center,
-                                    *v_prior, _Lx, _Ly);
-            auto [dx2, dy2] = displacement_absolute<periodic_bc>(*v_post,
-                                    *v_center, _Lx, _Ly);
+            auto center = periodic_copy<periodic_bc>(*v_center, *c->s);
+            auto prior = periodic_copy<periodic_bc>(*v_prior, *c->s);
+            auto post = periodic_copy<periodic_bc>(*v_post, *c->s);
 
-            double dA_dx = -0.5 * (dy1 + dy2) * c->area_sgn;
-            double dA_dy = 0.5 * (dx1 + dx2) * c->area_sgn;
+            double dA_dx = 0.5 * (post.y - prior.y) * c->area_sgn;
+            double dA_dy = 0.5 * (prior.x - post.x) * c->area_sgn;
             
             // this is the force on this vertex
-            v_center->fx -= _area_elasticity * (c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dx;
-            v_center->fy -= _area_elasticity * (c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dy;
+            v_center->fx -= _area_elasticity * (
+                    c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dx;
+            v_center->fy -= _area_elasticity * (
+                    c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dy;
         }
 
         return 0.5 * _area_elasticity * pow(c->area_abs(_Lx, _Ly) - c->area_preferential, 2);
