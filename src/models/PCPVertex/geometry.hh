@@ -120,11 +120,11 @@ std::pair<double, double> displacement(const Site &a, const Site &b)
     double dx = b.x - a.x;
     double dy = b.y - a.y;
 
-    if (dx <= -0.5) { dx += 1.; }
-    else if (dx > 0.5) { dx -= 1.; }
+    if (dx >= 0.5) { dx -= 1.; }
+    else if (dx < -0.5) { dx += 1.; }
 
-    if (dy <= -0.5) { dy += 1.; }
-    else if (dy > 0.5) { dy -= 1.; }
+    if (dy >= 0.5) { dy -= 1.; }
+    else if (dy < -0.5) { dy += 1.; }
 
     return std::make_pair(dx, dy);
 }
@@ -582,6 +582,17 @@ struct Cell : public std::enable_shared_from_this<Cell> {
             #endif
         }
 
+        // this->cell_area<false>();
+        // if (this->area_sgn == -1) {
+        //     auto tmp_es = edges_ordered;
+        //     edges_ordered.clear();
+        //     for (auto [e, flip] : tmp_es) {
+        //         edges_ordered.insert(edges_ordered.begin(),
+        //                                   std::make_pair(e, not flip));
+        //     }
+        //     this->area_sgn = 1;
+        // }
+
         // add vertices from edges
         for (const auto e : edges_ordered) {
             if (std::get<bool>(e)) { // flip
@@ -620,13 +631,11 @@ struct Cell : public std::enable_shared_from_this<Cell> {
             start_vertex = *std::get<Edge_ptr>(edges_ordered.front())->b;
         }
 
-        for (const auto e_pair : edges_ordered) {
-            const auto e = std::get<Edge_ptr>(e_pair);
-            
+        for (const auto [e, flip] : edges_ordered) {            
             auto a = periodic_copy<periodic_bc>(*e->a, start_vertex);
             auto b = periodic_copy<periodic_bc>(*e->b, start_vertex);
 
-            if (std::get<bool>(e_pair)) { 
+            if (flip) { 
                 std::swap(a, b);
             }
 
@@ -637,10 +646,9 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         }
 
         if (area < 0) { area_sgn = -1; }
-        // else if (area == 0) { area_sgn = 0;} // NOTE don't care
-        else { area_sgn = 1;}
+        else { area_sgn = 1; }
 
-        area = 0.5 * area * area_sgn;
+        area = 0.5 * fabs(area);
 
         center.x = area_sgn * center.x / 6 / area;
         center.y = area_sgn * center.y / 6 / area; 
