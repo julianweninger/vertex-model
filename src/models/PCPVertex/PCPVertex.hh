@@ -870,7 +870,7 @@ public:
 
     /// Getter for the relative energy change from previous to last step
     double get_rel_energy_change () const {
-        double energy_change = fabs(get_energy() - _energy_previous_step);
+        double energy_change = get_energy() - _energy_previous_step;
         return energy_change / get_energy();
     }
 
@@ -929,9 +929,10 @@ public:
      *  \param threshold    The equilibrium threshold
      */
     bool equilibrium_state_reached(double threshold) const {
-        return std::accumulate(_energy_change_history.begin(),
-                               _energy_change_history.end(),
-                               0.0) / _energy_change_history.size() < threshold;
+        double mean_change = std::accumulate(_energy_change_history.begin(),
+                                    _energy_change_history.end(),
+                                    0.0) / _energy_change_history.size();
+        return fabs(mean_change) < threshold;
     };
 }; // class PCPVertex
 
