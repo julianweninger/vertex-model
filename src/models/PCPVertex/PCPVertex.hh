@@ -86,13 +86,18 @@ private:
 
     /// Linetension constant Lambda
     double _linetension;
+
     /// Edges shorter than this value are replaced in a T1 transition
+    /** using relative length
+     */
     double _length_threshold; 
     
     /// Area elasticity constant K
     double _area_elasticity;
-    /// The prefrentrial area of a cell
+
+    /// The preferential area of a cell
     double _area_preferential;
+
     /// Cells with area smaller than this value are removed in T2 transition
     double _area_threshold;
 
@@ -147,9 +152,15 @@ private:
 
     /// The total energy in the last step
     double _energy_previous_step;
-
+    
+    /// The time over which to average energe change
+    /** in PCPVertex::get_mean_energy_change
+     */
     int _energy_change_history_length;
 
+    /// Relative energy change history
+    /** of length PCPVertex::_energy_change_history_length
+     */
     std::list<double> _energy_change_history;
 
 public:

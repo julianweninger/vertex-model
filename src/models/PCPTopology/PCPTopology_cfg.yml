@@ -51,7 +51,7 @@ PCPVertex:
   
   # Linetension parameter
   linetension: 0.12
-  length_threshold: 0.001
+  length_threshold: 0.01
 
   # Area elasticity parameter
   area_elasticity: 10.

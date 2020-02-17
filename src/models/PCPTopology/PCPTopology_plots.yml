@@ -82,6 +82,8 @@ cell_neighbourhood:
   file_ext: png
   datapath: PCPTopology
 
+  enabled: false
+
   helpers:
     set_labels:
       x: bins [1]

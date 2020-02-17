@@ -28,7 +28,7 @@ dt: 0.001
 
 # Linetension parameter
 linetension: 1.
-length_threshold: 0.001
+length_threshold: 0.01
 
 # Area elasticity parameter
 area_elasticity: 100.
