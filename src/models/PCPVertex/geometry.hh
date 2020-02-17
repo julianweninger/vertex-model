@@ -112,6 +112,13 @@ void correct_periodic_bc(Site_ptr s)
 
     return;
 }
+/// Absolute position
+std::pair<double, double> absolute_position(const Site s,
+                       const std::pair<double, double> domain_size)
+{
+    return std::make_pair(std::get<0>(domain_size)*s.x,
+                          std::get<1>(domain_size)*s.y);
+}
 
 /// The relative displacement vector from a to b
 template <bool periodic_bc>
@@ -125,6 +132,20 @@ std::pair<double, double> displacement(const Site &a, const Site &b)
 
     if (dy >= 0.5) { dy -= 1.; }
     else if (dy < -0.5) { dy += 1.; }
+
+    #ifndef NDEBUG
+    if constexpr (periodic_bc) {
+        double tolerance = 0.01;
+        if (dx > 0.5 - tolerance or dy > 0.5 - tolerance) {
+            throw std::runtime_error("ERROR The displacement between Site a "
+                    "and b is not unique, because of periodic boundary "
+                    "conditions! a is (" + std::to_string(a.x) + ", " +
+                    std::to_string(a.y) + ") and b is (" + std::to_string(b.x) +
+                    ", " + std::to_string(b.y) + "). The vector b - a is (" + 
+                    std::to_string(dx) + ", " + std::to_string(dy) + "). ");
+        }
+    }
+    #endif
 
     return std::make_pair(dx, dy);
 }
@@ -635,6 +656,11 @@ struct Cell : public std::enable_shared_from_this<Cell> {
             auto a = periodic_copy<periodic_bc>(*e->a, start_vertex);
             auto b = periodic_copy<periodic_bc>(*e->b, start_vertex);
 
+
+            #ifndef NDEBUG
+            displacement<periodic_bc>(a, b);
+            #endif
+
             if (flip) { 
                 std::swap(a, b);
             }
@@ -651,7 +677,7 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         area = 0.5 * fabs(area);
 
         center.x = area_sgn * center.x / 6 / area;
-        center.y = area_sgn * center.y / 6 / area; 
+        center.y = area_sgn * center.y / 6 / area;
         
         // update the center site s
         s->x = center.x; s->y = center.y;

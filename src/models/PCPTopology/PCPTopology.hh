@@ -158,15 +158,23 @@ private:
             if (_vertex_model.get_time() - time_start >= max_steps and 
                 not equilibrated)
             {
-                throw std::runtime_error("Equilibrium not reached within " +
-                        std::to_string(_max_equilibration_iterations) + 
-                        " iterations of " + 
-                        std::to_string(_num_equilibration_steps) + " steps each "
-                        "at a tolerance of " +
-                        std::to_string(_equilibration_tolerance) + "! "
-                        "The mean relative change in energy in last step was " +
-                        std::to_string(_vertex_model.get_mean_energy_change()) + 
-                        ".");
+                this->_log->warn("ERROR Equilibrium not reached within {} "
+                    "iterations of {} steps each (total iteration steps {}) "
+                    "at a tolerance of {}! "
+                    "The mean relative change in energy in last {} step(s) was "
+                    "{}.", _max_equilibration_iterations,
+                    _num_equilibration_steps, 
+                    _max_equilibration_iterations * _num_equilibration_steps, 
+                    _equilibration_tolerance,
+                    get_as<int>("energy_change_history_length",
+                                this->_cfg["PCPVertex"], 1),
+                    _vertex_model.get_mean_energy_change());
+                #ifdef NDEBUG
+                this->_log->warn("Running model in release mode. Some known "
+                    "exceptions are only evaluated in debug mode, the author "
+                    "recommends to build the model in debug mode!");
+                #endif
+                throw std::runtime_error("Equilibrium not reached!");
             }
         }
 
