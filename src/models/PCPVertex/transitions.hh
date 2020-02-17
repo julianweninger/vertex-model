@@ -100,22 +100,20 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
 
     // create two new vertices that create an edge of threshold length 
     // pointing from cell a to b
-    auto [dx, dy] = displacement_absolute<periodic_bc>(*adj_cell_a->s,
-                                                        *adj_cell_b->s, 
-                                                        _Lx, _Ly);
-    auto length = distance<periodic_bc>(*adj_cell_a->s, 
-                                        *adj_cell_b->s, _Lx, _Ly);
+    auto [dx, dy] = displacement<periodic_bc>(*adj_cell_a->s, *adj_cell_b->s);
+    auto length = sqrt(std::pow(dx, 2) + std::pow(dy, 2));
     dx = dx / length * _length_threshold / _Lx;
     dy = dy / length * _length_threshold / _Ly;
+    auto tmp_periodic_copy = periodic_copy<periodic_bc>(*edge->b, *edge->a);
+    auto centre_site = Site(0.5 * (edge->a->x + tmp_periodic_copy.x),
+                            0.5 * (edge->a->y + tmp_periodic_copy.y));
     auto new_v_a = std::make_shared<Vertex>(
-                            0.5 * (edge->a->x + edge->b->x) - dx / 2.,
-                            0.5 * (edge->a->y + edge->b->y) - dy / 2.,
+                            centre_site.x - dx / 2., centre_site.y - dy / 2.,
                             EdgeContainer({adj_edge_a, adj_edge_c}),
                             CellContainer({adj_cell_a, adj_cell_c,
                                             adj_cell_d}));
     auto new_v_b = std::make_shared<Vertex>(
-                            0.5 * (edge->a->x + edge->b->x) + dx / 2.,
-                            0.5 * (edge->a->y + edge->b->y) + dy / 2.,
+                            centre_site.x + dx / 2., centre_site.y + dy / 2.,
                             EdgeContainer({adj_edge_b, adj_edge_d}),
                             CellContainer({adj_cell_b, adj_cell_c,
                                             adj_cell_d}));
