@@ -874,6 +874,16 @@ public:
         return energy_change / get_energy();
     }
 
+    /// Getter for mean energy change
+    /** Mean is taken over last m steps, with 
+     *  m = PCPVertex::_energy_change_history_length
+     */
+    double get_mean_energy_change() const {
+        return std::accumulate(_energy_change_history.begin(),
+                    _energy_change_history.end(), 0.0
+                    ) / _energy_change_history.size();
+    }
+
     /// Getter for the domain size
     const std::pair<double, double> get_domain_size () const {
         return std::make_pair(_Lx, _Ly);
@@ -924,15 +934,13 @@ public:
 
     /** Criterion for the equilibrium state
      * 
-     *  Equilibrium if relative energy change is smaller than threshold
+     *  Equilibrium if PCPVertex::get_mean_energy_change() change is smaller
+     *  than threshold value
      *  
      *  \param threshold    The equilibrium threshold
      */
     bool equilibrium_state_reached(double threshold) const {
-        double mean_change = std::accumulate(_energy_change_history.begin(),
-                                    _energy_change_history.end(),
-                                    0.0) / _energy_change_history.size();
-        return fabs(mean_change) < threshold;
+        return fabs(get_mean_energy_change()) < threshold;
     };
 }; // class PCPVertex
 

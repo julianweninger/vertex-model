@@ -164,8 +164,8 @@ private:
                         std::to_string(_num_equilibration_steps) + " steps each "
                         "at a tolerance of " +
                         std::to_string(_equilibration_tolerance) + "! "
-                        "The relative change in energy in last step was " +
-                        std::to_string(_vertex_model.get_rel_energy_change()) + 
+                        "The mean relative change in energy in last step was " +
+                        std::to_string(_vertex_model.get_mean_energy_change()) + 
                         ".");
             }
         }
