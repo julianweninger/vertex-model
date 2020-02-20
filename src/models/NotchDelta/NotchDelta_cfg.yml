@@ -1,0 +1,49 @@
+# The model configuration for the NotchDelta model
+#
+# This file should ONLY contain model-specific configuration and needs to be
+# written such that it can be used by _every_ model instance, regardless
+# of the level within a model hierarchy.
+# 
+# To that end, it needs to specify the parameters at the level of the instance
+# of a Model class.
+# 
+# This file is usually handled by the frontend: usage of advanced yaml features
+# like anchors and tags is supported.
+# 
+# Note, however, that this file should hold the _default_ values for a single
+# instance. Therefore, parameter sweeps should not be specified here!
+# Furthermore, if including other models' parameters via the `!model` tag, make
+# sure that no circular includes occur.
+---
+# --- Space parameters
+# The physical space this model is embedded in
+space:
+  periodic: true
+
+# --- CellManager and cell initialization
+cell_manager:
+  grid:
+    structure: square
+    resolution: 64
+
+  neighborhood:
+    mode: Moore
+
+  # Cell initialization parameters
+  cell_params: ~
+
+# --- Other initialization parameters
+# Add parameters and their documentation here ...
+
+# -- Dynamics
+ph_direct_transition: true
+rate_ph: [0.01, 1e-6]
+rate_ps: 1e-3
+
+rate_atoh1: [0.01, -0.01]
+atoh1_threshold: 1.
+
+rate_swap: 0.1
+
+
+# Add further parameters and their documentation here ...

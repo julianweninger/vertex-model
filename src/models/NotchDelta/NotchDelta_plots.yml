@@ -1,0 +1,28 @@
+# The default plots of this model
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+# Mean value plots ............................................................
+# atoh1_mean:
+#   # Base it on some existing configuration
+#   based_on: mean_cell_state_over_time
+
+#   # Specify the dataset within the NotchDelta output that is to be plotted
+#   mean_of: atoh1_level
+
+# Spatial CA animations .......................................................
+state_and_trait_anim:
+  based_on: state_anim
+  file_ext: png
+
+  to_plot:
+    cell_type:
+      title: Cell Type
+      limits: [0, 2]
+      cmap:
+        Progenitor: White
+        Hair: Red
+        Support: Gray
+    atoh1_level:
+      title: Atoh1
