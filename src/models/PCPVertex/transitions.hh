@@ -123,9 +123,10 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     _vertices.push_back(new_v_b);
 
     // create a new edge
+    double linetension = _linetension(adj_cell_c->type, adj_cell_d->type);
     Edge_ptr new_edge = std::make_shared<Edge>(new_v_a, new_v_b,
-                                                _linetension, adj_cell_c,
-                                                adj_cell_d);
+                                               linetension, adj_cell_c,
+                                               adj_cell_d);
     new_edge->link_members();
 
     // remove objects
@@ -259,13 +260,13 @@ CellContainer::iterator PCPVertex<periodic_bc,
                     return std::get<Edge_ptr>(e_pair)->remove; }),
             c->edges_ordered.end()
         );
-        // No new edge to add
-        
-        // NOTE edges will be still ordered once the edges are updates
+        // NOTE No new edge to add
+        // NOTE Edges will be still ordered        
 
         // add new_v and update area
         if (num_vertices > c->vertices.size()) {
             c->vertices.push_back(new_v);
+            // NOTE Vertices not ordered
             c->template cell_area<periodic_bc>();
         }
 
@@ -392,8 +393,9 @@ CellContainer::iterator PCPVertex<periodic_bc,
 
     // create a new edge connecting the 2 new vertices
     // NOTE it has properties as at model initialisation
+    double linetension = _linetension(cell->type, cell->type);
     auto new_edge = std::make_shared<Edge>(new_vertices[0], 
-                                            new_vertices[1], _linetension);
+                                           new_vertices[1], linetension);
     new_edge->link_members();
     _edges.push_back(new_edge);
 
@@ -555,12 +557,14 @@ CellContainer::iterator PCPVertex<periodic_bc,
     // create 2 new cells
     auto new_cell_0 = std::make_shared<Cell>(*cell_center, new_edges_cell_0, 
                                                 cell->area_preferential,
-                                                cell->contractility, 
+                                                cell->contractility,
+                                                cell->type,
                                                 cell->protein_concentration);
     new_cell_0->link_members();
     auto new_cell_1 = std::make_shared<Cell>(*cell_center, new_edges_cell_1, 
                                                 cell->area_preferential,
-                                                cell->contractility, 
+                                                cell->contractility,
+                                                cell->type,
                                                 cell->protein_concentration);
     new_cell_1->link_members();
     _cells.push_back(new_cell_0);

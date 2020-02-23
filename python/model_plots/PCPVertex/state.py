@@ -92,14 +92,19 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             for v_id in v_data.id:
                 v = v_data.sel(id=v_id)
-                scatter_vertex(v.data[0], v.data[1], hlpr.ax, Lx, Ly)
+                x = v.sel(coordinate="x")
+                y = v.sel(coordinate="y")
+                scatter_vertex(x, y, hlpr.ax, Lx, Ly)
 
             for e_id in e_data.id:
                 e = e_data.sel(id=e_id)
-                ax = v_data.sel(id=e[0].data)[0]
-                ay = v_data.sel(id=e[0].data)[1]
-                bx = v_data.sel(id=e[1].data)[0]
-                by = v_data.sel(id=e[1].data)[1]
+                vertex_a = e.sel(vertex="a")
+                vertex_b = e.sel(vertex="b")
+
+                ax = v_data.sel(id=vertex_a, coordinate='x')
+                ay = v_data.sel(id=vertex_a, coordinate='y')
+                bx = v_data.sel(id=vertex_b, coordinate='x')
+                by = v_data.sel(id=vertex_b, coordinate='y')
 
                 if (vertex_cfg['periodic_bc']):
                     dx = bx - ax
@@ -138,9 +143,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             for c_id in c_data.id:
                 c = c_data.sel(id=c_id)
-                dx = c.data[2] / 5.
-                dy = c.data[3] / 5.
-                plot_arrow(c.data[0] - dx/2, c.data[1] - dy/2., dx, dy, hlpr.ax, Lx, Ly)
+                cell_type = c.sel(coordinate="cell_type")
+                x = c.sel(coordinate="x")
+                y = c.sel(coordinate="y")
+                pol_x = c.sel(coordinate="polarity_x")
+                pol_y = c.sel(coordinate="polarity_y")
+                dx = pol_x / 5.
+                dy = pol_y / 5.
+                plot_arrow(x - dx/2, y - dy/2.,
+                           dx, dy, hlpr.ax, Lx, Ly)
+                if (cell_type.data == 1):
+                    color = 'red'
+                    hlpr.ax.scatter(Lx*x, Ly*y, c=color, s=15, alpha=0.5)
+                elif (cell_type.data == 2):
+                    color = 'gray'
+                    hlpr.ax.scatter(Lx*x, Ly*y, c=color, s=15, alpha=0.5)
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
 

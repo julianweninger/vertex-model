@@ -339,6 +339,8 @@ auto vertex_position_adaptor = std::make_tuple(
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "coordinate");
+        hdfdataset->add_attribute("coords__coordinate", 
+                                  std::vector<std::string>({"x", "y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         auto [Lx, Ly] = model.get_domain_size();
         hdfdataset->add_attribute("Lx", Lx);
@@ -364,6 +366,11 @@ auto cell_position_adaptor = std::make_tuple(
     // writer function
     [](auto& dataset, auto& model) {
         const auto& cells = model.get_cells();
+        dataset->write(cells.begin(), cells.end(),
+                        [](auto&& cell) {
+                            return static_cast<double>(cell.lock()->type);
+                        });
+
         dataset->write(cells.begin(), cells.end(),
                         [](auto&& cell) {
                             return static_cast<double>(cell.lock()->s->x);
@@ -408,7 +415,7 @@ auto cell_position_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {4, m.get_cells().size()});
+            {5, m.get_cells().size()});
     },
 
     // attribute writer for basegroup
@@ -419,7 +426,8 @@ auto cell_position_adaptor = std::make_tuple(
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "coordinate");
         hdfdataset->add_attribute("coords__coordinate", 
-                                  std::vector<std::string>({"x", "y",
+                                  std::vector<std::string>({"cell_type",
+                                                            "x", "y",
                                                             "polarity_x",
                                                             "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
@@ -471,7 +479,9 @@ auto edge_link_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "coordinate");
+        hdfdataset->add_attribute("dim_name__0", "vertex");
+        hdfdataset->add_attribute("coords__vertex", 
+                                  std::vector<std::string>({"a", "b"}));
         hdfdataset->add_attribute("dim_name__1", "id");
     }    
 ); // end edge link adaptor

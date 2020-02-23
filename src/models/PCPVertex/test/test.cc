@@ -66,6 +66,35 @@ BOOST_AUTO_TEST_CASE(Initialisation_hexagon_non_periodic)
     test_initialisation_hexagon<false>("test_non_periodic.yml");
 }
 
+void test_differentiate_cells (std::string cfg, double fraction)
+{
+    auto model = model_factory<false>(cfg);
+    // NOTE Periodic includes only situations covered by non-periodic bc
+
+    model.differentiate_hair_cells(fraction);
+
+    auto cells = model.get_cells();
+
+    std::vector<int> num_types(3, 0);
+    for (auto c : cells) {
+        num_types[c.lock()->type]++;
+    }
+
+    BOOST_TEST(num_types[0]==0);
+    double hair_fraction = num_types[1]/double(cells.size());
+    BOOST_TEST(test_equal(hair_fraction, fraction, 2./cells.size()));
+
+    destruct_model_factory(model);
+}
+
+BOOST_AUTO_TEST_CASE(Differentiate_hair_cells)
+{
+    test_differentiate_cells("test_non_periodic.yml", 0.12);
+    test_differentiate_cells("test_non_periodic.yml", 0.25);
+    test_differentiate_cells("test_non_periodic.yml", 0.5);
+    test_differentiate_cells("test_non_periodic.yml", 0.88);
+}
+
 
 template<bool periodic_bc>
 void test_topological_increase_domain (std::string cfg) {

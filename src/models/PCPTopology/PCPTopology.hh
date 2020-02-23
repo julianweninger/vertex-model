@@ -39,6 +39,10 @@ public:
     using Base = Model<PCPTopology<periodic_bc, polarity_proteins>,
                                    PCPTopologyModelTypes>;
 
+    /// The types of a cell
+    using CellType = typename PCPVertex<periodic_bc,
+                                        polarity_proteins>::CellType;
+
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
     // ... but you should definitely check out the documentation ;)
@@ -279,14 +283,7 @@ public:
     void prolog () {
         _vertex_model.prolog();
 
-        if (not this->_cfg["proliferation"]) {
-            this->_log->info("Equilibrating vertex model ...");        
-            this->equilibrate_vertex_model();
-
-            this->_log->info("Model initialised with equilibrated vertex "
-                             "model.");
-        }
-        else {
+        if (this->_cfg["proliferation"]) {
             auto num_divisions = get_as<int>("num_cell_divisions",
                                              this->_cfg["proliferation"]);
             int emit_interval = get_as<int>("emit_interval",
@@ -311,6 +308,35 @@ public:
             this->_log->info("Model initialised with proliferated vertex model. "
                              "There are {} cells on equilibrated tissue.",
                              _vertex_model.get_cells().size());
+        }
+
+        if (get_as<bool>("differentiate_progenitor_cells", this->_cfg)) {
+            double hair_cell_fraction = get_as<double>("hair_cell_fraction",
+                                                       this->_cfg);
+            
+            this->_log->info("Differentiating progenitor cells to hair- and "
+                "support-cells. Aimed fraction of hair cells is {}", 
+                hair_cell_fraction);
+
+            _vertex_model.differentiate_hair_cells(hair_cell_fraction);
+            
+            this->equilibrate_vertex_model();
+
+            auto cells = _vertex_model.get_cells();
+            int num_hc = 0;
+            for (auto c : cells) {
+                if (c.lock()->type == CellType::hair) {
+                    num_hc++;
+                }
+            }
+            
+            this->_log->info("Model initialised with equilibrated vertex "
+                "model. There are {} hair cells.", num_hc);
+        }
+        else if (not this->_cfg["proliferation"]) {
+            this->equilibrate_vertex_model();
+            this->_log->info("Model initialised with equilibrated vertex "
+                "model.");
         }
 
         auto [Lx, Ly] = _vertex_model.get_domain_size();

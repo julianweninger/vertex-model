@@ -18,8 +18,7 @@ void test_T1_transition (std::string cfg)
     auto e = edges[edges.size() / 3];
 
     // contract this inner edge
-    double linetension = get_as<double>("linetension", model_cfg);
-    e.lock()->linetension = 10*linetension;
+    e.lock()->linetension *= 10;
 
     // run the model
     model.run();

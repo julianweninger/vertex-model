@@ -27,12 +27,22 @@ periodic_bc: true
 dt: 0.001
 
 # Linetension parameter
-linetension: 1.
+linetension:
+  progenitor_progenitor: 1.
+  progenitor_hair: 1.
+  progenitor_support: 1.
+  hair_hair: 1.
+  hair_support: 1.
+  support_support: 1.
+
 length_threshold: 0.01
 
 # Area elasticity parameter
 area_elasticity: 100.
-area_preferential: 1.
+area_preferential:
+  progenitor: 1.
+  hair: 1.
+  support: 1.
 area_threshold: 0.0001
 
 # Contractility of perimeter

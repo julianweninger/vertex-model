@@ -21,6 +21,8 @@
 
 
 # --- Initialization parameters
+differentiate_progenitor_cells: true
+hair_cell_fraction: 0.15
 
 # Equilibration parameter
 equilibration_tolerance: 0.00001
@@ -50,12 +52,22 @@ PCPVertex:
   dt: 0.01
   
   # Linetension parameter
-  linetension: 0.12
+  linetension:
+    progenitor_progenitor: 1.
+    progenitor_hair: 1.
+    progenitor_support: 1.
+    hair_hair: 1.
+    hair_support: 1.
+    support_support: 1.
+
   length_threshold: 0.01
 
   # Area elasticity parameter
   area_elasticity: 10.
-  area_preferential: 1.
+  area_preferential:
+    progenitor: 1.
+    hair: 1.
+    support: 1.
   area_threshold: 0.0001
 
   # Contractility of perimeter

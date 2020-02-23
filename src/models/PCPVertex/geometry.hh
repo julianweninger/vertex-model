@@ -407,6 +407,14 @@ Site_ptr intersection(const Edge e0, const Edge e1,
 
 /// The Cell defined by its id, its vertices and its area
 struct Cell : public std::enable_shared_from_this<Cell> {
+    /// The type of a cell
+    enum CellType {
+        progenitor,
+        hair,
+        support,
+        num_cell_types,
+    } type;
+
     /// The vertices that bound the cell
     VertexContainer vertices;
 
@@ -483,12 +491,15 @@ struct Cell : public std::enable_shared_from_this<Cell> {
      *  \param es   The edges defining the boundary of the cell in arbitrary
      *              order and direction
      *  \param area_preferential    The preferential size of this cell
+     *  \param cell_type    The type of cell
      *  \param contractility        The contractility of the cell associated
      *                              with contractility of the actin-myosin ring
      */
     Cell(Site s, EdgeContainer es, double area_preferential, 
-         double contractility, double protein_concentration = 0.)
+         double contractility, CellType cell_type = progenitor,
+         double protein_concentration = 0.)
     :
+        type(cell_type),
         vertices(),
         edges_ordered(),
         area(0.),

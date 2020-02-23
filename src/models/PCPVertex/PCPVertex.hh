@@ -59,6 +59,9 @@ public:
     /// Data type for the model time
     using Time = typename ModelTypes::Time;
 
+    /// The types of a cell
+    using CellType = typename Cell::CellType;
+
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
@@ -85,7 +88,13 @@ private:
     double _Ly;
 
     /// Linetension constant Lambda
-    double _linetension;
+    /**  The entries are linetensions at interfaces between two cells of types i 
+     *  and j
+     * 
+     *  \note This is a symmetric matrix
+     */
+    arma::Mat<double>::fixed<CellType::num_cell_types,
+                             CellType::num_cell_types> _linetension;
 
     /// Edges shorter than this value are replaced in a T1 transition
     /** using relative length
@@ -96,7 +105,7 @@ private:
     double _area_elasticity;
 
     /// The preferential area of a cell
-    double _area_preferential;
+    arma::Col<double>::fixed<CellType::num_cell_types> _area_preferential;
 
     /// Cells with area smaller than this value are removed in T2 transition
     double _area_threshold;
@@ -184,10 +193,10 @@ public:
         _dt(get_as<double>("dt", this->_cfg)),
         _gamma(get_as<double>("gamma", this->_cfg)),
         _Lx(100.), _Ly(100.),
-        _linetension(get_as<double>("linetension", this->_cfg)),
+        _linetension(),
         _length_threshold(get_as<double>("length_threshold", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
-        _area_preferential(get_as<double>("area_preferential", this->_cfg)),
+        _area_preferential(),
         _area_threshold(get_as<double>("area_threshold", this->_cfg)),
         _contractility(get_as<double>("contractility", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
@@ -209,6 +218,49 @@ public:
             "energy_change_history_length", this->_cfg)),
         _energy_change_history(_energy_change_history_length, 0.)
     {
+        static_assert(CellType::num_cell_types == 3, "Initialisation of "
+            "interaction matrices `linetension` and `area_preferential` only "
+            "defined for 3 cell types.");
+        
+        this->_log->debug("Extracting area-preferential (expecting {} entries) ..",
+                          CellType::num_cell_types);
+        if (not this->_cfg["area_preferential"]) {
+            throw std::invalid_argument("Expected cfg dict 'area_preferential' "
+                "not available!");
+        }
+        _area_preferential(CellType::progenitor) = get_as<double>(
+            "progenitor", this->_cfg["area_preferential"]);
+        _area_preferential(CellType::hair) = get_as<double>(
+            "hair", this->_cfg["area_preferential"]);
+        _area_preferential(CellType::support) = get_as<double>(
+            "support", this->_cfg["area_preferential"]);
+
+        this->_log->debug("Extracting linetension (expecting {}! entries, "
+                          "i.e. the upper diagonal matrix of a {}x{} matrix) ..",
+                          CellType::num_cell_types, CellType::num_cell_types,
+                          CellType::num_cell_types);
+        if (not this->_cfg["linetension"]) {
+            throw std::invalid_argument("Expected cfg dict 'linetension' "
+                "not available!");
+        }
+        _linetension(CellType::progenitor, CellType::progenitor) = get_as<double>(
+            "progenitor_progenitor", this->_cfg["linetension"]);
+        _linetension(CellType::progenitor, CellType::hair) = get_as<double>(
+            "progenitor_hair", this->_cfg["linetension"]);
+        _linetension(CellType::progenitor, CellType::support) = get_as<double>(
+            "progenitor_support", this->_cfg["linetension"]);
+        _linetension(CellType::hair, CellType::hair) = get_as<double>(
+            "hair_hair", this->_cfg["linetension"]);
+        _linetension(CellType::hair, CellType::support) = get_as<double>(
+            "hair_support", this->_cfg["linetension"]);
+        _linetension(CellType::support, CellType::support) = get_as<double>(
+            "support_support", this->_cfg["linetension"]);
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                _linetension(j, i) = _linetension(i, j);
+            }
+        }
+
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
             get_as<int>("lattice_rows", this->_cfg),
@@ -588,6 +640,38 @@ private:
 public:
     // -- Public Interface ----------------------------------------------------
     
+    /// Differentiates progenitor cells with random hair cell distribution
+    /** \param fraction     fraction of hair cells. Others are support cells
+     */
+    void differentiate_hair_cells(double fraction)
+    {
+        this->_log->debug("Differentiating progenitor cells to {}% hair cells "
+            "and {}% support cells ...", fraction, 1-fraction);
+        
+        // Set the cell type
+        for (auto &c : _cells) {
+            if (_prob_distr(*this->_rng) < fraction) { 
+                c->type = CellType::hair; }
+            else { c->type = CellType::support; }
+
+            c->area_preferential = _area_preferential(c->type);
+        }
+
+        // Set the surface tension
+        for (auto &e : _edges) {
+            Cell::CellType cell_a_type, cell_b_type;
+            if (e->adj_cell_a.expired()) {
+                cell_a_type = Cell::CellType::support; }
+            else { cell_a_type = e->adj_cell_a.lock()->type; }
+            if (e->adj_cell_b.expired()) {
+                cell_b_type = Cell::CellType::support; }
+            else { cell_b_type = e->adj_cell_b.lock()->type; }
+
+            e->linetension = _linetension(cell_a_type,
+                                          cell_b_type);
+        }
+    }
+
     /// Perform a cell division on specific cell
     /** Divides a specific cell into two identical cells with properties derived
      *  from the common parent cell. 

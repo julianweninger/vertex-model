@@ -14,7 +14,7 @@ void PCPVertex<periodic_bc,
         "implemented.");
 }
 
-template <bool periodic_bc, bool polarity_proteins>/** Initialiser for a hexagonal arrangement of cells.
+/** Initialiser for a hexagonal arrangement of cells.
  *  Initializes a odd-r horizontal layout of hexagonal cells
  * 
  *  @param  size        The size (area) of a single cell
@@ -85,7 +85,7 @@ template <bool periodic_bc, bool polarity_proteins>/** Initialiser for a hexagon
  * 
  *  for additional details see https://www.redblobgames.com/grids/hexagons/
  */
-
+template <bool periodic_bc, bool polarity_proteins>
 void PCPVertex<periodic_bc,
                polarity_proteins>::initialise_hexagonal (double size,
                                                         int num_rows,
@@ -160,6 +160,8 @@ void PCPVertex<periodic_bc,
     }
 
     // Add edges
+    double linetension = _linetension(CellType::progenitor,
+                                      CellType::progenitor);
     for (int r = 0; r < lim_rows; r++) {
         /** pair rows
          *  The edges are created as the lower left, lower right and
@@ -183,17 +185,17 @@ void PCPVertex<periodic_bc,
                 // lower left edge
                 _edges.push_back(std::make_shared<Edge>(
                     _vertices[2 * c_id], _vertices[2*c_id + 1],
-                    _linetension, nullptr, nullptr, 0., 0.));
+                    linetension, nullptr, nullptr, 0., 0.));
                 // lower right edge
                 _edges.push_back(std::make_shared<Edge>(
                     _vertices[2 * c_id + 1],
                     _vertices[2*((q+1)%lim_columns + r*lim_columns)],
-                    _linetension, nullptr, nullptr, 0., 0.));
+                    linetension, nullptr, nullptr, 0., 0.));
                 // left edge
                 _edges.push_back(std::make_shared<Edge>(
                     _vertices[2 * c_id],
                     _vertices[2*(q + ((r+1)%lim_rows)*lim_columns)],
-                    _linetension, nullptr, nullptr, 0., 0.));
+                    linetension, nullptr, nullptr, 0., 0.));
             }
             // delete not needed edges
             if constexpr (not periodic_bc) {
@@ -233,20 +235,20 @@ void PCPVertex<periodic_bc,
                 _edges.push_back(std::make_shared<Edge>(
                     _vertices[2*c_id],
                     _vertices[2*c_id + 1],
-                    _linetension, nullptr, nullptr, 0., 0.));
+                    linetension, nullptr, nullptr, 0., 0.));
                 // lower right edge
                 // connects the lower vertex with
                 // the lower left vertex of the cell to the right
                 _edges.push_back(std::make_shared<Edge>(
                     _vertices[2 * c_id + 1],
                     _vertices[2*((q+1)%lim_columns + r*lim_columns)],
-                    _linetension, nullptr, nullptr, 0., 0.));
+                    linetension, nullptr, nullptr, 0., 0.));
                 // left edge connects the lower left vertex with
                 // the upper vertex of the cell in the row above
                 _edges.push_back(std::make_shared<Edge>(
                     _vertices[2 * c_id + 1],
                     _vertices[2*(q + ((r+1)%lim_rows)*lim_columns) + 1],
-                    _linetension, nullptr, nullptr, 0., 0.));
+                    linetension, nullptr, nullptr, 0., 0.));
             }
             // delete not needed edges
             if constexpr (not periodic_bc) {
@@ -264,6 +266,7 @@ void PCPVertex<periodic_bc,
     }
 
     // ** add cells
+    double area_preferential = _area_preferential(CellType::progenitor);
     // handle last row separately
     for (int r = 0; r < num_rows; r++) {
         // pair rows
@@ -286,7 +289,7 @@ void PCPVertex<periodic_bc,
                 //      hence no need to handle periodicity
 
                 _cells.push_back(std::make_shared<Cell>(*center, edges,
-                                        _area_preferential, _contractility));
+                                        area_preferential, _contractility));
                 _cells.back()->link_members();                    
             }
         }
@@ -312,7 +315,7 @@ void PCPVertex<periodic_bc,
                 edges.push_back(_edges[3*((q+1)%lim_columns + (r+1)%lim_rows * lim_columns)]);
 
                 _cells.push_back(std::make_shared<Cell>(*center, edges,
-                                        _area_preferential, _contractility));
+                                        area_preferential, _contractility));
                 _cells.back()->link_members();
             }
         }
