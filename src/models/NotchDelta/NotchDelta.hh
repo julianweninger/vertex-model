@@ -205,14 +205,53 @@ public:
         _envm("Environment", *this, _cm),
 
         // Initialize model parameters
-        _rate_ph(get_as<std::vector<double>>("rate_ph", this->_cfg)),
+        _rate_ph(),
         _rate_ps(get_as<double>("rate_ps", this->_cfg)),
-        _rate_atoh1(get_as<std::vector<double>>("rate_atoh1", this->_cfg)),
+        _rate_atoh1(),
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
         _prob_distr(0., 1.)
     {
+        if (not this->_cfg["rate_ph"]) {
+            throw std::invalid_argument("Missing cfg entry: Expected dict with "
+                "key 'rate_ph'.");
+        }
+        _rate_ph.clear();
+        for (int it = 0; true; it++) {
+            if (not this->_cfg["rate_ph"]["rate_"+std::to_string(it)]) {
+                break;
+            }
+            _rate_ph.push_back(get_as<double>("rate_"+std::to_string(it),
+                                              this->_cfg["rate_ph"]));
+        }
+        if (_rate_ph.size() < 2) {
+            throw std::invalid_argument("Missing cfg entry: Expected at least "
+                "2 entries in dict 'rate_ph'!");
+        }
+
+        if (not this->_cfg["atoh1_suppression"]) {
+            throw std::invalid_argument("Missing cfg entry: Expected dict with "
+                "key 'atoh1_suppression'.");
+        }
+        _rate_atoh1.clear();
+        for (int it = 0; true; it++) {
+            if (not this->_cfg["atoh1_suppression"]["rate_"+std::to_string(it)])
+            {
+                break;
+            }
+            _rate_atoh1.push_back(get_as<double>("rate_"+std::to_string(it),
+                                                 this->_cfg["atoh1_suppression"]));
+        }
+        if (_rate_atoh1.size() < 2) {
+            throw std::invalid_argument("Missing cfg entry: Expected at least "
+                "2 entries in dict 'rate_atoh1'!");
+        }
+
+        if (_atoh1_threshold <= 0.) {
+            _atoh1_threshold = 1e-10;
+        }
+
         this->_log->debug("{} model fully set up.", this->_name);
     }
 
@@ -233,8 +272,9 @@ private:
         auto atoh1 = cell->custom_links().env->state.atoh1;
 
         if (state.cell_type == CellType::progenitor) {
-            int mapping = ceil((1 - atoh1/_atoh1_threshold) * 
-                               (_rate_ph.size() - 1));
+            int mapping;
+            mapping = ceil((1 - atoh1/_atoh1_threshold) * 
+                            (_rate_ph.size() - 1));
             if (_prob_distr(*this->_rng) < _rate_ph[std::max(mapping, 0)]) {
                 state.cell_type = CellType::hair;
             }
@@ -246,27 +286,7 @@ private:
         return state;
     };
 
-    /// A direct differentiation rule
-    /** TODO
-     */
-    const RuleFunc transition_direct = [this](const auto& cell){
-        auto state = cell->state;
-
-        if (state.cell_type == CellType::progenitor) {
-            if (_prob_distr(*this->_rng) < _rate_ph[0]) {
-                state.cell_type = CellType::hair;
-            }
-            else if (_prob_distr(*this->_rng) < _rate_ps) {
-                state.cell_type = CellType::support;
-            }
-        }
-        
-        return state;
-    };
-
     /// The suppression of atoh1 rule
-    /** 
-     */
     const RuleFunc suppress_atoh1 = [this](const auto& cell) {
         auto state = cell->state;
         auto env_state = cell->custom_links().env->state;
