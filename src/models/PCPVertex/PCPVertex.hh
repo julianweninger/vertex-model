@@ -339,7 +339,11 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    std::function<double(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {        
+    std::function<double(Cell_ptr&)> area_elasticity = [this](Cell_ptr &c) {   
+        double area_abs = c->template area_abs<periodic_bc>(_Lx, _Ly);     
+        
+        Site centre_site = *c->template centre_site<periodic_bc>();
+        
         for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
             Vertex_ptr v_center, v_prior, v_post;
 
@@ -363,21 +367,21 @@ private:
                 v_post = e1->b;
             }
 
-            auto center = periodic_copy<periodic_bc>(*v_center, *c->s);
-            auto prior = periodic_copy<periodic_bc>(*v_prior, *c->s);
-            auto post = periodic_copy<periodic_bc>(*v_post, *c->s);
+            auto center = periodic_copy<periodic_bc>(*v_center, centre_site);
+            auto prior = periodic_copy<periodic_bc>(*v_prior, centre_site);
+            auto post = periodic_copy<periodic_bc>(*v_post, centre_site);
 
-            double dA_dx = 0.5 * (post.y - prior.y) * c->area_sgn;
-            double dA_dy = 0.5 * (prior.x - post.x) * c->area_sgn;
+            double dA_dx = 0.5 * (post.y - prior.y);
+            double dA_dy = 0.5 * (prior.x - post.x);
             
             // this is the force on this vertex
             v_center->fx -= _area_elasticity * (
-                    c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dx;
+                    area_abs - c->area_preferential)*dA_dx;
             v_center->fy -= _area_elasticity * (
-                    c->area_abs(_Lx, _Ly) - c->area_preferential)*dA_dy;
+                    area_abs - c->area_preferential)*dA_dy;
         }
 
-        return 0.5 * _area_elasticity * pow(c->area_abs(_Lx, _Ly) - c->area_preferential, 2);
+        return 0.5 * _area_elasticity * pow(area_abs - c->area_preferential, 2);
     };
 
     /// Contractility of the cell perimeter
@@ -763,14 +767,9 @@ public:
             std::for_each(_edges.begin(), _edges.end(), reset_polarity_change);
         }
 
-        // calculate cell area
-        for (auto &c : _cells) {
-            c->template cell_area<periodic_bc>();
-        }
-
         // T2 transitions -- cell extrusion
         for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
-            if ((*c_it)->area_abs(_Lx, _Ly) > _area_threshold) {
+            if ((*c_it)->template area_abs<periodic_bc>(_Lx, _Ly) > _area_threshold) {
                 ++c_it;
             }
             else {

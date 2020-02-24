@@ -373,11 +373,13 @@ auto cell_position_adaptor = std::make_tuple(
 
         dataset->write(cells.begin(), cells.end(),
                         [](auto&& cell) {
-                            return static_cast<double>(cell.lock()->s->x);
+                            return static_cast<double>(
+                                cell.lock()->template centre_site<periodic_bc>()->x);
                         });
         dataset->write(cells.begin(), cells.end(),
                         [](auto&& cell) {
-                            return static_cast<double>(cell.lock()->s->y);
+                            return static_cast<double>(
+                                cell.lock()->template centre_site<periodic_bc>()->y);
                         });
         // the polarity
         auto polarities_y = std::make_shared<std::vector<double>>();

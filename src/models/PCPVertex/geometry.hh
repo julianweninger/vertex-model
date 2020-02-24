@@ -431,17 +431,6 @@ struct Cell : public std::enable_shared_from_this<Cell> {
      *  NOTE manual update with cell_area
      */
     std::vector<std::pair<Edge_ptr, bool>> edges_ordered;
-
-    /// The relative area of the cell
-    /** NOTE manual update */
-    double area;
-
-    /// The absolute area of the cell
-    /** \param Lx, Ly   Domain size
-     */
-    double area_abs(double Lx, double Ly) const {
-        return area * Lx * Ly;
-    }
     
     /// The order of the edges
     /** If 1, then the edges are ordered anti-clockwise. Otherwise ordered 
@@ -451,9 +440,16 @@ struct Cell : public std::enable_shared_from_this<Cell> {
      */
     char area_sgn;
 
-    /// center of the cell
-    /** NOTE updated together with area */
-    Site_ptr s;
+    /// site of the cell
+    /** NOTE access only centre_site! */
+    Site_ptr site;
+
+    /// Site at centre of cell
+    template<bool periodic_bc>
+    Site_ptr centre_site () {
+        this->template area<periodic_bc>();
+        return site;
+    }
 
     /// The preferential area of the cell
     /** In absolute coordinates
@@ -495,9 +491,8 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         type(cell_type),
         vertices(),
         edges_ordered(),
-        area(0.),
         area_sgn(0),
-        s(std::make_shared<Site>(s)),
+        site(std::make_shared<Site>(s)),
         area_preferential(area_preferential),
         contractility(contractility),
         lagrange_net_polarisation(0.),
@@ -601,22 +596,22 @@ struct Cell : public std::enable_shared_from_this<Cell> {
                 std::cout << std::flush;
 
                 throw std::runtime_error("Could not order edges of cell at (" +
-                    std::to_string(s->x) + ", " + std::to_string(s->y) + "). "
+                    std::to_string(site->x) + ", " + std::to_string(site->y) + "). "
                     "Edges to order are listed above.");
             }
             #endif
         }
 
-        // this->cell_area<false>();
-        // if (this->area_sgn == -1) {
-        //     auto tmp_es = edges_ordered;
-        //     edges_ordered.clear();
-        //     for (auto [e, flip] : tmp_es) {
-        //         edges_ordered.insert(edges_ordered.begin(),
-        //                                   std::make_pair(e, not flip));
-        //     }
-        //     this->area_sgn = 1;
-        // }
+        this->area<true>();
+        if (this->area_sgn == -1) {
+            auto tmp_es = edges_ordered;
+            edges_ordered.clear();
+            for (auto [e, flip] : tmp_es) {
+                edges_ordered.insert(edges_ordered.begin(),
+                                          std::make_pair(e, not flip));
+            }
+            this->area_sgn = 1;
+        }
 
         // add vertices from edges
         for (const auto e : edges_ordered) {
@@ -640,11 +635,16 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         order_edges(es);
     }
 
-    /// The area of a polygon cell
+    /// The relative area of a polygon cell
     template <bool periodic_bc>
-    double cell_area () {
+    double area () {
+        if (not periodic_bc){
+            throw std::invalid_argument("Non-periodic bc require manual change "
+                                        "of code!");
+        }
+
         // reset the area
-        area = 0;
+        double area = 0.;
 
         // The new center of the cell
         Site center(0., 0.);
@@ -684,10 +684,18 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         center.y = area_sgn * center.y / 6 / area;
         
         // update the center site s
-        s->x = center.x; s->y = center.y;
-        correct_periodic_bc<periodic_bc>(s);
+        site->x = center.x; site->y = center.y;
+        correct_periodic_bc<periodic_bc>(site);
 
         return area;
+    }
+
+    /// The absolute area of the cell
+    /** \param Lx, Ly   Domain size
+     */
+    template <bool periodic_bc>
+    double area_abs(double Lx, double Ly) {
+        return this->template area<periodic_bc>() * Lx * Ly;
     }
 };
 

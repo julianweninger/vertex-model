@@ -335,11 +335,6 @@ void PCPVertex<periodic_bc,
         e->link_members();
     }
 
-    // calculate cell area
-    for (auto &c : _cells) {
-        c->template cell_area<periodic_bc>();
-    }
-
     this->_log->info("Initialised hexagonal cells.");
 }
 
@@ -374,11 +369,6 @@ template <bool periodic_bc, bool polarity_proteins>
 void PCPVertex<periodic_bc,
                polarity_proteins>::prolog ()
 {
-    // calculate cell area
-    for (auto &c : _cells) {
-        c->template cell_area<periodic_bc>();
-    }
-
     // initialise the energy terms
     // NOTE since no update is performed, the position of the vertices and
     //      the level of polarity is not changed

@@ -220,11 +220,11 @@ private:
 
         equilibrate_vertex_model();
 
-        if (c->area_abs(Lx, Ly) < threshold * c->area_preferential) {
+        if (c->template area_abs<periodic_bc>(Lx, Ly) < threshold * c->area_preferential) {
             this->_log->warn("Could not divide cell, because it would "
                 "not grow to sufficient area. For division requested area: "
                 "75\% of {}. Area reached: {}. !!ABORTING!!",
-                c->area_preferential, c->area_abs(Lx, Ly));
+                c->area_preferential, c->template area_abs<periodic_bc>(Lx, Ly));
             throw std::runtime_error("Cell division not possible!");
         }
 
@@ -424,7 +424,7 @@ public:
             neighbours = std::min(neighbours, 9);
             histogram[neighbours]++;
 
-            area[neighbours] += c->template cell_area<periodic_bc>();
+            area[neighbours] += c->template area<periodic_bc>();
         }
         for (int i = 1; i < 10; i++) {
             if (histogram[i] == 0) { continue; }

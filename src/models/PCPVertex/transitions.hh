@@ -100,7 +100,9 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
 
     // create two new vertices that create an edge of threshold length 
     // pointing from cell a to b
-    auto [dx, dy] = displacement<periodic_bc>(*adj_cell_a->s, *adj_cell_b->s);
+    auto [dx, dy] = displacement<periodic_bc>(
+        *adj_cell_a->template centre_site<periodic_bc>(),
+        *adj_cell_b->template centre_site<periodic_bc>());
     auto length = sqrt(std::pow(dx, 2) + std::pow(dy, 2));
     dx = dx / length * _length_threshold;
     dy = dy / length * _length_threshold;
@@ -192,12 +194,6 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         c->order_edges();
     }
 
-    // update the objects
-    adj_cell_a->template cell_area<periodic_bc>();
-    adj_cell_b->template cell_area<periodic_bc>();
-    adj_cell_c->template cell_area<periodic_bc>();
-    adj_cell_d->template cell_area<periodic_bc>();
-
     // replace the edge at adge_it
     edge_it = _edges.erase(edge_it);
     edge_it = _edges.insert(edge_it, new_edge);
@@ -214,8 +210,8 @@ CellContainer::iterator PCPVertex<periodic_bc,
     auto cell = *cell_it;
     
     // create a new vertex at the center of c
-    cell->template cell_area<periodic_bc>(); // updates the center of c        
-    auto new_v = std::make_shared<Vertex>(cell->s);
+    cell->template area<periodic_bc>(); // updates the center of c        
+    auto new_v = std::make_shared<Vertex>(cell->template centre_site<periodic_bc>());
     _vertices.push_back(new_v);
 
     // Tag the objects that are to be removed
@@ -261,7 +257,6 @@ CellContainer::iterator PCPVertex<periodic_bc,
         if (num_vertices > c->vertices.size()) {
             c->vertices.push_back(new_v);
             // NOTE Vertices not ordered
-            c->template cell_area<periodic_bc>();
         }
 
         // continue iteration
@@ -311,7 +306,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
     auto cell = *cell_it;
     cell->remove = true;
     cell_it = _cells.erase(cell_it);
-    auto cell_center = std::make_shared<Vertex>(cell->s);
+    auto cell_center = std::make_shared<Vertex>(*cell->template centre_site<periodic_bc>());
 
     // generate the axis of division
     double dx = cos(division_angle) / _Lx;
@@ -348,8 +343,9 @@ CellContainer::iterator PCPVertex<periodic_bc,
         e->remove = true;
     }
     if (new_vertices.size() != 2) {
+        auto centre_site = cell->template centre_site<periodic_bc>();
         this->_log->warn("Cannot perform cell division on cell at ({}, {}), "
-            "with a division angle of {}.", cell->s->x, cell->s->y,
+            "with a division angle of {}.", centre_site->x, centre_site->y,
             division_angle / 2 / PI * 360);
         this->_log->warn("division axis is {}, {} -> {}, {}",
             division_axis.a->x, division_axis.a->y,
