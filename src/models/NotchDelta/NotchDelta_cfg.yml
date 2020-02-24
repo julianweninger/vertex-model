@@ -17,7 +17,7 @@
 ---
 # --- Space parameters
 # The physical space this model is embedded in
-space:
+space: &SPACE
   periodic: true
 
 # --- CellManager and cell initialization
@@ -37,13 +37,69 @@ cell_manager:
 
 # -- Dynamics
 ph_direct_transition: true
-rate_ph: [0.01, 1e-6]
-rate_ps: 1e-3
+rate_ph: [0.005, 0.]
+rate_ps: 1.e-2
 
-rate_atoh1: [0.01, -0.01]
+rate_atoh1: [1.0]
 atoh1_threshold: 1.
 
-rate_swap: 0.1
+rate_swap: 0.
+
+Environment:
+  space:
+   <<: *SPACE
+
+  env_state_funcs:
+    - noise:
+        atoh1:
+          mode: add
+          distribution: exponential
+          lambda: 100
+          
 
 
-# Add further parameters and their documentation here ...
+data_manager:
+  # this builds the deciders
+  deciders:
+    write_always:
+      type: always
+    
+    write_slice: &slicer
+      type: slice
+      args:
+        start: 0
+        stop: 1000000
+        step: 50
+
+  # this builds the triggers, here deciders are used
+  triggers:
+    build_slice: *slicer
+
+    build_once:
+      type: once
+      args:
+        time: 0
+    
+    build_always:
+      type: always
+    
+  # the tasks
+  tasks:
+    Density_progenitor: &density
+      active: true
+      trigger: build_once
+      decider: write_always
+    Density_hair: *density
+    Density_support: *density
+    Density_ratio_hair_support: *density
+    Number_hair_hair_contacts: *density
+    Density_time: *density
+
+    Cell_type: &CM
+      active: true
+      decider: write_slice
+      trigger: build_slice
+    Atoh1: *CM
+    CM_time: *CM
+
+

@@ -2,62 +2,100 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
-# A model-specific plot of the mean state over time
-mean_cell_state_over_time:
-  based_on: [.default_style_and_helpers]
-
-  universes: all
-
-
-# Based on the CA state plot, a configuration for an animation
-state_single_time_step:
-  based_on: .ca.state
-
-  model_name: NotchDelta
-
-state_anim:
-  based_on: .ca.state
-  
-  model_name: NotchDelta
-
-  # Specify the time index (will be ignored, but needs to be specified)
-  time_idx: 0
-
-  # Enable animation (disabled by default)
-  animation:
-    enabled: true
-
-
-# Plots using the DAG framework ...............................................
-# A time series specialization for universe data
-time_series.uni:
-  based_on: .dag.generic.time_series
-  
-  creator: universe
-  universes: all
-
-  dag_options:
-    # Provide the base path within the universe to make selection easier
-    select_path_prefix: data/NotchDelta
-
-
-# A time series specialization for multiverse data
-time_series.mv:
-  based_on: .dag.generic.time_series
-  
+heatmap_ratio: &heatmap_ratio
   creator: multiverse
-
-  select_and_combine:
-    # Provide the base path within each universe to make selection easier
-    base_path: data/NotchDelta
-
-
-# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
-# Some example DAG-based plots that are implemented in the NotchDelta model 
-# plots and performs some visualization that is not generalizable but needs be
-# implemented specifically for the NotchDelta model
-some_dag_based_NotchDelta_plot:
-  based_on: .default_style_and_helpers
-
   module: model_plots.NotchDelta
-  plot_func: some_DAG_based_NotchDelta_plot
+  plot_func: heatmap
+  file_ext: png
+  
+  select:
+    fields: 
+      Ratio: data/NotchDelta/Densities/Ratio_hair_support
+  transform_data:
+    - isel:
+        time: -1
+
+  to_plot: Ratio
+
+  cmap: cividis
+
+heatmap_contacts: 
+  <<: *heatmap_ratio
+
+  select:
+    fields: 
+      Contacts: data/NotchDelta/Densities/Number_hair_hair_contacts
+  transform_data:
+    - isel:
+        time: -1
+
+  to_plot: Contacts
+
+bifurcation: &bifurcation
+  based_on: .attractor.bifurcation_diagram_1d
+
+  analysis_steps: [fixpoint]
+  analysis_kwargs:
+    fixpoint:
+      abs_std: 0.1
+      isclose_kwargs: {atol: 0.}
+      spin_up_time: 800
+
+  rectangle_map_kwargs:
+    extend: true
+    default_distance: 1.
+    default_pos: [0., 0.5]
+
+bifurcation_ratio:
+  <<: *bifurcation
+
+  select:
+    fields:
+      Ratio: data/NotchDelta/Densities/Ratio_hair_support
+      Hair: data/NotchDelta/Densities/Hair
+      Support: data/NotchDelta/Densities/Support
+
+          
+  to_plot:
+    Ratio:
+      label: ratio hair to support cells
+      plot_kwargs:
+        color: red
+        s: 14
+    Hair:
+      label: hair cells
+      plot_kwargs:
+        color: black
+        s: 7
+    Support:
+      label: support cells
+      plot_kwargs:
+        color: gray
+        s: 7
+
+  helpers:
+    set_labels:
+      y: density / ratio
+
+bifurcation_contacts:
+  <<: *bifurcation
+
+  select:
+    fields:
+      Contacts: data/NotchDelta/Densities/Number_hair_hair_contacts
+
+  dim: lambda
+
+  to_plot:
+    Contacts:
+      label: Hair-Hair contacts
+      plot_kwargs:
+        color: red
+        s: 14
+  
+  helpers:
+    set_labels:
+      y: Counts
+    set_limits:
+      y: [0, 1000.]
+
