@@ -1,8 +1,10 @@
 #include <iostream>
 
 #include "NotchDelta.hh"
+#include "NotchDelta_write_tasks.hh"
 
 using namespace Utopia::Models::NotchDelta;
+using namespace DataIO;
 
 
 int main (int, char** argv) {
@@ -11,7 +13,10 @@ int main (int, char** argv) {
         Utopia::PseudoParent pp(argv[1]);
 
         // Initialize the main model instance and directly run it
-        NotchDelta("NotchDelta", pp).run();
+        NotchDelta("NotchDelta", pp, density_time, density_progenitor, 
+                   density_hair, density_support, density_ratio_hair_support,
+                   number_hair_hair_contacts, 
+                   CM_time, cell_type, cell_atoh1).run();
 
         // Done.
         return 0;

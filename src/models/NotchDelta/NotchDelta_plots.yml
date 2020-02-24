@@ -4,25 +4,87 @@
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
 ---
 # Mean value plots ............................................................
-# atoh1_mean:
-#   # Base it on some existing configuration
-#   based_on: mean_cell_state_over_time
+hair_hair_contacts:
+  based_on: .basic_uni.lineplot
+  model_name: NotchDelta
+  file_ext: png
 
-#   # Specify the dataset within the NotchDelta output that is to be plotted
-#   mean_of: atoh1_level
+  enabled: false
+
+  path_to_data: Densities/Number_hair_hair_contacts
+  label: Hair-hair contacts
+
+  helpers:
+    set_labels:
+      x: time
+      y: cnt
+      
+densities:
+  based_on: .basic_uni.lineplots
+  model_name: NotchDelta
+  file_ext: png
+  enabled: false
+
+  to_plot: 
+    Densities/Hair:
+      label: Hair
+      color: red
+    Densities/Support:
+      label: Support
+      color: black
+    Densities/Progenitor:
+      label: Progenitor
+      color: gray
+    Densities/Ratio_hair_support:
+      label: ratio hair/support
+      color: blue
+
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    set_limits:
+      y: [0,1.]
+
 
 # Spatial CA animations .......................................................
 state_and_trait_anim:
   based_on: state_anim
   file_ext: png
 
+  enabled: false
   to_plot:
-    cell_type:
+    CM/Cell_type:
       title: Cell Type
       limits: [0, 2]
       cmap:
         Progenitor: White
         Hair: Red
         Support: Gray
-    atoh1_level:
+    CM/Atoh1:
       title: Atoh1
+
+# -- Bifurcation plots
+bifurcation_lambda_ratio:
+  based_on: bifurcation_ratio
+  enabled: false
+  # NOTE 1d bifurcation
+  
+  dim: lambda
+
+bifurcation_lambda_contacts:
+  based_on: bifurcation_contacts
+  enabled: false
+  # NOTE 1d bifurcation
+
+  dim: lambda
+
+heatmap_ratio:
+  based_on: heatmap_ratio
+  enabled: false
+  # NOTE 2d multiverse plot
+
+heatmap_contacts:
+  based_on: heatmap_contacts
+  enabled: false
+  # NOTE 2d multiverse plot

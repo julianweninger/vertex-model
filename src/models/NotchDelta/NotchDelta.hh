@@ -11,6 +11,8 @@
 #include <utopia/core/cell_manager.hh>
 #include <utopia/core/apply.hh>
 
+#include <utopia/models/Environment/Environment.hh>
+
 
 namespace Utopia::Models::NotchDelta {
 
@@ -26,27 +28,77 @@ struct CellState {
         support
     } cell_type;
 
-    /// The level of atoh1;
-    double atoh1;
-
     bool has_hair_neighbor;
 
     /// Construct the cell state from a configuration
     CellState(const DataIO::Config& cfg)
     :
         cell_type(progenitor),
-        atoh1(0.),
         has_hair_neighbor(false)
     {}
 };
 
+/// State of the Environment model
+struct EnvCellState : Environment::BaseEnvCellState {
+    /// the level of atoh1
+    double atoh1;
+
+    /// Constructor a uniform background
+    EnvCellState()
+    :
+        atoh1(0.)
+    { }
+
+    /// Constructor a uniform background
+    EnvCellState(const DataIO::Config& cfg)
+    :
+        atoh1(get_as<double>("atoh1", cfg, 0.))
+    { }
+
+    ~EnvCellState() = default;
+
+    /// Getter
+    double get_env(const std::string& key) const {
+        if (key == "atoh1") {
+            return atoh1;
+        }
+        else {
+            throw std::invalid_argument("No parameter '"+ key +
+                                        "' available in EnvCellState!");
+        }
+    }
+
+    /// Setter
+    void set_env(const std::string& key, const double& value) {        
+        if (key == "atoh1") {
+            atoh1 = value;
+        }
+        else {
+            throw std::invalid_argument("No parameter '"+ key +
+                                        "' available in EnvCellState!");
+        }
+    }
+};
+
+using EnvModel = Environment::Environment<Environment::DummyEnvParam,
+                                          EnvCellState>;
+using EnvCell = EnvModel::CellManager::Cell;
+
+/// The type of the link container of cells in the Environment model
+template<typename>
+struct EnvLinks {
+    /// Link to the associated cell in Environment model
+    std::shared_ptr<EnvCell> env;
+};
+
 
 /// Specialize the CellTraits type helper for this model
-using CellTraits = Utopia::CellTraits<CellState, Update::manual>;
+using CellTraits = Utopia::CellTraits<CellState, Update::manual, false,
+                                      EmptyTag, EnvLinks>;
 
 
 /// Type helper to define types used by the model
-using ModelTypes = Utopia::ModelTypes<>;
+using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -95,6 +147,9 @@ private:
     /// The cell manager
     CellManager _cm;
 
+    /// The Environment model
+    EnvModel _envm;
+
     /// The rate of progenitor to hair cell transition
     /** The first entry is for atoh1 levels above threshold, the latter entries
      *  are linearly mapped to atoh1 levels below threshold
@@ -131,13 +186,6 @@ private:
     // .. Temporary objects ...................................................
 
 
-    // .. Datasets ............................................................
-    /// A dataset for storing all cells' state
-    std::shared_ptr<DataSet> _dset_state;
-
-    /// A dataset for storing all cells' atoh1 level
-    std::shared_ptr<DataSet> _dset_atoh1;
-
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -145,14 +193,16 @@ public:
     /** \param name     Name of this model instance
      *  \param parent   The parent model this model instance resides in
      */
-    template<class ParentModel>
-    NotchDelta (const std::string name, ParentModel &parent)
+    template<class ParentModel, typename... Taskargs>
+    NotchDelta (const std::string name, ParentModel &parent,
+                Taskargs&&... taskargs)
     :
         // Initialize first via base model
-        Base(name, parent),
+        Base(name, parent, std::forward<Taskargs>(taskargs)...),
 
         // Now initialize the cell manager
         _cm(*this),
+        _envm("Environment", *this, _cm),
 
         // Initialize model parameters
         _rate_ph(get_as<std::vector<double>>("rate_ph", this->_cfg)),
@@ -161,11 +211,7 @@ public:
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
-        _prob_distr(0., 1.),
-
-        // Datasets
-        _dset_state(this->create_cm_dset("cell_type", _cm)),
-        _dset_atoh1(this->create_cm_dset("atoh1_level", _cm))
+        _prob_distr(0., 1.)
     {
         this->_log->debug("{} model fully set up.", this->_name);
     }
@@ -184,9 +230,10 @@ private:
      */
     const RuleFunc transition = [this](const auto& cell){
         auto state = cell->state;
+        auto atoh1 = cell->custom_links().env->state.atoh1;
 
         if (state.cell_type == CellType::progenitor) {
-            int mapping = ceil((1 - state.atoh1/_atoh1_threshold) * 
+            int mapping = ceil((1 - atoh1/_atoh1_threshold) * 
                                (_rate_ph.size() - 1));
             if (_prob_distr(*this->_rng) < _rate_ph[std::max(mapping, 0)]) {
                 state.cell_type = CellType::hair;
@@ -217,12 +264,12 @@ private:
         return state;
     };
 
-    /// The accumulation of atoh1 rule
-    /** Atoh1 accumulates with mean per cell rate NotchDelta::_rate_atoh1.
-     *  Values are uniformly distributed between [0, 2*rate] among cells
+    /// The suppression of atoh1 rule
+    /** 
      */
-    const RuleFunc accumulate_atoh1 = [this](const auto& cell) {
+    const RuleFunc suppress_atoh1 = [this](const auto& cell) {
         auto state = cell->state;
+        auto env_state = cell->custom_links().env->state;
 
         // number of neighboring hair cells
         int ns_hair = 0;
@@ -230,10 +277,15 @@ private:
             if (n->state.cell_type == CellType::hair) { ns_hair++; }
         }
 
+        if (ns_hair == 0.) {
+            return state;
+        }
+
         // the rate of atoh1 change
         int mapping = std::min(ns_hair, int(_rate_atoh1.size() - 1));
-        double d_atoh1 = 2 * _prob_distr(*this->_rng) * _rate_atoh1[mapping];
-        state.atoh1 = std::max(state.atoh1 + d_atoh1, 0.);
+        env_state.atoh1 /= _rate_atoh1[mapping];
+
+        cell->custom_links().env->state = env_state;
 
         return state;
     };
@@ -284,7 +336,10 @@ private:
         std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
 
         if (not neighbors.empty()) {
-            std::swap(state, neighbors.back()->state);
+            auto n = neighbors.back();
+            std::swap(state, n->state);
+            std::swap(cell->custom_links().env->state,
+                      n->custom_links().env->state);
         }
         
         return state;
@@ -296,7 +351,9 @@ public:
 
     /// Iterate a single step
     void perform_step () {
-        apply_rule<Update::sync>(accumulate_atoh1, _cm.cells());
+        _envm.iterate();
+
+        apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
         apply_rule<Update::sync>(transition, _cm.cells());
 
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
@@ -307,25 +364,44 @@ public:
     void monitor () { }
 
 
-    /// Write data
-    void write_data () {
-        // Write out the some_state of all cells
-        _dset_state->write(_cm.cells().begin(), _cm.cells().end(),
-            [](const auto& cell) {
-                return int(cell->state.cell_type);
-        });
+    void prolog () {
+        _envm.prolog();
+        return this->__prolog();
+    }
 
-        // Write out the some_trait of all cells
-        _dset_atoh1->write(_cm.cells().begin(), _cm.cells().end(),
-            [](const auto& cell) {
-                return cell->state.atoh1;
-        });
+    void epilog () {
+        _envm.epilog();
+        return this->__epilog();
     }
 
 
     // .. Getters and setters .................................................
     // Add getters and setters here to interface with other models
+    /// Getter for density of different cell types
+    std::vector<double> get_densities () const {
+        std::vector<int> count(3, 0.);
+        for (auto c : _cm.cells()) {
+            int type = c->state.cell_type;
+            count[int(c->state.cell_type)]++;
+        }
+        double num_cells = _cm.cells().size();
+        return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
+    }
 
+    int get_hh_contacts() const {
+        apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
+
+        int cnt = 0;
+        for (auto c : _cm.cells()) {
+            cnt += c->state.has_hair_neighbor;
+        }
+
+        return cnt / 2;
+    }
+
+    auto get_cm () const {
+        return std::make_shared<CellManager>(this->_cm);
+    }
 };
 
 } // namespace Utopia::Models::NotchDelta
