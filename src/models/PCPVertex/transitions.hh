@@ -197,12 +197,6 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     adj_cell_b->template cell_area<periodic_bc>();
     adj_cell_c->template cell_area<periodic_bc>();
     adj_cell_d->template cell_area<periodic_bc>();
-    
-    new_edge->template update_length<periodic_bc>(_Lx, _Ly);
-    adj_edge_a->template update_length<periodic_bc>(_Lx, _Ly);
-    adj_edge_b->template update_length<periodic_bc>(_Lx, _Ly);
-    adj_edge_c->template update_length<periodic_bc>(_Lx, _Ly);
-    adj_edge_d->template update_length<periodic_bc>(_Lx, _Ly);
 
     // replace the edge at adge_it
     edge_it = _edges.erase(edge_it);
@@ -286,11 +280,9 @@ CellContainer::iterator PCPVertex<periodic_bc,
         // replace vertices that have been removed
         if (e->a->remove) {
             e->a = new_v;
-            e->template update_length<periodic_bc>(_Lx, _Ly);
         }
         else if (e->b->remove) {
             e->b = new_v;
-            e->template update_length<periodic_bc>(_Lx, _Ly);
         }
 
         ++e_it;

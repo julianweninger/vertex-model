@@ -317,16 +317,16 @@ private:
     std::function<double(Edge_ptr&)> line_tension = [this](Edge_ptr &e) {
         auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
                                                            _Lx, _Ly);
-
-        const double fx = e->linetension*dx/e->length;
-        const double fy = e->linetension*dy/e->length;
+        const double length = e->template length<periodic_bc>(_Lx, _Ly);
+        const double fx = e->linetension*dx/length;
+        const double fy = e->linetension*dy/length;
 
         e->a->fx += fx;
         e->a->fy += fy;
         e->b->fx -= fx;
         e->b->fy -= fy;
 
-        return e->linetension * e->length;
+        return e->linetension * length;
     };
 
     /** Calculates the forces from area elasticity
@@ -388,7 +388,7 @@ private:
         double perimeter = 0.;
 
         for (auto [e, flip] : c->edges_ordered) {
-            perimeter += e->length;
+            perimeter += e->template length<periodic_bc>(_Lx, _Ly);;
         }
 
         for (auto [e, flip] : c->edges_ordered) {
@@ -397,9 +397,9 @@ private:
                 std::swap(a, b);
             }
             auto [dx, dy] = displacement_absolute<periodic_bc>(*a, *b, _Lx, _Ly);
-            
-            double fx = c->contractility * perimeter * dx / e->length;
-            double fy = c->contractility * perimeter * dy / e->length;
+            const double length = e->template length<periodic_bc>(_Lx, _Ly);
+            double fx = c->contractility * perimeter * dx / length;
+            double fy = c->contractility * perimeter * dy / length;
 
             a->fx += fx;
             a->fy += fy;
@@ -763,39 +763,6 @@ public:
             std::for_each(_edges.begin(), _edges.end(), reset_polarity_change);
         }
 
-        // calculate edge lengths
-        for (auto &e : _edges) {
-            e->template update_length<periodic_bc>(_Lx, _Ly);
-
-            // breakpoint in debug mode
-            #ifndef NDEBUG
-                // periodic bc only defined if edge defines shortest distance
-                // between two points 
-                if (periodic_bc and e->length > 0.9 * 0.25 * sqrt(_Lx*_Ly)) {
-                    auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a,
-                                        *e->b, _Lx, _Ly);
-                    if (dx > 0.9 * _Lx) {
-                        throw std::runtime_error("Edge is supposed to connect "
-                            "two vertices, that are separated by " +
-                            std::to_string(dx) + " on a periodic domain, "
-                            "that measures " + std::to_string(_Lx) + " in x. "
-                            "This is only defined as long as the edge defines "
-                            "the shortest path between the two vertices. "
-                            "Hence it is no longer defined for dx -> Lx / 2");
-                    }
-                    if (dy > 0.9 * _Ly) {
-                        throw std::runtime_error("Edge is supposed to connect "
-                            "two vertices, that are separated by " +
-                            std::to_string(dy) + " on a periodic domain, "
-                            "that measures " + std::to_string(_Ly) + " in y. "
-                            "This is only defined as long as the edge defines "
-                            "the shortest path between the two vertices. "
-                            "Hence it is no longer defined for dy -> Ly / 2");
-                    }
-                }
-            #endif
-        }
-
         // calculate cell area
         for (auto &c : _cells) {
             c->template cell_area<periodic_bc>();
@@ -814,7 +781,7 @@ public:
 
         // T1 transition -- neighborhood change
         for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
-            if ((*e_it)->length < _length_threshold)
+            if ((*e_it)->template length<periodic_bc>(_Lx, _Ly) < _length_threshold)
             {
                 e_it = T1_transition(e_it);
             }
@@ -876,9 +843,8 @@ public:
 
     /// The prolog
     /** Performs the following tasks:
-     *      1. update the edges lengths and cells areas
-     *      2. calculate the energies
-     *      3. default prolog tasks
+     *      1. calculate the energies
+     *      2. default prolog tasks
      */
     void prolog ();
 

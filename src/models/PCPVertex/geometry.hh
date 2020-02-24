@@ -192,16 +192,11 @@ struct Edge : public std::enable_shared_from_this<Edge> {
     Vertex_ptr a, b;
 
     /// Absolute length of the edge
-    /** \warning manual update */
-    double length;
-
-    /// Update the length of the edge
     /** \param Lx, Ly   Domain size 
      */
     template <bool periodic_bc>
-    double update_length(double Lx, double Ly) {
-        length = distance<periodic_bc>(*a, *b, Lx, Ly);
-        return length;
+    double length(double Lx, double Ly) {
+        return distance<periodic_bc>(*a, *b, Lx, Ly);
     }
 
     /// The linetension parameter property to this edge
@@ -285,15 +280,13 @@ struct Edge : public std::enable_shared_from_this<Edge> {
      *  \param b    End Vertex
      *  \param linetension  The linetension property
      *  \param adj_cs   The adjacent cells to this edge
-     *  \param l    The distance from a to b, length of this edge
      */
     Edge(Vertex_ptr a, Vertex_ptr b, double linetension,
          Cell_ptr adj_cell_a = nullptr, Cell_ptr adj_cell_b = nullptr,
-         double sigma_a = 0., double sigma_b = 0., double l = 0.)
+         double sigma_a = 0., double sigma_b = 0.)
     :
         a(a),
         b(b),
-        length(l),
         linetension(linetension),
         adj_cell_a(adj_cell_a), adj_cell_b(adj_cell_b),
         sigma_a(sigma_a), sigma_b(sigma_b),

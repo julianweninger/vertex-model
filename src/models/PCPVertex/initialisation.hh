@@ -335,11 +335,6 @@ void PCPVertex<periodic_bc,
         e->link_members();
     }
 
-    // calculate edge lengths
-    for (auto &e : _edges) {
-        e->template update_length<periodic_bc>(_Lx, _Ly);
-    }
-
     // calculate cell area
     for (auto &c : _cells) {
         c->template cell_area<periodic_bc>();
@@ -379,11 +374,6 @@ template <bool periodic_bc, bool polarity_proteins>
 void PCPVertex<periodic_bc,
                polarity_proteins>::prolog ()
 {
-    // calculate edge lengths
-    for (auto &e : _edges) {
-        e->template update_length<periodic_bc>(_Lx, _Ly);
-    }
-
     // calculate cell area
     for (auto &c : _cells) {
         c->template cell_area<periodic_bc>();
