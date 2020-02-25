@@ -2,7 +2,19 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
-heatmap_ratio: &heatmap_ratio
+state_anim:
+  based_on: .ca.state
+  
+  model_name: NotchDelta
+
+  # Specify the time index (will be ignored, but needs to be specified)
+  time_idx: 0
+
+  # Enable animation (disabled by default)
+  animation:
+    enabled: true
+
+heatmap_density: &heatmap_density
   creator: multiverse
   module: model_plots.NotchDelta
   plot_func: heatmap
@@ -10,17 +22,17 @@ heatmap_ratio: &heatmap_ratio
   
   select:
     fields: 
-      Ratio: data/NotchDelta/Densities/Ratio_hair_support
+      Hair: data/NotchDelta/Densities/Hair
   transform_data:
     - isel:
         time: -1
 
-  to_plot: Ratio
+  to_plot: Hair
 
   cmap: cividis
 
 heatmap_contacts: 
-  <<: *heatmap_ratio
+  <<: *heatmap_density
 
   select:
     fields: 
@@ -46,7 +58,7 @@ bifurcation: &bifurcation
     default_distance: 1.
     default_pos: [0., 0.5]
 
-bifurcation_ratio:
+bifurcation_density:
   <<: *bifurcation
 
   select:
@@ -57,20 +69,20 @@ bifurcation_ratio:
 
           
   to_plot:
-    Ratio:
-      label: ratio hair to support cells
-      plot_kwargs:
-        color: red
-        s: 14
     Hair:
       label: hair cells
       plot_kwargs:
-        color: black
-        s: 7
+        color: red
+        s: 14
     Support:
       label: support cells
       plot_kwargs:
-        color: gray
+        color: black
+        s: 7
+    Ratio:
+      label: ratio hair to support cells
+      plot_kwargs:
+        color: blue
         s: 7
 
   helpers:

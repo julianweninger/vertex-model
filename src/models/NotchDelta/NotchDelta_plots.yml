@@ -23,6 +23,7 @@ densities:
   based_on: .basic_uni.lineplots
   model_name: NotchDelta
   file_ext: png
+
   enabled: false
 
   to_plot: 
@@ -48,11 +49,12 @@ densities:
 
 
 # Spatial CA animations .......................................................
-state_and_trait_anim:
+state_anim:
   based_on: state_anim
   file_ext: png
 
   enabled: false
+
   to_plot:
     CM/Cell_type:
       title: Cell Type
@@ -79,12 +81,12 @@ bifurcation_lambda_contacts:
 
   dim: lambda
 
-heatmap_ratio:
-  based_on: heatmap_ratio
-  enabled: false
+heatmap_density:
+  based_on: heatmap_density
+  # enabled: false
   # NOTE 2d multiverse plot
 
 heatmap_contacts:
   based_on: heatmap_contacts
-  enabled: false
+  # enabled: false
   # NOTE 2d multiverse plot
