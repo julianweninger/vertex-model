@@ -184,7 +184,9 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+    bool _progenitors_depleted;
 
+    bool _end_simulation;
 
 
 public:
@@ -211,7 +213,9 @@ public:
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
-        _prob_distr(0., 1.)
+        _prob_distr(0., 1.),
+        _progenitors_depleted(false),
+        _end_simulation(false)
     {
         if (not this->_cfg["rate_ph"]) {
             throw std::invalid_argument("Missing cfg entry: Expected dict with "
@@ -371,6 +375,15 @@ public:
 
     /// Iterate a single step
     void perform_step () {
+        if (_progenitors_depleted) {
+            if (not _end_simulation) {
+                this->_log->warn("All progenitors differentiated. Ending "
+                        "simulation at time {}!", this->_time);
+                _end_simulation = true;
+            }
+            return;
+        }
+
         _envm.iterate();
 
         apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
@@ -381,7 +394,19 @@ public:
     }
 
     /// Monitor model information
-    void monitor () { }
+    void monitor () {
+        auto densities = this->get_densities();
+        if (densities[CellType::progenitor] == 0.) {
+            _progenitors_depleted = true;
+        }
+
+        this->_monitor.set_entry("density_progenitor",
+                                 densities[CellType::progenitor]);
+        this->_monitor.set_entry("density_hair",
+                                 densities[CellType::hair]);
+        this->_monitor.set_entry("density_support",
+                                 densities[CellType::support]);
+    }
 
 
     void prolog () {
@@ -421,6 +446,10 @@ public:
 
     auto get_cm () const {
         return std::make_shared<CellManager>(this->_cm);
+    }
+
+    bool simulation_ended () const {
+        return _end_simulation;
     }
 };
 
