@@ -192,6 +192,7 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         c->edges_ordered.push_back(
             std::make_pair(new_edge, false) );
         c->order_edges();
+        c->template area<periodic_bc>();
     }
 
     // replace the edge at adge_it
@@ -450,6 +451,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
                                                             false));
                 
                 c->order_edges();
+                c->template area<periodic_bc>();
             }
         }
 
@@ -554,6 +556,8 @@ CellContainer::iterator PCPVertex<periodic_bc,
                                                 cell->contractility,
                                                 cell->type,
                                                 cell->protein_concentration);
+    new_cell_0->template area<periodic_bc>();
+    new_cell_1->template area<periodic_bc>();
     new_cell_1->link_members();
     _cells.push_back(new_cell_0);
     _cells.push_back(new_cell_1);

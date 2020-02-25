@@ -602,17 +602,6 @@ struct Cell : public std::enable_shared_from_this<Cell> {
             #endif
         }
 
-        this->area<true>();
-        if (this->area_sgn == -1) {
-            auto tmp_es = edges_ordered;
-            edges_ordered.clear();
-            for (auto [e, flip] : tmp_es) {
-                edges_ordered.insert(edges_ordered.begin(),
-                                          std::make_pair(e, not flip));
-            }
-            this->area_sgn = 1;
-        }
-
         // add vertices from edges
         for (const auto e : edges_ordered) {
             if (std::get<bool>(e)) { // flip
@@ -638,11 +627,6 @@ struct Cell : public std::enable_shared_from_this<Cell> {
     /// The relative area of a polygon cell
     template <bool periodic_bc>
     double area () {
-        if (not periodic_bc){
-            throw std::invalid_argument("Non-periodic bc require manual change "
-                                        "of code!");
-        }
-
         // reset the area
         double area = 0.;
 
@@ -675,7 +659,17 @@ struct Cell : public std::enable_shared_from_this<Cell> {
             center.y += (a.y + b.y) * da;
         }
 
-        if (area < 0) { area_sgn = -1; }
+        if (area < 0) {
+            // invert edge ordering
+            auto tmp_es = edges_ordered;
+            edges_ordered.clear();
+            for (auto [e, flip] : tmp_es) {
+                edges_ordered.insert(edges_ordered.begin(),
+                                          std::make_pair(e, not flip));
+            }
+
+            area_sgn = 1;
+        }
         else { area_sgn = 1; }
 
         area = 0.5 * fabs(area);

@@ -290,7 +290,8 @@ void PCPVertex<periodic_bc,
 
                 _cells.push_back(std::make_shared<Cell>(*center, edges,
                                         area_preferential, _contractility));
-                _cells.back()->link_members();                    
+                _cells.back()->link_members();
+                _cells.back()->template area<periodic_bc>();
             }
         }
         else { // impare rows
@@ -316,6 +317,7 @@ void PCPVertex<periodic_bc,
 
                 _cells.push_back(std::make_shared<Cell>(*center, edges,
                                         area_preferential, _contractility));
+                _cells.back()->template area<periodic_bc>();
                 _cells.back()->link_members();
             }
         }
