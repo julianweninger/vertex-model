@@ -13,6 +13,8 @@ void test_T1_transition (std::string cfg)
     auto model_cfg = model.get_cfg();
 
     auto edges = model.get_edges();
+    auto cells = model.get_cells();
+    auto vertices = model.get_vertices();
 
     // pick some inner edge
     auto e = edges[edges.size() / 3];
@@ -28,6 +30,10 @@ void test_T1_transition (std::string cfg)
 
     // check that the number of egdes did not change
     BOOST_TEST(model.get_edges().size() == edges.size());
+    BOOST_TEST(model.get_cells().size() == cells.size());
+    BOOST_TEST(model.get_vertices().size() == vertices.size());
+
+    test_weak_links(model);
 
     destruct_model_factory(model);
 }
@@ -51,9 +57,13 @@ void test_T2_transition (std::string cfg)
     auto model_cfg = model.get_cfg();
 
     auto cells = model.get_cells();
+    auto vertices = model.get_vertices();
+    auto edges = model.get_edges();
 
     // pick some inner cell
     auto c = cells[cells.size() / 2 + 1];
+    auto num_vertices = c.lock()->vertices.size();
+    auto num_edges = c.lock()->edges_ordered.size();
 
     // contract this inner cell
     double area_threshold = get_as<double>("area_threshold", model_cfg);
@@ -65,8 +75,12 @@ void test_T2_transition (std::string cfg)
     // check that the edge e has been removed
     BOOST_TEST(c.expired());
 
-    // check that the number of egdes did not change
+    // check that the number of objects changed accordingly
     BOOST_TEST(model.get_cells().size() == cells.size() - 1);
+    BOOST_TEST(model.get_vertices().size() == vertices.size() - num_vertices+1);
+    BOOST_TEST(model.get_edges().size() == edges.size() - num_edges);
+    
+    test_weak_links(model);
 
     destruct_model_factory(model);
 }
@@ -155,7 +169,8 @@ void test_cell_division (std::string cfg)
 
     model.run();
 
-
+    test_weak_links(model);
+    
     destruct_model_factory(model);
     }
 }

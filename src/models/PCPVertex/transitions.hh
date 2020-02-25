@@ -22,6 +22,18 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     // NOTE a, b arbitrary
     Cell_ptr adj_cell_a = edge->adj_cell_a.lock();
     Cell_ptr adj_cell_b = edge->adj_cell_b.lock();
+    
+    for (auto c : {adj_cell_a, adj_cell_b}) {
+        if (c->edges_ordered.size() <= 3) {
+            this->_log->warn("The triangular cell has area {}. Adapt the "
+                "threshold area for T2 transitions, such that this cell "
+                "is removed, rather than performing a T1 transition!",
+                c->template area<periodic_bc>());
+            throw std::runtime_error("Cannot perform T1 transition of an "
+                "edge adjacent to a cell with only 3 edges (triangle). "
+                "The cell would become a (n-1) dimensional object.");
+        }
+    }
 
     // the two cells that become neighbours in this T1 transition
     // NOTE c is the cell adjoint to vertex edge->a (arbitrary)
@@ -209,6 +221,12 @@ CellContainer::iterator PCPVertex<periodic_bc,
     this->_log->debug("Removing cell in T2 transition..");
 
     auto cell = *cell_it;
+
+    if (cell->edges_ordered.size() != 3) {
+        this->_log->warn("Removing cell in T2 transition that has {} != 3 "
+            "edges. Hence this creates a vertex with other than 3 adjoint "
+            "edges. This may not be handled correctly in further simulation.");
+    }
     
     // create a new vertex at the center of c
     cell->template area<periodic_bc>(); // updates the center of c        
@@ -258,6 +276,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
         if (num_vertices > c->vertices.size()) {
             c->vertices.push_back(new_v);
             // NOTE Vertices not ordered
+            new_v->adj_cells.push_back(c);
         }
 
         // continue iteration
@@ -276,9 +295,11 @@ CellContainer::iterator PCPVertex<periodic_bc,
         // replace vertices that have been removed
         if (e->a->remove) {
             e->a = new_v;
+            new_v->adj_edges.push_back(e);
         }
         else if (e->b->remove) {
             e->b = new_v;
+            new_v->adj_edges.push_back(e);
         }
 
         ++e_it;
@@ -550,7 +571,6 @@ CellContainer::iterator PCPVertex<periodic_bc,
                                                 cell->contractility,
                                                 cell->type,
                                                 cell->protein_concentration);
-    new_cell_0->link_members();
     auto new_cell_1 = std::make_shared<Cell>(*cell_center, new_edges_cell_1, 
                                                 cell->area_preferential,
                                                 cell->contractility,
@@ -558,6 +578,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
                                                 cell->protein_concentration);
     new_cell_0->template area<periodic_bc>();
     new_cell_1->template area<periodic_bc>();
+    new_cell_0->link_members();
     new_cell_1->link_members();
     _cells.push_back(new_cell_0);
     _cells.push_back(new_cell_1);

@@ -53,6 +53,8 @@ void test_initialisation_hexagon (std::string cfg)
         }
     }
 
+    test_weak_links(model);
+
     destruct_model_factory(model);
 }
 
@@ -84,6 +86,8 @@ void test_differentiate_cells (std::string cfg, double fraction)
     double hair_fraction = num_types[1]/double(cells.size());
     BOOST_TEST(test_equal(hair_fraction, fraction, 2./cells.size()));
 
+    test_weak_links(model);
+
     destruct_model_factory(model);
 }
 
@@ -112,6 +116,8 @@ void test_topological_increase_domain (std::string cfg) {
     std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
     BOOST_TEST (test_equal(Lx_prime * Ly_prime, Lx * Ly));
     BOOST_TEST (test_equal(Lx_prime / Ly_prime, Lx / Ly));
+
+    test_weak_links(model);
 
     destruct_model_factory(model);
 }
@@ -183,6 +189,8 @@ void test_topological_stretch (std::string cfg) {
     BOOST_TEST (test_equal(Lx, Lx_prime));
     BOOST_TEST (test_equal(Ly, Ly_prime));
     BOOST_TEST (test_equal(area_preferential, cells[0].lock()->area_preferential));
+
+    test_weak_links(model);
 
     destruct_model_factory(model);
 }
