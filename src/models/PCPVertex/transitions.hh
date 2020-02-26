@@ -129,8 +129,8 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         *adj_cell_a->template centre_site<periodic_bc>(),
         *adj_cell_b->template centre_site<periodic_bc>());
     auto length = sqrt(std::pow(dx, 2) + std::pow(dy, 2));
-    dx = dx / length * _length_threshold;
-    dy = dy / length * _length_threshold;
+    dx = dx / length * _length_threshold / _Lx;
+    dy = dy / length * _length_threshold / _Ly;
     auto tmp_periodic_copy = periodic_copy<periodic_bc>(*edge->b, *edge->a);
     auto centre_site = Site(0.5 * (edge->a->x + tmp_periodic_copy.x),
                             0.5 * (edge->a->y + tmp_periodic_copy.y));
