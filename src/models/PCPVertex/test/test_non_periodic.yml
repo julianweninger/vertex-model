@@ -8,7 +8,7 @@ PCPVertex:
     progenitor_progenitor: 1.
     progenitor_hair: 1.
     progenitor_support: 1.
-    hair_hair: 1.
+    hair_hair: 10.
     hair_support: 1.
     support_support: 1.
     
@@ -60,7 +60,7 @@ PCPVertex:
 
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: debug}
 monitor_emit_interval: 2.0
-num_steps: 1000
+num_steps: 5000
 output_path: test_data.h5
 seed: 42
 write_every: 25

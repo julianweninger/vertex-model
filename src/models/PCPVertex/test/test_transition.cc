@@ -18,9 +18,11 @@ void test_T1_transition (std::string cfg)
 
     // pick some inner edge
     auto e = edges[edges.size() / 3];
+    // e.lock()->adj_cell_a.lock()->type = Cell::CellType::hair;
+    // e.lock()->adj_cell_b.lock()->type = Cell::CellType::hair;
 
     // contract this inner edge
-    e.lock()->linetension *= 10;
+    e.lock()->linetension = 20.;
 
     // run the model
     model.run();

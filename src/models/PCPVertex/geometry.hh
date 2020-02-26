@@ -470,7 +470,7 @@ struct Cell : public std::enable_shared_from_this<Cell> {
     double lagrange_const_concentration;
 
     /// The initial protein concentration
-    const double protein_concentration;
+    double protein_concentration;
 
     /// Whether this object is to be removed 
     bool remove;
@@ -526,7 +526,9 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         edges_ordered.clear();
         vertices.clear();
 
-        if (es.empty()) { return; }
+        if (es.size() < 3) { 
+            throw std::runtime_error("Cannot order egdes, because less "
+                "than 3 received. No cell this is!"); }
 
         Edge_ptr e = es.back();
         Vertex_ptr a, b;

@@ -13,6 +13,8 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
 
     auto edge = *edge_it;
 
+    Edge edge_copy = *edge;
+
     // tag objects to be removed
     edge->remove = true;
     edge->a->remove = true;
@@ -110,6 +112,17 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         }
     }
 
+    // make copies of the status quo
+    Edge adj_edge_a_copy = Edge(*adj_edge_a), adj_edge_b_copy = Edge(*adj_edge_b);
+    Edge adj_edge_c_copy = Edge(*adj_edge_c), adj_edge_d_copy = Edge(*adj_edge_d);
+    Cell adj_cell_a_copy = Cell(*adj_cell_a), adj_cell_b_copy = Cell(*adj_cell_b);
+    Cell adj_cell_c_copy = Cell(*adj_cell_c), adj_cell_d_copy = Cell(*adj_cell_d);
+
+    double current_energy = this->get_energy({edge, adj_edge_a, adj_edge_b,
+                                              adj_edge_c, adj_edge_d},
+                                             {adj_cell_a, adj_cell_b,
+                                              adj_cell_c, adj_cell_d});
+
     // create two new vertices that create an edge of threshold length 
     // pointing from cell a to b
     auto [dx, dy] = displacement<periodic_bc>(
@@ -133,8 +146,6 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
                                             adj_cell_d}));
     correct_periodic_bc<periodic_bc>(new_v_a);
     correct_periodic_bc<periodic_bc>(new_v_b);
-    _vertices.push_back(new_v_a);
-    _vertices.push_back(new_v_b);
 
     // create a new edge
     double linetension = _linetension(adj_cell_c->type, adj_cell_d->type);
@@ -144,12 +155,6 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     new_edge->link_members();
 
     // remove objects
-    _vertices.erase(
-        std::remove_if(
-            _vertices.begin(), _vertices.end(),
-            [](auto v) { return v->remove; }),
-        _vertices.end()
-    );
     for (auto &c : {adj_cell_a, adj_cell_b, adj_cell_c, adj_cell_d}) {
         c->vertices.erase(
             std::remove_if(
@@ -207,13 +212,53 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         c->template area<periodic_bc>();
     }
 
+    double new_energy = this->get_energy({new_edge, adj_edge_a, adj_edge_b,
+                                          adj_edge_c, adj_edge_d},
+                                         {adj_cell_a, adj_cell_b,
+                                          adj_cell_c, adj_cell_d});
+
+    if (new_energy > current_energy) {
+        this->_log->debug("Aborting T1 transition, because energy increased by "
+                "{} ..", new_energy - current_energy);
+
+        *edge = edge_copy;
+
+        *adj_edge_a = adj_edge_a_copy;
+        *adj_edge_b = adj_edge_b_copy;
+        *adj_edge_c = adj_edge_c_copy;
+        *adj_edge_d = adj_edge_d_copy;
+
+        *adj_cell_a = adj_cell_a_copy;
+        *adj_cell_b = adj_cell_b_copy;
+        *adj_cell_c = adj_cell_c_copy;
+        *adj_cell_d = adj_cell_d_copy;
+
+        return ++edge_it;
+    }
+
     // replace the edge at adge_it
     edge_it = _edges.erase(edge_it);
     edge_it = _edges.insert(edge_it, new_edge);
 
+    _vertices.erase(
+        std::remove_if(
+            _vertices.begin(), _vertices.end(),
+            [](auto v) { return v->remove; }),
+        _vertices.end()
+    );
+
+    _vertices.push_back(new_v_a);
+    _vertices.push_back(new_v_b);
+
     return ++edge_it;
 }
-
+/** Erase cell from _cells while updating the topology (T2 transition)
+ * 
+ *  Removes the cell, its edges and its vertices and sets up a vertex at its
+ *  centre.
+ * 
+ *  returns _cells.erase(cell_it)
+ */
 template <bool periodic_bc, bool polarity_proteins>
 CellContainer::iterator PCPVertex<periodic_bc,
     polarity_proteins>::T2_transition (CellContainer::iterator &cell_it) 

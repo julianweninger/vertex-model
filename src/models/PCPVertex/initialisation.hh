@@ -367,61 +367,6 @@ void PCPVertex<periodic_bc,
     }
 }
 
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc,
-               polarity_proteins>::prolog ()
-{
-    // initialise the energy terms
-    // NOTE since no update is performed, the position of the vertices and
-    //      the level of polarity is not changed
-
-    // line tension
-    _energy_linetension = 0;
-    for (auto &e : _edges) {
-        _energy_linetension += this->line_tension(e);
-    }
-    
-    // area elasticity
-    _energy_areaelasticity = 0;
-    for (auto &c : _cells) {
-        _energy_areaelasticity += this->area_elasticity(c);
-    }
-    
-    // area elasticity
-    _energy_contractility = 0;
-    for (auto &c : _cells) {
-        _energy_contractility += this->contractility(c);
-    }
-
-    if constexpr (polarity_proteins) {
-        _energy_cell_cell_polarity = 0.;
-        for (auto &e : _edges) {
-            _energy_cell_cell_polarity += this->cell_cell_polarity(e);
-        }
-
-        _energy_polarity_exclusion = 0.;
-        for (auto &c : _cells) {
-            _energy_polarity_exclusion += this->apply_polarity_exclusion(c);
-        }
-
-        _energy_lagrange_net_polarisation = 0.;
-        for (auto &c : _cells) {
-            _energy_lagrange_net_polarisation += 
-                    this->lagrange_net_polarisation(c);
-            c->lagrange_net_polarisation = 0.; // NOTE undo changes
-        }
-
-        _energy_lagrange_const_concentration = 0.;
-        for (auto &c : _cells) {
-            _energy_lagrange_const_concentration += 
-                    this->lagrange_const_concentration(c);
-            c->lagrange_const_concentration = 0.; // NOTE undo changes
-        }
-    }
-
-    return this->__prolog();
-}
-
 } // namespace PCPVertex
 } // namespace Models
 } // namespace Utopia
