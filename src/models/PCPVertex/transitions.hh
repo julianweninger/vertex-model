@@ -14,6 +14,8 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     auto edge = *edge_it;
 
     Edge edge_copy = *edge;
+    Vertex vertex_a_copy = *edge_copy.a;
+    Vertex vertex_b_copy = *edge_copy.b;
 
     // tag objects to be removed
     edge->remove = true;
@@ -222,6 +224,8 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
                 "{} ..", new_energy - current_energy);
 
         *edge = edge_copy;
+        *(edge->a) = vertex_a_copy;
+        *(edge->b) = vertex_b_copy;
 
         *adj_edge_a = adj_edge_a_copy;
         *adj_edge_b = adj_edge_b_copy;
