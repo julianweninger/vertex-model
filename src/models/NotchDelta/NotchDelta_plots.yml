@@ -9,7 +9,7 @@ hair_hair_contacts:
   model_name: NotchDelta
   file_ext: png
 
-  enabled: false
+  enabled: true
 
   path_to_data: Densities/Number_hair_hair_contacts
   label: Hair-hair contacts
@@ -24,7 +24,7 @@ densities:
   model_name: NotchDelta
   file_ext: png
 
-  enabled: false
+  enabled: true
 
   to_plot: 
     Densities/Hair:
@@ -53,8 +53,8 @@ state_anim:
   based_on: state_anim
   file_ext: png
 
-  enabled: false
-
+  enabled: true
+  
   to_plot:
     CM/Cell_type:
       title: Cell Type
@@ -83,10 +83,10 @@ bifurcation_lambda_contacts:
 
 heatmap_density:
   based_on: heatmap_density
-  # enabled: false
+  enabled: false
   # NOTE 2d multiverse plot
 
 heatmap_contacts:
   based_on: heatmap_contacts
-  # enabled: false
+  enabled: false
   # NOTE 2d multiverse plot
