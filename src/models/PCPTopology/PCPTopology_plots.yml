@@ -147,8 +147,8 @@ cellular_structure:
   datapath: PCPTopology/PCPVertex
   cfgpath: PCPTopology/PCPVertex
 
-  enabled: false
-
+  enabled: true
+  
   helpers:
     set_labels:
       x: x [a.u.]

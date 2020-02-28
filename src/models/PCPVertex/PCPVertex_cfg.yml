@@ -35,15 +35,12 @@ linetension:
   hair_support: 1.
   support_support: 1.
 
-length_threshold: 0.01
-
 # Area elasticity parameter
 area_elasticity: 100.
 area_preferential:
   progenitor: 1.
   hair: 1.
   support: 1.
-area_threshold: 0.0001
 
 # Contractility of perimeter
 contractility: 0.
@@ -53,6 +50,11 @@ gamma: 0.
 cell_cell_polarity_interaction: 0.
 cell_polarity_exclusion: 0.
 cell_initialisation_protein_level: 0.
+
+T1_threshold: 0.01
+T1_probability: 0.05
+T1_barrier: 0.02
+T2_threshold: 0.0001
 
 # Topology parameter
 hexagon_size: 0.62

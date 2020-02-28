@@ -97,9 +97,19 @@ private:
                              CellType::num_cell_types> _linetension;
 
     /// Edges shorter than this value are replaced in a T1 transition
-    /** using relative length
+    /** using absolute length
      */
-    double _length_threshold; 
+    double _T1_threshold;
+
+    /// The probability, that a T1 transition occurs
+    double _T1_probability;
+
+    /// The characteristic height of the energy barrier at T1 transitions
+    /** The probability to perform a T1 transition is 
+     *  \f$ p = \exp(-\Delta E / _T1_barrier) \f$, which is 1 for 
+     *  \f$\Delta E < 0\f$.
+     */
+    double _T1_barrier;
     
     /// Area elasticity constant K
     double _area_elasticity;
@@ -108,7 +118,7 @@ private:
     arma::Col<double>::fixed<CellType::num_cell_types> _area_preferential;
 
     /// Cells with area smaller than this value are removed in T2 transition
-    double _area_threshold;
+    double _T2_threshold;
 
     /// Contractility of cell perimeter
     /** This reflects mechanics and contractility of the actin-myosin ring
@@ -173,10 +183,12 @@ public:
         _gamma(get_as<double>("gamma", this->_cfg)),
         _Lx(100.), _Ly(100.),
         _linetension(),
-        _length_threshold(get_as<double>("length_threshold", this->_cfg)),
+        _T1_threshold(get_as<double>("T1_threshold", this->_cfg)),
+        _T1_probability(get_as<double>("T1_probability", this->_cfg)),
+        _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _area_preferential(),
-        _area_threshold(get_as<double>("area_threshold", this->_cfg)),
+        _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
         _contractility(get_as<double>("contractility", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
             "cell_cell_polarity_interaction",this->_cfg)),
@@ -777,18 +789,18 @@ public:
 
         // T2 transitions -- cell extrusion
         for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
-            if ((*c_it)->template area_abs<periodic_bc>(_Lx, _Ly) > _area_threshold) {
-                ++c_it;
+            if ((*c_it)->template area_abs<periodic_bc>(_Lx, _Ly) < _T2_threshold) {
+                c_it = T2_transition(c_it);
             }
             else {
-                // erase c_it and update topology
-                c_it = T2_transition(c_it);
+                ++c_it;
             }
         }
 
         // T1 transition -- neighborhood change
         for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
-            if ((*e_it)->template length<periodic_bc>(_Lx, _Ly) < _length_threshold)
+            if ((*e_it)->template length<periodic_bc>(_Lx, _Ly) < _T1_threshold
+                and _prob_distr(*this->_rng) < _T1_probability)
             {
                 e_it = T1_transition(e_it);
             }
@@ -1002,7 +1014,7 @@ public:
     double get_mean_energy_change() const {
         return std::accumulate(_energy_change_history.begin(),
                     _energy_change_history.end(), 0.0
-                    ) / _energy_change_history.size();
+                    ) / (_energy_change_history.size() * _dt);
     }
 
     /// Getter for the domain size

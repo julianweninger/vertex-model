@@ -25,9 +25,9 @@ differentiate_progenitor_cells: true
 hair_cell_fraction: 0.15
 
 # Equilibration parameter
-equilibration_tolerance: 0.00001
+equilibration_tolerance: 1e-6
 num_equilibration_steps: 100
-max_equilibration_iterations: 200
+max_equilibration_iterations: 50
 
 
 # --- Dynamics
@@ -60,15 +60,12 @@ PCPVertex:
     hair_support: 1.
     support_support: 1.
 
-  length_threshold: 0.01
-
   # Area elasticity parameter
   area_elasticity: 10.
   area_preferential:
     progenitor: 1.
     hair: 1.
     support: 1.
-  area_threshold: 0.0001
 
   # Contractility of perimeter
   contractility: 0.04
@@ -78,6 +75,11 @@ PCPVertex:
   cell_cell_polarity_interaction: 0.
   cell_polarity_exclusion: 0.
   cell_initialisation_protein_level: 0.
+
+  T1_threshold: 0.02
+  T1_probability: 0.05
+  T1_barrier: 0.02
+  T2_threshold: 0.001
 
   # Topology parameter
   hexagon_size: 0.62

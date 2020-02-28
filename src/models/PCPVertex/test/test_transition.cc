@@ -18,8 +18,6 @@ void test_T1_transition (std::string cfg)
 
     // pick some inner edge
     auto e = edges[edges.size() / 3];
-    // e.lock()->adj_cell_a.lock()->type = Cell::CellType::hair;
-    // e.lock()->adj_cell_b.lock()->type = Cell::CellType::hair;
 
     // contract this inner edge
     e.lock()->linetension = 20.;
@@ -29,7 +27,7 @@ void test_T1_transition (std::string cfg)
 
     // check that the edge e has been removed
     BOOST_TEST(e.expired());
-
+    
     // check that the number of egdes did not change
     BOOST_TEST(model.get_edges().size() == edges.size());
     BOOST_TEST(model.get_cells().size() == cells.size());
@@ -68,8 +66,8 @@ void test_T2_transition (std::string cfg)
     auto num_edges = c.lock()->edges_ordered.size();
 
     // contract this inner cell
-    double area_threshold = get_as<double>("area_threshold", model_cfg);
-    c.lock()->area_preferential = 0.5 * area_threshold;
+    c.lock()->contractility = 1.;
+    c.lock()->area_preferential = 0.;
 
     // run the model
     model.run();
@@ -79,8 +77,8 @@ void test_T2_transition (std::string cfg)
 
     // check that the number of objects changed accordingly
     BOOST_TEST(model.get_cells().size() == cells.size() - 1);
-    BOOST_TEST(model.get_vertices().size() == vertices.size() - num_vertices+1);
-    BOOST_TEST(model.get_edges().size() == edges.size() - num_edges);
+    BOOST_TEST(model.get_vertices().size() == vertices.size() - 2);
+    BOOST_TEST(model.get_edges().size() == edges.size() - 3);
     
     test_weak_links(model);
 

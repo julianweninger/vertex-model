@@ -10,6 +10,12 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     polarity_proteins>::T1_transition (EdgeContainer::iterator edge_it)
 {
     this->_log->debug("Removing edge in T1 transition..");
+    if constexpr (not periodic_bc) {
+        if ((*edge_it)->adj_cell_a.expired() or (*edge_it)->adj_cell_b.expired()) {
+            throw std::runtime_error("In T1 transition: Removing edge "
+                "with less than 2 adj cells not implemented!");
+        }
+    }
 
     auto edge = *edge_it;
 
@@ -131,8 +137,8 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         *adj_cell_a->template centre_site<periodic_bc>(),
         *adj_cell_b->template centre_site<periodic_bc>());
     auto length = sqrt(std::pow(dx, 2) + std::pow(dy, 2));
-    dx = dx / length * _length_threshold / _Lx;
-    dy = dy / length * _length_threshold / _Ly;
+    dx = dx / length * _T1_threshold / _Lx;
+    dy = dy / length * _T1_threshold / _Ly;
     auto tmp_periodic_copy = periodic_copy<periodic_bc>(*edge->b, *edge->a);
     auto centre_site = Site(0.5 * (edge->a->x + tmp_periodic_copy.x),
                             0.5 * (edge->a->y + tmp_periodic_copy.y));
@@ -219,9 +225,13 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
                                          {adj_cell_a, adj_cell_b,
                                           adj_cell_c, adj_cell_d});
 
-    if (new_energy > current_energy) {
+    double probability = exp(-(new_energy - current_energy)/_T1_barrier);
+    if (new_energy > current_energy
+        and _prob_distr(*this->_rng) > probability)
+    {
         this->_log->debug("Aborting T1 transition, because energy increased by "
-                "{} ..", new_energy - current_energy);
+                "{} .. The probability to do this T1 transition is {}.",
+                new_energy - current_energy, probability);
 
         *edge = edge_copy;
         *(edge->a) = vertex_a_copy;
@@ -238,6 +248,12 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         *adj_cell_d = adj_cell_d_copy;
 
         return ++edge_it;
+    }
+    else if (new_energy >= current_energy) {
+        this->_log->debug("This T1 transition increases energy by {}, but "
+            "given the parameter 'T1_barrier'={} the probability is {} do "
+            "perform this transition non the less.",
+            new_energy - current_energy, _T1_barrier, probability);
     }
 
     // replace the edge at adge_it
@@ -272,9 +288,12 @@ CellContainer::iterator PCPVertex<periodic_bc,
     auto cell = *cell_it;
 
     if (cell->edges_ordered.size() != 3) {
-        this->_log->warn("Removing cell in T2 transition that has {} != 3 "
-            "edges. Hence this creates a vertex with other than 3 adjoint "
-            "edges. This may not be handled correctly in further simulation.");
+        this->_log->debug("Delaying T2 transition, because the cell has more "
+            "3 vertices. Since correct implementation is missing, a T2 "
+            "transition on this cell would violate the condition, that a "
+            "vertex has 3 (or less at boundary) adj_edges and _cells. "
+            "Hope, that T1 transitions occur so that T2 becomes possible.");
+        return ++cell_it;
     }
     
     // create a new vertex at the center of c

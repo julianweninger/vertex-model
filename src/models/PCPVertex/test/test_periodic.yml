@@ -2,24 +2,21 @@
 PCPVertex: 
   periodic_bc: true
   
-  dt: 0.001
+  dt: 0.01
   
   linetension:
-    progenitor_progenitor: 1.
-    progenitor_hair: 1.
-    progenitor_support: 1.
-    hair_hair: 10.
-    hair_support: 1.
-    support_support: 1.
-  
-  length_threshold: 0.1
+    progenitor_progenitor: 0.1
+    progenitor_hair: 0.1
+    progenitor_support: 0.1
+    hair_hair: 0.1
+    hair_support: 0.1
+    support_support: 0.1
 
-  area_elasticity: 100.
+  area_elasticity: 10.
   area_preferential:
     progenitor: 1.
     hair: 1.
     support: 1.
-  area_threshold: 0.2
 
   # Contractility of perimeter
   contractility: 0.
@@ -29,6 +26,11 @@ PCPVertex:
   cell_cell_polarity_interaction: 0.
   cell_polarity_exclusion: 0.
   cell_initialisation_protein_level: 0.
+
+  T1_threshold: 0.1
+  T1_probability: 0.05
+  T1_barrier: 0.02
+  T2_threshold: 0.075
 
   hexagon_size: 0.62
   lattice_columns: 4
@@ -60,7 +62,7 @@ PCPVertex:
 
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: debug}
 monitor_emit_interval: 2.0
-num_steps: 5000
+num_steps: 2000
 output_path: test_data.h5
 seed: 42
 write_every: 25
