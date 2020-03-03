@@ -72,8 +72,14 @@ void test_differentiate_cells (std::string cfg, double fraction)
 {
     auto model = model_factory<false>(cfg);
     // NOTE Periodic includes only situations covered by non-periodic bc
+    arma::Mat<double>::fixed<Cell::CellType::num_cell_types,
+                             Cell::CellType::num_cell_types> linetension;
+    linetension.fill(0.1);
+    linetension(1, 2) = 0.12;
+    linetension(2, 1) = linetension(1,2);
+    arma::Col<double>::fixed<Cell::CellType::num_cell_types> area_preferential = {1., 1.2, 1.};
 
-    model.differentiate_hair_cells(fraction);
+    model.differentiate_hair_cells(fraction, linetension, area_preferential);
 
     auto cells = model.get_cells();
 
@@ -85,6 +91,11 @@ void test_differentiate_cells (std::string cfg, double fraction)
     BOOST_TEST(num_types[0]==0);
     double hair_fraction = num_types[1]/double(cells.size());
     BOOST_TEST(test_equal(hair_fraction, fraction, 2./cells.size()));
+
+    for (auto c : cells) {
+        BOOST_TEST(c.lock()->area_preferential == area_preferential(c.lock()->type));
+    }
+
 
     test_weak_links(model);
 

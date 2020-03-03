@@ -4,19 +4,10 @@ PCPVertex:
   
   dt: 0.01
   
-  linetension:
-    progenitor_progenitor: 0.1
-    progenitor_hair: 0.1
-    progenitor_support: 0.1
-    hair_hair: 0.1
-    hair_support: 0.1
-    support_support: 0.1
+  linetension: 0.1
 
   area_elasticity: 10.
-  area_preferential:
-    progenitor: 1.
-    hair: 1.
-    support: 1.
+  area_preferential: 1.
 
   # Contractility of perimeter
   contractility: 0.

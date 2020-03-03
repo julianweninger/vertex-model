@@ -73,6 +73,41 @@ energy_polarity:
       x: time
       y: energy [a.u.]
 
+area_preferential:
+  based_on: .basic_uni.lineplots
+  model_name: PCPTopology/Environment
+  file_ext: png
+  to_plot:
+    area_preferential_hair:
+      label: hair pref. area
+    area_preferential_support:
+      label: support pref. area
+
+cell_area:
+  based_on: .basic_uni.lineplots
+  model_name: PCPTopology
+  file_ext: png
+
+
+  to_plot:
+    area_average:
+      path_to_data: Statistics/Cell_area
+      transform_data:
+        - sel:
+            properties: area_average
+      label: average cell area
+    area_hair_average:
+      path_to_data: Statistics/Cell_area
+      transform_data:
+        - sel:
+            properties: area_hair_average
+      label: average area for HCs
+    area_support_average:
+      path_to_data: Statistics/Cell_area
+      transform_data:
+        - sel:
+            properties: area_support_average
+      label: average area for SCs
 
 cell_neighbourhood:
   creator: universe

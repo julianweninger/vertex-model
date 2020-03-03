@@ -266,7 +266,7 @@ void PCPVertex<periodic_bc,
     }
 
     // ** add cells
-    double area_preferential = _area_preferential(CellType::progenitor);
+    double area_preferential = get_as<double>("area_preferential", this->_cfg);
     // handle last row separately
     for (int r = 0; r < num_rows; r++) {
         // pair rows

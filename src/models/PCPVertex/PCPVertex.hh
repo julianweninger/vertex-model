@@ -114,9 +114,6 @@ private:
     /// Area elasticity constant K
     double _area_elasticity;
 
-    /// The preferential area of a cell
-    arma::Col<double>::fixed<CellType::num_cell_types> _area_preferential;
-
     /// Cells with area smaller than this value are removed in T2 transition
     double _T2_threshold;
 
@@ -187,7 +184,6 @@ public:
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
-        _area_preferential(),
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
         _contractility(get_as<double>("contractility", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
@@ -202,48 +198,7 @@ public:
             "energy_change_history_length", this->_cfg)),
         _energy_change_history(_energy_change_history_length, 0.)
     {
-        static_assert(CellType::num_cell_types == 3, "Initialisation of "
-            "interaction matrices `linetension` and `area_preferential` only "
-            "defined for 3 cell types.");
-        
-        this->_log->debug("Extracting area-preferential (expecting {} entries) ..",
-                          CellType::num_cell_types);
-        if (not this->_cfg["area_preferential"]) {
-            throw std::invalid_argument("Expected cfg dict 'area_preferential' "
-                "not available!");
-        }
-        _area_preferential(CellType::progenitor) = get_as<double>(
-            "progenitor", this->_cfg["area_preferential"]);
-        _area_preferential(CellType::hair) = get_as<double>(
-            "hair", this->_cfg["area_preferential"]);
-        _area_preferential(CellType::support) = get_as<double>(
-            "support", this->_cfg["area_preferential"]);
-
-        this->_log->debug("Extracting linetension (expecting {}! entries, "
-                          "i.e. the upper diagonal matrix of a {}x{} matrix) ..",
-                          CellType::num_cell_types, CellType::num_cell_types,
-                          CellType::num_cell_types);
-        if (not this->_cfg["linetension"]) {
-            throw std::invalid_argument("Expected cfg dict 'linetension' "
-                "not available!");
-        }
-        _linetension(CellType::progenitor, CellType::progenitor) = get_as<double>(
-            "progenitor_progenitor", this->_cfg["linetension"]);
-        _linetension(CellType::progenitor, CellType::hair) = get_as<double>(
-            "progenitor_hair", this->_cfg["linetension"]);
-        _linetension(CellType::progenitor, CellType::support) = get_as<double>(
-            "progenitor_support", this->_cfg["linetension"]);
-        _linetension(CellType::hair, CellType::hair) = get_as<double>(
-            "hair_hair", this->_cfg["linetension"]);
-        _linetension(CellType::hair, CellType::support) = get_as<double>(
-            "hair_support", this->_cfg["linetension"]);
-        _linetension(CellType::support, CellType::support) = get_as<double>(
-            "support_support", this->_cfg["linetension"]);
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i+1; j < CellType::num_cell_types; j++) {
-                _linetension(j, i) = _linetension(i, j);
-            }
-        }
+        _linetension.fill(get_as<double>("linetension", this->_cfg));
 
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
@@ -303,7 +258,7 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    std::function<void(Edge_ptr&)> set_line_tension = [this](Edge_ptr &e) {
+    std::function<void(Edge_ptr&)> set_linetension = [this](Edge_ptr &e) {
         auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
                                                            _Lx, _Ly);
         const double length = e->template length<periodic_bc>(_Lx, _Ly);
@@ -666,11 +621,31 @@ public:
     
     /// Differentiates progenitor cells with random hair cell distribution
     /** \param fraction     fraction of hair cells. Others are support cells
+     *  \param linetension  The symmetric matrix of linetension interactions
+     *                      between two cells of same or different type
+     *  \param area_preferential    The preferential cell area of the different
+     *                              cell types
      */
-    void differentiate_hair_cells(double fraction)
+    void differentiate_hair_cells(double fraction, 
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential)
     {
         this->_log->debug("Differentiating progenitor cells to {}% hair cells "
             "and {}% support cells ...", fraction, 1-fraction);
+
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                if (linetension(j, i) == linetension(i, j)) {
+                    continue;
+                }
+                
+                this->_log->warn("Invalid argument in differentiate_hair_cells."
+                    "Got non symmetric 'linetension' matrix!");
+                throw std::invalid_argument("Non symmetric 'linetension'"
+                    "matrix");
+            }
+        }
         
         // Set the cell type
         for (auto &c : _cells) {
@@ -678,7 +653,8 @@ public:
                 c->type = CellType::hair; }
             else { c->type = CellType::support; }
 
-            c->area_preferential = _area_preferential(c->type);
+            // set the preferential area
+            c->area_preferential = area_preferential(c->type);
         }
 
         // Set the surface tension
@@ -691,9 +667,11 @@ public:
                 cell_b_type = Cell::CellType::support; }
             else { cell_b_type = e->adj_cell_b.lock()->type; }
 
-            e->linetension = _linetension(cell_a_type,
-                                          cell_b_type);
+            e->linetension = linetension(cell_a_type,
+                                         cell_b_type);
         }
+
+        _linetension = linetension;
     }
 
     /// Perform a cell division on specific cell
@@ -742,26 +720,56 @@ public:
      *  \param dy   The stretching distance in y
      *  \param compensate   Whether to compensate the growth of the dissue by 
      *                      increase of preferential area
+     *  \param fix_hc_volume   Whether to fix the volume of type CellType::hair
+     * 
+     *  \return The total change in area
      */
-    void stretch_domain(double dx, double dy, bool compensate) {        
+    double stretch_domain(double dx, double dy, bool compensate,
+                          bool fix_hc_volume)
+    {
+        this->_log->debug("stretching domain by ({}, {}). Compensate {}, "
+                          "fix hair cell volume {}", dx, dy, compensate, 
+                          fix_hc_volume);
         _Lx += dx;
         _Ly += dy;
 
         if (not compensate) {
-            return;
+            return dx * _Ly + dy * _Lx;
         }
 
-        double dA = dx * _Ly + dy * _Lx;
-        dA /= _cells.size();
+        int num_cells = _cells.size();
+        if (fix_hc_volume) {
+            for (auto c : _cells) {
+                num_cells -= c->type == CellType::hair;
+            }
+            if (num_cells == 0) {
+                throw std::runtime_error("All support cells eliminated!");
+            }
+        }
+
+        double dA = (dx * _Ly + dy * _Lx) / num_cells;
 
         std::function<void(Cell_ptr&)> compensate_dA = [dA](Cell_ptr& cell) {
             cell->area_preferential += dA;
             return;
         };
+        std::function<void(Cell_ptr&)> compensate_dA_non_hc = [dA](
+                Cell_ptr& cell)
+        {
+            if (cell->type != CellType::hair) {
+                cell->area_preferential += dA;
+            }
+            return;
+        };
 
-        std::for_each(_cells.begin(), _cells.end(), compensate_dA);
+        if (not fix_hc_volume) {
+            std::for_each(_cells.begin(), _cells.end(), compensate_dA);
+        }
+        else {
+            std::for_each(_cells.begin(), _cells.end(), compensate_dA_non_hc);
+        }
 
-        return;
+        return dx * _Ly + dy * _Lx;
     }
 
     // .. Simulation Control ..................................................
@@ -809,7 +817,7 @@ public:
             }
         }
 
-        std::for_each(_edges.begin(), _edges.end(), set_line_tension);
+        std::for_each(_edges.begin(), _edges.end(), set_linetension);
         std::for_each(_cells.begin(), _cells.end(), set_area_elasticity);
         std::for_each(_cells.begin(), _cells.end(), set_contractility);
         

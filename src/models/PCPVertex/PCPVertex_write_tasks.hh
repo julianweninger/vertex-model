@@ -488,6 +488,96 @@ auto edge_link_adaptor = std::make_tuple(
     }    
 ); // end edge link adaptor
 
+/// Datamanager adaptor for total energy
+template <bool periodic_bc>
+auto cell_area_adaptor = std::make_tuple(
+
+    // name of the task
+    "Cell_area",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        auto [Lx, Ly] = model.get_domain_size();
+        
+        auto cells = model.get_cells();
+        std::vector<double> area_cells(Cell::CellType::num_cell_types, 0.);
+        std::vector<int> num_cells(Cell::CellType::num_cell_types, 0.);
+        for (auto c_weak : cells) {
+            auto c = c_weak.lock();
+            num_cells[c->type]++;
+            area_cells[c->type] += c->template area_abs<periodic_bc>(Lx, Ly);
+        }
+        double area_total = std::accumulate(area_cells.begin(),
+                                            area_cells.end(), 0.);
+        double area_average = area_total / cells.size();
+
+        for (int i = 0; i < Cell::CellType::num_cell_types; i++) {
+            area_cells[i] /= num_cells[i];
+        }
+        double average_hair = area_cells[Cell::CellType::hair];
+        double average_support = area_cells[Cell::CellType::support];
+
+        std::vector<double> data = {area_average,
+                                    average_hair, average_support};
+        dataset->write(data);
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset("Cell_area", {H5S_UNLIMITED, 3});
+    },
+    
+    // attribute writer for basegroup
+    [](auto& grp, auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "properties");
+        hdfdataset->add_attribute("coords__properties", 
+            std::vector<std::string>({"area_average", "area_hair_average",
+                                      "area_support_average"}));
+
+    }
+); // end energy_adaptor
+
+/// Datamanager adaptor for timepoints
+auto statistics_time_adaptor = std::make_tuple(
+
+    // name of the task
+    "Statistics_time",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_time());
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset("Time");
+    },
+    
+    // attribute writer for basegroup
+    [](auto& grp, auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+    }
+); // end time_energy_adaptor
+
 } // namespace Utopia::Models::PCPVertex::DataIO
 
 

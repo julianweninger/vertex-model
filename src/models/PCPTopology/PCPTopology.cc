@@ -9,8 +9,12 @@ using Utopia::get_as;
 /// Factory for model 
 template<bool periodic_bc, bool polarity_proteins, typename ParentType>
 auto model_factory(ParentType parent) {
-    return PCPTopology<periodic_bc, polarity_proteins>("PCPTopology", parent, 
-        time_histogram_adaptor, cell_neighbourhood_adaptor, cell_size_adaptor,
+    return PCPTopology<periodic_bc, polarity_proteins>("PCPTopology", parent,
+        // statistics
+        statistics_time_adaptor, cell_neighbourhood_adaptor,
+        cell_area_adaptor<periodic_bc>,
+        cell_area_histogram_adaptor<periodic_bc>,
+        // the position adaptors
         vertex_position_adaptor, cell_position_adaptor<periodic_bc>,
         edge_link_adaptor);
 }

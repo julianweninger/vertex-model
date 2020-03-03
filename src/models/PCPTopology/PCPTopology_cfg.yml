@@ -21,23 +21,67 @@
 
 
 # --- Initialization parameters
-differentiate_progenitor_cells: true
-hair_cell_fraction: 0.15
+proliferation:
+  active: True
+  num_cell_divisions: 4
+  emit_interval: 4
 
+differentiation:
+  active: True
+  hair_cell_fraction: 0.25
+
+  linetension:
+    progenitor_progenitor: &Linetension 0.1
+    progenitor_hair: *Linetension
+    progenitor_support: *Linetension
+    hair_hair: 0.12
+    hair_support: 0.08
+    support_support: *Linetension
+
+  area_preferential:
+    progenitor: &Area_preferential 1.
+    hair: *Area_preferential
+    support: *Area_preferential
+
+  # contractility:
+  #   progenitor_progenitor: &Contractility 0.04
+  #   progenitor_hair: *Contractility
+  #   progenitor_support: *Contractility
+  #   hair_hair: *Contractility
+  #   hair_support:  *Contractility
+  #   support_support: *Contractility
+
+# --- Dynamics
 # Equilibration parameter
 equilibration_tolerance: 1e-6
 num_equilibration_steps: 100
-max_equilibration_iterations: 50
+max_equilibration_iterations: 100
 
-
-# --- Dynamics
 cell_divisions_per_step: 0
+tissue_stretch_speed: [0.01, 0.0]
+fix_hair_cell_volume: True
 
-tissue_stretch_speed: [0.05, 0.]
+Environment:
+  cell_manager:
+    cell_params: ~
+    grid:
+      structure: square
+      resolution: 1
+  
+  area_preferential_hair: 1.
+  area_preferential_support: 1.
+  
+  env_param_funcs:
+    - increment:
+        area_preferential_hair:
+          value: 0.05
+          invoke_always: True
+          invoke_at_initialization: False
+          # increase is compensated by support cells
+  init_env_state_funcs: ~
+  env_state_funcs: ~
 
-proliferation:
-  num_cell_divisions: 16
-  emit_interval: 4
+
 
 # epilog:
 #   set_noise_const: 0.1
@@ -52,20 +96,11 @@ PCPVertex:
   dt: 0.01
   
   # Linetension parameter
-  linetension:
-    progenitor_progenitor: 1.
-    progenitor_hair: 1.
-    progenitor_support: 1.
-    hair_hair: 1.
-    hair_support: 1.
-    support_support: 1.
+  linetension: *Linetension
 
   # Area elasticity parameter
   area_elasticity: 10.
-  area_preferential:
-    progenitor: 1.
-    hair: 1.
-    support: 1.
+  area_preferential: *Area_preferential
 
   # Contractility of perimeter
   contractility: 0.04
@@ -76,10 +111,10 @@ PCPVertex:
   cell_polarity_exclusion: 0.
   cell_initialisation_protein_level: 0.
 
-  T1_threshold: 0.02
+  T1_threshold: 0.1
   T1_probability: 0.05
   T1_barrier: 0.02
-  T2_threshold: 0.001
+  T2_threshold: 0.075
 
   # Topology parameter
   hexagon_size: 0.62
@@ -183,7 +218,7 @@ data_manager:
       args:
         start: 0
         stop: 10000
-        step: 50
+        step: 5
 
     write_at_last:
       type: once
@@ -214,25 +249,20 @@ data_manager:
   
   # these are the datasets written
   tasks:
-    Cell_neighbourhood: &neighbourhood
+    Cell_area: &Statistics
       active: true
       trigger: build_once
-      decider: write_slice
-      
-    Cell_size:
-      <<: *neighbourhood
+      decider: write_always
+    Statistics_time: *Statistics
+    Cell_neighbourhood: *Statistics    
+    Cell_area_histogram: *Statistics
 
-    Time_histogram:
-      <<: *neighbourhood
-
-    Vertex_position: &position_topology
+    Vertex_position: &Position_topology
         active: true
         trigger: build_slice
         decider: write_slice
 
-    Cell_position:
-      <<: *position_topology
+    Cell_position: *Position_topology
 
-    Edge_link:
-      <<: *position_topology
+    Edge_link: *Position_topology
 

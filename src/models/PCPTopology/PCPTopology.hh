@@ -17,11 +17,72 @@
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 #include "PCPTopology_write_tasks.hh"
 
+#include <utopia/models/Environment/Environment.hh>
+
 
 namespace Utopia {
 namespace Models {
 namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+/// Parameter of the Environment model
+struct EnvParam : Utopia::Models::Environment::BaseEnvParam
+{
+    /// The preferential area of hair cells
+    /** Since the volume is experimentally constant, this maps the detachment
+     *  of HCs from the base. Assuming uniform height of the HCs. The SCs 
+     *  automatically fill the volume.
+     */
+    double area_preferential_hair;
+    
+    /// The preferential area of support cells
+    /** Since the volume is experimentally constant, this maps the detachment
+     *  of HCs from the base. Assuming uniform height of the HCs. The SCs 
+     *  automatically fill the volume.
+     */
+    double area_preferential_support;
+
+    EnvParam(const Utopia::DataIO::Config& cfg)
+    :
+        area_preferential_hair(Utopia::get_as<double>("area_preferential_hair",
+                                                      cfg)),
+        area_preferential_support(Utopia::get_as<double>("area_preferential"
+                                                         "_support", cfg))
+    { }
+
+    ~EnvParam() = default;
+
+    /// Getter
+    double get_env(const std::string& key) const override {
+        if (key == "area_preferential_hair") {
+            return area_preferential_hair;
+        }
+        else if (key == "area_preferential_support") {
+            return area_preferential_support;
+        }
+        throw std::invalid_argument("No access method for key '" + key
+                                    + "' in EnvParam!");
+    }
+
+    /// Setter
+    void set_env(const std::string& key,
+                const double& value) override
+    {
+        if (key == "area_preferential_hair") {
+            area_preferential_hair = value;
+        }
+        else if (key == "area_preferential_support") {
+            area_preferential_support = value;
+        }
+        else {
+            throw std::invalid_argument("No setter method for key '" + key
+                                        + "' in EnvParam!");
+        }
+    }
+};
+
+using EnvCellState = Environment::DummyEnvCellState;
+using EnvModel = Environment::Environment<EnvParam, EnvCellState>;
 
 /// Type helper to define types used by the model
 using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG,
@@ -64,18 +125,27 @@ private:
     double _cell_divisions_per_step;
 
     std::pair<double, double> _tissue_stretch_speed;
+
+    /// A model where the parameters are changed over time
+    /** See PCPTopology::EnvParam for available parameter
+     */
+    EnvModel _envm;
+
+    /// The parameter of preferential area per cell type
+    /** This parameter is updated in PCPTopology::_envm
+     */
+    arma::Col<double>::fixed<CellType::num_cell_types> _area_preferential;
+
+    /// Whether to fix hair cell volume
+    /** \note Hair cell volume and hair cell apical area not necessarily 
+     *        behave the same way. Here volume is kept const.
+     */
+    bool _fix_hair_cell_volume;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
-
-
-    // .. Datasets ............................................................
-    // NOTE They should be named '_dset_<name>', where <name> is the
-    //      dataset's actual name as set in its constructor. Ideally, do not
-    //      hide them inside a struct ...
-    // std::shared_ptr<DataSet> _dset_my_var;
 
 
 public:
@@ -116,8 +186,13 @@ public:
                                                 this->_cfg)),
         _tissue_stretch_speed(get_as<std::pair<double, double>>(
                                     "tissue_stretch_speed", this->_cfg)),
+        _envm("Environment", *this),
+        _area_preferential(),
+        _fix_hair_cell_volume(get_as<bool>("fix_hair_cell_volume", this->_cfg)),
         _prob_distr(0.,1.)
     {
+        _envm.track_parameters({"area_preferential_hair",
+                                "area_preferential_support"});
         this->_log->info("Model set up.");
     }
 
@@ -251,22 +326,171 @@ private:
             divide_random_cell();
         }
     }
+    /// Perform stretch tissue
+    /** \param num_cell_divisions number of cell divisions to be performed
+     * 
+     */
+   void stretch_domain (std::pair<double, double> stretch_speed) {
+        if (std::get<0>(stretch_speed) == 0 and
+            std::get<1>(stretch_speed) == 0)
+        {
+            return;
+        }
+        double dA = _vertex_model.stretch_domain(
+                            std::get<0>(stretch_speed),
+                            std::get<1>(stretch_speed),
+                            true, _fix_hair_cell_volume);
+        if (_fix_hair_cell_volume) {
+            int num_cells = _vertex_model.get_cells().size();
+            for (auto c : _vertex_model.get_cells()) {
+                num_cells -= c.lock()->type == CellType::hair;
+            }
+            for (int i = 0; i < CellType::num_cell_types; i++) {
+                if (i == CellType::hair) { continue; }                    
+                _area_preferential(i) += dA / num_cells;
+            }
+        }
+        else {
+            int num_cells = _vertex_model.get_cells().size();
+            for (int i = 0; i < CellType::num_cell_types; i++) {                
+                _area_preferential(i) += dA / num_cells;
+            }                
+        }
+        _envm.set_parameter("area_preferential_hair",
+                            _area_preferential(CellType::hair));
+        _envm.set_parameter("area_preferential_support",
+                            _area_preferential(CellType::support));
+   }
+
+    void differentiate_cells_random() {
+        if (not this->_cfg["differentiation"]
+            or not get_as<bool>("active", this->_cfg["differentiation"],
+                                     true))
+        {
+            this->_log->debug("No differentiation requested. Continuing.");
+            return;
+        }
+        this->_log->info("Differentiating progenitor cells to hair- and "
+            "support-cells.");
+                
+        static_assert(CellType::num_cell_types == 3, "Initialisation of "
+            "interaction matrices `linetension` and `area_preferential` only "
+            "defined for 3 cell types.");
+        
+        this->_log->debug("Extracting area-preferential (expecting {} "
+                          "entries) ..", CellType::num_cell_types);
+        if (not this->_cfg["differentiation"]["area_preferential"]) {
+            throw std::invalid_argument("Expected cfg dict 'area_preferential' "
+                "not available in proliferation!");
+        }
+
+        _area_preferential(CellType::progenitor) = get_as<double>(
+            "progenitor", this->_cfg["differentiation"]["area_preferential"]);
+        _area_preferential(CellType::hair) = get_as<double>(
+            "hair", this->_cfg["differentiation"]["area_preferential"]);
+        _area_preferential(CellType::support) = get_as<double>(
+            "support", this->_cfg["differentiation"]["area_preferential"]);
+
+        this->_log->debug("Extracting linetension (expecting {}! entries, "
+                          "i.e. the upper diagonal matrix of a {}x{} matrix) ..",
+                          CellType::num_cell_types, CellType::num_cell_types,
+                          CellType::num_cell_types);
+        if (not this->_cfg["differentiation"]["linetension"]) {
+            throw std::invalid_argument("Expected cfg dict 'linetension' "
+                "not available in proliferation!");
+        }
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension;
+        linetension(CellType::progenitor, CellType::progenitor) = get_as<double>(
+            "progenitor_progenitor", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::progenitor, CellType::hair) = get_as<double>(
+            "progenitor_hair", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::progenitor, CellType::support) = get_as<double>(
+            "progenitor_support", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::hair, CellType::hair) = get_as<double>(
+            "hair_hair", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::hair, CellType::support) = get_as<double>(
+            "hair_support", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::support, CellType::support) = get_as<double>(
+            "support_support", this->_cfg["differentiation"]["linetension"]);
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                linetension(j, i) = linetension(i, j);
+            }
+        }
+
+        double hair_cell_fraction = get_as<double>("hair_cell_fraction",
+                                                this->_cfg["differentiation"]);
+        _vertex_model.differentiate_hair_cells(hair_cell_fraction, linetension,
+                                               _area_preferential);
+
+        auto cells = _vertex_model.get_cells();
+        int num_hc = 0;
+        for (auto c : cells) {
+            if (c.lock()->type == CellType::hair) {
+                num_hc++;
+            }
+        }
+        
+        this->_log->info("Model initialised with equilibrated vertex "
+            "model. There are {} hair cells or {}%", num_hc,
+            double(num_hc)/_vertex_model.get_cells().size());
+        return;
+    }
+
+    void update_area_preferential () {
+        double new_value = _envm.get_parameter("area_preferential_hair");
+        if (_area_preferential(CellType::hair) == new_value) {
+            return;
+        }
+        
+        // area increase per hair cell
+        double dA = new_value - _area_preferential(CellType::hair);
+        
+        auto cells = _vertex_model.get_cells();
+        int num_hcs = 0;
+        for (auto c : cells) {
+            num_hcs += (c.lock()->type == CellType::hair);
+        }
+
+        dA *= num_hcs; // the total increase of area by all hcs
+        if (num_hcs < cells.size()) {
+            // area change compensation per non-hair cell
+            dA /= cells.size() - num_hcs;
+        }
+        else { dA = 0.; }
+
+        // update the parameter
+        _area_preferential(CellType::hair) = new_value;
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            if (i == CellType::hair) { continue; }
+            _area_preferential(i) -= dA;
+        }
+
+        for (auto c_weak : cells) {
+            auto c = c_weak.lock();
+            c->area_preferential = _area_preferential(c->type);
+        }
+
+        _envm.set_parameter("area_preferential_support",
+                            _area_preferential(CellType::support));
+        return;
+    }
 
 public:
     // -- Public Interface ----------------------------------------------------
     // .. Simulation Control ..................................................
     /// Iterate a single step
     void perform_step () {
-        this->perform_cell_divisions(_cell_divisions_per_step);
+        _envm.iterate();
+        update_area_preferential();
 
-        if (std::get<0>(_tissue_stretch_speed) != 0 or 
-            std::get<1>(_tissue_stretch_speed) != 0)
-        {
-            _vertex_model.stretch_domain(std::get<0>(_tissue_stretch_speed),
-                                         std::get<1>(_tissue_stretch_speed),
-                                         true);
-            this->equilibrate_vertex_model();
-        }
+        this->stretch_domain(_tissue_stretch_speed);
+
+        this->equilibrate_vertex_model();
+
+        // NOTE this includes separate equilibration
+        this->perform_cell_divisions(_cell_divisions_per_step);
     }
 
     /// Monitor model information
@@ -283,7 +507,9 @@ public:
     void prolog () {
         _vertex_model.prolog();
 
-        if (this->_cfg["proliferation"]) {
+        if (this->_cfg["proliferation"]
+            and get_as<bool>("active", this->_cfg["proliferation"], true))
+        {
             auto num_divisions = get_as<int>("num_cell_divisions",
                                              this->_cfg["proliferation"]);
             int emit_interval = get_as<int>("emit_interval",
@@ -309,38 +535,13 @@ public:
                              "There are {} cells on equilibrated tissue.",
                              _vertex_model.get_cells().size());
         }
+        
+        differentiate_cells_random();
+        
+        _envm.prolog();
+        update_area_preferential();
 
-        if (get_as<bool>("differentiate_progenitor_cells", this->_cfg)) {
-            double hair_cell_fraction = get_as<double>("hair_cell_fraction",
-                                                       this->_cfg);
-            
-            this->_log->info("Differentiating progenitor cells to hair- and "
-                "support-cells. Aimed fraction of hair cells is {}", 
-                hair_cell_fraction);
-
-            _vertex_model.differentiate_hair_cells(hair_cell_fraction);
-            
-            this->equilibrate_vertex_model();
-
-            auto cells = _vertex_model.get_cells();
-            int num_hc = 0;
-            for (auto c : cells) {
-                if (c.lock()->type == CellType::hair) {
-                    num_hc++;
-                }
-            }
-            
-            this->_log->info("Model initialised with equilibrated vertex "
-                "model. There are {} hair cells.", num_hc);
-        }
-        else if (not this->_cfg["proliferation"]) {
-            this->equilibrate_vertex_model();
-            this->_log->info("Model initialised with equilibrated vertex "
-                "model.");
-        }
-
-        auto [Lx, Ly] = _vertex_model.get_domain_size();
-        this->_log->info("Domain size is {} x {}.", Lx, Ly);
+        this->equilibrate_vertex_model();
 
         return this->__prolog();
     }
@@ -352,6 +553,7 @@ public:
      */
     void epilog () {
         _vertex_model.epilog();
+        _envm.epilog();
         
         auto [Lx, Ly] = _vertex_model.get_domain_size();
         this->_log->info("Domain size is {} x {}.", Lx, Ly);
@@ -406,34 +608,6 @@ public:
         }
 
         return histogram;
-    }
-    
-    /// Average cell size for cells with specific number of neighbours
-    /** bins are range(0, num_bins), the number of neighbouring cells, where
-     *  - first bin for global average 
-     *  - last bin for 9 or more neighbours
-     */
-    std::array<double, 10> get_cell_size_average () {
-        auto cells = _vertex_model.get_cells();
-        std::array<int, 10> histogram = {0};
-        std::array<double, 10> area = {0};
-        histogram[0] = cells.size();
-        for (auto c_weak : cells) {
-            auto c = c_weak.lock();
-            int neighbours = c->edges_ordered.size();
-            neighbours = std::min(neighbours, 9);
-            histogram[neighbours]++;
-
-            area[neighbours] += c->template area<periodic_bc>();
-        }
-        for (int i = 1; i < 10; i++) {
-            if (histogram[i] == 0) { continue; }
-            area[0] += area[i];
-            area[i] /= double(histogram[i]);
-        }
-        area[0] /= double(histogram[0]);
-
-        return area;
     }
 
     /// Getter for vertices
