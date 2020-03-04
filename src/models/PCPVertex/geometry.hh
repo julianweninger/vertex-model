@@ -202,6 +202,9 @@ struct Edge : public std::enable_shared_from_this<Edge> {
     /// The linetension parameter property to this edge
     double linetension;
 
+    /// The contractility parameter
+    double contractility;
+
     /// The first adjoint cell
     std::weak_ptr<Cell> adj_cell_a;
 
@@ -279,15 +282,17 @@ struct Edge : public std::enable_shared_from_this<Edge> {
     /** \param a    Start Vertex
      *  \param b    End Vertex
      *  \param linetension  The linetension property
+     *  \param contractility    The contractility parameter
      *  \param adj_cs   The adjacent cells to this edge
      */
-    Edge(Vertex_ptr a, Vertex_ptr b, double linetension,
+    Edge(Vertex_ptr a, Vertex_ptr b, double linetension, double contractility,
          Cell_ptr adj_cell_a = nullptr, Cell_ptr adj_cell_b = nullptr,
          double sigma_a = 0., double sigma_b = 0.)
     :
         a(a),
         b(b),
         linetension(linetension),
+        contractility(contractility),
         adj_cell_a(adj_cell_a), adj_cell_b(adj_cell_b),
         sigma_a(sigma_a), sigma_b(sigma_b),
         d_sigma_a(0.), d_sigma_b(0.),

@@ -43,13 +43,13 @@ differentiation:
     hair: *Area_preferential
     support: *Area_preferential
 
-  # contractility:
-  #   progenitor_progenitor: &Contractility 0.04
-  #   progenitor_hair: *Contractility
-  #   progenitor_support: *Contractility
-  #   hair_hair: *Contractility
-  #   hair_support:  *Contractility
-  #   support_support: *Contractility
+  contractility:
+    progenitor_progenitor: &Contractility 0.02
+    progenitor_hair: *Contractility
+    progenitor_support: *Contractility
+    hair_hair: *Contractility
+    hair_support:  *Contractility
+    support_support: 0.1
 
 # --- Dynamics
 # Equilibration parameter
@@ -68,8 +68,8 @@ Environment:
       structure: square
       resolution: 1
   
-  area_preferential_hair: 1.
-  area_preferential_support: 1.
+  area_preferential_hair: *Area_preferential
+  area_preferential_support: *Area_preferential
   
   env_param_funcs:
     - increment:
@@ -103,7 +103,9 @@ PCPVertex:
   area_preferential: *Area_preferential
 
   # Contractility of perimeter
-  contractility: 0.04
+  contractility: 0.02
+  edge_contractility: *Contractility
+
 
   # Polarity interaction
   gamma: 0.
@@ -111,10 +113,10 @@ PCPVertex:
   cell_polarity_exclusion: 0.
   cell_initialisation_protein_level: 0.
 
-  T1_threshold: 0.1
-  T1_probability: 0.05
-  T1_barrier: 0.02
-  T2_threshold: 0.075
+  T1_threshold: 0.01
+  T1_probability: 0.01
+  T1_barrier: 0.01
+  T2_threshold: 0.0075
 
   # Topology parameter
   hexagon_size: 0.62
@@ -125,7 +127,7 @@ PCPVertex:
   noise_constant: 0.0
   noise_linear: 0.0
 
-  energy_change_history_length: 10
+  energy_change_history_length: 25
 
   data_manager: &data_manager
     # this builds the deciders
@@ -137,8 +139,8 @@ PCPVertex:
         type: slice
         args:
           start: 0
-          stop: 1000000
-          step: 10000
+          stop: 10000
+          step: 1000
 
       write_at_last:
         type: once
@@ -197,7 +199,7 @@ PCPVertex:
         active: false
 
       Vertex_position: &position
-        active: false
+        active: true
         trigger: build_slice
         decider: write_slice
 

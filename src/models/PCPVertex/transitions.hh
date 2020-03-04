@@ -9,7 +9,8 @@ template <bool periodic_bc, bool polarity_proteins>
 EdgeContainer::iterator PCPVertex<periodic_bc,
     polarity_proteins>::T1_transition (EdgeContainer::iterator edge_it)
 {
-    this->_log->debug("Removing edge in T1 transition..");
+    this->_log->debug("Removing edge in T1 transition in step {}..",
+                      this->_time);
     if constexpr (not periodic_bc) {
         if ((*edge_it)->adj_cell_a.expired() or (*edge_it)->adj_cell_b.expired()) {
             throw std::runtime_error("In T1 transition: Removing edge "
@@ -157,9 +158,11 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
 
     // create a new edge
     double linetension = _linetension(adj_cell_c->type, adj_cell_d->type);
+    double contractility = _edge_contractility(adj_cell_c->type,
+                                               adj_cell_d->type);
     Edge_ptr new_edge = std::make_shared<Edge>(new_v_a, new_v_b,
-                                               linetension, adj_cell_c,
-                                               adj_cell_d);
+                                               linetension, contractility,
+                                               adj_cell_c, adj_cell_d);
     new_edge->link_members();
 
     // remove objects
@@ -402,8 +405,8 @@ CellContainer::iterator PCPVertex<periodic_bc,
     double dx = cos(division_angle) / _Lx;
     double dy = sin(division_angle) / _Ly;
     auto tmp_vertex = std::make_shared<Vertex>(cell_center->x + dx, 
-                                                cell_center->y + dy);
-    auto division_axis = Edge(cell_center, tmp_vertex, 0.);
+                                               cell_center->y + dy);
+    auto division_axis = Edge(cell_center, tmp_vertex, 0., 0.);
 
     // determine the new vertices from this axis
     // These are the intersections of the division axis with edges of cell
@@ -472,8 +475,10 @@ CellContainer::iterator PCPVertex<periodic_bc,
     // create a new edge connecting the 2 new vertices
     // NOTE it has properties as at model initialisation
     double linetension = _linetension(cell->type, cell->type);
+    double contractility = _edge_contractility(cell->type, cell->type);
     auto new_edge = std::make_shared<Edge>(new_vertices[0], 
-                                           new_vertices[1], linetension);
+                                           new_vertices[1], linetension,
+                                           contractility);
     new_edge->link_members();
     _edges.push_back(new_edge);
 
@@ -510,12 +515,14 @@ CellContainer::iterator PCPVertex<periodic_bc,
 
         // The first half of the edge from a to pivot
         auto new_edge_0 = std::make_shared<Edge>(a, pivot, e->linetension,
+                                    e->contractility,
                                     e->adj_cell_a.lock(),
                                     e->adj_cell_b.lock());
         new_edge_0->link_members();
 
         // the second half of the edge from pivot to b
         auto new_edge_1 = std::make_shared<Edge>(b, pivot, e->linetension,
+                                    e->contractility,
                                     e->adj_cell_a.lock(),
                                     e->adj_cell_b.lock());
         new_edge_1->link_members();

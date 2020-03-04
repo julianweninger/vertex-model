@@ -34,7 +34,8 @@ area_elasticity: 10.
 area_preferential: 1.
 
 # Contractility of perimeter
-contractility: 0.04
+contractility: 0.02
+edge_contractility: 0.02
 
 # Polarity interaction
 gamma: 0.
@@ -107,14 +108,10 @@ data_manager:
       active: true
       trigger: build_once
       decider: write_always
-    Energy_linetension: 
-      <<: *energy
-    Energy_areaelasticity: 
-      <<: *energy
-    Energy_contractility: 
-      <<: *energy
-    Energy_time:
-      <<: *energy
+    Energy_linetension: *energy
+    Energy_areaelasticity: *energy
+    Energy_contractility: *energy
+    Energy_time: *energy
 
     # The polarity energies
     Energy_cell_cell_polarity: 
@@ -134,12 +131,8 @@ data_manager:
       active: true
       trigger: build_slice
       decider: write_slice
-
-    Cell_position:
-      <<: *position
-
-    Edge_link:
-      <<: *position
+    Cell_position: *position
+    Edge_link: *position
 
     
     

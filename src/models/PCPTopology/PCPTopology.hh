@@ -418,10 +418,30 @@ private:
                 linetension(j, i) = linetension(i, j);
             }
         }
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> contractility;
+        contractility(CellType::progenitor, CellType::progenitor) = get_as<double>(
+            "progenitor_progenitor", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::progenitor, CellType::hair) = get_as<double>(
+            "progenitor_hair", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::progenitor, CellType::support) = get_as<double>(
+            "progenitor_support", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::hair, CellType::hair) = get_as<double>(
+            "hair_hair", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::hair, CellType::support) = get_as<double>(
+            "hair_support", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::support, CellType::support) = get_as<double>(
+            "support_support", this->_cfg["differentiation"]["contractility"]);
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                contractility(j, i) = contractility(i, j);
+            }
+        }
 
         double hair_cell_fraction = get_as<double>("hair_cell_fraction",
                                                 this->_cfg["differentiation"]);
         _vertex_model.differentiate_hair_cells(hair_cell_fraction, linetension,
+                                               contractility,
                                                _area_preferential);
 
         auto cells = _vertex_model.get_cells();
@@ -443,7 +463,7 @@ private:
         if (_area_preferential(CellType::hair) == new_value) {
             return;
         }
-        
+
         // area increase per hair cell
         double dA = new_value - _area_preferential(CellType::hair);
         

@@ -96,6 +96,15 @@ private:
     arma::Mat<double>::fixed<CellType::num_cell_types,
                              CellType::num_cell_types> _linetension;
 
+    /// Linetension constant Lambda
+    /**  The entries are linetensions at interfaces between two cells of types i 
+     *  and j
+     * 
+     *  \note This is a symmetric matrix
+     */
+    arma::Mat<double>::fixed<CellType::num_cell_types,
+                             CellType::num_cell_types> _edge_contractility;
+
     /// Edges shorter than this value are replaced in a T1 transition
     /** using absolute length
      */
@@ -180,6 +189,7 @@ public:
         _gamma(get_as<double>("gamma", this->_cfg)),
         _Lx(100.), _Ly(100.),
         _linetension(),
+        _edge_contractility(),
         _T1_threshold(get_as<double>("T1_threshold", this->_cfg)),
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
@@ -199,6 +209,8 @@ public:
         _energy_change_history(_energy_change_history_length, 0.)
     {
         _linetension.fill(get_as<double>("linetension", this->_cfg));
+        _edge_contractility.fill(get_as<double>("edge_contractility",
+                                                this->_cfg));
 
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
@@ -243,6 +255,9 @@ private:
         e->d_sigma_b = 0.;
     };
 
+    /// The energy associated with linetension per edge
+    /** \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
+     */
     double line_tension_energy (Edge_ptr &e) const {
         const double length = e->template length<periodic_bc>(_Lx, _Ly);
         return e->linetension * length;
@@ -271,6 +286,37 @@ private:
         e->b->fy -= fy;
     };
 
+    double edge_contractility_energy (Edge_ptr &e) const {
+        const double length = e->template length<periodic_bc>(_Lx, _Ly);
+        return 0.5 * e->contractility * pow(length, 2);
+    };
+
+    /** Calculates the forces from edge contractility
+     * 
+     *  Contractive force of the edge where energy is proportional to the edge's
+     *  length.
+     * 
+     *  @param  e   Pointer to the edge for which to calculate the forces
+     *              NOTE that forces only act on vertices
+     * 
+     *  \return energy associated with this edge
+     */
+    std::function<void(Edge_ptr&)> set_edge_contractility = [this](Edge_ptr &e) {
+        auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
+                                                           _Lx, _Ly);
+        const double length = e->template length<periodic_bc>(_Lx, _Ly);
+        const double fx = e->contractility*dx;
+        const double fy = e->contractility*dy;
+
+        e->a->fx += fx;
+        e->a->fy += fy;
+        e->b->fx -= fx;
+        e->b->fy -= fy;
+    };
+
+    /// The energy associated with area elasticity
+    /** \f$ E = K/2 * (A - A0)**2 \f$
+     */
     double area_elasticity_energy (Cell_ptr &c) const {
         double area_abs = c->template area_abs<periodic_bc>(_Lx, _Ly);
         return 0.5 * _area_elasticity * pow(area_abs - c->area_preferential, 2);
@@ -329,7 +375,8 @@ private:
         }
     };
 
-    double contractility_energy (Cell_ptr &c) const {
+    /// The energy associated with cell contractility
+    double cell_contractility_energy (Cell_ptr &c) const {
         double perimeter = 0.;
         for (auto [e, flip] : c->edges_ordered) {
             perimeter += e->template length<periodic_bc>(_Lx, _Ly);;
@@ -341,7 +388,8 @@ private:
     /** Associated energy per cell is 
      *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
      */
-    std::function<void(Cell_ptr&)> set_contractility = [this](Cell_ptr &c) {
+    std::function<void(Cell_ptr&)> set_cell_contractility = [this](Cell_ptr &c)
+    {
         double perimeter = 0.;
 
         for (auto [e, flip] : c->edges_ordered) {
@@ -626,9 +674,11 @@ public:
      *  \param area_preferential    The preferential cell area of the different
      *                              cell types
      */
-    void differentiate_hair_cells(double fraction, 
+    void differentiate_hair_cells(double fraction,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
         arma::Col<double>::fixed<CellType::num_cell_types> area_preferential)
     {
         this->_log->debug("Differentiating progenitor cells to {}% hair cells "
@@ -643,6 +693,18 @@ public:
                 this->_log->warn("Invalid argument in differentiate_hair_cells."
                     "Got non symmetric 'linetension' matrix!");
                 throw std::invalid_argument("Non symmetric 'linetension'"
+                    "matrix");
+            }
+        }
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                if (edge_contractility(j, i) == edge_contractility(i, j)) {
+                    continue;
+                }
+                
+                this->_log->warn("Invalid argument in differentiate_hair_cells."
+                    "Got non symmetric 'edge_contractility' matrix!");
+                throw std::invalid_argument("Non symmetric 'edge_contractility'"
                     "matrix");
             }
         }
@@ -667,11 +729,12 @@ public:
                 cell_b_type = Cell::CellType::support; }
             else { cell_b_type = e->adj_cell_b.lock()->type; }
 
-            e->linetension = linetension(cell_a_type,
-                                         cell_b_type);
+            e->linetension = linetension(cell_a_type, cell_b_type);
+            e->contractility = edge_contractility(cell_a_type, cell_b_type);
         }
 
         _linetension = linetension;
+        _edge_contractility = edge_contractility;
     }
 
     /// Perform a cell division on specific cell
@@ -818,8 +881,9 @@ public:
         }
 
         std::for_each(_edges.begin(), _edges.end(), set_linetension);
+        std::for_each(_edges.begin(), _edges.end(), set_edge_contractility);
         std::for_each(_cells.begin(), _cells.end(), set_area_elasticity);
-        std::for_each(_cells.begin(), _cells.end(), set_contractility);
+        std::for_each(_cells.begin(), _cells.end(), set_cell_contractility);
         
         std::for_each(_vertices.begin(), _vertices.end(), update_position);
 
@@ -858,6 +922,16 @@ public:
     double get_energy_linetension_normalised () const {
         return get_energy_linetension() / double(_edges.size());
     }
+    
+    /// Getter for energy associated with contractility of junctions
+    double get_energy_edge_contractility(EdgeContainer es = {}) const {
+        if (es.empty()) { es = this->_edges; }
+        double energy = 0.;
+        for (auto &&e : es) {
+            energy += edge_contractility_energy(e);
+        }
+        return energy;
+    }
 
     /// Getter for energy associated with area elasticity
     double get_energy_areaelasticity (CellContainer cs = {}) const {
@@ -876,21 +950,30 @@ public:
         return get_energy_areaelasticity() / double(_cells.size());
     }
 
-    /// Getter for energy associated with contractility
-    double get_energy_contractility (CellContainer cs = {}) const {
+    /// Getter for energy associated with contractility of cells
+    double get_energy_cell_contractility (CellContainer cs = {}) const {
         if (cs.empty()) { cs = this->_cells; }
         double energy = 0.;
         for (auto &&c : cs) {
-            energy += contractility_energy(c);
+            energy += cell_contractility_energy(c);
         }
         return energy;
     }
 
-    /// Getter for normalised energy associated with contractility
+    /// Getter for normalised energy associated with contractility of cells
+    /** The energy is normalised to the number of cells
+     */
+    double get_energy_contractility () const {
+        return get_energy_cell_contractility() + 
+            get_energy_edge_contractility();
+    }
+
+    /// Getter for normalised energy associated with contractility of cells
     /** The energy is normalised to the number of cells
      */
     double get_energy_contractility_normalised () const {
-        return get_energy_contractility() / double(_cells.size());
+        return get_energy_cell_contractility() / _cells.size() + 
+            get_energy_edge_contractility() / _edges.size();
     }
 
 
@@ -983,11 +1066,12 @@ public:
 
     /// Getter for energy
     double get_energy (EdgeContainer es = {}, CellContainer cs = {}) const {
-        if (es.empty()) {es = this->_edges;}
-        if (cs.empty()) {cs = this->_cells;}
+        if (es.empty()) { es = this->_edges; }
+        if (cs.empty()) { cs = this->_cells; }
         return get_energy_linetension(es) +
+            get_energy_edge_contractility(es) +
             get_energy_areaelasticity(cs) +
-            get_energy_contractility(cs) +
+            get_energy_cell_contractility(cs) +
             get_energy_cell_cell_polarity(es) +
             get_energy_polarity_exclusion(cs) +
             get_energy_lagrange_net_polarisation(cs) +
@@ -999,9 +1083,9 @@ public:
      *  respectively.
      */
     double get_energy_normalised () const {
-        return get_energy_linetension_normalised() + 
+        return get_energy_linetension_normalised() +
             get_energy_areaelasticity_normalised() +
-            get_energy_contractility_normalised() + 
+            get_energy_contractility_normalised() +
             get_energy_cell_cell_polarity_normalised() +
             get_energy_polarity_exclusion_normalised() +
             get_energy_lagrange_net_polarisation_normalised() +
