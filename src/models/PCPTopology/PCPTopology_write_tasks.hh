@@ -20,12 +20,25 @@ auto cell_neighbourhood_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_cell_neighbourhood_histogram());
+        auto cells = model.get_cells();
+
+        std::array<int, 7> histogram = {0};
+        for (auto c : cells) {
+            int neighbours = c.lock()->edges_ordered.size();
+            neighbours = std::min(neighbours, 9);
+            if (neighbours < 3) {
+                throw std::runtime_error("Encountered cell with less than 3 "
+                    "neighbours during writing of cell_neighbourhood_adaptor!");
+            }
+            histogram[neighbours - 3]++;
+        }
+
+        dataset->write(histogram);
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset("Cell_neighbourhood", {H5S_UNLIMITED, 9});
+        return group->open_dataset("Cell_neighbourhood", {H5S_UNLIMITED, 7});
     },
 
     // attribute writer for basegroup
@@ -37,9 +50,11 @@ auto cell_neighbourhood_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
 
-        hdfdataset->add_attribute("dim_name__1", "bin");
-        hdfdataset->add_attribute("coords_mode__bin", "start_and_step");
-        hdfdataset->add_attribute("coords__bin", std::vector<std::size_t>{1, 1});
+        hdfdataset->add_attribute("dim_name__1", "num_neighbors");
+        hdfdataset->add_attribute("coords_mode__num_neighbors",
+                                  "start_and_step");
+        hdfdataset->add_attribute("coords__num_neighbors",
+                                  std::vector<std::size_t>{3, 1});
     }
     
 ); // end cell neighbourhood adaptor
@@ -59,19 +74,19 @@ auto cell_area_histogram_adaptor = std::make_tuple(
     // writer function
     [](auto& dataset, auto& model) {
         auto cells = model.get_cells();
-        std::array<int, 10> histogram = {0};
-        std::array<double, 10> area = {0};
+        std::array<int, 8> histogram = {0};
+        std::array<double, 8> area = {0};
         histogram[0] = cells.size();
         for (auto c_weak : cells) {
             auto c = c_weak.lock();
             int neighbours = c->edges_ordered.size();
             neighbours = std::min(neighbours, 9);
-            histogram[neighbours]++;
+            histogram[neighbours-2]++;
 
             auto [Lx, Ly] = model.get_domain_size();
-            area[neighbours] += c->template area_abs<periodic_bc>(Lx, Ly);
+            area[neighbours-2] += c->template area_abs<periodic_bc>(Lx, Ly);
         }
-        for (int i = 1; i < 10; i++) {
+        for (int i = 1; i < 8; i++) {
             if (histogram[i] == 0) { continue; }
             area[0] += area[i];
             area[i] /= double(histogram[i]);
@@ -82,7 +97,7 @@ auto cell_area_histogram_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset("Cell_area_histogram", {H5S_UNLIMITED, 10});
+        return group->open_dataset("Cell_area_histogram", {H5S_UNLIMITED, 8});
     },
 
     // attribute writer for basegroup
@@ -98,7 +113,7 @@ auto cell_area_histogram_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords_mode__num_neighbors",
                                   "start_and_step");
         hdfdataset->add_attribute("coords__num_neighbors",
-                                  std::vector<std::size_t>{0, 1});
+                                  std::vector<std::size_t>{2, 1});
     }
     
 ); // end cell neighbourhood adaptor

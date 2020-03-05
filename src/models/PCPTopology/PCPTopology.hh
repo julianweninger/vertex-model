@@ -685,22 +685,6 @@ public:
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-    /// Histogram with number of cells with a specific number of neighbours
-    /** bins are range(1, 10), the number of neighbouring cells, where
-     *  - last bin for 9 or more neighbours
-     */
-    std::array<int, 9> get_cell_neighbourhood_histogram () {
-        auto cells = _vertex_model.get_cells();
-        std::array<int, 9> histogram = {0};
-        for (auto c : cells) {
-            int neighbours = c.lock()->edges_ordered.size();
-            neighbours = std::min(neighbours, 9);
-            histogram[neighbours - 1]++;
-        }
-
-        return histogram;
-    }
-
     /// Getter for vertices
     std::vector<std::weak_ptr<Vertex>> get_vertices () {
         return _vertex_model.get_vertices();

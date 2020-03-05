@@ -115,7 +115,7 @@ cell_neighbourhood:
   module: model_plots.PCPTopology
   plot_func: cell_neighbourhood
   file_ext: png
-  datapath: PCPTopology
+  datapath: PCPTopology/Statistics
 
   enabled: false
 

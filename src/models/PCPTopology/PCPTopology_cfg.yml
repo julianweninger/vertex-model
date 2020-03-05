@@ -54,13 +54,13 @@ differentiation:
 # --- Dynamics
 # Equilibration parameter
 equilibration:
-  tolerance: 1.e-8
+  tolerance: 1.e-6
   num_steps: 100
   num_iterations: 100
   # NOTE after num_steps tolerance is checked, repeated for num_iterations
-  num_jiggle: 3
-  jiggle_intensity: 0.01
-  jiggle_tolerance: 1.e-6
+  num_jiggle: 25
+  jiggle_intensity: 0.025
+  jiggle_tolerance: 1.e-5
 
 cell_divisions_per_step: 0
 tissue_stretch_speed: [0.01, 0.0]

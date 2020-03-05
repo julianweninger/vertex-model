@@ -42,8 +42,8 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.setup_figure(ncols=2)
 
     histogram_data = grp['Cell_neighbourhood']
-    area_data = grp['Cell_size']
-    area_data = area_data / area_data.sel(bin=0)
+    area_data = grp['Cell_area_histogram']
+    area_data = area_data / area_data.sel(num_neighbors=2)
 
     def update():
         for time in histogram_data.time:
@@ -52,7 +52,7 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             hlpr.ax.clear()
 
             histogram = histogram_data.sel(time=time)
-            hlpr.ax.bar(x=histogram.bin, height=histogram)
+            hlpr.ax.bar(x=histogram.num_neighbors, height=histogram)
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time.data))
             hlpr.invoke_helper('set_labels', x='number of neighbours',
@@ -63,7 +63,7 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             hlpr.ax.clear()
 
             area = area_data.sel(time=time)
-            hlpr.ax.plot(area.bin[1:], area[1:], '-s')
+            hlpr.ax.plot(area.num_neighbors[1:], area[1:], '-s')
             hlpr.invoke_helper('set_labels', x='number of neighbours',
                                y='<$A_n$>/<A>')
             yield
