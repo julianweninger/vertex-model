@@ -667,6 +667,22 @@ private:
 public:
     // -- Public Interface ----------------------------------------------------
     
+    /// Apply a perturbation to the position of vertices
+    /** Move the x and y position by a random value in [-intensity, intensity]
+     *  using a uniform distribution.
+     * 
+     * TODO write test
+     */
+    void jiggle_vertices(double intensity) {
+        this->_log->debug("Jiggling the vertices on a length scale of "
+                          "{} ..", intensity);
+        for (auto v : _vertices) {
+            v->x += 2*intensity * _prob_distr(*this->_rng) - intensity;
+            v->y += 2*intensity * _prob_distr(*this->_rng) - intensity;
+            correct_periodic_bc<periodic_bc>(v);
+        }
+    }
+
     /// Differentiates progenitor cells with random hair cell distribution
     /** \param fraction     fraction of hair cells. Others are support cells
      *  \param linetension  The symmetric matrix of linetension interactions

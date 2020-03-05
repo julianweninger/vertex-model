@@ -49,13 +49,18 @@ differentiation:
     progenitor_support: *Contractility
     hair_hair: *Contractility
     hair_support:  *Contractility
-    support_support: 0.1
+    support_support: 0.02
 
 # --- Dynamics
 # Equilibration parameter
-equilibration_tolerance: 1e-6
-num_equilibration_steps: 100
-max_equilibration_iterations: 100
+equilibration:
+  tolerance: 1.e-8
+  num_steps: 100
+  num_iterations: 100
+  # NOTE after num_steps tolerance is checked, repeated for num_iterations
+  num_jiggle: 3
+  jiggle_intensity: 0.01
+  jiggle_tolerance: 1.e-6
 
 cell_divisions_per_step: 0
 tissue_stretch_speed: [0.01, 0.0]
