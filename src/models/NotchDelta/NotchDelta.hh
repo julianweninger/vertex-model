@@ -124,7 +124,11 @@ public:
 
     /// Type of the CellManager to use
     using CellManager = Utopia::CellManager<CellTraits, NotchDelta>;
-    // NOTE that it requires the model's type as second template argument
+
+    using Cell = CellManager::Cell;
+
+    using NBFuncCell = std::function<CellContainer<Cell>(
+                                            const std::shared_ptr<Cell>&)>;
 
     /// Extract the type of the rule function from the CellManager
     /** This is a function that receives a reference to a cell and returns the 
@@ -179,6 +183,7 @@ private:
      */
     double _rate_swap;
 
+    NBFuncCell _neighbors_of;
 
     /// A re-usable uniform real distribution to evaluate probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -217,6 +222,10 @@ public:
         _progenitors_depleted(false),
         _end_simulation(false)
     {
+        _neighbors_of = [this](const std::shared_ptr<Cell>& cell) {
+            return this->get_cm()->neighbors_of(cell);
+        };
+
         if (not this->_cfg["rate_ph"]) {
             throw std::invalid_argument("Missing cfg entry: Expected dict with "
                 "key 'rate_ph'.");
@@ -297,7 +306,7 @@ private:
 
         // number of neighboring hair cells
         int ns_hair = 0;
-        for (const auto& n : this->_cm.neighbors_of(cell)) {
+        for (const auto& n : this->_neighbors_of(cell)) {
             if (n->state.cell_type == CellType::hair) { ns_hair++; }
         }
 
@@ -324,7 +333,7 @@ private:
             return state;
         }
 
-        for (auto&& n :  this->_cm.neighbors_of(cell)) {
+        for (auto&& n : this->_neighbors_of(cell)) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
                 return state;
@@ -351,7 +360,7 @@ private:
             return state;
         }
 
-        auto neighbors = this->_cm.neighbors_of(cell);
+        auto neighbors = this->_neighbors_of(cell);
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                             [](auto n) { 
                                 return n->state.cell_type == CellType::hair;
@@ -371,6 +380,7 @@ private:
 
 public:
     // -- Public Interface ----------------------------------------------------
+
     // .. Simulation Control ..................................................
 
     /// Iterate a single step
@@ -450,6 +460,10 @@ public:
 
     bool simulation_ended () const {
         return _end_simulation;
+    }
+
+    void set_neighbors_of (NBFuncCell neighbors_of) {
+        _neighbors_of = neighbors_of;
     }
 };
 
