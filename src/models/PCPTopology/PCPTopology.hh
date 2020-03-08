@@ -438,7 +438,15 @@ private:
             or not get_as<bool>("active", this->_cfg["differentiation"],
                                      true))
         {
+
             this->_log->debug("No differentiation requested. Continuing.");
+
+            double area_preferential = get_as<double>("area_preferential",
+                        this->_cfg["PCPVertex"]);            
+            for (int i = 0; i < CellType::num_cell_types; i++) {
+                _area_preferential(i) = area_preferential;
+            }
+
             return;
         }
         this->_log->info("Differentiating progenitor cells to hair- and "
@@ -536,6 +544,7 @@ private:
         }
 
         // area increase per hair cell
+        _area_preferential(CellType::hair) = new_value;
         double dA = new_value - _area_preferential(CellType::hair);
         
         auto cells = _vertex_model.get_cells();
@@ -552,7 +561,6 @@ private:
         else { dA = 0.; }
 
         // update the parameter
-        _area_preferential(CellType::hair) = new_value;
         for (int i = 0; i < CellType::num_cell_types; i++) {
             if (i == CellType::hair) { continue; }
             _area_preferential(i) -= dA;
@@ -562,6 +570,10 @@ private:
             auto c = c_weak.lock();
             c->area_preferential = _area_preferential(c->type);
         }
+        
+        this->_log->debug("Updated area preferential from Environment model "
+            "to ({}, {}, {}.", _area_preferential(0), _area_preferential(1),
+            _area_preferential(2));
 
         _envm.set_parameter("area_preferential_support",
                             _area_preferential(CellType::support));

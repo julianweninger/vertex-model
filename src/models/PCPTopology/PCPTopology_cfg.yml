@@ -24,7 +24,7 @@
 proliferation:
   active: True
   num_cell_divisions: 4
-  emit_interval: 4
+  emit_interval: 1
 
 differentiation:
   active: True
@@ -58,8 +58,8 @@ equilibration:
   num_steps: 100
   num_iterations: 100
   # NOTE after num_steps tolerance is checked, repeated for num_iterations
-  num_jiggle: 25
-  jiggle_intensity: 0.025
+  num_jiggle: 5
+  jiggle_intensity: 0.005
   jiggle_tolerance: 1.e-5
 
 cell_divisions_per_step: 0
