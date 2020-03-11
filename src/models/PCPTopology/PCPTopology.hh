@@ -165,7 +165,7 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
-
+    bool _equilibrated;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -208,7 +208,8 @@ public:
         _envm("Environment", *this),
         _area_preferential(),
         _fix_hair_cell_volume(get_as<bool>("fix_hair_cell_volume", this->_cfg)),
-        _prob_distr(0.,1.)
+        _prob_distr(0.,1.),
+        _equilibrated(false)
     {
         if (not this->_cfg["equilibration"]) {
             throw std::invalid_argument("No cfg entry 'equilibration' "
@@ -262,23 +263,36 @@ private:
      *          this is repeated for a maximum of _max_equilibration_iterations
      */
     void equilibrate_vertex_model() {
+        if (_equilibrated) {
+            return;
+        }
+
         double tolerance = _jiggle_equilibration_tolerance;
         int max_steps = _num_equilibration_steps*_max_equilibration_iterations;
-        
+        int time_0 = _vertex_model.get_time();
         for (int it_jiggle = 0; it_jiggle <= _num_jiggle_per_equilibration;
              it_jiggle++)
         {
-            int time_start = _vertex_model.get_time();
             if (it_jiggle == _num_jiggle_per_equilibration) {
                 tolerance = _equilibration_tolerance;
             }
-            bool equilibrated = false;
-
-            this->_log->debug("Iterating vertex model for equilibration for a "
-                "maximum of {} steps from time {}, checking for equilibrium "
-                "every {} steps", max_steps, _vertex_model.get_time(),
-                _num_equilibration_steps);        
-            while (not equilibrated) {
+            
+            auto [Lx, Ly] = _vertex_model.get_domain_size();
+            auto num_cells = _vertex_model.get_cells().size();
+            double intensity = _jiggle_intensity * sqrt(Lx*Ly / num_cells);
+            // NOTE the sqrt(x) defines a typical lengthscale under the 
+            //      assumption of isotropic cells
+            
+            int time_start = _vertex_model.get_time(); 
+            this->_log->debug("  Jiggling the vertices on a length scale of "
+                "{}. Then iterating the vertex model for a maximum of "
+                "{} steps from time {}, checking for equilibrium "
+                "every {} steps ..", intensity, max_steps,
+                _vertex_model.get_time(), _num_equilibration_steps);
+            
+            _vertex_model.jiggle_vertices(intensity);
+            _equilibrated = false;
+            while (not _equilibrated) {
                 for (int i = 0; i < _num_equilibration_steps; ++i) {
                     _vertex_model.iterate();
 
@@ -288,10 +302,10 @@ private:
                         throw GotSignal(received_signum.load());
                     }
                 }
-                equilibrated = _vertex_model.equilibrium_state_reached(
-                                                                    tolerance);
+                _equilibrated = _vertex_model.equilibrium_state_reached(
+                                                    tolerance);
                 
-                if (not equilibrated
+                if (not _equilibrated
                     and _vertex_model.get_time() - time_start >= max_steps)
                 {
                     this->_log->warn("ERROR Equilibrium not reached within {} "
@@ -312,24 +326,11 @@ private:
                     throw std::runtime_error("Equilibrium not reached!");
                 }
             }
-            
-            this->_log->debug("Vertex model equilibrated within {} steps", 
-                            _vertex_model.get_time() - time_start);
-
-            if (it_jiggle < _num_jiggle_per_equilibration) {
-
-                auto [Lx, Ly] = _vertex_model.get_domain_size();
-                auto num_cells = _vertex_model.get_cells().size();
-                double intensity = _jiggle_intensity * sqrt(Lx*Ly / num_cells);
-                // NOTE the sqrt(x) defines a typical lengthscale under the 
-                //      assumption of isotropic cells
-                
-                this->_log->debug("Jiggling the vertices on a length scale of "
-                        "{} ..", intensity);
-                _vertex_model.jiggle_vertices(intensity);
-            }
         }
 
+        this->_log->debug("Vertex model equilibrated within {} steps", 
+                        _vertex_model.get_time() - time_0);
+        return;
     }
 
     /// Perform a cell division on a random cell
@@ -363,6 +364,7 @@ private:
 
         _vertex_model.increase_domain_size(c->area_preferential);
         c->area_preferential *= 2;
+        _equilibrated = false;
 
         equilibrate_vertex_model();
 
@@ -375,10 +377,11 @@ private:
         }
 
         c->area_preferential /= 2;
-
         _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
+        _equilibrated = false;
 
         equilibrate_vertex_model();
+        return;
     }
 
     /// Perform N cell divisions
@@ -431,6 +434,9 @@ private:
                             _area_preferential(CellType::hair));
         _envm.set_parameter("area_preferential_support",
                             _area_preferential(CellType::support));
+
+        _equilibrated = false;
+        return;
    }
 
     void differentiate_cells_random() {
@@ -534,6 +540,7 @@ private:
         this->_log->info("Model initialised with equilibrated vertex "
             "model. There are {} hair cells or {}%", num_hc,
             double(num_hc)/_vertex_model.get_cells().size());
+        _equilibrated = false;
         return;
     }
 
@@ -577,6 +584,8 @@ private:
 
         _envm.set_parameter("area_preferential_support",
                             _area_preferential(CellType::support));
+        
+        _equilibrated = false;
         return;
     }
 
@@ -586,13 +595,12 @@ public:
     /// Iterate a single step
     void perform_step () {
         _envm.iterate();
-        update_area_preferential();
 
+        // deformations
+        this->update_area_preferential();
         this->stretch_domain(_tissue_stretch_speed);
-
         this->equilibrate_vertex_model();
 
-        // NOTE this includes separate equilibration
         this->perform_cell_divisions(_cell_divisions_per_step);
     }
 

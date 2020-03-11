@@ -52,6 +52,7 @@ T2_threshold: 0.075
 hexagon_size: 0.62
 lattice_rows: 4
 lattice_columns: 4
+initial_jiggle: 0.05
 
 # Noise
 noise_constant: 0.0

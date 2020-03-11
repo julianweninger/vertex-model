@@ -299,6 +299,13 @@ struct Edge : public std::enable_shared_from_this<Edge> {
         remove(false)
     { }
 
+    Edge (const Edge &other)
+    :
+        Edge(other.a, other.b, other.linetension, other.contractility, 
+             other.adj_cell_a.lock(), other.adj_cell_b.lock(),
+             other.sigma_a, other.sigma_b)
+    { }
+
     /// Set the weak pointer to this for members
     void link_members () {
         a->adj_edges.push_back(weak_from_this());
@@ -699,6 +706,90 @@ struct Cell : public std::enable_shared_from_this<Cell> {
         return this->template area<periodic_bc>() * Lx * Ly;
     }
 };
+
+/// Contructs a vertex that has been moved along steepest gradient
+template <bool periodic_bc>
+Vertex displace_vertex_steepest_gradient(Vertex v, double beta, double Lx,
+                                         double Ly) {
+    v.x += beta / Lx * v.fx;
+    v.y += beta / Ly * v.fy;
+
+    if constexpr (periodic_bc) {
+        if (v.x >= 1.) { v.x -= 1.; }
+        else if (v.x < 0.) { v.x += 1.; }
+        if (v.y >= 1.) { v.y -= 1.; }
+        else if (v.y < 0.) { v.y += 1.; }
+    }
+
+    return v;
+}
+
+template <bool periodic_bc>
+Edge displace_edge_steepest_gradient(Edge e, double beta, double Lx, double Ly)
+{
+    Vertex a = displace_vertex_steepest_gradient<periodic_bc>(*e.a, beta, Lx, Ly);
+    Vertex b = displace_vertex_steepest_gradient<periodic_bc>(*e.b, beta, Lx, Ly);
+    e.a = std::make_shared<Vertex>(a);
+    e.b = std::make_shared<Vertex>(b);
+
+    return e;
+}
+
+template <bool periodic_bc>
+Cell displace_cell_steepest_gradient(Cell c, double beta, double Lx,
+                                     double Ly) {
+    Vertex_ptr last = nullptr;
+    int size = c.edges_ordered.size();
+    
+    // replace edges by a copy
+    for (int i = 0; i < size; i++) {
+        const auto [e, flip] = c.edges_ordered[i];
+        auto new_e = std::make_shared<Edge>(*e);
+        c.edges_ordered[i] = std::make_pair(new_e, flip);
+    }
+
+    for (auto [e, flip] : c.edges_ordered) {
+
+        if (not flip) {
+            Vertex v = displace_vertex_steepest_gradient<periodic_bc>(*(e->b),
+                                                                      beta, Lx,
+                                                                      Ly);
+            e->a = last;
+            e->b = std::make_shared<Vertex>(v);
+            last = e->b;
+        }
+        else {
+            Vertex v = displace_vertex_steepest_gradient<periodic_bc>(*(e->a),
+                                                                      beta, Lx,
+                                                                      Ly);
+            e->b = last;
+            e->a = std::make_shared<Vertex>(v);
+            last = e->a;
+        }
+    }
+    auto [e, flip] = c.edges_ordered[0];
+    if (not flip) {
+        e->a = last;
+    }
+    else {
+        e->b = last;
+    }
+    
+
+    c.vertices.clear();
+    // add vertices from edges
+    for (const auto [e, flip] : c.edges_ordered) {
+        if (flip) { // flip
+            c.vertices.push_back(e->b);
+        }
+        else {
+            c.vertices.push_back(e->a);
+        }
+    }
+
+
+    return c;
+}
 
 } // namespace PCPVertex
 } // namespace Models

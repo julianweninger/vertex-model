@@ -221,6 +221,8 @@ public:
         this->initialise_polarity_random(get_as<double>(
                 "cell_initialisation_protein_level", this->_cfg));
 
+        jiggle_vertices(get_as<double>("initial_jiggle", this->_cfg, 0.));
+        
         this->_log->info("Model initialized.");
     }
 
@@ -258,9 +260,12 @@ private:
     /// The energy associated with linetension per edge
     /** \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
      */
-    double line_tension_energy (Edge_ptr &e) const {
-        const double length = e->template length<periodic_bc>(_Lx, _Ly);
-        return e->linetension * length;
+    double line_tension_energy (Edge e, double beta = 0.) const {
+        if (beta > 0) {
+            e = displace_edge_steepest_gradient<periodic_bc>(e, beta, _Lx, _Ly);
+        }
+        const double length = e.template length<periodic_bc>(_Lx, _Ly);
+        return e.linetension * length;
     };
 
     /** Calculates the forces from linetension
@@ -286,9 +291,12 @@ private:
         e->b->fy -= fy;
     };
 
-    double edge_contractility_energy (Edge_ptr &e) const {
-        const double length = e->template length<periodic_bc>(_Lx, _Ly);
-        return 0.5 * e->contractility * pow(length, 2);
+    double edge_contractility_energy (Edge e, double beta = 0.) const {
+        if (beta > 0) {
+            e = displace_edge_steepest_gradient<periodic_bc>(e, beta, _Lx, _Ly);
+        }
+        const double length = e.template length<periodic_bc>(_Lx, _Ly);
+        return 0.5 * e.contractility * pow(length, 2);
     };
 
     /** Calculates the forces from edge contractility
@@ -317,9 +325,12 @@ private:
     /// The energy associated with area elasticity
     /** \f$ E = K/2 * (A - A0)**2 \f$
      */
-    double area_elasticity_energy (Cell_ptr &c) const {
-        double area_abs = c->template area_abs<periodic_bc>(_Lx, _Ly);
-        return 0.5 * _area_elasticity * pow(area_abs - c->area_preferential, 2);
+    double area_elasticity_energy (Cell c, double beta = 0.) const {
+        if (beta > 0.) {
+            c = displace_cell_steepest_gradient<periodic_bc>(c, beta, _Lx, _Ly);
+        }
+        double area_abs = c.template area_abs<periodic_bc>(_Lx, _Ly);
+        return 0.5 * _area_elasticity * pow(area_abs - c.area_preferential, 2);
     };
 
     /** Calculates the forces from area elasticity
@@ -376,12 +387,16 @@ private:
     };
 
     /// The energy associated with cell contractility
-    double cell_contractility_energy (Cell_ptr &c) const {
+    double cell_contractility_energy (Cell c, double beta = 0.) const {
+        if (beta > 0.) {
+            c = displace_cell_steepest_gradient<periodic_bc>(c, beta, _Lx, _Ly);
+        }
+
         double perimeter = 0.;
-        for (auto [e, flip] : c->edges_ordered) {
+        for (auto [e, flip] : c.edges_ordered) {
             perimeter += e->template length<periodic_bc>(_Lx, _Ly);;
         }
-        return 0.5 *c->contractility * std::pow(perimeter, 2);
+        return 0.5 *c.contractility * std::pow(perimeter, 2);
     };
 
     /// Contractility of the cell perimeter
@@ -419,7 +434,7 @@ private:
      *  two neighbouring cells to edge \f$ i \f$. \f$ J_1 \f$ is an interaction
      *  parameter PCPVertex::_cell_cell_polarity_interaction.
      */
-    double cell_cell_polarity_energy ( Edge_ptr &e) const {
+    double cell_cell_polarity_energy (Edge_ptr &e) const {
         return _cell_cell_polarity_interaction * e->sigma_a * e->sigma_b;
     };
 
@@ -664,6 +679,74 @@ private:
     CellContainer::iterator divide_cell(CellContainer::iterator cell_it,
                                         double division_angle);
 
+    /// The step size to reach the line minimum along steepest gradient
+    /** See www.acclab.helsinki.fi/~aakurone/atomistiset/lecturenotes/lecture12_2up.pdf
+     */
+    double determine_timestep () const {
+        // Bracket the minimum
+        double dt = 1e-4;
+        double energy_min;
+        double pos_1 = 0.; // left boundary
+        double energy_1 = this->get_energy(); 
+        double pos_2 = dt; // right boundary
+        double energy_2;
+        std::function<double(double)> increase_dt = [](double dt) {
+            return 2*dt;
+        };
+        while (true) {
+            energy_2 = this->get_energy(_edges, _cells, dt);
+            if (dt > 1.) {
+                return dt;
+            }
+            
+            if (energy_2 <= energy_1 + 1e-10) {
+                dt = increase_dt(dt);
+                continue;
+            }
+
+            energy_min = this->get_energy(_edges, _cells, dt/2);
+            if (energy_min >= energy_1) {
+                dt = increase_dt(dt);
+                continue;
+            }
+            // there is a minimum between the brackets
+            break;
+        }
+        double pos_3 = dt / 2.;
+
+        // Find the minimum between brackets with parabolic interpolation
+        while(true) {
+            double term_3 = (pos_2 - pos_1)*(energy_2 - energy_min);
+            double term_4 = (pos_2 - pos_3)*(energy_2 - energy_1);
+            double term_1 = (pos_2 - pos_1)*term_3;
+            double term_2 = (pos_2 - pos_3)*term_4;
+            
+            // the minimum of parabola through 1, 2, 3
+            double pos_4 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
+            double energy_4 = this->get_energy(_edges, _cells, pos_2);
+            if (fabs(energy_4 - energy_min) < 1e-6) {
+                dt = pos_4;
+                break;
+            }
+
+            // choose brackets, such that pos_2=pos_4 is center of 1 and 3
+            if (pos_4 - pos_3 < 0.) {
+                pos_3 = pos_2;
+                pos_2 = pos_4;
+                energy_min = energy_2;
+                energy_2 = energy_4;
+            }
+            else {
+                pos_3 = pos_1;
+                pos_1 = pos_4;
+                energy_1 = energy_4;
+                energy_min = energy_1;
+            }
+        }
+        
+        return dt;
+    }
+
 public:
     // -- Public Interface ----------------------------------------------------
     
@@ -900,8 +983,18 @@ public:
         std::for_each(_edges.begin(), _edges.end(), set_edge_contractility);
         std::for_each(_cells.begin(), _cells.end(), set_area_elasticity);
         std::for_each(_cells.begin(), _cells.end(), set_cell_contractility);
-        
-        std::for_each(_vertices.begin(), _vertices.end(), update_position);
+
+        _dt = determine_timestep();
+        double new_energy = this->get_energy(_edges, _cells, _dt);
+        double energy_change = new_energy - _energy_previous_step;
+        if (energy_change < -1e-14 and _dt < 1.) {
+            this->_log->debug("Updating with timestep {}", _dt);
+            std::for_each(_vertices.begin(), _vertices.end(), update_position);
+        }
+        else {
+            this->_log->warn("Not updating because energy change {} < 1e-14 "
+                             "or timestep size {} > 1 !", energy_change, _dt);
+        }
 
         if constexpr (polarity_proteins) {
             std::for_each(_edges.begin(), _edges.end(), set_cell_cell_polarity);
@@ -917,17 +1010,23 @@ public:
     }
     
     /// Monitor model information
-    void monitor () { }
+    void monitor () {
+        double energy = this->get_energy();
+        this->_monitor.set_entry("energy", energy);
+        this->_monitor.set_entry("energy_change",
+                                 energy - _energy_previous_step);
+    }
 
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
     /// Getter for energy associated with linetension
-    double get_energy_linetension(EdgeContainer es = {}) const {
+    double get_energy_linetension(EdgeContainer es = {}, double beta = 0.) const
+    {
         if (es.empty()) { es = this->_edges; }
         double energy = 0.;
         for (auto &&e : es) {
-            energy += line_tension_energy(e);
+            energy += line_tension_energy(*e, beta);
         }
         return energy;
     }
@@ -940,21 +1039,25 @@ public:
     }
     
     /// Getter for energy associated with contractility of junctions
-    double get_energy_edge_contractility(EdgeContainer es = {}) const {
+    double get_energy_edge_contractility(EdgeContainer es = {},
+                                         double beta = 0.) const
+    {
         if (es.empty()) { es = this->_edges; }
         double energy = 0.;
         for (auto &&e : es) {
-            energy += edge_contractility_energy(e);
+            energy += edge_contractility_energy(*e, beta);
         }
         return energy;
     }
 
     /// Getter for energy associated with area elasticity
-    double get_energy_areaelasticity (CellContainer cs = {}) const {
+    double get_energy_areaelasticity (CellContainer cs = {},
+                                      double beta = 0.) const
+    {
         if (cs.empty()) { cs = this->_cells; }
         double energy = 0.;
         for (auto &&c : cs) {
-            energy += area_elasticity_energy(c);
+            energy += area_elasticity_energy(*c, beta);
         }
         return energy;
     }
@@ -967,11 +1070,13 @@ public:
     }
 
     /// Getter for energy associated with contractility of cells
-    double get_energy_cell_contractility (CellContainer cs = {}) const {
+    double get_energy_cell_contractility (CellContainer cs = {},
+                                          double beta = 0.) const
+    {
         if (cs.empty()) { cs = this->_cells; }
         double energy = 0.;
         for (auto &&c : cs) {
-            energy += cell_contractility_energy(c);
+            energy += cell_contractility_energy(*c, beta);
         }
         return energy;
     }
@@ -1081,13 +1186,15 @@ public:
     }
 
     /// Getter for energy
-    double get_energy (EdgeContainer es = {}, CellContainer cs = {}) const {
+    double get_energy (EdgeContainer es = {}, CellContainer cs = {}, 
+                       double beta = 0.) const
+    {
         if (es.empty()) { es = this->_edges; }
         if (cs.empty()) { cs = this->_cells; }
-        return get_energy_linetension(es) +
-            get_energy_edge_contractility(es) +
-            get_energy_areaelasticity(cs) +
-            get_energy_cell_contractility(cs) +
+        return get_energy_linetension(es, beta) +
+            get_energy_edge_contractility(es, beta) +
+            get_energy_areaelasticity(cs, beta) +
+            get_energy_cell_contractility(cs, beta) +
             get_energy_cell_cell_polarity(es) +
             get_energy_polarity_exclusion(cs) +
             get_energy_lagrange_net_polarisation(cs) +
