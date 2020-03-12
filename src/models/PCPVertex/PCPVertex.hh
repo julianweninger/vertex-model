@@ -239,6 +239,21 @@ private:
      */
     void initialise_polarity_random (double initialisation_protein_level);
 
+
+    // The energy terms
+    // See energy.hh for implementation
+
+    double line_tension_energy (Edge e, double beta = 0.) const;
+    double edge_contractility_energy (Edge e, double beta = 0.) const;
+    double area_elasticity_energy (Cell c, double beta = 0.) const;
+    double cell_contractility_energy (Cell c, double beta = 0.) const;
+    double cell_cell_polarity_energy (Edge_ptr &e) const;
+    double polarity_exclusion_energy (Edge_ptr &a, Edge_ptr &b,
+                                      const Cell_ptr &cell) const;
+    double cell_polarity_exclusion_energy (Cell_ptr &c) const;
+    double lagrange_net_polarisation_energy (Cell_ptr &c) const;
+    double lagrange_const_concentration_energy (Cell_ptr &c) const;
+
     // .. Helper functions ....................................................
     /// Resets the forces of this vertex
     std::function<void(Vertex_ptr&)> reset_forces = [](Vertex_ptr &v) {
@@ -250,17 +265,6 @@ private:
     std::function<void(Edge_ptr&)> reset_polarity_change = [](Edge_ptr &e) {
         e->d_sigma_a = 0.;
         e->d_sigma_b = 0.;
-    };
-
-    /// The energy associated with linetension per edge
-    /** \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
-     */
-    double line_tension_energy (Edge e, double beta = 0.) const {
-        if (beta > 0) {
-            e = displace_edge_steepest_gradient<periodic_bc>(e, beta, _Lx, _Ly);
-        }
-        const double length = e.template length<periodic_bc>(_Lx, _Ly);
-        return e.linetension * length;
     };
 
     /** Calculates the forces from linetension
@@ -286,14 +290,6 @@ private:
         e->b->fy -= fy;
     };
 
-    double edge_contractility_energy (Edge e, double beta = 0.) const {
-        if (beta > 0) {
-            e = displace_edge_steepest_gradient<periodic_bc>(e, beta, _Lx, _Ly);
-        }
-        const double length = e.template length<periodic_bc>(_Lx, _Ly);
-        return 0.5 * e.contractility * pow(length, 2);
-    };
-
     /** Calculates the forces from edge contractility
      * 
      *  Contractive force of the edge where energy is proportional to the edge's
@@ -315,17 +311,6 @@ private:
         e->a->fy += fy;
         e->b->fx -= fx;
         e->b->fy -= fy;
-    };
-
-    /// The energy associated with area elasticity
-    /** \f$ E = K/2 * (A - A0)**2 \f$
-     */
-    double area_elasticity_energy (Cell c, double beta = 0.) const {
-        if (beta > 0.) {
-            c = displace_cell_steepest_gradient<periodic_bc>(c, beta, _Lx, _Ly);
-        }
-        double area_abs = c.template area_abs<periodic_bc>(_Lx, _Ly);
-        return 0.5 * _area_elasticity * pow(area_abs - c.area_preferential, 2);
     };
 
     /** Calculates the forces from area elasticity
@@ -381,19 +366,6 @@ private:
         }
     };
 
-    /// The energy associated with cell contractility
-    double cell_contractility_energy (Cell c, double beta = 0.) const {
-        if (beta > 0.) {
-            c = displace_cell_steepest_gradient<periodic_bc>(c, beta, _Lx, _Ly);
-        }
-
-        double perimeter = 0.;
-        for (auto [e, flip] : c.edges_ordered) {
-            perimeter += e->template length<periodic_bc>(_Lx, _Ly);;
-        }
-        return 0.5 *c.contractility * std::pow(perimeter, 2);
-    };
-
     /// Contractility of the cell perimeter
     /** Associated energy per cell is 
      *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
@@ -423,16 +395,6 @@ private:
         }
     };
 
-    /// The energy associated with cell-cell polarity
-    /** \f$ E = J_1 \sum_i \sigma_i^\alpha \sigma_i^\beta \f$, where
-     *  \f$ i \f$ is naming an edge, \f$ \alpha \f$ and \f$ \beta \f$ naming the
-     *  two neighbouring cells to edge \f$ i \f$. \f$ J_1 \f$ is an interaction
-     *  parameter PCPVertex::_cell_cell_polarity_interaction.
-     */
-    double cell_cell_polarity_energy (Edge_ptr &e) const {
-        return _cell_cell_polarity_interaction * e->sigma_a * e->sigma_b;
-    };
-
 
     /// Set forces from cell-cell polarity interaction
     /** 
@@ -441,55 +403,6 @@ private:
     std::function<void(Edge_ptr&)> set_cell_cell_polarity = [this](Edge_ptr &e) {
         e->d_sigma_a -= _cell_cell_polarity_interaction * e->sigma_b;
         e->d_sigma_b -= _cell_cell_polarity_interaction * e->sigma_a;
-    };
-
-    /// The energy associated with cell intrinsic exclusion of polarity proteins
-    /** Interaction of proteins on neighbouring edges.
-     *  For `cell_polarity_exclusion` > 0 accumulation of opposite sign polarity
-     *  proteins is disfavoured on neighbouring edges
-     *
-     *  \f$ E = - J_2 \sum_{<i, j>} \sigma_i^\alpha \sigma_j^\alpha \f$, where
-     *  edges \f$ i \f$ and \f$ j \f$ are adjacent bonds of cell \f$ \alpha \f$.
-     *  \f$ J_2 \f$ is interaction parameter PCPVertex::_cell_polarity_exclusion.
-     * 
-     *  \param a    edge a, alias \f$ i \f$
-     *  \param b    edge b, that is to be an interaction partner of a,
-     *              for instance a neighbour, alias edge \f$ j \f$
-     *  \param cell The cell \f$ \alpha \f$ within which exclusion is applied
-     */
-     double polarity_exclusion_energy (Edge_ptr &a, Edge_ptr &b,
-                                       const Cell_ptr &cell) const
-    {        
-        double sigma_a = a->get_sigma(cell);
-        double sigma_b = b->get_sigma(cell);
-        
-        return - _cell_polarity_exclusion * sigma_a * sigma_b;
-    };
-
-    /// The energy of polarity exclusion for the entire cell
-    /** Cumulative for the pairwise interactions of edges within cell, 
-     *  see PCPVertex::polarity_exclusion energy
-     */
-    double cell_polarity_exclusion_energy (Cell_ptr &c) const {
-        EdgeContainer edges;
-        double energy = 0.;
-        for (auto [e, flip] : c->edges_ordered) {
-            edges.push_back(e);
-        }
-        std::function<double(int, int)> factory = [c, edges, this](
-                int pos_a, int pos_b)
-        {
-            auto a = edges[pos_a];
-            auto b = edges[pos_b];
-
-            return this->polarity_exclusion_energy(a, b, c);
-        };
-        for (int i = 1; i < edges.size(); i++) {
-            energy += factory(i-1, i);
-        }
-        energy += factory(edges.size()-1, 0);
-        
-        return energy;
     };
 
     /// Set forces from cell intrinsic exclusion of polarity proteins
@@ -532,25 +445,6 @@ private:
         }
         factory(edges.size()-1, 0);
     };
-    
-    /// The energy associated with constraint of zero net polarisation
-    /** Within a cell the net polarisation is zero.
-     *  Included via lagrange multiplier I
-     * 
-     *  \f$ E = -\lambda_I^\alpha \sum_i \sigma_i^\alpha \f$
-     * 
-     *  \warning There is no argument available why 
-     *           \f$\dot{\lambda} = \gamma dE/d\lambda\f$
-     *           instead of \f$\dot{\lambda} = -\gamma dE/d\lambda\f$
-     */
-    double lagrange_net_polarisation_energy (Cell_ptr &c) const {
-        double cum_sigma = 0.;
-        for (auto [e, flip] : c->edges_ordered) {
-            cum_sigma += e->get_sigma(c);
-        }
-
-        return - c->lagrange_net_polarisation * cum_sigma;
-    };
 
     /// Set forces from constraint of zero net polarisation
     /** Within a cell the net polarisation is zero.
@@ -577,22 +471,6 @@ private:
         c->lagrange_net_polarisation -= cum_sigma * this->_gamma;
     };
     
-    /// Energy associated with constraint of constant protein level
-    /** Within a cell the concentration of proteins is constant
-     *  Included via lagrange multiplier II     * 
-     * 
-     *  \f$ E = -\lambda_{II}^\alpha (\sum_i (\sigma_i^\alpha)^2 - c^\alpha) \f$
-     */
-    double lagrange_const_concentration_energy (Cell_ptr &c) const {
-        double concentration = 0.;
-        for (auto [e, flip] : c->edges_ordered) {
-            concentration += std::pow(e->get_sigma(c), 2);
-        }
-
-        double lagrange = c->lagrange_const_concentration;
-        return - lagrange * (concentration - c->protein_concentration);
-    };
-    
     /// Set forces from constraint of constant protein level
     /** Within a cell the concentration of proteins is constant
      *  Included via lagrange multiplier II     * 
@@ -616,7 +494,6 @@ private:
                                          c->protein_concentration) * this->_gamma;
     };
 
-
     void set_gradient () {
         // reset forces
         std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
@@ -630,6 +507,8 @@ private:
                         this->set_area_elasticity);
         std::for_each(this->_cells.begin(), this->_cells.end(),
                         this->set_cell_contractility);
+
+        // NOTE remember to add additional terms also to this->get_energy()
     }
 
     /** The update of position
@@ -662,361 +541,40 @@ private:
     };
     
     // .. Transitions ....................................................
+    // See transitions.hh 
 
-    /** Perform a T1 transition on the edge edge_it in _edges
-     * 
-     *  edge_it will be removed and a new edge orthogonal to edge will be created
-     */
     std::pair<EdgeContainer::iterator,
               bool> T1_transition (EdgeContainer::iterator edge_it);
     
     std::pair<CellContainer::iterator,
               bool> T2_transition (CellContainer::iterator &cell_it);
     
-
-    /// Perform a cell division on specific cell
-    /** Divides a specific cell into two identical cells with properties derived
-     *  from the common parent cell. 
-     *  The division is performed at a given angle through the parent cell's
-     *  center. This defines the axis of division that will form a new edge 
-     *  between the two new cells.
-     * 
-     *  The new edge has properties as given for initialisation.
-     * 
-     *  \param cell_it      iterator to the cell within _cells that is to be 
-     *                      divided
-     *  \param division_angle   angle (in rad) at which the cell
-     * 
-     *  \return iterator to the element following cell_it
-     */
     CellContainer::iterator divide_cell(CellContainer::iterator cell_it,
                                         double division_angle);
 
-    /// The step size to reach the line minimum along steepest gradient
-    /** See www.acclab.helsinki.fi/~aakurone/atomistiset/lecturenotes/lecture12_2up.pdf
-     */
-    std::pair<double, double> determine_timestep (const double energy_0) const
-    {
-        // Bracket the minimum
-        double dt = std::min(std::max(_dt, 1e-5), 1e-2);
+    // see algorithm.hh
+    std::pair<double, double> determine_timestep (const double energy_0) const;
+    void conjugant_gradient_step ();
 
-        double pos_1 = 0.; // left boundary
-        bool calculate_energy_min = true;
-        double energy_1 = energy_0;
-        bool calculate_energy_2 = true;
-        double pos_2 = dt; // right boundary
-        double energy_2 = this->get_energy(_edges, _cells, pos_2);
-        double pos_min = dt/2.;
-        double energy_min = this->get_energy(_edges, _cells, pos_min);
-        while (true) {
-            if (dt > 3.) {
-                if (fabs(energy_2 - energy_1) < _minimisation_precision) {
-                    // the energy function is flat
-                    return std::make_pair(0., energy_0);
-                }
-                this->_log->warn("At step of {} along direction of "
-                    "update the energy is still decreasing by {}", dt/2, 
-                    energy_2 - energy_1);
-                for (double dt = 1e-11; dt < 1000.; dt *= 2) {
-                    this->_log->warn("At step of {} along direction of "
-                        "update the energy is changing by {}", dt, 
-                        this->get_energy(_edges, _cells, dt) - energy_1);
-                }
-                // NOTE only if energy_2 < energy_1: dt -> 2*dt
-                throw std::runtime_error("Unable to find bracket to "
-                    "local energy minimum!");
-            }
-            if (dt < 1e-10) {
-                // the energy is increasing, hence already at local minimum
-                // NOTE only if energy_min > energy_1: dt -> dt / 2
-                return std::make_pair(0., energy_0);
-            }
-
-            if (energy_2 < energy_1) {
-                dt *= 2.;
-                energy_min = energy_2;
-                energy_2 = this->get_energy(_edges, _cells, dt);
-                continue; // dt was not a right boundary to minimum
-            }
-
-            if (energy_min > energy_1) {
-                dt = dt/2;
-                energy_2 = energy_min;
-                energy_min = this->get_energy(_edges, _cells, dt/2);
-                continue; // we know that close to pos_1 there is a minimum
-            }
-
-            // Both conditions fulfilled!
-            // there is a minimum within interval [0, pos_2]
-            pos_2 = dt;
-            pos_min = dt / 2.;
-            break;
-        }
-
-        if (fabs(energy_min - energy_0) < _minimisation_precision) {
-            // the found minimum fulfills our condition 
-            return std::make_pair(pos_min, energy_min);
-        }
-
-        // Find the minimum between brackets with parabolic interpolation
-        while(true) {
-            double term_3 = (pos_2 - pos_1)*(energy_2 - energy_min);
-            double term_4 = (pos_2 - pos_min)*(energy_2 - energy_1);
-            double term_1 = (pos_2 - pos_1)*term_3;
-            double term_2 = (pos_2 - pos_min)*term_4;
-            
-            // the minimum of parabola through 1, 2, min
-            double pos_4 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
-            if (pos_4 < pos_1 or pos_4 > pos_2) {
-                this->_log->warn("pos_1={}, pos_min={}, pos_2={}",
-                                 pos_1, pos_min, pos_2);
-                this->_log->warn("D_energy_1={}, D_energy_min={}, "
-                                 "D_energy_2={}. wrt energy_0",
-                                 energy_0-energy_1, energy_0-energy_min,
-                                 energy_0-energy_2);
-                this->_log->warn("Fitted minimum: x={}", pos_4);
-                throw std::runtime_error("Energy minimisation failed! "
-                                         "Parabola fit outside brackets");
-            }
-
-            double energy_4 = this->get_energy(_edges, _cells, pos_4);
-            if (fabs(energy_4 - energy_min) < _minimisation_precision) {
-                dt = pos_4;
-                break; // found the minimum with required precision
-            }
-            
-            if (energy_4 - energy_0 > 0.) {
-                throw std::runtime_error("Energy minimisation failed! "
-                                         "Found closer local maximum, hence "
-                                         "overestimated size of brackets.");
-            }
-
-            // ** choose new brackets
-            // pos_4 is to the left of minimum and is smaller
-            // pos_4 becomes new minimum between 1 and 2->min
-            if (pos_4 - pos_min < 0. and energy_4 - energy_min < 0.) {
-                pos_2 = pos_min; energy_2 = energy_min;
-                pos_min = pos_4; energy_min = energy_4;
-            }
-            // pos_4 is to the left of minimum but is larger
-            // pos_4 becomes new pos 1
-            else if (pos_4 - pos_min < 0.) {
-                pos_1 = pos_4; energy_1 = energy_4;
-            }
-            // pos_4 is to the right of minimum and is smaller
-            // pos_4 becomes new minimum between 1->min and 2
-            else if (energy_4 - energy_min < 0.) {
-                pos_1 = pos_min; energy_1 = energy_min;
-                pos_min = pos_4; energy_min = energy_4;
-            }
-            // pos_4 is to the right of minimum but is larger
-            // pos_4 becomes new pos 2
-            else {
-                pos_2 = pos_4; energy_2 = energy_4;
-            }
-        }
-
-        return std::make_pair(dt, energy_min);
-    }
 
 public:
     // -- Public Interface ----------------------------------------------------
-    
-    /// Apply a perturbation to the position of vertices
-    /** Move the x and y position by a random value in [-intensity, intensity]
-     *  using a uniform distribution.
-     * 
-     * TODO write test
-     */
-    void jiggle_vertices(double intensity) {
-        this->_log->debug("Jiggling the vertices on a length scale of "
-                          "{} ..", intensity);
-        for (auto v : _vertices) {
-            v->x += 2*intensity * _prob_distr(*this->_rng) - intensity;
-            v->y += 2*intensity * _prob_distr(*this->_rng) - intensity;
-            correct_periodic_bc<periodic_bc>(v);
-        }
-    }
-
-    /// Differentiates progenitor cells with random hair cell distribution
-    /** \param fraction     fraction of hair cells. Others are support cells
-     *  \param linetension  The symmetric matrix of linetension interactions
-     *                      between two cells of same or different type
-     *  \param area_preferential    The preferential cell area of the different
-     *                              cell types
-     */
+    void jiggle_vertices(double intensity);
     void differentiate_hair_cells(double fraction,
         arma::Mat<double>::fixed<CellType::num_cell_types,
-                                 CellType::num_cell_types> linetension,
+                                    CellType::num_cell_types> linetension,
         arma::Mat<double>::fixed<CellType::num_cell_types,
-                                 CellType::num_cell_types> edge_contractility,
-        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential)
-    {
-        this->_log->debug("Differentiating progenitor cells to {}% hair cells "
-            "and {}% support cells ...", fraction, 1-fraction);
-
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i+1; j < CellType::num_cell_types; j++) {
-                if (linetension(j, i) == linetension(i, j)) {
-                    continue;
-                }
-                
-                this->_log->warn("Invalid argument in differentiate_hair_cells."
-                    "Got non symmetric 'linetension' matrix!");
-                throw std::invalid_argument("Non symmetric 'linetension'"
-                    "matrix");
-            }
-        }
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i+1; j < CellType::num_cell_types; j++) {
-                if (edge_contractility(j, i) == edge_contractility(i, j)) {
-                    continue;
-                }
-                
-                this->_log->warn("Invalid argument in differentiate_hair_cells."
-                    "Got non symmetric 'edge_contractility' matrix!");
-                throw std::invalid_argument("Non symmetric 'edge_contractility'"
-                    "matrix");
-            }
-        }
-        
-        // Set the cell type
-        for (auto &c : _cells) {
-            if (_prob_distr(*this->_rng) < fraction) { 
-                c->type = CellType::hair; }
-            else { c->type = CellType::support; }
-
-            // set the preferential area
-            c->area_preferential = area_preferential(c->type);
-        }
-
-        // Set the surface tension
-        for (auto &e : _edges) {
-            Cell::CellType cell_a_type, cell_b_type;
-            if (e->adj_cell_a.expired()) {
-                cell_a_type = Cell::CellType::support; }
-            else { cell_a_type = e->adj_cell_a.lock()->type; }
-            if (e->adj_cell_b.expired()) {
-                cell_b_type = Cell::CellType::support; }
-            else { cell_b_type = e->adj_cell_b.lock()->type; }
-
-            e->linetension = linetension(cell_a_type, cell_b_type);
-            e->contractility = edge_contractility(cell_a_type, cell_b_type);
-        }
-
-        _linetension = linetension;
-        _edge_contractility = edge_contractility;
-    }
-
-    /// Perform a cell division on specific cell
-    /** Divides a specific cell into two identical cells with properties derived
-     *  from the common parent cell. 
-     *  The division is performed at a given angle through the parent cell's
-     *  center. This defines the axis of division that will form a new edge 
-     *  between the two new cells.
-     * 
-     *  \param cell     pointer to the cell that is to be divided
-     *  \param division_angle   angle (in rad) at which the cell
-     */
-    void divide_cell(Cell_ptr cell, double division_angle)
-    {
-        auto cell_it = std::find(_cells.begin(), _cells.end(), cell);
-
-        if (cell_it == _cells.end()) {
-            throw std::invalid_argument("Cannot divide cell at position "
-                "({}, {}), because its not a member of cells in vertex model!");
-        }
-
-        this->divide_cell(cell_it, division_angle);
-    }
-
-    /// Increase the domain size by a certain area
-    /** This remaps the domain of size A to size A + dA while keeping the 
-     *  relation of Lx to Ly constant.
-     * 
-     *  Thereby proliferation of cells can be performed in a periodic setup
-     *  without changing the parameters of the system. 
-     */
-    void increase_domain_size(double area) {
-        if (-1. * area > _Lx * _Ly) {
-            throw std::invalid_argument("Cannot decrease the domain size by "
-                    "an area larger than the domain size. dA = " + 
-                    std::to_string(area) + " and A = " +
-                    std::to_string(_Lx * _Ly));
-        }
-        double ratio = _Lx / double(_Ly);
-        _Ly = std::sqrt(_Ly*_Ly + area / ratio);
-        _Lx = ratio * _Ly;
-    }
-
-    /// Stretch the domain size
-    /** \param dx   The stretching distance in x
-     *  \param dy   The stretching distance in y
-     *  \param compensate   Whether to compensate the growth of the dissue by 
-     *                      increase of preferential area
-     *  \param fix_hc_volume   Whether to fix the volume of type CellType::hair
-     * 
-     *  \return The total change in area
-     */
+                                    CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
+    void divide_cell(Cell_ptr cell, double division_angle);
+    void increase_domain_size(double area);
     double stretch_domain(double dx, double dy, bool compensate,
-                          bool fix_hc_volume)
-    {
-        this->_log->debug("stretching domain by ({}, {}). Compensate {}, "
-                          "fix hair cell volume {}", dx, dy, compensate, 
-                          fix_hc_volume);
-        _Lx += dx;
-        _Ly += dy;
+                          bool fix_hc_volume);
 
-        if (not compensate) {
-            return dx * _Ly + dy * _Lx;
-        }
-
-        int num_cells = _cells.size();
-        if (fix_hc_volume) {
-            for (auto c : _cells) {
-                num_cells -= c->type == CellType::hair;
-            }
-            if (num_cells == 0) {
-                throw std::runtime_error("All support cells eliminated!");
-            }
-        }
-
-        double dA = (dx * _Ly + dy * _Lx) / num_cells;
-
-        std::function<void(Cell_ptr&)> compensate_dA = [dA](Cell_ptr& cell) {
-            cell->area_preferential += dA;
-            return;
-        };
-        std::function<void(Cell_ptr&)> compensate_dA_non_hc = [dA](
-                Cell_ptr& cell)
-        {
-            if (cell->type != CellType::hair) {
-                cell->area_preferential += dA;
-            }
-            return;
-        };
-
-        if (not fix_hc_volume) {
-            std::for_each(_cells.begin(), _cells.end(), compensate_dA);
-        }
-        else {
-            std::for_each(_cells.begin(), _cells.end(), compensate_dA_non_hc);
-        }
-
-        return dx * _Ly + dy * _Lx;
-    }
 
     // .. Simulation Control ..................................................
+    void init_minimisation ();
 
-    void init_minimisation () {
-        set_gradient();
-
-        for (auto v : _vertices) {
-            v->gx = v->x; v->gy = v->y;
-            v->hx = v->x; v->hy = v->y;
-        }
-    }
-    
     /// Iterate a single step
     /** \details Rules applied
      *      -# reset vertex forces, calculate cell area and edge length
@@ -1029,42 +587,7 @@ public:
     void perform_step () {
         _energy_previous_step = this->get_energy();
 
-        // line minimisation along direction of update h
-        double new_energy;
-        std::tie(_dt, new_energy) = determine_timestep(_energy_previous_step);
-        _energy_change = (new_energy - _energy_previous_step) / new_energy;
-        
-        if (_energy_change < -1e-14) {
-            this->_log->debug("Updating with timestep {} at energy change {}",
-                              _dt, _energy_change);
-            std::for_each(_vertices.begin(), _vertices.end(),
-                          update_position);
-        }
-        else {
-            this->_log->debug("NOT updating with step size {} along direction "
-                              "of update at energy change {}", _dt,
-                              _energy_change);
-            return;
-        }        
-
-        // determine the conjugate gradient direction
-        set_gradient();
-        double gamma = 0.;
-        double g_square = 0.;
-        for (auto v : _vertices) {
-            gamma += std::pow(v->fx, 2) + std::pow(v->fy, 2);
-            g_square += std::pow(v->gx, 2) + std::pow(v->gy, 2);
-            
-            v->gx = v->fx; v->gy = v->fy;
-        }
-        gamma /= g_square;
-        for (auto v : _vertices) {
-            v->hx = v->gx + gamma * v->hx;
-            v->hy = v->gy + gamma * v->hy;
-
-            v->fx = v->hx; v->fy = v->hy; 
-        }
-
+        conjugant_gradient_step();
 
         bool transition_occurred = false;
             
@@ -1124,212 +647,33 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
-    /// Getter for energy associated with linetension
-    double get_energy_linetension(EdgeContainer es = {}, double beta = 0.) const
-    {
-        if (es.empty()) { es = this->_edges; }
-        double energy = 0.;
-        for (auto &&e : es) {
-            energy += line_tension_energy(*e, beta);
-        }
-        return energy;
-    }
 
-    /// Getter for normalised energy associated with linetension
-    /** The energy is normalised to the number of edges
-     */
-    double get_energy_linetension_normalised () const {
-        return get_energy_linetension() / double(_edges.size());
-    }
-    
-    /// Getter for energy associated with contractility of junctions
+    // NOTE when adding energy terms remember to add them to get_energy(..)
+    double get_energy_linetension(EdgeContainer es = {},
+                                  double beta = 0.) const;
+    double get_energy_linetension_normalised () const;
     double get_energy_edge_contractility(EdgeContainer es = {},
-                                         double beta = 0.) const
-    {
-        if (es.empty()) { es = this->_edges; }
-        double energy = 0.;
-        for (auto &&e : es) {
-            energy += edge_contractility_energy(*e, beta);
-        }
-        return energy;
-    }
-
-    /// Getter for energy associated with area elasticity
+                                         double beta = 0.) const;
     double get_energy_areaelasticity (CellContainer cs = {},
-                                      double beta = 0.) const
-    {
-        if (cs.empty()) { cs = this->_cells; }
-        double energy = 0.;
-        for (auto &&c : cs) {
-            energy += area_elasticity_energy(*c, beta);
-        }
-        return energy;
-    }
-
-    /// Getter for normalised energy associated with area elasticity
-    /** The energy is normalised to the number of cells
-     */
-    double get_energy_areaelasticity_normalised () const {
-        return get_energy_areaelasticity() / double(_cells.size());
-    }
-
-    /// Getter for energy associated with contractility of cells
+                                      double beta = 0.) const;
+    double get_energy_areaelasticity_normalised () const;
     double get_energy_cell_contractility (CellContainer cs = {},
-                                          double beta = 0.) const
-    {
-        if (cs.empty()) { cs = this->_cells; }
-        double energy = 0.;
-        for (auto &&c : cs) {
-            energy += cell_contractility_energy(*c, beta);
-        }
-        return energy;
-    }
-
-    /// Getter for normalised energy associated with contractility of cells
-    /** The energy is normalised to the number of cells
-     */
-    double get_energy_contractility () const {
-        return get_energy_cell_contractility() + 
-            get_energy_edge_contractility();
-    }
-
-    /// Getter for normalised energy associated with contractility of cells
-    /** The energy is normalised to the number of cells
-     */
-    double get_energy_contractility_normalised () const {
-        return get_energy_cell_contractility() / _cells.size() + 
-            get_energy_edge_contractility() / _edges.size();
-    }
-
-
-    /// Getter for energy associated with cell-cell polarity
-    double get_energy_cell_cell_polarity(
-            EdgeContainer es = {}) const
-    {
-        if (es.empty()) { es = this->_edges; }
-        double energy = 0.;
-        for (auto &&e : es) {
-            energy += cell_cell_polarity_energy(e);
-        }
-        return energy;
-    }
-
-
-    /// Getter for energy normalised associated with cell-cell polarity
-    /** The energy is normalised to the number of cells
-     */
-    double get_energy_cell_cell_polarity_normalised() const {
-        return get_energy_cell_cell_polarity() / double(_cells.size());
-    }
-
-    /// Getter for energy associated with polarity exclusion
-    double get_energy_polarity_exclusion (
-            CellContainer cs = {}) const
-    {
-        if (cs.empty()) { cs = this->_cells; }
-        double energy = 0.;
-        for (auto &&c : cs) {
-            energy += cell_polarity_exclusion_energy(c);
-        }
-        return energy;
-    }
-
-    /// Getter for energy associated with polarity exclusion
-    /** The energy is normalised to the number of cells
-     */
-    double get_energy_polarity_exclusion_normalised() const {
-        return get_energy_polarity_exclusion() / double(_cells.size());
-    }
-
-    /// Getter for energy associated with lagrange multiplier I
-    /** Langrange multiplier I is the constrain of zero net polarisation within
-     *  a cell.
-     */
-    double get_energy_lagrange_net_polarisation(
-            CellContainer cs = {}) const
-    {
-        if (cs.empty()) { cs = this->_cells; }
-        double energy = 0.;
-        for (auto &&c : cs) {
-            energy += lagrange_net_polarisation_energy(c);
-        }
-        return energy;
-    }
-
-    /// Getter for normalised energy associated with lagrange multiplier I
-    /** Langrange multiplier I is the constrain of zero net polarisation within
-     *  a cell.
-     * 
-     *  The energy is normalised to the number of cells
-     */
-    double get_energy_lagrange_net_polarisation_normalised() const {
-        return get_energy_lagrange_net_polarisation() / double(_cells.size());
-    }
-
-    /// Getter for energy associated with lagrange multiplier II
-    /** Langrange multiplier II is the constrain of constant level of proteins
-     */
-    double get_energy_lagrange_const_concentration(
-            CellContainer cs = {}) const
-    {
-        if (cs.empty()) { cs = this->_cells; }
-        double energy = 0.;
-        for (auto &&c : cs) {
-            energy += lagrange_const_concentration_energy(c);
-        }
-        return energy;
-    }
-
-    /// Getter for normalised energy associated with lagrange multiplier II
-    /** Langrange multiplier II is the constrain of constant level of proteins
-     * 
-     *  The energy is normalised to the number of cells
-     */
-    double get_energy_lagrange_const_concentration_normalised() const {
-        return get_energy_lagrange_const_concentration() / _cells.size();
-    }
-
-    /// Getter for energy
-    double get_energy (EdgeContainer es = {}, CellContainer cs = {}, 
-                       double beta = 0.) const
-    {
-        if (beta > 10.) {
-            throw std::runtime_error("Cannot calculate energy with "
-                "epsilon multiplicator larger than 10.!");
-        }
-
-        if (es.empty()) { es = this->_edges; }
-        if (cs.empty()) { cs = this->_cells; }
-        return get_energy_linetension(es, beta) +
-            get_energy_edge_contractility(es, beta) +
-            get_energy_areaelasticity(cs, beta) +
-            get_energy_cell_contractility(cs, beta) +
-            get_energy_cell_cell_polarity(es) +
-            get_energy_polarity_exclusion(cs) +
-            get_energy_lagrange_net_polarisation(cs) +
-            get_energy_lagrange_const_concentration(cs);
-    }
-
-    /// Getter for normalised energy
-    /** The energy is normalised wrt number of vertices, edges, or cells, 
-     *  respectively.
-     */
-    double get_energy_normalised () const {
-        return get_energy_linetension_normalised() +
-            get_energy_areaelasticity_normalised() +
-            get_energy_contractility_normalised() +
-            get_energy_cell_cell_polarity_normalised() +
-            get_energy_polarity_exclusion_normalised() +
-            get_energy_lagrange_net_polarisation_normalised() +
-            get_energy_lagrange_const_concentration_normalised();
-    }
-
-    /// Getter for the relative energy change from previous to last step
-    double get_rel_energy_change () const {
-        const double energy = get_energy();
-        double energy_change = energy - _energy_previous_step;
-        return energy_change / energy;
-    }
+                                          double beta = 0.) const;
+    double get_energy_contractility () const;
+    double get_energy_contractility_normalised () const;
+    double get_energy_cell_cell_polarity(EdgeContainer es = {}) const;
+    double get_energy_cell_cell_polarity_normalised() const;
+    double get_energy_polarity_exclusion (CellContainer cs = {}) const;
+    double get_energy_polarity_exclusion_normalised() const;
+    double get_energy_lagrange_net_polarisation(CellContainer cs = {}) const;
+    double get_energy_lagrange_net_polarisation_normalised() const;
+    double get_energy_lagrange_const_concentration(CellContainer cs = {}) const;
+    double get_energy_lagrange_const_concentration_normalised() const;
+    
+    double get_energy(EdgeContainer es = {}, CellContainer cs = {},
+                      double beta = 0.) const;
+    double get_energy_normalised () const;
+    double get_rel_energy_change () const;
 
     /// Getter for the domain size
     const std::pair<double, double> get_domain_size () const {
@@ -1385,8 +729,9 @@ public:
      *  
      *  \param threshold    The equilibrium threshold
      */
-    bool equilibrium_state_reached() const {
-        return fabs(_energy_change) < _minimisation_precision;
+    std::pair<bool, double> equilibrium_state_reached() const {
+        return std::make_pair(fabs(_energy_change) < _minimisation_precision,
+                              _energy_change);
     };
 
     /// Set a precision for minimisation

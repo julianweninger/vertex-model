@@ -5,6 +5,10 @@ namespace Utopia {
 namespace Models {
 namespace PCPVertex {
 
+/** Perform a T1 transition on the edge edge_it in _edges
+ * 
+ *  edge_it will be removed and a new edge orthogonal to edge will be created
+ */
 template <bool periodic_bc, bool polarity_proteins>
 std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc,
     polarity_proteins>::T1_transition (EdgeContainer::iterator edge_it)
@@ -388,6 +392,21 @@ std::pair<CellContainer::iterator, bool> PCPVertex<periodic_bc,
     return std::make_pair(_cells.erase(cell_it), true);
 }
 
+/// Perform a cell division on specific cell
+/** Divides a specific cell into two identical cells with properties derived
+ *  from the common parent cell. 
+ *  The division is performed at a given angle through the parent cell's
+ *  center. This defines the axis of division that will form a new edge 
+ *  between the two new cells.
+ * 
+ *  The new edge has properties as given for initialisation.
+ * 
+ *  \param cell_it      iterator to the cell within _cells that is to be 
+ *                      divided
+ *  \param division_angle   angle (in rad) at which the cell
+ * 
+ *  \return iterator to the element following cell_it
+ */
 template <bool periodic_bc, bool polarity_proteins>
 CellContainer::iterator PCPVertex<periodic_bc,
     polarity_proteins>::divide_cell(CellContainer::iterator cell_it,

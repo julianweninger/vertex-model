@@ -13,7 +13,11 @@
 #include "../PCPVertex/geometry.hh"
 #include "../PCPVertex/PCPVertex.hh"
 #include "../PCPVertex/initialisation.hh"
+#include "../PCPVertex/energy.hh"
+#include "../PCPVertex/algorithm.hh"
 #include "../PCPVertex/transitions.hh"
+#include "../PCPVertex/operations.hh"
+
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 #include "PCPTopology_write_tasks.hh"
 
@@ -291,14 +295,18 @@ private:
             while (not _equilibrated) {
                 _vertex_model.iterate();
 
-                _equilibrated = _vertex_model.equilibrium_state_reached();
+                double energy_change;
+                std::tie(_equilibrated,
+                    energy_change) = _vertex_model.equilibrium_state_reached();
                 
                 if (not _equilibrated
                     and _vertex_model.get_time() - time_start >= _num_equilibration_steps)
                 {
                     this->_log->warn("ERROR Equilibrium not reached within {} "
-                        "steps at a tolerance of {}! ", 
-                        _num_equilibration_steps,  _equilibration_tolerance);
+                        "steps at a tolerance of {}! Energy change in last "
+                        "step was {}.", 
+                        _num_equilibration_steps,  _equilibration_tolerance,
+                        energy_change);
                     #ifdef NDEBUG
                     this->_log->warn("Running model in release mode. Some known "
                         "exceptions are only evaluated in debug mode, the author "

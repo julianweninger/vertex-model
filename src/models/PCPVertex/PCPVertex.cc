@@ -2,7 +2,10 @@
 
 #include "PCPVertex.hh"
 #include "initialisation.hh"
+#include "energy.hh"
+#include "algorithm.hh"
 #include "transitions.hh"
+#include "operations.hh"
 #include "PCPVertex_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;
