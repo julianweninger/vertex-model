@@ -6,10 +6,10 @@ namespace Models {
 namespace PCPVertex {
 
 template <bool periodic_bc, bool polarity_proteins>
-EdgeContainer::iterator PCPVertex<periodic_bc,
+std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc,
     polarity_proteins>::T1_transition (EdgeContainer::iterator edge_it)
 {
-    this->_log->debug("Removing edge in T1 transition in step {}..",
+    this->_log->info("Removing edge in T1 transition in step {}..",
                       this->_time);
     if constexpr (not periodic_bc) {
         if ((*edge_it)->adj_cell_a.expired() or (*edge_it)->adj_cell_b.expired()) {
@@ -250,7 +250,7 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
         *adj_cell_c = adj_cell_c_copy;
         *adj_cell_d = adj_cell_d_copy;
 
-        return ++edge_it;
+        return std::make_pair(++edge_it, false);
     }
     else if (new_energy >= current_energy) {
         this->_log->debug("This T1 transition increases energy by {}, but "
@@ -273,7 +273,7 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
     _vertices.push_back(new_v_a);
     _vertices.push_back(new_v_b);
 
-    return ++edge_it;
+    return std::make_pair(++edge_it, true);
 }
 /** Erase cell from _cells while updating the topology (T2 transition)
  * 
@@ -283,10 +283,10 @@ EdgeContainer::iterator PCPVertex<periodic_bc,
  *  returns _cells.erase(cell_it)
  */
 template <bool periodic_bc, bool polarity_proteins>
-CellContainer::iterator PCPVertex<periodic_bc,
+std::pair<CellContainer::iterator, bool> PCPVertex<periodic_bc,
     polarity_proteins>::T2_transition (CellContainer::iterator &cell_it) 
 {
-    this->_log->debug("Removing cell in T2 transition..");
+    this->_log->info("Removing cell in T2 transition..");
 
     auto cell = *cell_it;
 
@@ -296,7 +296,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
             "transition on this cell would violate the condition, that a "
             "vertex has 3 (or less at boundary) adj_edges and _cells. "
             "Hope, that T1 transitions occur so that T2 becomes possible.");
-        return ++cell_it;
+        return std::make_pair(++cell_it, false);
     }
     
     // create a new vertex at the center of c
@@ -385,7 +385,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
     );
 
     // remove cell
-    return _cells.erase(cell_it);
+    return std::make_pair(_cells.erase(cell_it), true);
 }
 
 template <bool periodic_bc, bool polarity_proteins>
@@ -393,7 +393,7 @@ CellContainer::iterator PCPVertex<periodic_bc,
     polarity_proteins>::divide_cell(CellContainer::iterator cell_it,
                                     double division_angle)
 {
-    this->_log->debug("Dividing cell..");
+    this->_log->info("Dividing cell..");
 
     // The cell to be divided
     auto cell = *cell_it;

@@ -78,6 +78,9 @@ private:
     // PARAMETERS
     /// timestep scaling
     double _dt;
+    
+    /// The precision during minimisation
+    double _minimisation_precision;
 
     /// timestep scaling for polarity
     double _gamma;
@@ -156,16 +159,9 @@ private:
     // .. Temporary objects ...................................................
     /// The total energy in the last step
     double _energy_previous_step;
-    
-    /// The time over which to average energe change
-    /** in PCPVertex::get_mean_energy_change
-     */
-    int _energy_change_history_length;
 
-    /// Relative energy change history
-    /** of length PCPVertex::_energy_change_history_length
-     */
-    std::list<double> _energy_change_history;
+    /// The change of energy in last update
+    double _energy_change;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -186,6 +182,7 @@ public:
         
         // Get member paramters from cfg
         _dt(get_as<double>("dt", this->_cfg)),
+        _minimisation_precision(1e-8),
         _gamma(get_as<double>("gamma", this->_cfg)),
         _Lx(100.), _Ly(100.),
         _linetension(),
@@ -204,9 +201,7 @@ public:
         _distr_noise_const(0., get_as<double>("noise_constant", this->_cfg)),
         _distr_noise_linear(0., get_as<double>("noise_linear", this->_cfg)),
         _energy_previous_step(0.),
-        _energy_change_history_length(get_as<int>(
-            "energy_change_history_length", this->_cfg)),
-        _energy_change_history(_energy_change_history_length, 0.)
+        _energy_change(0.)
     {
         _linetension.fill(get_as<double>("linetension", this->_cfg));
         _edge_contractility.fill(get_as<double>("edge_contractility",
@@ -621,6 +616,22 @@ private:
                                          c->protein_concentration) * this->_gamma;
     };
 
+
+    void set_gradient () {
+        // reset forces
+        std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
+
+        // apply new forces
+        std::for_each(this->_edges.begin(), this->_edges.end(),
+                        this->set_linetension);
+        std::for_each(this->_edges.begin(), this->_edges.end(),
+                        this->set_edge_contractility);
+        std::for_each(this->_cells.begin(), this->_cells.end(),
+                        this->set_area_elasticity);
+        std::for_each(this->_cells.begin(), this->_cells.end(),
+                        this->set_cell_contractility);
+    }
+
     /** The update of position
      * 
      *  Move vertex proportional to the gradient of energy (force)
@@ -656,9 +667,11 @@ private:
      * 
      *  edge_it will be removed and a new edge orthogonal to edge will be created
      */
-    EdgeContainer::iterator T1_transition (EdgeContainer::iterator edge_it);
+    std::pair<EdgeContainer::iterator,
+              bool> T1_transition (EdgeContainer::iterator edge_it);
     
-    CellContainer::iterator T2_transition (CellContainer::iterator &cell_it);
+    std::pair<CellContainer::iterator,
+              bool> T2_transition (CellContainer::iterator &cell_it);
     
 
     /// Perform a cell division on specific cell
@@ -682,69 +695,128 @@ private:
     /// The step size to reach the line minimum along steepest gradient
     /** See www.acclab.helsinki.fi/~aakurone/atomistiset/lecturenotes/lecture12_2up.pdf
      */
-    double determine_timestep () const {
+    std::pair<double, double> determine_timestep (const double energy_0) const
+    {
         // Bracket the minimum
-        double dt = 1e-4;
-        double energy_min;
+        double dt = std::min(std::max(_dt, 1e-5), 1e-2);
+
         double pos_1 = 0.; // left boundary
-        double energy_1 = this->get_energy(); 
+        bool calculate_energy_min = true;
+        double energy_1 = energy_0;
+        bool calculate_energy_2 = true;
         double pos_2 = dt; // right boundary
-        double energy_2;
-        std::function<double(double)> increase_dt = [](double dt) {
-            return 2*dt;
-        };
+        double energy_2 = this->get_energy(_edges, _cells, pos_2);
+        double pos_min = dt/2.;
+        double energy_min = this->get_energy(_edges, _cells, pos_min);
         while (true) {
-            energy_2 = this->get_energy(_edges, _cells, dt);
-            if (dt > 1.) {
-                return dt;
+            if (dt > 3.) {
+                if (fabs(energy_2 - energy_1) < _minimisation_precision) {
+                    // the energy function is flat
+                    return std::make_pair(0., energy_0);
+                }
+                this->_log->warn("At step of {} along direction of "
+                    "update the energy is still decreasing by {}", dt/2, 
+                    energy_2 - energy_1);
+                for (double dt = 1e-11; dt < 1000.; dt *= 2) {
+                    this->_log->warn("At step of {} along direction of "
+                        "update the energy is changing by {}", dt, 
+                        this->get_energy(_edges, _cells, dt) - energy_1);
+                }
+                // NOTE only if energy_2 < energy_1: dt -> 2*dt
+                throw std::runtime_error("Unable to find bracket to "
+                    "local energy minimum!");
             }
-            
-            if (energy_2 <= energy_1 + 1e-10) {
-                dt = increase_dt(dt);
-                continue;
+            if (dt < 1e-10) {
+                // the energy is increasing, hence already at local minimum
+                // NOTE only if energy_min > energy_1: dt -> dt / 2
+                return std::make_pair(0., energy_0);
             }
 
-            energy_min = this->get_energy(_edges, _cells, dt/2);
-            if (energy_min >= energy_1) {
-                dt = increase_dt(dt);
-                continue;
+            if (energy_2 < energy_1) {
+                dt *= 2.;
+                energy_min = energy_2;
+                energy_2 = this->get_energy(_edges, _cells, dt);
+                continue; // dt was not a right boundary to minimum
             }
-            // there is a minimum between the brackets
+
+            if (energy_min > energy_1) {
+                dt = dt/2;
+                energy_2 = energy_min;
+                energy_min = this->get_energy(_edges, _cells, dt/2);
+                continue; // we know that close to pos_1 there is a minimum
+            }
+
+            // Both conditions fulfilled!
+            // there is a minimum within interval [0, pos_2]
+            pos_2 = dt;
+            pos_min = dt / 2.;
             break;
         }
-        double pos_3 = dt / 2.;
+
+        if (fabs(energy_min - energy_0) < _minimisation_precision) {
+            // the found minimum fulfills our condition 
+            return std::make_pair(pos_min, energy_min);
+        }
 
         // Find the minimum between brackets with parabolic interpolation
         while(true) {
             double term_3 = (pos_2 - pos_1)*(energy_2 - energy_min);
-            double term_4 = (pos_2 - pos_3)*(energy_2 - energy_1);
+            double term_4 = (pos_2 - pos_min)*(energy_2 - energy_1);
             double term_1 = (pos_2 - pos_1)*term_3;
-            double term_2 = (pos_2 - pos_3)*term_4;
+            double term_2 = (pos_2 - pos_min)*term_4;
             
-            // the minimum of parabola through 1, 2, 3
+            // the minimum of parabola through 1, 2, min
             double pos_4 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
-            double energy_4 = this->get_energy(_edges, _cells, pos_2);
-            if (fabs(energy_4 - energy_min) < 1e-6) {
-                dt = pos_4;
-                break;
+            if (pos_4 < pos_1 or pos_4 > pos_2) {
+                this->_log->warn("pos_1={}, pos_min={}, pos_2={}",
+                                 pos_1, pos_min, pos_2);
+                this->_log->warn("D_energy_1={}, D_energy_min={}, "
+                                 "D_energy_2={}. wrt energy_0",
+                                 energy_0-energy_1, energy_0-energy_min,
+                                 energy_0-energy_2);
+                this->_log->warn("Fitted minimum: x={}", pos_4);
+                throw std::runtime_error("Energy minimisation failed! "
+                                         "Parabola fit outside brackets");
             }
 
-            // choose brackets, such that pos_2=pos_4 is center of 1 and 3
-            if (pos_4 - pos_3 < 0.) {
-                pos_3 = pos_2;
-                pos_2 = pos_4;
-                energy_min = energy_2;
-                energy_2 = energy_4;
+            double energy_4 = this->get_energy(_edges, _cells, pos_4);
+            if (fabs(energy_4 - energy_min) < _minimisation_precision) {
+                dt = pos_4;
+                break; // found the minimum with required precision
             }
+            
+            if (energy_4 - energy_0 > 0.) {
+                throw std::runtime_error("Energy minimisation failed! "
+                                         "Found closer local maximum, hence "
+                                         "overestimated size of brackets.");
+            }
+
+            // ** choose new brackets
+            // pos_4 is to the left of minimum and is smaller
+            // pos_4 becomes new minimum between 1 and 2->min
+            if (pos_4 - pos_min < 0. and energy_4 - energy_min < 0.) {
+                pos_2 = pos_min; energy_2 = energy_min;
+                pos_min = pos_4; energy_min = energy_4;
+            }
+            // pos_4 is to the left of minimum but is larger
+            // pos_4 becomes new pos 1
+            else if (pos_4 - pos_min < 0.) {
+                pos_1 = pos_4; energy_1 = energy_4;
+            }
+            // pos_4 is to the right of minimum and is smaller
+            // pos_4 becomes new minimum between 1->min and 2
+            else if (energy_4 - energy_min < 0.) {
+                pos_1 = pos_min; energy_1 = energy_min;
+                pos_min = pos_4; energy_min = energy_4;
+            }
+            // pos_4 is to the right of minimum but is larger
+            // pos_4 becomes new pos 2
             else {
-                pos_3 = pos_1;
-                pos_1 = pos_4;
-                energy_1 = energy_4;
-                energy_min = energy_1;
+                pos_2 = pos_4; energy_2 = energy_4;
             }
         }
-        
-        return dt;
+
+        return std::make_pair(dt, energy_min);
     }
 
 public:
@@ -936,6 +1008,15 @@ public:
 
     // .. Simulation Control ..................................................
 
+    void init_minimisation () {
+        set_gradient();
+
+        for (auto v : _vertices) {
+            v->gx = v->x; v->gy = v->y;
+            v->hx = v->x; v->hy = v->y;
+        }
+    }
+    
     /// Iterate a single step
     /** \details Rules applied
      *      -# reset vertex forces, calculate cell area and edge length
@@ -946,21 +1027,53 @@ public:
      *      -# Update vertex positions on vertices
      */
     void perform_step () {
-        // store previous energy
-        _energy_change_history.pop_front();
-        _energy_change_history.push_back(get_rel_energy_change ());
         _energy_previous_step = this->get_energy();
 
-        // reset forces
-        std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
-        if constexpr (polarity_proteins) {
-            std::for_each(_edges.begin(), _edges.end(), reset_polarity_change);
+        // line minimisation along direction of update h
+        double new_energy;
+        std::tie(_dt, new_energy) = determine_timestep(_energy_previous_step);
+        _energy_change = (new_energy - _energy_previous_step) / new_energy;
+        
+        if (_energy_change < -1e-14) {
+            this->_log->debug("Updating with timestep {} at energy change {}",
+                              _dt, _energy_change);
+            std::for_each(_vertices.begin(), _vertices.end(),
+                          update_position);
+        }
+        else {
+            this->_log->debug("NOT updating with step size {} along direction "
+                              "of update at energy change {}", _dt,
+                              _energy_change);
+            return;
+        }        
+
+        // determine the conjugate gradient direction
+        set_gradient();
+        double gamma = 0.;
+        double g_square = 0.;
+        for (auto v : _vertices) {
+            gamma += std::pow(v->fx, 2) + std::pow(v->fy, 2);
+            g_square += std::pow(v->gx, 2) + std::pow(v->gy, 2);
+            
+            v->gx = v->fx; v->gy = v->fy;
+        }
+        gamma /= g_square;
+        for (auto v : _vertices) {
+            v->hx = v->gx + gamma * v->hx;
+            v->hy = v->gy + gamma * v->hy;
+
+            v->fx = v->hx; v->fy = v->hy; 
         }
 
+
+        bool transition_occurred = false;
+            
         // T2 transitions -- cell extrusion
         for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
-            if ((*c_it)->template area_abs<periodic_bc>(_Lx, _Ly) < _T2_threshold) {
-                c_it = T2_transition(c_it);
+            double area = (*c_it)->template area_abs<periodic_bc>(_Lx, _Ly);
+            if (area < _T2_threshold) {
+                std::tie(c_it, transition_occurred) = T2_transition(c_it);
+                transition_occurred = true;
             }
             else {
                 ++c_it;
@@ -969,44 +1082,35 @@ public:
 
         // T1 transition -- neighborhood change
         for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
-            if ((*e_it)->template length<periodic_bc>(_Lx, _Ly) < _T1_threshold
+            double length = (*e_it)->template length<periodic_bc>(_Lx, _Ly);
+            if (length < _T1_threshold
                 and _prob_distr(*this->_rng) < _T1_probability)
             {
-                e_it = T1_transition(e_it);
+                std::tie(e_it, transition_occurred) = T1_transition(e_it);
+                transition_occurred = true;
             }
             else {
                 ++e_it;
             }
         }
 
-        std::for_each(_edges.begin(), _edges.end(), set_linetension);
-        std::for_each(_edges.begin(), _edges.end(), set_edge_contractility);
-        std::for_each(_cells.begin(), _cells.end(), set_area_elasticity);
-        std::for_each(_cells.begin(), _cells.end(), set_cell_contractility);
-
-        _dt = determine_timestep();
-        double new_energy = this->get_energy(_edges, _cells, _dt);
-        double energy_change = new_energy - _energy_previous_step;
-        if (energy_change < -1e-14 and _dt < 1.) {
-            this->_log->debug("Updating with timestep {}", _dt);
-            std::for_each(_vertices.begin(), _vertices.end(), update_position);
-        }
-        else {
-            this->_log->warn("Not updating because energy change {} < 1e-14 "
-                             "or timestep size {} > 1 !", energy_change, _dt);
+        if (transition_occurred) {
+            // restart the conjugate gradient update
+            this->init_minimisation();
         }
 
-        if constexpr (polarity_proteins) {
-            std::for_each(_edges.begin(), _edges.end(), set_cell_cell_polarity);
-            std::for_each(_cells.begin(), _cells.end(),
-                apply_polarity_exclusion);
-            std::for_each(_cells.begin(), _cells.end(),
-                set_lagrange_net_polarisation);
-            std::for_each(_cells.begin(), _cells.end(),
-                set_lagrange_const_concentration);
+        // if constexpr (polarity_proteins) {
+        //     std::for_each(_edges.begin(), _edges.end(),
+        //                   set_cell_cell_polarity);
+        //     std::for_each(_cells.begin(), _cells.end(),
+        //         apply_polarity_exclusion);
+        //     std::for_each(_cells.begin(), _cells.end(),
+        //         set_lagrange_net_polarisation);
+        //     std::for_each(_cells.begin(), _cells.end(),
+        //         set_lagrange_const_concentration);
 
-            std::for_each(_edges.begin(), _edges.end(), update_polarity);
-        }
+        //     std::for_each(_edges.begin(), _edges.end(), update_polarity);
+        // }
     }
     
     /// Monitor model information
@@ -1189,6 +1293,11 @@ public:
     double get_energy (EdgeContainer es = {}, CellContainer cs = {}, 
                        double beta = 0.) const
     {
+        if (beta > 10.) {
+            throw std::runtime_error("Cannot calculate energy with "
+                "epsilon multiplicator larger than 10.!");
+        }
+
         if (es.empty()) { es = this->_edges; }
         if (cs.empty()) { cs = this->_cells; }
         return get_energy_linetension(es, beta) +
@@ -1220,16 +1329,6 @@ public:
         const double energy = get_energy();
         double energy_change = energy - _energy_previous_step;
         return energy_change / energy;
-    }
-
-    /// Getter for mean energy change
-    /** Mean is taken over last m steps, with 
-     *  m = PCPVertex::_energy_change_history_length
-     */
-    double get_mean_energy_change() const {
-        return std::accumulate(_energy_change_history.begin(),
-                    _energy_change_history.end(), 0.0
-                    ) / (_energy_change_history.size() * _dt);
     }
 
     /// Getter for the domain size
@@ -1279,7 +1378,6 @@ public:
         _distr_noise_linear = std::normal_distribution<double>(0., stddev);
     }
 
-
     /** Criterion for the equilibrium state
      * 
      *  Equilibrium if PCPVertex::get_mean_energy_change() change is smaller
@@ -1287,9 +1385,14 @@ public:
      *  
      *  \param threshold    The equilibrium threshold
      */
-    bool equilibrium_state_reached(double threshold) const {
-        return fabs(get_mean_energy_change()) < threshold;
+    bool equilibrium_state_reached() const {
+        return fabs(_energy_change) < _minimisation_precision;
     };
+
+    /// Set a precision for minimisation
+    void set_minimisation_precision (double precision) {
+        _minimisation_precision = precision;
+    }
 }; // class PCPVertex
 
 } // namespace PCPVertex

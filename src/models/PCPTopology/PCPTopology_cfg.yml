@@ -55,7 +55,7 @@ differentiation:
 # Equilibration parameter
 equilibration:
   tolerance: 1.e-8
-  num_steps: 1
+  num_steps: 1000
   num_iterations: 1000
   # NOTE after num_steps tolerance is checked, repeated for num_iterations
   num_jiggle: 5

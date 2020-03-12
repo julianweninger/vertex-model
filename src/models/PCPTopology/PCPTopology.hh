@@ -223,19 +223,17 @@ public:
                 this->_cfg["equilibration"]);
         _num_jiggle_per_equilibration = get_as<int>("num_jiggle",
                 this->_cfg["equilibration"]);
-        if (_num_jiggle_per_equilibration > 0) {
-            _jiggle_intensity = get_as<double>("jiggle_intensity",
-                    this->_cfg["equilibration"]);
-            _jiggle_equilibration_tolerance = get_as<double>("jiggle_tolerance",
-                    this->_cfg["equilibration"], _equilibration_tolerance);
-            
-            if (_jiggle_equilibration_tolerance < _equilibration_tolerance) {
-                throw std::invalid_argument("In model " + this->_name + ": "
-                    "'equilibration' expected jiggle_tolerance to be larger "
-                    "than tolerance, but " + 
-                    std::to_string(_jiggle_equilibration_tolerance) + " < " +
-                    std::to_string(_equilibration_tolerance) + "!");
-            }
+        _jiggle_intensity = get_as<double>("jiggle_intensity",
+                this->_cfg["equilibration"], 0.);
+        _jiggle_equilibration_tolerance = get_as<double>("jiggle_tolerance",
+                this->_cfg["equilibration"], _equilibration_tolerance);
+        
+        if (_jiggle_equilibration_tolerance < _equilibration_tolerance) {
+            throw std::invalid_argument("In model " + this->_name + ": "
+                "'equilibration' expected jiggle_tolerance to be larger "
+                "than tolerance, but " + 
+                std::to_string(_jiggle_equilibration_tolerance) + " < " +
+                std::to_string(_equilibration_tolerance) + "!");
         }
 
         _envm.track_parameters({"area_preferential_hair",
@@ -268,7 +266,6 @@ private:
         }
 
         double tolerance = _jiggle_equilibration_tolerance;
-        int max_steps = _num_equilibration_steps*_max_equilibration_iterations;
         int time_0 = _vertex_model.get_time();
         for (int it_jiggle = 0; it_jiggle <= _num_jiggle_per_equilibration;
              it_jiggle++)
@@ -285,45 +282,35 @@ private:
             
             int time_start = _vertex_model.get_time(); 
             this->_log->debug("  Jiggling the vertices on a length scale of "
-                "{}. Then iterating the vertex model for a maximum of "
-                "{} steps from time {}, checking for equilibrium "
-                "every {} steps ..", intensity, max_steps,
-                _vertex_model.get_time(), _num_equilibration_steps);
+                "{}. Then equilibrating the vertex model ..", intensity);
             
             _vertex_model.jiggle_vertices(intensity);
+            _vertex_model.set_minimisation_precision(tolerance);
+            _vertex_model.init_minimisation();
             _equilibrated = false;
             while (not _equilibrated) {
-                for (int i = 0; i < _num_equilibration_steps; ++i) {
-                    _vertex_model.iterate();
+                _vertex_model.iterate();
 
-                    if (stop_now.load()) {
-                        this->_log->warn("Was told to stop. Not iterating "
-                            "vertex model further ...");
-                        throw GotSignal(received_signum.load());
-                    }
-                }
-                _equilibrated = _vertex_model.equilibrium_state_reached(
-                                                    tolerance);
+                _equilibrated = _vertex_model.equilibrium_state_reached();
                 
                 if (not _equilibrated
-                    and _vertex_model.get_time() - time_start >= max_steps)
+                    and _vertex_model.get_time() - time_start >= _num_equilibration_steps)
                 {
                     this->_log->warn("ERROR Equilibrium not reached within {} "
-                        "iterations of {} steps each (total iteration steps {})"
-                        " at a tolerance of {}! "
-                        "The mean relative change in energy in last {} step(s) "
-                        "was {}.", _max_equilibration_iterations,
-                        _num_equilibration_steps, max_steps, 
-                        _equilibration_tolerance,
-                        get_as<int>("energy_change_history_length",
-                                    this->_cfg["PCPVertex"], 1),
-                        _vertex_model.get_mean_energy_change());
+                        "steps at a tolerance of {}! ", 
+                        _num_equilibration_steps,  _equilibration_tolerance);
                     #ifdef NDEBUG
                     this->_log->warn("Running model in release mode. Some known "
                         "exceptions are only evaluated in debug mode, the author "
                         "recommends to build the model in debug mode!");
                     #endif
                     throw std::runtime_error("Equilibrium not reached!");
+                }
+
+                if (stop_now.load()) {
+                    this->_log->warn("Was told to stop. Not iterating "
+                        "vertex model further ...");
+                    throw GotSignal(received_signum.load());
                 }
             }
         }

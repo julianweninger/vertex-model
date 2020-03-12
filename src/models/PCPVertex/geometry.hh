@@ -60,6 +60,12 @@ struct Vertex : Site {
     /// the steepest gradient slope
     double fx, fy;
 
+    /// conjugate gradient
+    double gx, gy;
+
+    /// direction of update (conjugate gradient)
+    double hx, hy;
+
     /// Container of the adjacent edges
     std::vector<std::weak_ptr<Edge>> adj_edges;
 
