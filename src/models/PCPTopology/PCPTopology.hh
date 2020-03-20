@@ -320,7 +320,7 @@ private:
                     throw std::runtime_error("Equilibrium not reached!");
                 }
                 if (not _equilibrated
-                    and (_vertex_model.get_time() - time_start) % 20 == 0)
+                    and (_vertex_model.get_time() - time_start) % 10 == 0)
                 {
                     _vertex_model.init_minimisation();
                 }

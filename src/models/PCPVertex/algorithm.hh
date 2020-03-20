@@ -8,21 +8,18 @@ namespace PCPVertex {
 /// Determine step size to reach the line minimum along direction of update
 /** See www.acclab.helsinki.fi/~aakurone/atomistiset/lecturenotes/lecture12_2up.pdf
  *  for details of algorithm
- * 
+ *  
+ *  \param dt           The step size of previous step
  *  \param energy_0     The energy at current position
  *  \return {step size to reach line minimum, energy at line minimum}
  */
 template <bool periodic_bc, bool polarity_proteins>
 std::pair<double, double> PCPVertex<periodic_bc,
                                     polarity_proteins>::determine_timestep (
-        const double energy_0) const
+        double dt, const double energy_0) const
 {
     // Bracket the minimum
-    double dt = 1e-6;
-    // NOTE ideally reuse the dt from previous step
-    //      dt = 2 * _dt; // this is the best guess for right boundary
-    //      with minimum at dt / 2 = _dt
-    // WARN this has caused unexpected failures previously
+    dt = std::min(2*dt, 2.);
 
     // check that actually moving towards a minimum
     if (this->get_energy(_edges, _cells, 1e-6) >= energy_0) {
@@ -46,6 +43,7 @@ std::pair<double, double> PCPVertex<periodic_bc,
         }
         return std::make_pair(0., energy_0);
     }
+    // TODO remove this part if not causing abortions 
 
     double pos_1 = 0.; // left boundary
     bool calculate_energy_min = true;
@@ -56,7 +54,7 @@ std::pair<double, double> PCPVertex<periodic_bc,
     double pos_min = dt/2.;
     double energy_min = this->get_energy(_edges, _cells, pos_min);
     while (true) {
-        if (dt/2 > 3.) {
+        if (dt/2 > 100.) {
             if (fabs(energy_2 - energy_1) < _minimisation_precision) {
                 // the energy function is flat
                 return std::make_pair(0., energy_0);
@@ -64,6 +62,11 @@ std::pair<double, double> PCPVertex<periodic_bc,
             this->_log->warn("At step of {} along direction of "
                 "update the energy is still decreasing by {}", dt/2, 
                 energy_2 - energy_1);
+            for (double dt = 1e-11; dt < 100.; dt *= 2) {
+                this->_log->warn("DEBUG At step of {} along direction of "
+                    "update the energy is changing by {}", dt, 
+                    (this->get_energy(_edges, _cells, dt) - energy_0)/dt);
+            }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
             throw std::runtime_error("Unable to find bracket to "
                 "local energy minimum!");
@@ -128,9 +131,8 @@ std::pair<double, double> PCPVertex<periodic_bc,
         }
         
         if (energy_4 - energy_0 > 0.) {
-            throw std::runtime_error("Energy minimisation failed! "
-                                        "Found closer local maximum, hence "
-                                        "overestimated size of brackets.");
+            // there is a closer maximum. Retry with smaller step size
+            return determine_timestep(pos_4 / 2., energy_0);
         }
 
         // ** choose new brackets
@@ -192,7 +194,7 @@ double PCPVertex<periodic_bc, polarity_proteins>::steepest_gradient_step (
 
     double new_energy;
     if (adaptive_step) {
-        std::tie(_dt, new_energy) = determine_timestep(_energy);
+        std::tie(_dt, new_energy) = determine_timestep(_dt, _energy);
         double energy_change = (new_energy - _energy) / new_energy;
 
         if (energy_change < -1e-14) {
@@ -225,7 +227,7 @@ double PCPVertex<periodic_bc, polarity_proteins>::conjugate_gradient_step ()
 
     // line minimisation along direction of update h
     double new_energy;
-    std::tie(_dt, new_energy) = determine_timestep(_energy);
+    std::tie(_dt, new_energy) = determine_timestep(_dt, _energy);
     double energy_change = (new_energy - _energy) / new_energy;
 
     if (energy_change < -1e-14) {

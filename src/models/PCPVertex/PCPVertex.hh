@@ -586,7 +586,8 @@ private:
                                         double division_angle);
 
     // see algorithm.hh
-    std::pair<double, double> determine_timestep (const double energy_0) const;
+    std::pair<double, double> determine_timestep (double dt,
+                                                  const double energy_0) const;
     double steepest_gradient_step (bool adaptive_step);
     double conjugate_gradient_step ();
     double perform_update_step(UpdateScheme update_scheme);
