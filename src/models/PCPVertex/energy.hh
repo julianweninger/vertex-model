@@ -380,11 +380,6 @@ template <bool periodic_bc, bool polarity_proteins>
 double PCPVertex<periodic_bc, polarity_proteins>::get_energy (
         EdgeContainer es, CellContainer cs, double beta) const
 {
-    if (beta > 10.) {
-        throw std::runtime_error("Cannot calculate energy with "
-            "epsilon multiplicator larger than 10.!");
-    }
-
     if (es.empty()) { es = this->_edges; }
     if (cs.empty()) { cs = this->_cells; }
     return get_energy_linetension(es, beta) +
@@ -422,7 +417,6 @@ double PCPVertex<periodic_bc, polarity_proteins>::get_rel_energy_change () const
     double energy_change = energy - _energy_previous_step;
     return energy_change / energy;
 }
-
 
 } // namespace PCPVertex
 } // namespace Models

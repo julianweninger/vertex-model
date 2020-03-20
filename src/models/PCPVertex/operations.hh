@@ -22,6 +22,8 @@ void PCPVertex<periodic_bc, polarity_proteins>::jiggle_vertices(
         v->y += 2*intensity * _prob_distr(*this->_rng) - intensity;
         correct_periodic_bc<periodic_bc>(v);
     }
+
+    this->init_minimisation();
 };
 
 /// Differentiates progenitor cells with random hair cell distribution

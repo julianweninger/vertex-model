@@ -271,6 +271,7 @@ private:
 
         double tolerance = _jiggle_equilibration_tolerance;
         int time_0 = _vertex_model.get_time();
+        bool repeat = false;
         for (int it_jiggle = 0; it_jiggle <= _num_jiggle_per_equilibration;
              it_jiggle++)
         {
@@ -290,7 +291,6 @@ private:
             
             _vertex_model.jiggle_vertices(intensity);
             _vertex_model.set_minimisation_precision(tolerance);
-            _vertex_model.init_minimisation();
             _equilibrated = false;
             while (not _equilibrated) {
                 _vertex_model.iterate();
@@ -307,12 +307,22 @@ private:
                         "step was {}.", 
                         _num_equilibration_steps,  _equilibration_tolerance,
                         energy_change);
+                    if (not repeat) {
+                        it_jiggle--;
+                        repeat = true;
+                        break;
+                    }
                     #ifdef NDEBUG
                     this->_log->warn("Running model in release mode. Some known "
                         "exceptions are only evaluated in debug mode, the author "
                         "recommends to build the model in debug mode!");
                     #endif
                     throw std::runtime_error("Equilibrium not reached!");
+                }
+                if (not _equilibrated
+                    and (_vertex_model.get_time() - time_start) % 20 == 0)
+                {
+                    _vertex_model.init_minimisation();
                 }
 
                 if (stop_now.load()) {
@@ -321,6 +331,7 @@ private:
                     throw GotSignal(received_signum.load());
                 }
             }
+            if (_equilibrated) { repeat = false; }
         }
 
         this->_log->debug("Vertex model equilibrated within {} steps", 

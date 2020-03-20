@@ -78,6 +78,15 @@ private:
     // PARAMETERS
     /// timestep scaling
     double _dt;
+
+    /// The update scheme to choose
+    /** See PCPVertex::perform_update_step .
+     */
+    enum UpdateScheme {
+        SteepestGradient,
+        SteepestGradientAdaptive,
+        ConjugateGradient
+    } _update_scheme;
     
     /// The precision during minimisation
     double _minimisation_precision;
@@ -160,8 +169,8 @@ private:
     /// The total energy in the last step
     double _energy_previous_step;
 
-    /// The change of energy in last update
-    double _energy_change;
+    /// Current energy
+    double _energy;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -201,11 +210,35 @@ public:
         _distr_noise_const(0., get_as<double>("noise_constant", this->_cfg)),
         _distr_noise_linear(0., get_as<double>("noise_linear", this->_cfg)),
         _energy_previous_step(0.),
-        _energy_change(0.)
+        _energy(0.)
     {
         _linetension.fill(get_as<double>("linetension", this->_cfg));
         _edge_contractility.fill(get_as<double>("edge_contractility",
                                                 this->_cfg));
+
+        if (get_as<std::string>("update_scheme",
+                                this->_cfg) == "steepest_gradient") {
+            _update_scheme = SteepestGradient;
+            this->_log->info("Steepest gradient chosen as update scheme.");
+        }
+        else if (get_as<std::string>("update_scheme",
+                                this->_cfg) == "steepest_gradient_adaptive") {
+            _update_scheme = SteepestGradientAdaptive;
+            this->_log->info("Steepest gradient with adaptive step size "
+                             "chosen as update scheme.");
+        }
+        else if (get_as<std::string>("update_scheme",
+                                this->_cfg) == "conjugate_gradient") {
+            _update_scheme = ConjugateGradient;
+            this->_log->info("Conjugate gradient chosen as update scheme.");
+        }
+        else {
+            throw KeyError("update_scheme", this->_cfg, "Update scheme must "
+                "be one of the following: "
+                "'steepest_gradient', "
+                "'steepest_gradient_adaptive', "
+                "'conjugate_gradient'.");
+        }
 
         this->initialise_hexagonal(
             get_as<double>("hexagon_size", this->_cfg),
@@ -554,7 +587,9 @@ private:
 
     // see algorithm.hh
     std::pair<double, double> determine_timestep (const double energy_0) const;
-    void conjugant_gradient_step ();
+    double steepest_gradient_step (bool adaptive_step);
+    double conjugate_gradient_step ();
+    double perform_update_step(UpdateScheme update_scheme);
 
 
 public:
@@ -577,20 +612,13 @@ public:
 
     /// Iterate a single step
     /** \details Rules applied
-     *      -# reset vertex forces, calculate cell area and edge length
      *      -# perform T2 transitions on cells
      *      -# perform T1 transitions on edges 
-     *      -# Linetension on edges
-     *      -# Area elasticity on cells
-     *      -# Update vertex positions on vertices
+     *      -# perform minimisation step
      */
     void perform_step () {
-        _energy_previous_step = this->get_energy();
-
-        conjugant_gradient_step();
-
         bool transition_occurred = false;
-            
+
         // T2 transitions -- cell extrusion
         for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
             double area = (*c_it)->template area_abs<periodic_bc>(_Lx, _Ly);
@@ -622,6 +650,12 @@ public:
             this->init_minimisation();
         }
 
+        _energy = this->get_energy();
+        // NOTE need this, because operations might have changed it
+        //      since last update
+        _energy_previous_step = _energy;
+        _energy = perform_update_step(_update_scheme);
+
         // if constexpr (polarity_proteins) {
         //     std::for_each(_edges.begin(), _edges.end(),
         //                   set_cell_cell_polarity);
@@ -638,12 +672,10 @@ public:
     
     /// Monitor model information
     void monitor () {
-        double energy = this->get_energy();
-        this->_monitor.set_entry("energy", energy);
+        this->_monitor.set_entry("energy", _energy);
         this->_monitor.set_entry("energy_change",
-                                 energy - _energy_previous_step);
+                                 _energy - _energy_previous_step);
     }
-
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
@@ -728,10 +760,14 @@ public:
      *  than threshold value
      *  
      *  \param threshold    The equilibrium threshold
+     * 
+     *  \return {whether equilibrium reached, relative energy change}
+     *  \note relative energy change is not normalised for step size
      */
     std::pair<bool, double> equilibrium_state_reached() const {
-        return std::make_pair(fabs(_energy_change) < _minimisation_precision,
-                              _energy_change);
+        double energy_change = this->get_rel_energy_change ();
+        return std::make_pair(fabs(energy_change) < _minimisation_precision,
+                              energy_change);
     };
 
     /// Set a precision for minimisation

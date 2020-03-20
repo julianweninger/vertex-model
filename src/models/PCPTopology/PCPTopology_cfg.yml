@@ -56,10 +56,10 @@ differentiation:
 equilibration:
   tolerance: 1.e-8
   num_steps: 1000
-  num_iterations: 1000
+  num_iterations: 1
   # NOTE after num_steps tolerance is checked, repeated for num_iterations
   num_jiggle: 5
-  jiggle_intensity: 0.005
+  jiggle_intensity: 0.01
   jiggle_tolerance: 1.e-6
 
 cell_divisions_per_step: 0
@@ -99,6 +99,7 @@ PCPVertex:
 
   # damping factor
   dt: 0.01
+  update_scheme: conjugate_gradient
   
   # Linetension parameter
   linetension: *Linetension
@@ -119,14 +120,14 @@ PCPVertex:
   cell_initialisation_protein_level: 0.
 
   T1_threshold: 0.01
-  T1_probability: 0.01
-  T1_barrier: 0.01
+  T1_probability: 1.
+  T1_barrier: 0.001
   T2_threshold: 0.0075
 
   # Topology parameter
   hexagon_size: 0.62
-  lattice_rows: 4
-  lattice_columns: 4
+  lattice_rows: 8
+  lattice_columns: 8
 
   # Noise
   noise_constant: 0.0
