@@ -44,9 +44,11 @@ std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc,
                 "threshold area for T2 transitions, such that this cell "
                 "is removed, rather than performing a T1 transition!",
                 c->template area<periodic_bc>());
-            throw std::runtime_error("Cannot perform T1 transition of an "
-                "edge adjacent to a cell with only 3 edges (triangle). "
-                "The cell would become a (n-1) dimensional object.");
+            return std::make_pair(++edge_it, false);
+            // TODO check algorithm at this point
+            // throw std::runtime_error("Cannot perform T1 transition of an "
+            //     "edge adjacent to a cell with only 3 edges (triangle). "
+            //     "The cell would become a (n-1) dimensional object.");
         }
     }
 
@@ -236,7 +238,7 @@ std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc,
     if (new_energy > current_energy
         and _prob_distr(*this->_rng) > probability)
     {
-        this->_log->debug("Aborting T1 transition, because energy increased by "
+        this->_log->info("Aborting T1 transition, because energy increased by "
                 "{} .. The probability to do this T1 transition is {}.",
                 new_energy - current_energy, probability);
 
@@ -295,7 +297,7 @@ std::pair<CellContainer::iterator, bool> PCPVertex<periodic_bc,
     auto cell = *cell_it;
 
     if (cell->edges_ordered.size() != 3) {
-        this->_log->debug("Delaying T2 transition, because the cell has more "
+        this->_log->info("Delaying T2 transition, because the cell has more "
             "3 vertices. Since correct implementation is missing, a T2 "
             "transition on this cell would violate the condition, that a "
             "vertex has 3 (or less at boundary) adj_edges and _cells. "
