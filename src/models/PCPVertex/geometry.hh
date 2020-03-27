@@ -797,6 +797,21 @@ Cell displace_cell_steepest_gradient(Cell c, double beta, double Lx,
     return c;
 }
 
+CellContainer neighbors_of(Cell_ptr cell) {
+    CellContainer neighbors;
+
+    for (auto [e, flip] : cell->edges_ordered) {
+        if (not e->adj_cell_a.expired() and e->adj_cell_a.lock() != cell) {
+            neighbors.push_back(e->adj_cell_a.lock());
+        }
+        else if (not e->adj_cell_b.expired() and e->adj_cell_b.lock() != cell) {
+            neighbors.push_back(e->adj_cell_b.lock());
+        }
+    }
+
+    return neighbors;
+}
+
 } // namespace PCPVertex
 } // namespace Models
 } // namespace Utopia

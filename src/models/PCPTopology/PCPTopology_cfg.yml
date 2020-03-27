@@ -29,6 +29,8 @@ proliferation:
 differentiation:
   active: True
   hair_cell_fraction: 0.25
+  notch_delta_steps: 1000
+  method: NotchDelta    # can be: NotchDelta, random
 
   linetension:
     progenitor_progenitor: &Linetension 0.1
@@ -50,6 +52,80 @@ differentiation:
     hair_hair: *Contractility
     hair_support:  *Contractility
     support_support: 0.02
+
+NotchDelta:
+  space: &NOTCHSPACE
+    periodic: false
+
+  # --- CellManager and cell initialization
+  cell_manager:
+    grid:
+      structure: square
+      resolution: 15   # this is automatically set
+
+    neighborhood:
+      mode: empty      # the neighborhood is automatically inherited from the
+                       # Vertex model 
+
+    # Cell initialization parameters
+    cell_params: ~
+
+  # -- Dynamics
+  rate_ph:
+    rate_0: 8.e-3 # the rate above threshold
+    # the rates below threshold
+    #   if more than one entry given, linear mapping.
+    #   latter rates correspond to lower concentrations of atoh1
+    rate_1: 0.
+
+  rate_ps: 1.e-2
+
+  atoh1_suppression:
+    # in every step the atoh1 level in neighboring cells is divided by this value 
+    rate_0: 10. # for 0 HC neighbors
+    # for one or more HC neighbors
+    #   if more than one entry given, each entry for one more neighbor
+    #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
+    #   last entry for n or more HC neighbors 
+    rate_1: 1.
+
+  atoh1_threshold: 1.
+
+  rate_swap: 0.
+
+  Environment:
+    space: *NOTCHSPACE
+
+    env_state_funcs:
+      - noise:
+          atoh1:
+            mode: add
+            distribution: exponential
+            lambda: 100
+
+  data_manager:
+    # this builds the deciders
+    deciders:
+      write_always:
+        type: always
+
+    # this builds the triggers, here deciders are used
+    triggers:      
+      build_once:
+        type: once
+      
+    # the tasks
+    tasks:
+      Density_progenitor: &density
+        active: true
+        trigger: build_once
+        decider: write_always
+      Density_hair: *density
+      Density_support: *density
+      Density_ratio_hair_support: *density
+      Number_hair_hair_contacts: *density
+      Density_time: *density
+
 
 # --- Dynamics
 # Equilibration parameter
@@ -205,7 +281,7 @@ PCPVertex:
         active: false
 
       Vertex_position: &position
-        active: true
+        active: false
         trigger: build_slice
         decider: write_slice
 

@@ -287,7 +287,7 @@ private:
     double lagrange_net_polarisation_energy (Cell_ptr &c) const;
     double lagrange_const_concentration_energy (Cell_ptr &c) const;
 
-    // .. Helper functions ....................................................
+    // .. Force setter functions ..............................................
     /// Resets the forces of this vertex
     std::function<void(Vertex_ptr&)> reset_forces = [](Vertex_ptr &v) {
         v->fx = 0.;
@@ -592,15 +592,31 @@ private:
     double conjugate_gradient_step ();
     double perform_update_step(UpdateScheme update_scheme);
 
+    // -- Helper functions ----------------------------------------------------
+    void differentiate_hair_cells_hlpr(
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
+
 
 public:
     // -- Public Interface ----------------------------------------------------
     void jiggle_vertices(double intensity);
-    void differentiate_hair_cells(double fraction,
+    void differentiate_hair_cells_random(double fraction,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                     CellType::num_cell_types> linetension,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                     CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
+    template <class NotchDelta>
+    void differentiate_hair_cells_NotchDelta(
+        std::shared_ptr<NotchDelta> notch_delta, int steps,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
         arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
     void divide_cell(Cell_ptr cell, double division_angle);
     void increase_domain_size(double area);

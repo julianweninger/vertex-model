@@ -1,6 +1,8 @@
 #ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_OPERATIONS_HH
 #define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_OPERATIONS_HH
 
+#include <typeinfo>
+
 namespace Utopia {
 namespace Models {
 namespace PCPVertex {
@@ -26,25 +28,23 @@ void PCPVertex<periodic_bc, polarity_proteins>::jiggle_vertices(
     this->init_minimisation();
 };
 
-/// Differentiates progenitor cells with random hair cell distribution
-/** \param fraction     fraction of hair cells. Others are support cells
- *  \param linetension  The symmetric matrix of linetension interactions
+/// Helper for differentiation of progenitor cells
+/** \param linetension  The symmetric matrix of linetension interactions
  *                      between two cells of same or different type
+ *  \param edge_contractility  The symmetric matrix of contractility interactions
+ *                             between two cells of same or different type
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
 template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells(
-        double fraction,
+void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells_hlpr(
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> edge_contractility,
         arma::Col<double>::fixed<CellType::num_cell_types> area_preferential)
 {
-    this->_log->debug("Differentiating progenitor cells to {}% hair cells "
-        "and {}% support cells ...", fraction, 1-fraction);
-
+    // check parameter
     for (int i = 0; i < CellType::num_cell_types; i++) {
         for (int j = i+1; j < CellType::num_cell_types; j++) {
             if (linetension(j, i) == linetension(i, j)) {
@@ -70,13 +70,8 @@ void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells(
         }
     }
     
-    // Set the cell type
+    // Set the cell preferential area
     for (auto &c : _cells) {
-        if (_prob_distr(*this->_rng) < fraction) { 
-            c->type = CellType::hair; }
-        else { c->type = CellType::support; }
-
-        // set the preferential area
         c->area_preferential = area_preferential(c->type);
     }
 
@@ -96,6 +91,108 @@ void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells(
 
     _linetension = linetension;
     _edge_contractility = edge_contractility;
+
+}
+
+/// Differentiates progenitor cells with random hair cell distribution
+/** \param fraction     fraction of hair cells. Others are support cells
+ *  \param linetension  The symmetric matrix of linetension interactions
+ *                      between two cells of same or different type
+ *  \param edge_contractility  The symmetric matrix of contractility interactions
+ *                             between two cells of same or different type
+ *  \param area_preferential    The preferential cell area of the different
+ *                              cell types
+ */
+template <bool periodic_bc, bool polarity_proteins>
+void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells_random(
+        double fraction,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential)
+{
+    this->_log->info("Differentiating progenitor cells to {}% hair cells "
+        "and {}% support cells with uniform spatial distribution ...",
+        fraction, 1-fraction);
+    
+    // Set the cell type
+    for (auto &c : _cells) {
+        if (_prob_distr(*this->_rng) < fraction) { 
+            c->type = CellType::hair; }
+        else { 
+            c->type = CellType::support; }
+    }
+
+    differentiate_hair_cells_hlpr(linetension, edge_contractility,
+                                  area_preferential);
+};
+
+/// Differentiates progenitor cells using the NotchDelta::NotchDelta model
+/** \param notch_delta  The pointer to the differentiation model
+ *  \param steps        Number of iteration steps the NotchDelta model is run.
+ *  \param linetension  The symmetric matrix of linetension interactions
+ *                      between two cells of same or different type
+ *  \param edge_contractility  The symmetric matrix of contractility interactions
+ *                             between two cells of same or different type
+ *  \param area_preferential    The preferential cell area of the different
+ *                              cell types
+ */
+template <bool periodic_bc, bool polarity_proteins>
+template <class NotchDelta>
+void PCPVertex<periodic_bc,
+               polarity_proteins>::differentiate_hair_cells_NotchDelta(
+        std::shared_ptr<NotchDelta> notch_delta, int steps,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential)
+{
+    this->_log->debug("Differentiating progenitor cells to hair "
+        "and support cells using the NotchDelta model ...");
+
+    auto nd_cells = notch_delta->get_cm()->cells();
+
+    std::unordered_map<Cell_ptr, typeof(nd_cells.back())> cell_map;
+    if (_cells.size() > nd_cells.size()) {
+        this->_log->warn("Cells in NotchDelta: {}. Cells in Vertex: {}",
+            nd_cells.size(), _cells.size());
+        throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
+            "models. More cells in Vertex than in NotchDelta model!");
+    }
+    for (int i = 0; i < _cells.size(); i++) {
+        cell_map.insert(std::make_pair(_cells[i], nd_cells[i]));
+    }
+    for (auto c : _cells) {
+        auto mapped_cell = cell_map.at(c);
+        mapped_cell->custom_links().neighbors.clear();
+        for (auto n : neighbors_of(c)) {
+            mapped_cell->custom_links().neighbors.push_back(cell_map.at(n));
+        }
+    }
+
+    notch_delta->prolog();
+    for (int i = 0; i < steps; i++) {
+        notch_delta->iterate();
+    }
+    notch_delta->epilog();
+
+    for (auto pair = cell_map.begin(); pair != cell_map.end(); pair++) {
+        auto type = pair->second->state.cell_type;
+        if (type == NotchDelta::CellType::hair) {
+            pair->first->type =  Cell::CellType::hair;
+        }
+        else if (type == NotchDelta::CellType::support) {
+            pair->first->type =  Cell::CellType::support;
+        }
+        else {
+            pair->first->type =  Cell::CellType::progenitor;
+        }
+    }
+
+    differentiate_hair_cells_hlpr(linetension, edge_contractility,
+                                  area_preferential);
 };
 
 /// Perform a cell division on specific cell

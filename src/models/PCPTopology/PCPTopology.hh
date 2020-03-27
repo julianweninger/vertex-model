@@ -17,8 +17,11 @@
 #include "../PCPVertex/algorithm.hh"
 #include "../PCPVertex/transitions.hh"
 #include "../PCPVertex/operations.hh"
-
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
+
+#include "../NotchDelta/NotchDelta.hh"
+#include "../NotchDelta/NotchDelta_write_tasks.hh"
+
 #include "PCPTopology_write_tasks.hh"
 
 #include <utopia/models/Environment/Environment.hh>
@@ -445,7 +448,7 @@ private:
         return;
    }
 
-    void differentiate_cells_random() {
+    void differentiate_cells () {
         if (not this->_cfg["differentiation"]
             or not get_as<bool>("active", this->_cfg["differentiation"],
                                      true))
@@ -461,9 +464,9 @@ private:
 
             return;
         }
-        this->_log->info("Differentiating progenitor cells to hair- and "
-            "support-cells.");
-                
+        this->_log->debug("Preparing differentiating progenitor cells to hair- "
+            "and support-cells ...");
+
         static_assert(CellType::num_cell_types == 3, "Initialisation of "
             "interaction matrices `linetension` and `area_preferential` only "
             "defined for 3 cell types.");
@@ -528,12 +531,35 @@ private:
                 contractility(j, i) = contractility(i, j);
             }
         }
+        
 
-        double hair_cell_fraction = get_as<double>("hair_cell_fraction",
-                                                this->_cfg["differentiation"]);
-        _vertex_model.differentiate_hair_cells(hair_cell_fraction, linetension,
-                                               contractility,
-                                               _area_preferential);
+        auto method = get_as<std::string>("method",
+                                          this->_cfg["differentiation"]);
+        if (method == "random") {
+            double hair_cell_fraction = get_as<double>("hair_cell_fraction",
+                                            this->_cfg["differentiation"]);
+            _vertex_model.differentiate_hair_cells_random(hair_cell_fraction,
+                linetension, contractility, _area_preferential);
+        }
+        else if (method == "NotchDelta") {
+            auto notch_delta = NotchDelta::NotchDelta("NotchDelta", *this,
+                    NotchDelta::DataIO::density_time,
+                    NotchDelta::DataIO::density_progenitor,
+                    NotchDelta::DataIO::density_hair,
+                    NotchDelta::DataIO::density_support,
+                    NotchDelta::DataIO::density_ratio_hair_support,
+                    NotchDelta::DataIO::number_hair_hair_contacts);
+            auto steps = get_as<int>("notch_delta_steps",
+                                     this->_cfg["differentiation"]);
+            _vertex_model.differentiate_hair_cells_NotchDelta(
+                std::make_shared<NotchDelta::NotchDelta>(notch_delta), steps,
+                linetension, contractility, _area_preferential);
+        }
+        else {
+            throw KeyError("method", this->_cfg["differentiation"], "Method "
+                "for differentiation can be: "
+                "random, " "NotchDelta");
+        }
 
         auto cells = _vertex_model.get_cells();
         int num_hc = 0;
@@ -543,10 +569,11 @@ private:
             }
         }
         
-        this->_log->info("Model initialised with equilibrated vertex "
-            "model. There are {} hair cells or {}%", num_hc,
-            double(num_hc)/_vertex_model.get_cells().size());
         _equilibrated = false;
+        this->_log->info("Differentiated progenitor cells; "
+            "there are {} hair cells out of {} cells ({}%)", num_hc,
+            cells.size(), double(num_hc)/_vertex_model.get_cells().size());
+        
         return;
     }
 
@@ -653,7 +680,7 @@ public:
                              _vertex_model.get_cells().size());
         }
         
-        differentiate_cells_random();
+        differentiate_cells();
         
         _envm.prolog();
         update_area_preferential();
