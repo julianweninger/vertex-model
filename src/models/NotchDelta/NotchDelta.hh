@@ -85,10 +85,12 @@ using EnvModel = Environment::Environment<Environment::DummyEnvParam,
 using EnvCell = EnvModel::CellManager::Cell;
 
 /// The type of the link container of cells in the Environment model
-template<typename>
+template<class EntityContainerType>
 struct EnvLinks {
     /// Link to the associated cell in Environment model
     std::shared_ptr<EnvCell> env;
+
+    EntityContainerType neighbors;
 };
 
 
@@ -124,7 +126,8 @@ public:
 
     /// Type of the CellManager to use
     using CellManager = Utopia::CellManager<CellTraits, NotchDelta>;
-    // NOTE that it requires the model's type as second template argument
+
+    using Cell = CellManager::Cell;
 
     /// Extract the type of the rule function from the CellManager
     /** This is a function that receives a reference to a cell and returns the 
@@ -179,7 +182,6 @@ private:
      */
     double _rate_swap;
 
-
     /// A re-usable uniform real distribution to evaluate probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
@@ -217,6 +219,22 @@ public:
         _progenitors_depleted(false),
         _end_simulation(false)
     {
+        if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
+            this->_log->info("Setting up costum neighborhood from cell "
+                "manager ..");
+            for (auto c : _cm.cells()) {
+                auto neighbors = this->get_cm()->neighbors_of(c);
+                c->custom_links().neighbors.insert(
+                    c->custom_links().neighbors.begin(),
+                    neighbors.begin(),
+                    neighbors.end());
+            }
+        }
+        else {
+            this->_log->info("No neighborhood set up from cell manager. "
+                "Remember to define costum neighborhood for cells");
+        }
+
         if (not this->_cfg["rate_ph"]) {
             throw std::invalid_argument("Missing cfg entry: Expected dict with "
                 "key 'rate_ph'.");
@@ -251,7 +269,7 @@ public:
             throw std::invalid_argument("Missing cfg entry: Expected at least "
                 "2 entries in dict 'rate_atoh1'!");
         }
-
+ba9ad1715b2c6eb61ddc991215c2e80633055546
         if (_atoh1_threshold <= 0.) {
             _atoh1_threshold = 1e-10;
         }
@@ -297,7 +315,7 @@ private:
 
         // number of neighboring hair cells
         int ns_hair = 0;
-        for (const auto& n : this->_cm.neighbors_of(cell)) {
+        for (const auto& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) { ns_hair++; }
         }
 
@@ -324,7 +342,7 @@ private:
             return state;
         }
 
-        for (auto&& n :  this->_cm.neighbors_of(cell)) {
+        for (auto&& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
                 return state;
@@ -351,7 +369,7 @@ private:
             return state;
         }
 
-        auto neighbors = this->_cm.neighbors_of(cell);
+        auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                             [](auto n) { 
                                 return n->state.cell_type == CellType::hair;
@@ -371,6 +389,7 @@ private:
 
 public:
     // -- Public Interface ----------------------------------------------------
+    
     // .. Simulation Control ..................................................
 
     /// Iterate a single step
@@ -407,7 +426,6 @@ public:
         this->_monitor.set_entry("density_support",
                                  densities[CellType::support]);
     }
-
 
     void prolog () {
         _envm.prolog();
