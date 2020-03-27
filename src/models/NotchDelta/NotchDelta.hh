@@ -85,10 +85,12 @@ using EnvModel = Environment::Environment<Environment::DummyEnvParam,
 using EnvCell = EnvModel::CellManager::Cell;
 
 /// The type of the link container of cells in the Environment model
-template<typename>
+template<class EntityContainerType>
 struct EnvLinks {
     /// Link to the associated cell in Environment model
     std::shared_ptr<EnvCell> env;
+
+    EntityContainerType neighbors;
 };
 
 
@@ -126,9 +128,6 @@ public:
     using CellManager = Utopia::CellManager<CellTraits, NotchDelta>;
 
     using Cell = CellManager::Cell;
-
-    using NBFuncCell = std::function<CellContainer<Cell>(
-                                            const std::shared_ptr<Cell>&)>;
 
     /// Extract the type of the rule function from the CellManager
     /** This is a function that receives a reference to a cell and returns the 
@@ -183,8 +182,6 @@ private:
      */
     double _rate_swap;
 
-    NBFuncCell _neighbors_of;
-
     /// A re-usable uniform real distribution to evaluate probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
@@ -222,9 +219,21 @@ public:
         _progenitors_depleted(false),
         _end_simulation(false)
     {
-        _neighbors_of = [this](const std::shared_ptr<Cell>& cell) {
-            return this->get_cm()->neighbors_of(cell);
-        };
+        if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
+            this->_log->info("Setting up costum neighborhood from cell "
+                "manager ..");
+            for (auto c : _cm.cells()) {
+                auto neighbors = this->get_cm()->neighbors_of(c);
+                c->custom_links().neighbors.insert(
+                    c->custom_links().neighbors.begin(),
+                    neighbors.begin(),
+                    neighbors.end());
+            }
+        }
+        else {
+            this->_log->info("No neighborhood set up from cell manager. "
+                "Remember to define costum neighborhood for cells");
+        }
 
         if (not this->_cfg["rate_ph"]) {
             throw std::invalid_argument("Missing cfg entry: Expected dict with "
@@ -306,7 +315,7 @@ private:
 
         // number of neighboring hair cells
         int ns_hair = 0;
-        for (const auto& n : this->_neighbors_of(cell)) {
+        for (const auto& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) { ns_hair++; }
         }
 
@@ -333,7 +342,7 @@ private:
             return state;
         }
 
-        for (auto&& n : this->_neighbors_of(cell)) {
+        for (auto&& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
                 return state;
@@ -360,7 +369,7 @@ private:
             return state;
         }
 
-        auto neighbors = this->_neighbors_of(cell);
+        auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                             [](auto n) { 
                                 return n->state.cell_type == CellType::hair;
@@ -380,7 +389,7 @@ private:
 
 public:
     // -- Public Interface ----------------------------------------------------
-
+    
     // .. Simulation Control ..................................................
 
     /// Iterate a single step
@@ -417,7 +426,6 @@ public:
         this->_monitor.set_entry("density_support",
                                  densities[CellType::support]);
     }
-
 
     void prolog () {
         _envm.prolog();
@@ -460,10 +468,6 @@ public:
 
     bool simulation_ended () const {
         return _end_simulation;
-    }
-
-    void set_neighbors_of (NBFuncCell neighbors_of) {
-        _neighbors_of = neighbors_of;
     }
 };
 
