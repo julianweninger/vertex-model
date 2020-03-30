@@ -25,7 +25,8 @@ struct CellState {
     enum StateType {
         progenitor,
         hair,
-        support
+        support,
+        inactive
     } cell_type;
 
     bool has_hair_neighbor;
@@ -311,6 +312,8 @@ private:
         auto state = cell->state;
         auto env_state = cell->custom_links().env->state;
 
+        if (state.cell_type == CellType::inactive) { return state; }
+
         // number of neighboring hair cells
         int ns_hair = 0;
         for (const auto& n : _neighbors_of(cell)) {
@@ -361,6 +364,8 @@ private:
     const RuleFunc T1_transition = [this](auto& cell){
         auto state = cell->state;
 
+        if (state.cell_type == CellType::inactive) { return state; }
+
         if (not state.has_hair_neighbor or 
                 _prob_distr(*this->_rng) > _rate_swap)
         {
@@ -369,10 +374,11 @@ private:
 
         auto neighbors = _neighbors_of(cell);
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
-                            [](auto n) { 
-                                return n->state.cell_type == CellType::hair;
-                            }),
-                        neighbors.end());
+                [](auto n) {
+                    return (n->state.cell_type == CellType::hair or
+                            n->state.cell_type == CellType::inactive);
+                }),
+            neighbors.end());
         std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
 
         if (not neighbors.empty()) {
