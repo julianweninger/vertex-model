@@ -625,7 +625,7 @@ public:
                               name, iterates);
         }
 
-        if (emit_interval == 0) { emit_interval = iterates; }
+        if (emit_interval == 0) { emit_interval = iterates + 1; }
 
         for (int i = 0; i < iterates; i++) {
             operation();            
@@ -673,10 +673,8 @@ public:
         }
         else {
             auto time = this->get_time();
-            int begin = get_as<int>("begin", cfg["times"], 0);
-            int end = get_as<int>("end", cfg["times"], this->get_time_max());
-            if (get_as<int>("begin", cfg["times"], 0) < time or 
-                get_as<int>("end", cfg["times"], this->get_time_max()) > time)
+            if (get_as<int>("begin", cfg["times"], 0) > time or 
+                get_as<int>("end", cfg["times"], this->get_time_max()) < time)
             {
                 return false;
             }
@@ -742,7 +740,7 @@ public:
         perform_operation(
             [this] () { return this->differentiate_cells(); },
             "differentiation", _cfg_differentiation, true);            
-        
+            
         perform_operation(
             [this] () {
                 _envm.track_parameters({"area_preferential_hair",
@@ -750,7 +748,7 @@ public:
                 this->_envm.prolog();
                 return this->update_area_preferential(); },
             "hair cell growth", 1, 0);
-
+        
         return this->__prolog();
     }
 

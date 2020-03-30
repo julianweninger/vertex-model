@@ -21,14 +21,13 @@
 # --- Operations
 # Proliferation -- cell division
 proliferation:
-
   active: True
   times:
     prolog: 0
     begin: 0
     end: 136
     iterates: 1
-    emit_interval: 1
+    emit_interval: 4
 
 # Differentiation of progenitor to hair and support cells
 differentiation:
@@ -37,10 +36,11 @@ differentiation:
     prolog: 0
     begin: 137
     end: 137
-    iterates: 1000
+    iterates: 1
     emit_interval: 0
 
   hair_cell_fraction: 0.25
+  notch_delta_steps: 1000
   method: NotchDelta    # can be: NotchDelta, random
   
   # the matrices defining the interaction for the additional cell types
@@ -63,7 +63,7 @@ differentiation:
     progenitor_support: *Contractility
     hair_hair: *Contractility
     hair_support:  *Contractility
-    support_support: 0.02
+    support_support: *Contractility
 
 # stretch the domain
 stretch_domain:
