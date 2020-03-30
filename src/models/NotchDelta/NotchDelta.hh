@@ -85,12 +85,12 @@ using EnvModel = Environment::Environment<Environment::DummyEnvParam,
 using EnvCell = EnvModel::CellManager::Cell;
 
 /// The type of the link container of cells in the Environment model
-template<class EntityContainerType>
+template<class CellContainer>
 struct EnvLinks {
     /// Link to the associated cell in Environment model
     std::shared_ptr<EnvCell> env;
 
-    EntityContainerType neighbors;
+    CellContainer neighbors;
 };
 
 
@@ -127,7 +127,11 @@ public:
     /// Type of the CellManager to use
     using CellManager = Utopia::CellManager<CellTraits, NotchDelta>;
 
+    /// Type of a cell
     using Cell = CellManager::Cell;
+
+    /// The state type of a cell
+    using CellType = CellState::StateType;
 
     /// Extract the type of the rule function from the CellManager
     /** This is a function that receives a reference to a cell and returns the 
@@ -139,7 +143,10 @@ public:
       */
     using RuleFunc = typename CellManager::RuleFunc;
 
-    using CellType = CellState::StateType;
+    /// The type of a function returning the neighborhood of a cell
+    using NBFuncCell = std::function<CellContainer<Cell>(
+                                const std::shared_ptr<Cell>&)>;
+
 
 
 private:
@@ -149,6 +156,11 @@ private:
     // -- Members -------------------------------------------------------------
     /// The cell manager
     CellManager _cm;
+
+    /// The neighborhood function of a cell
+    /** By default returns the neighborhood of the cellmanager
+     */
+    NBFuncCell _neighbors_of;
 
     /// The Environment model
     EnvModel _envm;
@@ -206,6 +218,8 @@ public:
 
         // Now initialize the cell manager
         _cm(*this),
+        _neighbors_of([this](const std::shared_ptr<Cell>& cell) {
+            return this->get_cm()->neighbors_of(cell); }),
         _envm("Environment", *this, _cm),
 
         // Initialize model parameters
@@ -219,22 +233,6 @@ public:
         _progenitors_depleted(false),
         _end_simulation(false)
     {
-        if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
-            this->_log->info("Setting up costum neighborhood from cell "
-                "manager ..");
-            for (auto c : _cm.cells()) {
-                auto neighbors = this->get_cm()->neighbors_of(c);
-                c->custom_links().neighbors.insert(
-                    c->custom_links().neighbors.begin(),
-                    neighbors.begin(),
-                    neighbors.end());
-            }
-        }
-        else {
-            this->_log->info("No neighborhood set up from cell manager. "
-                "Remember to define costum neighborhood for cells");
-        }
-
         if (not this->_cfg["rate_ph"]) {
             throw std::invalid_argument("Missing cfg entry: Expected dict with "
                 "key 'rate_ph'.");
@@ -315,7 +313,7 @@ private:
 
         // number of neighboring hair cells
         int ns_hair = 0;
-        for (const auto& n : cell->custom_links().neighbors) {
+        for (const auto& n : _neighbors_of(cell)) {
             if (n->state.cell_type == CellType::hair) { ns_hair++; }
         }
 
@@ -342,7 +340,7 @@ private:
             return state;
         }
 
-        for (auto&& n : cell->custom_links().neighbors) {
+        for (auto&& n : _neighbors_of(cell)) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
                 return state;
@@ -369,7 +367,7 @@ private:
             return state;
         }
 
-        auto neighbors = cell->custom_links().neighbors;
+        auto neighbors = _neighbors_of(cell);
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                             [](auto n) { 
                                 return n->state.cell_type == CellType::hair;
@@ -451,6 +449,7 @@ public:
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
     }
 
+    /// Get the number of hair-hair contacts
     int get_hh_contacts() const {
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
 
@@ -462,8 +461,26 @@ public:
         return cnt / 2;
     }
 
+    /// Getter for the cell manager
     auto get_cm () const {
         return std::make_shared<CellManager>(this->_cm);
+    }
+
+    /// Setter to access the costum neighborhood instead that of the cell_manager
+    /** \warning This does not set the custom neighborhood for the individual 
+     *           cells!
+     */
+    void use_costum_neighborhood () {
+        this->_log->info("Using costum neighborhood. Make sure it is correctly "
+            "defined!");
+
+        NBFuncCell custom_neighbors_of = [this](
+                const std::shared_ptr<Cell>& cell)
+        {
+            return cell->custom_links().neighbors;
+        };
+        
+        _neighbors_of = custom_neighbors_of;
     }
 
     bool simulation_ended () const {
