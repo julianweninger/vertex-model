@@ -206,3 +206,42 @@ cellular_structure:
           dpi: 300
 
     animation_update_kwargs:  {}
+
+NotchDelta_hair_hair_contacts:
+  based_on: .basic_uni.lineplot
+  model_name: PCPTopology
+  file_ext: png
+
+  path_to_data: NotchDelta/Densities/Number_hair_hair_contacts
+  label: Hair-hair contacts
+
+  helpers:
+    set_labels:
+      x: time
+      y: cnt
+      
+NotchDelta_densities:
+  based_on: .basic_uni.lineplots
+  model_name: PCPTopology
+  file_ext: png
+
+  to_plot: 
+    NotchDelta/Densities/Hair:
+      label: Hair
+      color: red
+    NotchDelta/Densities/Support:
+      label: Support
+      color: black
+    NotchDelta/Densities/Progenitor:
+      label: Progenitor
+      color: gray
+    NotchDelta/Densities/Ratio_hair_support:
+      label: ratio hair/support
+      color: blue
+
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    set_limits:
+      y: [0,1.]

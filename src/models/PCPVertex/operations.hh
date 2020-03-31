@@ -161,8 +161,12 @@ void PCPVertex<periodic_bc,
         throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
             "models. More cells in Vertex than in NotchDelta model!");
     }
-    for (int i = 0; i < _cells.size(); i++) {
-        cell_map.insert(std::make_pair(_cells[i], nd_cells[i]));
+    int iterator;
+    for (iterator = 0; iterator < _cells.size(); iterator++) {
+        cell_map.insert(std::make_pair(_cells[iterator], nd_cells[iterator]));
+    }
+    for (void(); iterator < nd_cells.size(); iterator++) {
+        nd_cells[iterator]->state.cell_type = NotchDelta::CellType::inactive;
     }
     for (auto c : _cells) {
         auto mapped_cell = cell_map.at(c);
@@ -181,13 +185,13 @@ void PCPVertex<periodic_bc,
     for (auto pair = cell_map.begin(); pair != cell_map.end(); pair++) {
         auto type = pair->second->state.cell_type;
         if (type == NotchDelta::CellType::hair) {
-            pair->first->type =  Cell::CellType::hair;
+            pair->first->type = Cell::CellType::hair;
         }
         else if (type == NotchDelta::CellType::support) {
-            pair->first->type =  Cell::CellType::support;
+            pair->first->type = Cell::CellType::support;
         }
         else {
-            pair->first->type =  Cell::CellType::progenitor;
+            pair->first->type = Cell::CellType::progenitor;
         }
     }
 
