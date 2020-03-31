@@ -158,11 +158,6 @@ private:
     /// The cell manager
     CellManager _cm;
 
-    /// The neighborhood function of a cell
-    /** By default returns the neighborhood of the cellmanager
-     */
-    NBFuncCell _neighbors_of;
-
     /// The Environment model
     EnvModel _envm;
 
@@ -219,8 +214,6 @@ public:
 
         // Now initialize the cell manager
         _cm(*this),
-        _neighbors_of([this](const std::shared_ptr<Cell>& cell) {
-            return this->get_cm()->neighbors_of(cell); }),
         _envm("Environment", *this, _cm),
 
         // Initialize model parameters
@@ -234,6 +227,13 @@ public:
         _progenitors_depleted(false),
         _end_simulation(false)
     {
+        // copy the cm neighborhood to custom links
+        if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
+            for (auto c : _cm.cells()) {
+                c->custom_links().neighbors = _cm.neighbors_of(c);
+            }
+        }
+
         if (not this->_cfg["rate_ph"]) {
             throw std::invalid_argument("Missing cfg entry: Expected dict with "
                 "key 'rate_ph'.");
@@ -308,7 +308,9 @@ private:
     };
 
     /// The suppression of atoh1 rule
-    const RuleFunc suppress_atoh1 = [this](const auto& cell) {
+    const RuleFunc suppress_atoh1 = [this](
+            const auto& cell)
+    {
         auto state = cell->state;
         auto env_state = cell->custom_links().env->state;
 
@@ -316,7 +318,7 @@ private:
 
         // number of neighboring hair cells
         int ns_hair = 0;
-        for (const auto& n : _neighbors_of(cell)) {
+        for (const auto& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) { ns_hair++; }
         }
 
@@ -336,14 +338,15 @@ private:
     /// The preparation stage for T1_transitions
     /** Tagges all hair cells, that have at least one hair cell neighbor
      */
-    const RuleFunc T1_transition_tag = [this](const auto& cell){
+    const RuleFunc T1_transition_tag = [this](const auto& cell)
+    {
         auto state = cell->state;
 
         if (state.cell_type != CellType::hair) {
             return state;
         }
 
-        for (auto&& n : _neighbors_of(cell)) {
+        for (auto&& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
                 return state;
@@ -361,7 +364,8 @@ private:
      * 
      *  \note This is an asynchronous rule! It cannot be applied synchronously.
      */
-    const RuleFunc T1_transition = [this](auto& cell){
+    const RuleFunc T1_transition = [this](
+            auto& cell){
         auto state = cell->state;
 
         if (state.cell_type == CellType::inactive) { return state; }
@@ -372,7 +376,7 @@ private:
             return state;
         }
 
-        auto neighbors = _neighbors_of(cell);
+        auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                 [](auto n) {
                     return (n->state.cell_type == CellType::hair or
@@ -470,23 +474,6 @@ public:
     /// Getter for the cell manager
     auto get_cm () const {
         return std::make_shared<CellManager>(this->_cm);
-    }
-
-    /// Setter to access the costum neighborhood instead that of the cell_manager
-    /** \warning This does not set the custom neighborhood for the individual 
-     *           cells!
-     */
-    void use_costum_neighborhood () {
-        this->_log->info("Using costum neighborhood. Make sure it is correctly "
-            "defined!");
-
-        NBFuncCell custom_neighbors_of = [this](
-                const std::shared_ptr<Cell>& cell)
-        {
-            return cell->custom_links().neighbors;
-        };
-        
-        _neighbors_of = custom_neighbors_of;
     }
 
     bool simulation_ended () const {
