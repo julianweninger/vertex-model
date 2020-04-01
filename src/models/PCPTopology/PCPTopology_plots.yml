@@ -117,7 +117,7 @@ cell_neighbourhood:
   file_ext: png
   datapath: PCPTopology/Statistics
 
-  enabled: false
+  enabled: true
 
   helpers:
     set_labels:

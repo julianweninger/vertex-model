@@ -23,10 +23,10 @@
 proliferation:
   active: True
   times:
-    prolog: 0
-    begin: 0
-    end: 136
-    iterates: 1
+    prolog: 8
+    begin: -1
+    end: -1
+    iterates: 0
     emit_interval: 4
 
 # Differentiation of progenitor to hair and support cells
@@ -34,12 +34,12 @@ differentiation:
   active: True
   times:
     prolog: 0
-    begin: 137
-    end: 137
+    begin: 0
+    end: 0
     iterates: 1
     emit_interval: 0
 
-  hair_cell_fraction: 0.25
+  hair_cell_fraction: 0.25  # only used if method='random'
   notch_delta_steps: 1000
   method: NotchDelta    # can be: NotchDelta, random
   
@@ -69,7 +69,7 @@ differentiation:
 stretch_domain:
   active: true
   times:
-    begin: 138
+    begin: 1
     # no end
 
   stretch_speed: [0.01, 0.0]
@@ -90,7 +90,7 @@ Environment:
     - increment:
         area_preferential_hair:
           value: 0.05
-          invoke_always: True
+          times: !listgen [1, 10000]
           invoke_at_initialization: False
           # increase is compensated by support cells
   init_env_state_funcs: ~
@@ -137,7 +137,7 @@ NotchDelta:
   atoh1_threshold: 1.
   
   # Swap state with a neighbor with this probability if HC-HC contact
-  rate_swap: 0.
+  rate_swap: 1.
 
   # for the accumulation of atoh1
   Environment:
@@ -323,6 +323,17 @@ data_manager:
         stop: 10000
         step: 5
 
+    write_composite: &slicer_comp
+      type: simple_composite
+      args:
+        interval:
+          intervals:
+            - [0, 2]
+        slice:
+          start: 0
+          stop: 500
+          step: 5
+
     write_at_last:
       type: once
       args: 
@@ -345,6 +356,8 @@ data_manager:
     build_always:
       type: always
 
+    build_composite: *slicer_comp
+
     build_at_last:
       type: once
       args: 
@@ -362,8 +375,8 @@ data_manager:
 
     Vertex_position: &Position_topology
         active: true
-        trigger: build_slice
-        decider: write_slice
+        trigger: build_composite
+        decider: write_composite
 
     Cell_position: *Position_topology
 
