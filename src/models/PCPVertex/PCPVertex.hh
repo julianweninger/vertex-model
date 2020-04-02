@@ -12,6 +12,7 @@
 #include <utopia/core/types.hh>
 
 #include "geometry.hh"
+#include "space.hh"
 
 #ifndef PI
 #define PI 3.14159265
@@ -25,7 +26,8 @@ namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// Type helper to define types used by the model
-using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
+using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
+                                      Space::AbsoluteCustomSpace<2>>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -12,7 +12,7 @@ using namespace Utopia::Models::PCPVertex;
 
 // Factory for model
 template<bool periodic_bc>
-PCPVertex<periodic_bc, false> model_factory(std::string cfg) {
+PCPVertex<periodic_bc> model_factory(std::string cfg) {
     // initialize pp inside to avoid problems with datamanager and memory 
     // access
     PseudoParent pp(cfg);
@@ -23,8 +23,45 @@ PCPVertex<periodic_bc, false> model_factory(std::string cfg) {
 
     using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
-    return PCPVertex<periodic_bc, false>("PCPVertex", pp, time_energy_adaptor);
+    return PCPVertex<periodic_bc>("PCPVertex", pp, time_energy_adaptor);
 }
+
+/// A fixture used in the test_PCPVertex test suite
+/** Besides destructing the model it is also necessary to destruct the logger
+ *  and to free the datapath to construct a new model from the same config
+ *
+ *  NOTE the models output_path needs to be "test_data.h5"
+ *
+ */
+struct ModelFixture {
+    std::shared_ptr<spdlog::logger> log;
+
+    // Construct
+    ModelFixture ()
+        : log([](){
+            auto logger = spdlog::get("test");
+
+            // Create it only if it does not already exist
+            if (not logger) {
+                logger = spdlog::stdout_color_mt("test");
+            }
+
+            // Set level and global logging pattern
+            logger->set_level(spdlog::level::debug);
+            spdlog::set_pattern("[%T.%e] [%^%l%$] [%n]  %v");
+            // "[HH:MM:SS.mmm] [level(colored)] [logger]  <message>"
+
+            return logger;
+        }())
+    {}
+
+    // Teardown, invoked after each test
+    ~ModelFixture () {
+        log->info("Tearing down ...");
+        spdlog::drop_all();
+        std::remove("test_data.h5");
+    }
+};
 
 /// Destructor for the model
 /** Besides destructing the model it is also necessary to destruct the logger
