@@ -48,13 +48,13 @@ using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
  *      - T2 transition: cell extrusion when cell area shrinks below threshold
  *          value
  */
-template<bool periodic_bc, bool polarity_proteins>
+template<bool periodic_bc>
 class PCPVertex:
-    public Model<PCPVertex<periodic_bc, polarity_proteins>, ModelTypes>
+    public Model<PCPVertex<periodic_bc>, ModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPVertex<periodic_bc, polarity_proteins>, ModelTypes>;
+    using Base = Model<PCPVertex<periodic_bc>, ModelTypes>;
 
     /// Data type for the model time
     using Time = typename ModelTypes::Time;
@@ -148,7 +148,6 @@ private:
 
     /// Noise applied in first order of forces
     double _noise_linear;
-
 
     /// Interaction parameter of cell-cell polarity interaction
     double _cell_cell_polarity_interaction;
@@ -673,18 +672,19 @@ public:
         _energy_previous_step = _energy;
         _energy = perform_update_step(_update_scheme);
 
-        // if constexpr (polarity_proteins) {
-        //     std::for_each(_edges.begin(), _edges.end(),
-        //                   set_cell_cell_polarity);
-        //     std::for_each(_cells.begin(), _cells.end(),
-        //         apply_polarity_exclusion);
-        //     std::for_each(_cells.begin(), _cells.end(),
-        //         set_lagrange_net_polarisation);
-        //     std::for_each(_cells.begin(), _cells.end(),
-        //         set_lagrange_const_concentration);
+        if (_gamma > 0) {
+            throw std::logic_error("Polarity proteins update not implemented!");
+            std::for_each(_edges.begin(), _edges.end(),
+                          set_cell_cell_polarity);
+            std::for_each(_cells.begin(), _cells.end(),
+                apply_polarity_exclusion);
+            std::for_each(_cells.begin(), _cells.end(),
+                set_lagrange_net_polarisation);
+            std::for_each(_cells.begin(), _cells.end(),
+                set_lagrange_const_concentration);
 
-        //     std::for_each(_edges.begin(), _edges.end(), update_polarity);
-        // }
+            std::for_each(_edges.begin(), _edges.end(), update_polarity);
+        }
     }
     
     /// Monitor model information

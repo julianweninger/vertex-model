@@ -13,8 +13,8 @@ namespace PCPVertex {
  * 
  * TODO write test
  */
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc, polarity_proteins>::jiggle_vertices(
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::jiggle_vertices(
         double intensity)
 {
     this->_log->debug("Jiggling the vertices on a length scale of "
@@ -36,8 +36,8 @@ void PCPVertex<periodic_bc, polarity_proteins>::jiggle_vertices(
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells_hlpr(
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::differentiate_hair_cells_hlpr(
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
         arma::Mat<double>::fixed<CellType::num_cell_types,
@@ -103,8 +103,8 @@ void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells_hlpr(
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells_random(
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::differentiate_hair_cells_random(
         double fraction,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
@@ -138,10 +138,9 @@ void PCPVertex<periodic_bc, polarity_proteins>::differentiate_hair_cells_random(
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
-template <bool periodic_bc, bool polarity_proteins>
+template <bool periodic_bc>
 template <class NotchDelta>
-void PCPVertex<periodic_bc,
-               polarity_proteins>::differentiate_hair_cells_NotchDelta(
+void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
         std::shared_ptr<NotchDelta> notch_delta, int steps,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
@@ -209,8 +208,8 @@ void PCPVertex<periodic_bc,
  *  \param cell     pointer to the cell that is to be divided
  *  \param division_angle   angle (in rad) at which the cell
  */
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc, polarity_proteins>::divide_cell(
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::divide_cell(
         Cell_ptr cell, double division_angle)
 {
     auto cell_it = std::find(_cells.begin(), _cells.end(), cell);
@@ -230,8 +229,8 @@ void PCPVertex<periodic_bc, polarity_proteins>::divide_cell(
  *  Thereby proliferation of cells can be performed in a periodic setup
  *  without changing the parameters of the system. 
  */
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc, polarity_proteins>::increase_domain_size(
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::increase_domain_size(
         double area)
 {
     if (-1. * area > _Lx * _Ly) {
@@ -254,8 +253,8 @@ void PCPVertex<periodic_bc, polarity_proteins>::increase_domain_size(
  * 
  *  \return The total change in area
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::stretch_domain(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::stretch_domain(
         double dx, double dy, bool compensate, bool fix_hc_volume)
 {
     this->_log->debug("stretching domain by ({}, {}). Compensate {}, "

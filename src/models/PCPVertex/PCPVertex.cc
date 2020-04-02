@@ -13,9 +13,9 @@ using namespace DataIO;
 using Utopia::get_as;
 
 /// Factory for model 
-template<bool periodic_bc, bool polarity_proteins, typename ParentType>
+template<bool periodic_bc, typename ParentType>
 auto model_factory(ParentType parent) {
-    return PCPVertex<periodic_bc, polarity_proteins>("PCPVertex", parent,
+    return PCPVertex<periodic_bc>("PCPVertex", parent,
         // the energy adaptors
         time_energy_adaptor, energy_adaptor, linetension_adaptor,
         areaelasticity_adaptor, contractility_adaptor,
@@ -33,25 +33,14 @@ int main (int, char** argv) {
         auto model_cfg = pp.get_cfg()["PCPVertex"];
 
         // Initialize the main model instance and directly run it
-        if (get_as<bool>("periodic_bc", model_cfg) and 
-            get_as<double>("gamma", model_cfg) > 0)
+        if (get_as<bool>("periodic_bc", model_cfg))
         {
-            auto model = model_factory<true, true>(pp);
-            model.run();
-        }
-        else if (get_as<bool>("periodic_bc", model_cfg))
-        {
-            auto model = model_factory<true, false>(pp);
-            model.run();
-        }
-        else if (get_as<double>("gamma", model_cfg) > 0.)
-        {
-            auto model = model_factory<false, true>(pp);
+            auto model = model_factory<true>(pp);
             model.run();
         }
         else
         {
-            auto model = model_factory<false, false>(pp);
+            auto model = model_factory<false>(pp);
             model.run();
         }    
 

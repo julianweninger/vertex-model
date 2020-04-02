@@ -9,8 +9,8 @@ namespace PCPVertex {
 /// The energy associated with linetension per edge
 /** \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::line_tension_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::line_tension_energy (
         Edge e, double beta) const
 {
     if (beta > 0) {
@@ -20,8 +20,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::line_tension_energy (
     return e.linetension * length;
 };
 
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::edge_contractility_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::edge_contractility_energy (
         Edge e, double beta) const
 {
     if (beta > 0) {
@@ -34,8 +34,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::edge_contractility_energy (
 /// The energy associated with area elasticity
 /** \f$ E = K/2 * (A - A0)**2 \f$
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::area_elasticity_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::area_elasticity_energy (
         Cell c, double beta) const
 {
     if (beta > 0.) {
@@ -46,8 +46,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::area_elasticity_energy (
 };
 
 /// The energy associated with cell contractility
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::cell_contractility_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::cell_contractility_energy (
         Cell c, double beta) const
 {
     if (beta > 0.) {
@@ -67,8 +67,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::cell_contractility_energy (
  *  two neighbouring cells to edge \f$ i \f$. \f$ J_1 \f$ is an interaction
  *  parameter PCPVertex::_cell_cell_polarity_interaction.
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::cell_cell_polarity_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::cell_cell_polarity_energy (
         Edge_ptr &e) const
 {
     return _cell_cell_polarity_interaction * e->sigma_a * e->sigma_b;
@@ -88,8 +88,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::cell_cell_polarity_energy (
  *              for instance a neighbour, alias edge \f$ j \f$
  *  \param cell The cell \f$ \alpha \f$ within which exclusion is applied
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::polarity_exclusion_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::polarity_exclusion_energy (
         Edge_ptr &a, Edge_ptr &b, const Cell_ptr &cell) const
 {        
     double sigma_a = a->get_sigma(cell);
@@ -102,9 +102,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::polarity_exclusion_energy (
 /** Cumulative for the pairwise interactions of edges within cell, 
  *  see PCPVertex::polarity_exclusion energy
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::cell_polarity_exclusion_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::cell_polarity_exclusion_energy (
         Cell_ptr &c) const
 {
     EdgeContainer edges;
@@ -138,9 +137,8 @@ double PCPVertex<periodic_bc,
  *           \f$\dot{\lambda} = \gamma dE/d\lambda\f$
  *           instead of \f$\dot{\lambda} = -\gamma dE/d\lambda\f$
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::lagrange_net_polarisation_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::lagrange_net_polarisation_energy (
         Cell_ptr &c) const
 {
     double cum_sigma = 0.;
@@ -157,9 +155,8 @@ double PCPVertex<periodic_bc,
  * 
  *  \f$ E = -\lambda_{II}^\alpha (\sum_i (\sigma_i^\alpha)^2 - c^\alpha) \f$
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::lagrange_const_concentration_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::lagrange_const_concentration_energy (
         Cell_ptr &c) const
 {
     double concentration = 0.;
@@ -172,8 +169,8 @@ double PCPVertex<periodic_bc,
 };
 
 /// Getter for energy associated with linetension
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::get_energy_linetension(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_linetension(
         EdgeContainer es, double beta) const
 {
     if (es.empty()) { es = this->_edges; }
@@ -187,16 +184,15 @@ double PCPVertex<periodic_bc, polarity_proteins>::get_energy_linetension(
 /// Getter for normalised energy associated with linetension
 /** The energy is normalised to the number of edges
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_linetension_normalised () const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_linetension_normalised () const
 {
     return get_energy_linetension() / double(_edges.size());
 }
 
 /// Getter for energy associated with contractility of junctions
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::get_energy_edge_contractility(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_edge_contractility(
         EdgeContainer es, double beta) const
 {
     if (es.empty()) { es = this->_edges; }
@@ -208,8 +204,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::get_energy_edge_contractility(
 }
 
 /// Getter for energy associated with area elasticity
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::get_energy_areaelasticity (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_areaelasticity (
         CellContainer cs, double beta) const
 {
     if (cs.empty()) { cs = this->_cells; }
@@ -223,16 +219,15 @@ double PCPVertex<periodic_bc, polarity_proteins>::get_energy_areaelasticity (
 /// Getter for normalised energy associated with area elasticity
 /** The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                polarity_proteins>::get_energy_areaelasticity_normalised() const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_areaelasticity_normalised() const
 {
     return get_energy_areaelasticity() / double(_cells.size());
 }
 
 /// Getter for energy associated with contractility of cells
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,polarity_proteins>::get_energy_cell_contractility(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_cell_contractility(
         CellContainer cs, double beta) const
 {
     if (cs.empty()) { cs = this->_cells; }
@@ -246,9 +241,8 @@ double PCPVertex<periodic_bc,polarity_proteins>::get_energy_cell_contractility(
 /// Getter for normalised energy associated with contractility of cells
 /** The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_contractility () const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_contractility () const
 {
     return get_energy_cell_contractility() + 
         get_energy_edge_contractility();
@@ -257,9 +251,8 @@ double PCPVertex<periodic_bc,
 /// Getter for normalised energy associated with contractility of cells
 /** The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                polarity_proteins>::get_energy_contractility_normalised () const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_contractility_normalised () const
 {
     return get_energy_cell_contractility() / _cells.size() + 
         get_energy_edge_contractility() / _edges.size();
@@ -267,9 +260,8 @@ double PCPVertex<periodic_bc,
 
 
 /// Getter for energy associated with cell-cell polarity
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_cell_cell_polarity(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_cell_cell_polarity(
         EdgeContainer es) const
 {
     if (es.empty()) { es = this->_edges; }
@@ -284,17 +276,15 @@ double PCPVertex<periodic_bc,
 /// Getter for energy normalised associated with cell-cell polarity
 /** The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-            polarity_proteins>::get_energy_cell_cell_polarity_normalised() const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_cell_cell_polarity_normalised() const
 {
     return get_energy_cell_cell_polarity() / double(_cells.size());
 }
 
 /// Getter for energy associated with polarity exclusion
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_polarity_exclusion (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_polarity_exclusion (
         CellContainer cs) const
 {
     if (cs.empty()) { cs = this->_cells; }
@@ -308,9 +298,8 @@ double PCPVertex<periodic_bc,
 /// Getter for energy associated with polarity exclusion
 /** The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-            polarity_proteins>::get_energy_polarity_exclusion_normalised() const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_polarity_exclusion_normalised() const
 {
     return get_energy_polarity_exclusion() / double(_cells.size());
 }
@@ -319,9 +308,8 @@ double PCPVertex<periodic_bc,
 /** Langrange multiplier I is the constrain of zero net polarisation within
  *  a cell.
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_lagrange_net_polarisation(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_lagrange_net_polarisation(
         CellContainer cs) const
 {
     if (cs.empty()) { cs = this->_cells; }
@@ -338,9 +326,8 @@ double PCPVertex<periodic_bc,
  * 
  *  The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-            polarity_proteins>::get_energy_lagrange_net_polarisation_normalised
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_lagrange_net_polarisation_normalised
         ( ) const
 {
     return get_energy_lagrange_net_polarisation() / double(_cells.size());
@@ -349,9 +336,8 @@ double PCPVertex<periodic_bc,
 /// Getter for energy associated with lagrange multiplier II
 /** Langrange multiplier II is the constrain of constant level of proteins
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_lagrange_const_concentration(
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_lagrange_const_concentration(
         CellContainer cs) const
 {
     if (cs.empty()) { cs = this->_cells; }
@@ -367,17 +353,16 @@ double PCPVertex<periodic_bc,
  * 
  *  The energy is normalised to the number of cells
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-        polarity_proteins>::get_energy_lagrange_const_concentration_normalised
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_lagrange_const_concentration_normalised
         ( ) const
 {
     return get_energy_lagrange_const_concentration() / _cells.size();
 }
 
 /// Getter for energy
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::get_energy (
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy (
         EdgeContainer es, CellContainer cs, double beta) const
 {
     if (es.empty()) { es = this->_edges; }
@@ -396,9 +381,8 @@ double PCPVertex<periodic_bc, polarity_proteins>::get_energy (
 /** The energy is normalised wrt number of vertices, edges, or cells, 
  *  respectively.
  */
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc,
-                 polarity_proteins>::get_energy_normalised () const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_energy_normalised () const
 {
     return get_energy_linetension_normalised() +
         get_energy_areaelasticity_normalised() +
@@ -410,8 +394,8 @@ double PCPVertex<periodic_bc,
 }
 
 /// Getter for the relative energy change from previous to last step
-template <bool periodic_bc, bool polarity_proteins>
-double PCPVertex<periodic_bc, polarity_proteins>::get_rel_energy_change () const
+template <bool periodic_bc>
+double PCPVertex<periodic_bc>::get_rel_energy_change () const
 {
     const double energy = get_energy();
     double energy_change = energy - _energy_previous_step;

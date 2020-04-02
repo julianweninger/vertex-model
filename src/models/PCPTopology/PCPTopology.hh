@@ -92,27 +92,23 @@ using EnvCellState = Environment::DummyEnvCellState;
 using EnvModel = Environment::Environment<EnvParam, EnvCellState>;
 
 /// Type helper to define types used by the model
-using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG,
-                                                 WriteMode::managed>;
+using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
-template <bool periodic_bc, bool polarity_proteins>
+template <bool periodic_bc>
 class PCPTopology:
-    public Model<PCPTopology<periodic_bc, polarity_proteins>,
-                 PCPTopologyModelTypes>
+    public Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPTopology<periodic_bc, polarity_proteins>,
-                                   PCPTopologyModelTypes>;
+    using Base = Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>;
 
     /// Type of the config
     using typename Base::Config;
 
     /// The types of a cell
-    using CellType = typename PCPVertex<periodic_bc,
-                                        polarity_proteins>::CellType;
+    using CellType = typename PCPVertex<periodic_bc>::CellType;
                                     
 
 private:
@@ -121,7 +117,7 @@ private:
 
     // -- Members -------------------------------------------------------------
     /// The Vertex model
-    PCPVertex<periodic_bc, polarity_proteins> _vertex_model;
+    PCPVertex<periodic_bc> _vertex_model;
 
     /// A tolerance value for equilibrium
     double _equilibration_tolerance;

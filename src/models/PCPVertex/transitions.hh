@@ -9,9 +9,9 @@ namespace PCPVertex {
  * 
  *  edge_it will be removed and a new edge orthogonal to edge will be created
  */
-template <bool periodic_bc, bool polarity_proteins>
-std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc,
-    polarity_proteins>::T1_transition (EdgeContainer::iterator edge_it)
+template <bool periodic_bc>
+std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc>::T1_transition (
+        EdgeContainer::iterator edge_it)
 {
     this->_log->info("Removing edge in T1 transition in step {}..",
                       this->_time);
@@ -288,9 +288,9 @@ std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc,
  * 
  *  returns _cells.erase(cell_it)
  */
-template <bool periodic_bc, bool polarity_proteins>
-std::pair<CellContainer::iterator, bool> PCPVertex<periodic_bc,
-    polarity_proteins>::T2_transition (CellContainer::iterator &cell_it) 
+template <bool periodic_bc>
+std::pair<CellContainer::iterator, bool> PCPVertex<
+        periodic_bc>::T2_transition (CellContainer::iterator &cell_it) 
 {
     this->_log->info("Removing cell in T2 transition..");
 
@@ -409,10 +409,9 @@ std::pair<CellContainer::iterator, bool> PCPVertex<periodic_bc,
  * 
  *  \return iterator to the element following cell_it
  */
-template <bool periodic_bc, bool polarity_proteins>
-CellContainer::iterator PCPVertex<periodic_bc,
-    polarity_proteins>::divide_cell(CellContainer::iterator cell_it,
-                                    double division_angle)
+template <bool periodic_bc>
+CellContainer::iterator PCPVertex<periodic_bc>::divide_cell(
+        CellContainer::iterator cell_it, double division_angle)
 {
     this->_log->info("Dividing cell..");
 

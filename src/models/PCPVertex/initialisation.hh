@@ -6,9 +6,8 @@ namespace Models {
 namespace PCPVertex {
     
 // https://courses.cs.washington.edu/courses/cse326/00wi/projects/voronoi.html
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc,
-               polarity_proteins>::initialise_voronoi (int num_cells)
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::initialise_voronoi (int num_cells)
 {
     throw std::logic_error("Initialise Voronoi function not yet "
         "implemented.");
@@ -85,9 +84,8 @@ void PCPVertex<periodic_bc,
  * 
  *  for additional details see https://www.redblobgames.com/grids/hexagons/
  */
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc,
-               polarity_proteins>::initialise_hexagonal (double size,
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::initialise_hexagonal (double size,
                                                         int num_rows,
                                                         int num_columns)
 {
@@ -342,9 +340,8 @@ void PCPVertex<periodic_bc,
     this->_log->info("Initialised hexagonal cells.");
 }
 
-template <bool periodic_bc, bool polarity_proteins>
-void PCPVertex<periodic_bc,
-               polarity_proteins>::initialise_polarity_random (
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::initialise_polarity_random (
         double initialisation_protein_level)
 {
     for (auto c : _cells) {
