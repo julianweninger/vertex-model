@@ -17,6 +17,9 @@
 ---
 # --- Space
 # The physical space this model is embedded in
+space:
+  extent: [10., 10.]
+  periodic: true
 
 # --- Initialization parameters
 
@@ -28,7 +31,14 @@ dt: 0.01
 update_scheme: steepest_gradient
 
 agent_manager:
-  setup_method: hexagonal
+  setup_method: single
+  setup_params:
+    single:
+      size: 0.62
+    hexagonal:
+      hexagon_size: 0.62
+      lattice_rows: 8
+      lattice_columns: 8
   vertex_manager: ~
 
   edge_manager:

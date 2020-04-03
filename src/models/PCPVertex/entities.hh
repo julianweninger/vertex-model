@@ -161,6 +161,9 @@ public:
     /// The type of the space
     using Space = typename Model::Space;
 
+    /// The type of a vector in space
+    using SpaceVec = typename Space::SpaceVec;
+
     /// The traits of a Vertex
     using VertexTraits = Utopia::AgentTraits<VertexState, Update::manual, true>;
 
@@ -215,11 +218,11 @@ private:
     /// The physical space the agents are to reside in
     const std::shared_ptr<Space> _space;
 
-    const Utopia::AgentManager<VertexTraits, Model> _vertex_manager;
+    Utopia::AgentManager<VertexTraits, Model> _vertex_manager;
 
-    const Utopia::AgentManager<EdgeTraits, Model> _edge_manager;
+    Utopia::AgentManager<EdgeTraits, Model> _edge_manager;
 
-    const Utopia::AgentManager<CellTraits, Model> _cell_manager;
+    Utopia::AgentManager<CellTraits, Model> _cell_manager;
 
     /// Storage container for pre-calculated (!) cell neighbors
     std::vector<AgentContainer<Vertex>> _cell_neighbors;
@@ -233,7 +236,24 @@ public:
         _vertex_manager(model, setup_vertex_cfg(model)),
         _edge_manager(model, setup_edge_cfg(model)),
         _cell_manager(model, setup_cell_cfg(model))
-    { }
+    {
+        setup_agents();
+    }
+
+    /// Return const reference to the managed vertices
+    auto vertices () const {
+        return _vertex_manager.agents();
+    }
+
+    /// Return const reference to the managed edges
+    auto edges () const {
+        return _edge_manager.agents();
+    }
+
+    /// Return const reference to the managed cells
+    auto cells () const {
+        return _cell_manager.agents();
+    }
 
 private:
     // -- Setup functions -----------------------------------------------------
@@ -269,11 +289,12 @@ private:
      *           Hence, set up agent manager with 0 agents and add manually
      */
     Config setup_vertex_cfg (Model& model) {
+        this->_log->debug("Setting up vertex manager ..");
         if (not _cfg["vertex_manager"]) {
             throw KeyError("vertex_manager", _cfg, "In 'agent_manager'");
         }
         Config cfg = _cfg["vertex_manager"];
-        if (get_as<std::string>("setup_method", _cfg) == "hexagonal") {
+        if (get_as<std::string>("setup_method", _cfg) != "") {
             cfg["initial_num_agents"] = 0;
         }
         return cfg;
@@ -284,11 +305,12 @@ private:
      *           Hence, set up agent manager with 0 agents and add manually
      */
     Config setup_edge_cfg (Model& model) {
+        this->_log->debug("Setting up edge manager ..");
         if (not _cfg["edge_manager"]) {
             throw KeyError("edge_manager", _cfg, "In 'agent_manager'");
         }
         Config cfg = _cfg["edge_manager"];
-        if (get_as<std::string>("setup_method", _cfg) == "hexagonal") {
+        if (get_as<std::string>("setup_method", _cfg) != "") {
             cfg["initial_num_agents"] = 0;
         }
 
@@ -300,16 +322,166 @@ private:
      *           Hence, set up agent manager with 0 agents and add manually
      */
     Config setup_cell_cfg (Model& model) {
+        this->_log->debug("Setting up cell manager ..");
         if (not _cfg["cell_manager"]) {
             throw KeyError("cell_manager", _cfg, "In 'agent_manager'");
         }
 
         Config cfg = _cfg["cell_manager"];
-        if (get_as<std::string>("setup_method", _cfg) == "hexagonal") {
+        if (get_as<std::string>("setup_method", _cfg) != "") {
             cfg["initial_num_agents"] = 0;
         }
 
         return cfg;
+    }
+
+    void setup_agents() {
+        auto method = get_as<std::string>("setup_method", _cfg);
+        if (not _cfg["setup_params"]) {
+            throw KeyError ("setup_params", _cfg, "No parameters provided "
+                            "for the setup of agent manager!");
+        }
+        if (not _cfg["setup_params"][method]) {
+            throw KeyError (method, _cfg["setup_params"], "No parameters "
+                            "provided for the setup of agent manager with the "
+                            "specified method!");
+        }
+        if (method == "hexagonal") {
+            this->setup_agents_hexagonal(_cfg["setup_params"]["hexagonal"]);
+        }
+        else if (method == "single") {
+            this->setup_agents_single(_cfg["setup_params"]["single"]);
+        }
+        else {
+            throw KeyError(method, _cfg, "Method not implemented to setup agent "
+                           "manager! Please choose one of the following setup "
+                           "methods: 'hexagonal'");
+        }
+    }
+
+    void setup_agents_hexagonal(const Config& cfg) {
+        this->_log->debug("Setting up agents in hexagonal cell arrangement ..");
+
+        throw std::logic_error("Hexagonal setup of agent manager not "
+                               "implemented!");
+    }
+
+    void setup_agents_single(const Config& cfg) {     
+        double size = get_as<double>("size", cfg);   
+        double width = sqrt(3) * size;
+        double height = 2 * size;
+
+        SpaceVec pos = _space->extent/2.;
+
+        add_vertex(pos + SpaceVec({0., height/2.}));
+        add_vertex(pos + SpaceVec({width/2., height/4.}));
+        add_vertex(pos + SpaceVec({width/2., -height/4.}));
+        add_vertex(pos + SpaceVec({0., -height/2.}));
+        add_vertex(pos + SpaceVec({-width/2., -height/4.}));
+        add_vertex(pos + SpaceVec({-width/2., height/4.}));
+
+        auto vertices = this->vertices();
+        add_edge(vertices[0], vertices[1]);
+        add_edge(vertices[1], vertices[2]);
+        add_edge(vertices[2], vertices[3]);
+        add_edge(vertices[3], vertices[4]);
+        add_edge(vertices[4], vertices[5]);
+        add_edge(vertices[5], vertices[0]);
+
+        add_cell(pos, this->vertices(), this->edges());
+    }
+
+    /// Create a Vertex and associate it with the VertexManager
+    auto add_vertex (const SpaceVec& pos, const Config& custom_cfg = {})
+    {
+        return _vertex_manager.add_agent(pos, custom_cfg);
+    }
+
+    /// Create a Edge and associate it with the EdgeManager
+    auto add_edge (std::shared_ptr<Vertex> a,
+                   std::shared_ptr<Vertex> b,
+                   const Config& custom_cfg = {})
+    {
+        auto e = _edge_manager.add_agent({arma::datum::nan, arma::datum::nan},
+                                         custom_cfg);
+        e->custom_links().a = a;
+        e->custom_links().b = b;
+        return e;
+    }
+
+    /// Create a Cell and associate it with the CellManager
+    auto add_cell (const SpaceVec& pos, 
+                   AgentContainer<Vertex> vertices, 
+                   AgentContainer<Edge> edges,
+                   const Config& custom_cfg = {})
+    {
+        auto c = _cell_manager.add_agent(pos);
+        c->custom_links().vertices = vertices;
+        c->custom_links().edges = this->order_edges(edges);
+        return c;
+    }
+
+    /// Order a container of Edges anti-clockwise
+    std::vector<std::pair<std::shared_ptr<Edge>, bool>> order_edges (
+            AgentContainer<Edge> edges)
+    {
+        std::vector<std::pair<std::shared_ptr<Edge>, bool>> ordered_edges;
+       
+        auto e_it = edges.begin();
+        auto first_vertex = (*e_it)->custom_links().a;
+        auto vertex_it = (*e_it)->custom_links().b;        
+        ordered_edges.push_back(std::make_pair(*e_it, false));
+        e_it = edges.erase(e_it);
+        
+        while (not edges.empty()) {
+            bool found_next = false;
+            for (e_it = edges.begin(); e_it != edges.end(); e_it++) {
+                auto e = *e_it;
+                if (e->custom_links().a == vertex_it) {
+                    ordered_edges.push_back(
+                        std::make_pair(e, false));
+                    vertex_it = e->custom_links().b; // iterate
+                    e_it = edges.erase(e_it);
+                    found_next = true;
+                    break;
+                }
+                if (e->custom_links().b == vertex_it) {
+                    ordered_edges.push_back(
+                        std::make_pair(e, true));
+                    vertex_it = e->custom_links().a; // iterate
+                    e_it = edges.erase(e_it);
+                    found_next = true;
+                    break;
+                }
+            }
+            if (not found_next) {
+                std::cout << "\nFailed to order these edges: \n";
+                for (const auto& [e, flip] : ordered_edges) {
+                    auto a = e->custom_links().a;
+                    auto b = e->custom_links().b;
+                    if (not flip) {
+                        std::cout << a->position() << " to "
+                                  << b->position() << "\n";
+                    }
+                    else {
+                        std::cout << b->position() << " to "
+                                  << a->position() << "\n";
+                    }
+                }
+                std::cout << " stopped here.\n";
+                for (const auto& e : edges) {
+                    auto a = e->custom_links().a;
+                    auto b = e->custom_links().b;
+                    std::cout << a->position() << " to " << b->position() << "\n";
+                }
+                std::cout << std::flush;
+
+                throw std::runtime_error("Could not order edges. Edges to "
+                    "order are listed above.");
+            }
+        }
+
+        return ordered_edges;        
     }
 }; // CustomAgentManager
 
