@@ -27,6 +27,21 @@ periodic_bc: true
 dt: 0.01
 update_scheme: steepest_gradient
 
+agent_manager:
+  setup_method: hexagonal
+  vertex_manager: ~
+
+  edge_manager:
+    agent_params:
+      linetension: 0.1
+      contractility: 0.02
+
+  cell_manager:
+    agent_params:
+      area_preferential: 1.
+      contractility: 0.02
+      cell_type: progenitor
+
 # Linetension parameter
 linetension: 0.1
 

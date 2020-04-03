@@ -1,0 +1,318 @@
+#ifndef UTOPIA_MODELS_PCPVERTEX_ENTITIES_HH
+#define UTOPIA_MODELS_PCPVERTEX_ENTITIES_HH
+
+
+namespace Utopia::Models::PCPVertex {
+
+/// The Vertex
+struct VertexState {
+    using SpaceVec = Utopia::SpaceVecType<2>;
+
+    /// The steepest gradient slope
+    SpaceVec f;
+
+    /// Conjugate gradient
+    SpaceVec g;
+
+    /// Direction of update (conjugate gradient)
+    SpaceVec h;
+
+    /// Whether to remove
+    bool remove;
+
+    /// Constructor
+    VertexState ()
+    :  
+        f(), g(), h(),
+        remove(false)
+    {
+        f.zeros();
+        g.zeros();
+        h.zeros();
+    }
+
+    /// Constructor
+    VertexState (const Utopia::DataIO::Config& cfg)
+    :  
+        VertexState()
+    { }
+};
+
+
+/// The Edge object
+/** It is defined as the shortest connection between two vertices a and b
+ * 
+ *  Every edge has two adjoint cells, one to either side, except boundary edges
+ *  have only one.
+ */
+struct EdgeState {
+    /// The linetension parameter property to this edge
+    double linetension;
+
+    /// The contractility parameter
+    double contractility;
+
+    /// Polartity protein level on side to cell a
+    double sigma_a;
+
+    /// Polartity protein level on side to cell b
+    double sigma_b;
+
+    /// Steepest descent in protein level (side a)
+    double d_sigma_a;
+
+    /// Steepest descent in protein level (side b)
+    double d_sigma_b;
+
+    /// Whether this object is to be removed 
+    bool remove;
+
+    /// Constructor
+    /** \param linetension   The linetension property
+     *  \param contractility The contractility parameter
+     */
+    EdgeState (const Utopia::DataIO::Config& cfg)
+    :
+        linetension(get_as<double>("linetension", cfg)),
+        contractility(get_as<double>("contractility", cfg)),
+        sigma_a(0.), sigma_b(0.),
+        d_sigma_a(0.), d_sigma_b(0.),
+        remove(false)
+    { }
+};
+
+
+
+/// The Cell defined by its id, its vertices and its area
+struct CellState {
+    /// The type of a cell
+    enum CellType {
+        progenitor,
+        hair,
+        support,
+        num_cell_types,
+    } type;
+
+    /// The preferential area of the cell
+    /** In absolute coordinates
+     */
+    double area_preferential;
+
+    /// The contractility of the cell
+    double contractility;
+
+    /// Lagrange multiplier I
+    /** Constraint of zero net polarisation
+     */
+    double lagrange_net_polarisation;
+
+    /// Lagrange multiplier II
+    /** Constraint of constant protein level
+     */
+    double lagrange_const_concentration;
+
+    /// The initial protein concentration
+    double protein_concentration;
+
+    /// Whether this object is to be removed 
+    bool remove;
+
+    /// Constructor of a cell
+    /** \param area_preferential    The preferential size of this cell
+     *  \param contractility        The contractility of the cell associated
+     *                              with contractility of the actin-myosin ring
+     *  \param cell_type            The type of cell
+     */
+    CellState (const Utopia::DataIO::Config& cfg)
+    :
+        type(setup_type(cfg)),
+        area_preferential(get_as<double>("area_preferential", cfg)),
+        contractility(get_as<double>("contractility", cfg)),
+        lagrange_net_polarisation(0.),
+        lagrange_const_concentration(0.),
+        protein_concentration(get_as<double>("protein_concentration", cfg, 0.)),
+        remove(false)
+    { }
+
+private:
+    /// Setup the type of the cell from config
+    CellType setup_type (const Utopia::DataIO::Config& cfg) {
+        auto cell_type = get_as<std::string>("cell_type", cfg);
+
+        if (cell_type == "progenitor") {
+            return CellType::progenitor;
+        }
+        else if (cell_type == "hair") {
+            return CellType::hair;
+        }
+        else if (cell_type == "support") {
+            return CellType::support;
+        }
+        else {
+            throw KeyError(cell_type, cfg, "Cell type can be 'progenitor', "
+                           "'hair', or 'support'.");
+        }
+    }
+};
+
+template<class Model>
+struct CustomAgentManager {
+public:
+    /// The type of the space
+    using Space = typename Model::Space;
+
+    /// The traits of a Vertex
+    using VertexTraits = Utopia::AgentTraits<VertexState, Update::manual, true>;
+
+    /// The type of the managed vertices
+    using Vertex = Utopia::Agent<VertexTraits, Space>;
+
+    /// The links of an Edge
+    template <class EdgeContainer>
+    struct EdgeLinks {
+        /// Start and end vertices of an Edge
+        std::shared_ptr<Vertex> a, b;
+    };
+
+    /// The traits of an Edge
+    using EdgeTraits = Utopia::AgentTraits<EdgeState, Update::manual, false,
+                                           EmptyTag, EdgeLinks>;
+
+    /// The type of the managed edges
+    using Edge = Utopia::Agent<EdgeTraits, Space>;
+
+    /// The links of a Cell
+    template <class CellContainer>
+    struct CellLinks {
+        /// The vertices forming this cell
+        AgentContainer<Vertex> vertices;
+
+        /// The edges forming the boundary of this cell
+        /** \details The edges are maintained such that one can iterate from
+         *           the first vertex back to itself in anti-clockwise manner
+         *           using the edges two vertices.
+         *           The boolian indicates whether the edge starts at
+         *           vertex a or b. 
+         */
+        std::vector<std::pair<std::shared_ptr<Edge>, bool>> edges;
+    };
+    using CellTraits = Utopia::AgentTraits<CellState, Update::manual, false,
+                                           EmptyTag, CellLinks>;
+
+    /// The type of the managed cells
+    using Cell = Utopia::Agent<CellTraits, Space>;
+
+    /// The type of the configuration
+    using Config = Utopia::DataIO::Config;
+
+private:
+    /// The logger (same as the model this manager resides in)
+    const std::shared_ptr<spdlog::logger> _log;
+    
+    /// Agent manager configuration node
+    const Config _cfg;
+
+    /// The physical space the agents are to reside in
+    const std::shared_ptr<Space> _space;
+
+    const Utopia::AgentManager<VertexTraits, Model> _vertex_manager;
+
+    const Utopia::AgentManager<EdgeTraits, Model> _edge_manager;
+
+    const Utopia::AgentManager<CellTraits, Model> _cell_manager;
+
+    /// Storage container for pre-calculated (!) cell neighbors
+    std::vector<AgentContainer<Vertex>> _cell_neighbors;
+
+public:
+    CustomAgentManager (Model& model, const Config& custom_cfg = {})
+    :
+        _log(model.get_logger()),
+        _cfg(setup_cfg(model, custom_cfg)),
+        _space(model.get_space()),
+        _vertex_manager(model, setup_vertex_cfg(model)),
+        _edge_manager(model, setup_edge_cfg(model)),
+        _cell_manager(model, setup_cell_cfg(model))
+    { }
+
+private:
+    // -- Setup functions -----------------------------------------------------
+    /// Set up the custom agent manager configuration member
+    /** \details This function determines whether to use a custom configuration
+      *         or the one provided by the model this AgentManager belongs to
+      */
+    Config setup_cfg(Model& model, const Config& custom_cfg) {
+        Config cfg;
+
+        if (custom_cfg.size() > 0) {
+            _log->debug("Using custom config for agent manager setup ...");
+            cfg = custom_cfg;
+        }
+        else {
+            _log->debug("Using '{}' model's configuration for agent manager "
+                        "setup ... ", model.get_name());
+
+            if (not model.get_cfg()["agent_manager"]) {
+                throw std::invalid_argument("Missing config entry "
+                    "'agent_manager' in model configuration! Either specify "
+                    "that key or pass a custom configuration node to the "
+                    "AgentManager constructor.");
+            }
+            cfg = model.get_cfg()["agent_manager"];
+        }
+
+        return cfg;
+    }
+
+    /// Setup vertex manager
+    /** \details Connot use default agent constructor if initializing hexagon.
+     *           Hence, set up agent manager with 0 agents and add manually
+     */
+    Config setup_vertex_cfg (Model& model) {
+        if (not _cfg["vertex_manager"]) {
+            throw KeyError("vertex_manager", _cfg, "In 'agent_manager'");
+        }
+        Config cfg = _cfg["vertex_manager"];
+        if (get_as<std::string>("setup_method", _cfg) == "hexagonal") {
+            cfg["initial_num_agents"] = 0;
+        }
+        return cfg;
+    }
+
+    /// Setup edge manager
+    /** \details Connot use default agent constructor if initializing hexagon.
+     *           Hence, set up agent manager with 0 agents and add manually
+     */
+    Config setup_edge_cfg (Model& model) {
+        if (not _cfg["edge_manager"]) {
+            throw KeyError("edge_manager", _cfg, "In 'agent_manager'");
+        }
+        Config cfg = _cfg["edge_manager"];
+        if (get_as<std::string>("setup_method", _cfg) == "hexagonal") {
+            cfg["initial_num_agents"] = 0;
+        }
+
+        return cfg;
+    }
+
+    /// Setup vertex manager
+    /** \details Connot use default agent constructor if initializing hexagon.
+     *           Hence, set up agent manager with 0 agents and add manually
+     */
+    Config setup_cell_cfg (Model& model) {
+        if (not _cfg["cell_manager"]) {
+            throw KeyError("cell_manager", _cfg, "In 'agent_manager'");
+        }
+
+        Config cfg = _cfg["cell_manager"];
+        if (get_as<std::string>("setup_method", _cfg) == "hexagonal") {
+            cfg["initial_num_agents"] = 0;
+        }
+
+        return cfg;
+    }
+}; // CustomAgentManager
+
+} // namespace Utopia::Models::PCPVertex
+
+#endif

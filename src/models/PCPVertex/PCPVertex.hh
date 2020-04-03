@@ -10,8 +10,10 @@
 // Utopia-related includes
 #include <utopia/core/model.hh>
 #include <utopia/core/types.hh>
+#include <utopia/core/agent_manager.hh>
 
 #include "geometry.hh"
+#include "entities.hh"
 #include "space.hh"
 
 #ifndef PI
@@ -61,6 +63,9 @@ public:
     /// Data type for the model time
     using Time = typename ModelTypes::Time;
 
+    using AgentManager = CustomAgentManager<Model<PCPVertex<periodic_bc>, 
+                                                  ModelTypes>>;
+
     /// The types of a cell
     using CellType = typename Cell::CellType;
 
@@ -70,6 +75,8 @@ private:
     // ... but you should definitely check out the documentation ;)
 
     // -- Members -------------------------------------------------------------
+    AgentManager _am;
+    
     /// Container of vertices
     VertexContainer _vertices;
     /// Container of edges
@@ -185,6 +192,8 @@ public:
     :
         // Initialize first via base model
         Base(name, parent, std::forward<Taskargs>(taskargs)...),
+
+        _am(*this),
         
         _vertices(),
         _edges(),
