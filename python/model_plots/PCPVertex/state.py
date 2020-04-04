@@ -146,8 +146,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 cell_type = c.sel(coordinate="cell_type")
                 x = c.sel(coordinate="x")
                 y = c.sel(coordinate="y")
-                pol_x = c.sel(coordinate="polarity_x")
-                pol_y = c.sel(coordinate="polarity_y")
+                pol_x = 0 # c.sel(coordinate="polarity_x")
+                pol_y = 0 # c.sel(coordinate="polarity_y")
                 dx = pol_x / 5.
                 dy = pol_y / 5.
                 plot_arrow(x - dx/2, y - dy/2.,

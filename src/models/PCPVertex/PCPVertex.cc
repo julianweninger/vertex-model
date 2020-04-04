@@ -22,7 +22,8 @@ auto model_factory(ParentType parent) {
         cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
         lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // the position adaptors
-        vertex_position_adaptor, cell_position_adaptor<periodic_bc>,
+        vertex_position_adaptor,
+        cell_position_adaptor<typename PCPVertex<periodic_bc>::Space::SpaceVec>,
         edge_link_adaptor);
 }
 

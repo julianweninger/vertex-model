@@ -89,17 +89,17 @@ public:
     }
 
     /// Return const reference to the managed vertices
-    auto vertices () const {
+    const auto& vertices () const {
         return _vertex_manager.agents();
     }
 
     /// Return const reference to the managed edges
-    auto edges () const {
+    const auto& edges () const {
         return _edge_manager.agents();
     }
 
     /// Return const reference to the managed cells
-    auto cells () const {
+    const auto& cells () const {
         return _cell_manager.agents();
     }
 
@@ -108,12 +108,12 @@ public:
      *          If the edges are ordered clockwise, the area is correct but of 
      *          negative sign.
      */
-    double area_of (const Cell& cell) {
+    double area_of (const Cell& cell) const {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
 
         // the ordered edges using flip boolian: [edge, flip]
-        auto edges = cell.custom_links().edges;
+        const auto& edges = cell.custom_links().edges;
 
         // define a reference in space
         auto [e, flip] = edges.front();
@@ -147,7 +147,7 @@ public:
      *          If the edges are ordered clockwise, the area is correct but of 
      *          negative sign.
      */
-    double area_of (const std::shared_ptr<Cell>& cell) {
+    double area_of (const std::shared_ptr<Cell>& cell) const {
         return area_of(*cell);
     }
 
@@ -155,12 +155,12 @@ public:
     /** \note   It is assumed that the edges are ordered anti-clockwise or 
      *          clock-wise
      */
-    SpaceVec barycenter_of (const Cell& cell) {
+    SpaceVec barycenter_of (const Cell& cell) const {
         static_assert(Space::dim == 2, "Center of a cell is only implemented "
                       "for 2 dimensional space!");
 
         // the ordered edges using flip boolian: [edge, flip]
-        auto edges = cell.custom_links().edges;
+        const auto& edges = cell.custom_links().edges;
 
         // define a reference in space
         auto [e, flip] = edges.front();
@@ -195,7 +195,7 @@ public:
     /** \note   It is assumed that the edges are ordered anti-clockwise or 
      *          clock-wise
      */
-    SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) {
+    SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) const {
         return barycenter_of(*cell);
     }
 
@@ -312,7 +312,7 @@ private:
         double width = sqrt(3) * size;
         double height = 2 * size;
 
-        SpaceVec pos = get_as_space _space->extent / 2.;
+        SpaceVec pos = _space->extent / 2.;
 
         add_vertex(pos + SpaceVec({0., height/2.}));
         add_vertex(pos + SpaceVec({width/2., height/4.}));

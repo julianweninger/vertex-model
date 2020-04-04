@@ -751,31 +751,8 @@ public:
         return periodic_bc;
     }
 
-    /// Getter for vertices
-    std::vector<std::weak_ptr<Vertex>> get_vertices () {
-        std::vector<std::weak_ptr<Vertex>> vs;
-        for (auto &v : _vertices) {
-            vs.push_back(v);
-        }
-        return vs;
-    }
-
-    /// Getter for edges
-    std::vector<std::weak_ptr<Edge>> get_edges () {
-        std::vector<std::weak_ptr<Edge>> es;
-        for (auto &e : _edges) {
-            es.push_back(e);
-        }
-        return es;
-    }
-
-    /// Getter for cells
-    std::vector<std::weak_ptr<Cell>> get_cells () {
-        std::vector<std::weak_ptr<Cell>> cs;
-        for (auto &c : _cells) {
-            cs.push_back(c);
-        }
-        return cs;
+    AgentManager& get_am () {
+        return _am;
     }
 
     /// Change the const noise distribution

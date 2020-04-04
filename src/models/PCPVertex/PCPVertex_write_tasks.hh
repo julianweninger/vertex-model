@@ -304,7 +304,6 @@ auto lagrange_const_concentration_adaptor = std::make_tuple(
 
 /// Datamanager adaptor for vertex-position
 auto vertex_position_adaptor = std::make_tuple(
-
     // name of the task
     "Vertex_position",
 
@@ -315,21 +314,17 @@ auto vertex_position_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& vertices = model.get_vertices();
+        const auto& vertices = model.get_am().vertices();
         dataset->write(vertices.begin(), vertices.end(),
-                        [](auto&& vertex) {
-                            return static_cast<double>(vertex.lock()->x);
-                        });
+                        [](auto&& vertex) { return vertex->position()[0]; });
         dataset->write(vertices.begin(), vertices.end(),
-                        [](auto&& vertex) {
-                            return static_cast<double>(vertex.lock()->y);
-                        });
+                        [](auto&& vertex) { return vertex->position()[1]; });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_vertices().size()});
+            {2, m.get_am().vertices().size()});
     },
 
     // attribute writer for basegroup
@@ -352,9 +347,8 @@ auto vertex_position_adaptor = std::make_tuple(
 ); // end vertex position adaptor
 
 /// Datamanager adaptor for cell position
-template <bool periodic_bc>
+template <typename SpaceVec>
 auto cell_position_adaptor = std::make_tuple(
-
     // name of the task
     "Cell_position",
 
@@ -365,59 +359,49 @@ auto cell_position_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& cells = model.get_cells();
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
         dataset->write(cells.begin(), cells.end(),
-                        [](auto&& cell) {
-                            return static_cast<double>(cell.lock()->type);
-                        });
+                       [](const auto& cell) {
+                            return static_cast<double>(cell->state.type);
+                       });
+        
+        std::vector<SpaceVec> centers;
+        for (const auto& c : cells) {
+            centers.push_back(am.barycenter_of(c));
+        }
+        dataset->write(centers.begin(), centers.end(),
+                       [](auto&& pos) { return pos[0]; });
+        dataset->write(centers.begin(), centers.end(),
+                       [](auto&& pos) { return pos[1]; });
 
-        dataset->write(cells.begin(), cells.end(),
-                        [](auto&& cell) {
-                            return static_cast<double>(
-                                cell.lock()->template centre_site<periodic_bc>()->x);
-                        });
-        dataset->write(cells.begin(), cells.end(),
-                        [](auto&& cell) {
-                            return static_cast<double>(
-                                cell.lock()->template centre_site<periodic_bc>()->y);
-                        });
         // the polarity
-        auto polarities_y = std::make_shared<std::vector<double>>();
-        dataset->write(cells.begin(), cells.end(), [polarities_y](auto & cell)
-        {
-            double polarity_x = 0.;
-            double polarity_y = 0.;
-            for (auto [e, flip] : cell.lock()->edges_ordered) {
-                auto a = *e->a, b = *e->b;
-                if (flip) {
-                    std::swap(a, b);
-                }
-                auto disp = displacement<periodic_bc>(a, b);
+        // std::vector<SpaceVec> polarities;
+        // for (const auto& c : cells) {
+        //     SpaceVec polarity(arma::fill::zeros);
+        //     for (auto [e, flip] : c->custom_links().edges) {
+        //         auto a = e->a->position(), b = e->b->position();
+        //         if (flip) {
+        //             std::swap(a, b);
+        //         }
+        //         auto disp = model.get_space()->displacement(a, b);
 
-                double sigma = e->get_sigma(cell.lock());
+        //         double sigma = e->state.get_sigma(c);
                 
-                polarity_x += sigma * std::get<0>(disp);
-                polarity_y += sigma * std::get<1>(disp);
-            }
-
-            if (cell.lock()->area_sgn == 1) {
-                polarities_y->push_back(polarity_y);
-                return polarity_x;
-            }
-            else {
-                polarities_y->push_back(-1. * polarity_y);
-                return -1. * polarity_x;
-            }
-        });
-        dataset->write(polarities_y->begin(), polarities_y->end(), [](auto val) {
-            return val;
-        });
+        //         polarity += sigma * disp;
+        //     }
+        //     polarities.push_back(std::make_pair(polarity_x, polarity_y));
+        // }
+        // dataset->write(polarities.begin(), polarities.end(),
+        //                [](auto&& pos) { return pos[0]; });
+        // dataset->write(polarities.begin(), polarities.end(),
+        //                [](auto&& pos) { return pos[1]; });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {5, m.get_cells().size()});
+            {3, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -429,9 +413,9 @@ auto cell_position_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "coordinate");
         hdfdataset->add_attribute("coords__coordinate", 
                                   std::vector<std::string>({"cell_type",
-                                                            "x", "y",
-                                                            "polarity_x",
-                                                            "polarity_y"}));
+                                                            "x", "y"}));
+                                                            // "polarity_x",
+                                                            // "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         auto [Lx, Ly] = model.get_domain_size();
         hdfdataset->add_attribute("Lx", Lx);
@@ -452,27 +436,22 @@ auto edge_link_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        auto vertices = model.get_vertices();
-        int running_id = 0;
-        for (auto &v : vertices) {
-            v.lock()->current_id = running_id++;
-        }
-
-        const auto& edges = model.get_edges();
+        const auto& vertices = model.get_am().vertices();
+        const auto& edges = model.get_am().edges();
         dataset->write(edges.begin(), edges.end(),
-                        [](auto&& edge) {
-                            return static_cast<int>(edge.lock()->a->current_id);
-                        });
+                       [](const auto& edge) {
+                           return static_cast<int>(edge->custom_links().a->id());
+                       });
         dataset->write(edges.begin(), edges.end(),
-                        [](auto&& edge) {
-                            return static_cast<int>(edge.lock()->b->current_id);
-                        });
+                       [](const auto& edge) {
+                           return static_cast<int>(edge->custom_links().b->id());
+                       });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_edges().size()});
+            {2, m.get_am().edges().size()});
     },
 
     // attribute writer for basegroup
@@ -489,7 +468,6 @@ auto edge_link_adaptor = std::make_tuple(
 ); // end edge link adaptor
 
 /// Datamanager adaptor for total energy
-template <bool periodic_bc>
 auto cell_area_adaptor = std::make_tuple(
 
     // name of the task
@@ -503,14 +481,13 @@ auto cell_area_adaptor = std::make_tuple(
     // writer function
     [](auto& dataset, auto& model) {
         auto [Lx, Ly] = model.get_domain_size();
-        
-        auto cells = model.get_cells();
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
         std::vector<double> area_cells(Cell::CellType::num_cell_types, 0.);
         std::vector<int> num_cells(Cell::CellType::num_cell_types, 0.);
-        for (auto c_weak : cells) {
-            auto c = c_weak.lock();
+        for (auto c : cells) {
             num_cells[c->type]++;
-            area_cells[c->type] += c->template area_abs<periodic_bc>(Lx, Ly);
+            area_cells[c->type] += am.area_of(c);
         }
         double area_total = std::accumulate(area_cells.begin(),
                                             area_cells.end(), 0.);
