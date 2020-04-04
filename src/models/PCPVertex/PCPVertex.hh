@@ -14,6 +14,7 @@
 
 #include "geometry.hh"
 #include "entities.hh"
+#include "entities_manager.hh"
 #include "space.hh"
 
 #ifndef PI
