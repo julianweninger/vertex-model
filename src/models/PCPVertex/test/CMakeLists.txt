@@ -11,6 +11,7 @@ add_model_tests(# Use consistent capitalization for the model name!
                     test_space.cc
                 # Optional: Files to be copied to the build directory
                 AUX_FILES
+                    "space_test.yml"
                     "test_periodic.yml"
                     "test_non_periodic.yml")
 

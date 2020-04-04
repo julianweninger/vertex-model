@@ -6,24 +6,34 @@
 
 #include <armadillo>
 
+#include <utopia/core/space.hh>
 #include <utopia/data_io/cfg_utils.hh>
 #include <utopia/core/types.hh>
 
-namespace Utopia {
-namespace Models {
-namespace PCPVertex {
-namespace Space {
+namespace Utopia::Models::PCPVertex::Space {
 
 template<std::size_t num_dims>
-struct CustomSpace : Utopia::Space<num_dims> {
+struct CustomSpace : public Utopia::Space<num_dims> {
+public:
+    /// The dimensionality of the space
     using Space = Utopia::Space<num_dims>;
 
     /// The type of a vector in space
     using SpaceVec = typename Space::SpaceVec;
 
+private:
+    /// The scaling of the domain
+    /** A remapping vector to a space extend in absolute coordinates.
+     * 
+     *  \note other than the extent this can be subject to Topological changes
+     */
+    SpaceVec _domain_scale;
+
+public:
     CustomSpace(const DataIO::Config& cfg)
     :
-        Space(cfg)
+        Space(cfg),
+        _domain_scale(arma::fill::ones)
     { }
 
     /// Constructor without any arguments, i.e. constructing a default space
@@ -32,40 +42,43 @@ struct CustomSpace : Utopia::Space<num_dims> {
       */
     CustomSpace()
     :
-        Space()
+        Space(),
+        _domain_scale(arma::fill::ones)
     { }
 
-    /// The displacement between two coordinates
-    SpaceVec displacement(const SpaceVec& pos_0, const SpaceVec& pos_1) const {
-        SpaceVec dx = pos_1 - pos_0;
-
-        // The general case
-        // Use a temporary vector to apply the transformation to
-        auto mdx = dx;
-
-        // Loop over displacement and extent and store the result of the
-        // transformation in the temporary vector
-        std::transform(dx.begin(), dx.end(),
-                       this->extent.begin(), mdx.begin(),
-            [](const double& d, const double& e){
-                // Given the position in one dimension and the
-                // corresponding extent, calculate the shorter displacement
-                // (in units of the extend) to be back inside the space.
-                return (d - std::round(d / e) * e);
-            }
-        );
-
-        return mdx;
-    }
-
-    /// The distance of 2 coordinates in space
-    /** \param p    the norm
+    /// The displacement between 2 coordinates in absolute coordinates
+    /** \details Calculates vector pointing from pos_0 to pos_1.
+     *           In periodic boundary it calculates the shorter displacement.
+     *  
+     *  \warning The displacement of two coordinates in periodic boundary can be
+     *           maximum of half the domain size, i.e. moving away from a
+     *           coordinate in a certain direction will decrease the
+     *           displacement once reached half the domain size.
      */
-    double distance(const SpaceVec& pos_0, const SpaceVec& pos_1, int p=2) const
-    {
-        return norm(displacement(pos_0, pos_1), p);
+    SpaceVec displacement(const SpaceVec& pos_0, const SpaceVec& pos_1) const {
+        return map_to_absolute_space(Space::displacement(pos_0, pos_1));
     }
 
+    /// The distance of 2 coordinates in distored space
+    /** \details Calculates the distance of 2 coordinates using the norm
+     *           implemented within Armadillo.
+     *           In periodic boundary it calculates the shorter distance.
+     * 
+     *  \warning The distance of two coordinates in periodic boundary can be
+     *           maximum of half the domain size wrt every dimension,
+     *           i.e. moving away from a coordinate in a certain direction will
+     *           decrease the distance once reached half the domain size.
+     * 
+     *  \param   p   The norm used to compute the distance, see arma::norm(X, p).
+     *               Can be either an integer >= 1 or one of "-inf", "inf", "fro"
+     */
+    template<class NormType=std::size_t>
+    auto distance(const SpaceVec& pos_0, const SpaceVec& pos_1,
+                  const NormType p=2) const
+    {
+        return arma::norm(displacement(pos_0, pos_1), p);
+    }
+    
     /// Intersection of two (finite) lines
     /** \param pos_0    The origin of first line
      *  \param vec_0    The direction of first line
@@ -144,56 +157,19 @@ struct CustomSpace : Utopia::Space<num_dims> {
 
         return std::make_pair(intersection, true);
     }
+    
+    /// Map the position in to absolute coordinates
+    SpaceVec map_to_absolute_space(const SpaceVec& pos) const {
+        return pos % _domain_scale;
+    }    
 
+    /// Setter for the scale of the domain
+    /** \details positions in space are remapped to stretches of the domain size
+     */
+    void set_domain_scale(const SpaceVec& domain_scale) {
+        _domain_scale = domain_scale;
+    }
 }; // struct CustomSpace
 
-template<std::size_t num_dims>
-struct AbsoluteCustomSpace : CustomSpace<num_dims> {
-    using Space = CustomSpace<num_dims>;
-
-    /// The type of a vector in space
-    using SpaceVec = typename Space::SpaceVec;
-
-    /// The extend of the domain
-    /** A remapping vector to a space extend in absolute coordinates.
-     * 
-     *  \note other than the extent this can be subject to Topological changes
-     */
-    SpaceVec domain_size;
-
-    AbsoluteCustomSpace(const DataIO::Config& cfg)
-    :
-        Space(cfg),
-        domain_size(this->extent)
-    { }
-
-    /// Constructor without any arguments, i.e. constructing a default space
-    /** \details The default space is non-periodic and has default extent of 1.
-      *         into each dimension.
-      */
-    AbsoluteCustomSpace()
-    :
-        Space(),
-        domain_size(this->extent)
-    { }
-
-    /// Map the position in to the domain size
-    SpaceVec convert_absolute(const SpaceVec& pos) const {
-        return pos / this->extent % domain_size;
-    }
-
-    /// The absolute distance of 2 coordinates in space
-    /** \param p    the norm
-     */
-    double distance(const SpaceVec& pos_0, const SpaceVec& pos_1,
-                    int p=2) const
-    {
-        return norm(convert_absolute(this->displacement(pos_0, pos_1)), p);
-    }
-}; // struct AbsoluteCustomSpace
-
-} // namespace Space
-} // namespace PCPVertex
-} // namespace Models
-} // namespace Utopia
+} // namespace Utopia::Models::PCPVertex::Space
 #endif

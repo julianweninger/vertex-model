@@ -29,7 +29,7 @@ namespace PCPVertex {
 
 /// Type helper to define types used by the model
 using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
-                                      Space::AbsoluteCustomSpace<2>>;
+                                      Space::CustomSpace<2>>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -6,36 +6,33 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-#include "utils.hh"
 #include "../space.hh"
 
 
-using namespace Utopia;
 using namespace Utopia::Models::PCPVertex::Space;
-
-using CSpace = CustomSpace<2>;
-using SpaceVec = CSpace::SpaceVec;
-using ACSpace = AbsoluteCustomSpace<2>;
-using ASpaceVec = ACSpace::SpaceVec;
 
 const double precision = 1e-12;
 
+struct Fixture {
+    Utopia::DataIO::Config cfg;
+
+    CustomSpace<2> space;
+    CustomSpace<2> space_periodic;
+
+    using SpaceVec = typename CustomSpace<2>::SpaceVec;
+
+    Fixture ()
+    :
+        cfg(YAML::LoadFile("space_test.yml")),
+        space(cfg["2D"]["simple"]),
+        space_periodic(cfg["2D"]["simple_periodic"])
+    {}
+};
+
 // ++ Tests +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-BOOST_FIXTURE_TEST_SUITE (test_Space, ModelFixture)
 
-BOOST_AUTO_TEST_CASE(CustomSpace)
+BOOST_FIXTURE_TEST_CASE(test_CustomSpace, Fixture)
 {
-    CSpace space;
-
-    BOOST_TEST(space.contains<false>({0.1, 0.2}));
-    BOOST_CHECK_CLOSE(space.map_into_space({2.1, 0.2}).at(0), 0.1, precision);
-    BOOST_CHECK_CLOSE(space.displacement({0.1, 0.1}, {0.3, 0.1}).at(0), 0.2,
-                      precision);
-    BOOST_CHECK_CLOSE(space.displacement({0.1, 0.1}, {0.9, 0.1}).at(0), -0.2,
-                      precision);
-    
-    BOOST_CHECK_CLOSE(space.distance({0.1, 0.1}, {0.3, 0.1}), 0.2, precision);
-    
     SpaceVec pos_0 = {0.1, 0.1};
     SpaceVec vec_0 = {0.1, 0.1};
 
@@ -75,24 +72,19 @@ BOOST_AUTO_TEST_CASE(CustomSpace)
     pos_0 = {0., 0.0};
     vec_0 = {0.1, 0.1};
     pos_1 = {0.9, 0.1};
-    vec_1 = {0.3, 0.};
-    std::tie(intersection, success) = space.intersection(pos_0, vec_0, 
-                                                         pos_1, vec_1,
-                                                         false, false);
-    BOOST_CHECK_CLOSE(intersection.at(0), 0.1, precision);
-    BOOST_CHECK_CLOSE(intersection.at(1), 0.1, precision);
+    vec_1 = {0.3, 0.05};
+    std::tie(intersection, success) = space_periodic.intersection(pos_0, vec_0, 
+                                                                  pos_1, vec_1,
+                                                                  false, false);
+    BOOST_CHECK_CLOSE(intersection.at(0), 0.14, precision);
+    BOOST_CHECK_CLOSE(intersection.at(1), 0.14, precision);
     BOOST_TEST(success);
-}
 
+    // absolute coordinates
+    space.set_domain_scale({2., 1.});
 
-BOOST_AUTO_TEST_CASE(AbsoluteCustomSpace)
-{
-    ACSpace space;
-    space.domain_size = {2., 1.};
-
-    BOOST_CHECK_CLOSE(space.convert_absolute({0.1, 0.1}).at(0), 0.2, precision);
+    BOOST_CHECK_CLOSE(space.map_to_absolute_space({0.1, 0.1}).at(0), 0.2, 
+                      precision);
 
     BOOST_CHECK_CLOSE(space.distance({0.1, 0.1}, {0.3, 0.1}), 0.4, precision);
 }
-
-BOOST_AUTO_TEST_SUITE_END()
