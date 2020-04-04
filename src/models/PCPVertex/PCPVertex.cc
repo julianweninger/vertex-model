@@ -1,7 +1,6 @@
 #include <iostream>
 
 #include "PCPVertex.hh"
-#include "initialisation.hh"
 #include "energy.hh"
 #include "algorithm.hh"
 #include "transitions.hh"

@@ -15,7 +15,7 @@
 #include "geometry.hh"
 #include "entities.hh"
 #include "entities_manager.hh"
-#include "initialisation_new.hh"
+#include "initialisation.hh"
 #include "space.hh"
 
 #ifndef PI
@@ -69,6 +69,9 @@ public:
     using AgentManager = CustomAgentManager<Model<PCPVertex<periodic_bc>, 
                                                   ModelTypes>>;
 
+    /// The type of a Vertex
+    using VertexNew = typename AgentManager::Vertex;
+
     /// The types of a cell
     using CellType = typename Cell::CellType;
 
@@ -81,6 +84,7 @@ private:
     // ... but you should definitely check out the documentation ;)
 
     // -- Members -------------------------------------------------------------
+    /// The manager of the model's entities
     AgentManager _am;
     
     /// Container of vertices
@@ -256,12 +260,6 @@ public:
                 "'conjugate_gradient'.");
         }
 
-        this->initialise_hexagonal(
-            get_as<double>("hexagon_size", this->_cfg),
-            get_as<int>("lattice_rows", this->_cfg),
-            get_as<int>("lattice_columns", this->_cfg)
-        );
-
         this->initialise_polarity_random(get_as<double>(
                 "cell_initialisation_protein_level", this->_cfg));
 
@@ -273,14 +271,6 @@ public:
 
 private:
     // .. Setup functions .....................................................
-    /** Initialiser for randomly distributed cells.
-     * Use a Voronoi decomposition from randomly distributed cell centres
-     * 
-     */
-    void initialise_voronoi(int num_cells);
-
-    /// Initialiser for a hexagonal arrangement of cells.
-    void initialise_hexagonal(double size, int num_rows, int num_columns);
 
     /// Initialise the polarity proteins with random levels
     /** This initialisation fulfills the polarity constrains of zero net
@@ -786,6 +776,34 @@ public:
         _minimisation_precision = precision;
     }
 }; // class PCPVertex
+
+
+
+template <bool periodic_bc>
+void PCPVertex<periodic_bc>::initialise_polarity_random (
+        double initialisation_protein_level)
+{
+    for (auto c : _cells) {
+        std::vector<double> rn(6);
+        double sum = 0.;
+        double sum_squares = 0.;
+        for (int i = 0; i < 5; i++) {
+            rn[i] = 2*_prob_distr(*this->_rng) - 1.;
+            sum += rn[i];
+            sum_squares += std::pow(rn[i], 2);
+        }
+        rn[5] = -sum;
+        sum_squares += std::pow(rn[5], 2);
+
+        std::shuffle(rn.begin(), rn.end(), *this->_rng);
+
+        int it = 0;
+        for (auto [e, flip] : c->edges_ordered) {
+            double norm = initialisation_protein_level / sqrt(sum_squares); 
+            e->set_sigma(c, rn[it++] * norm) ;
+        }
+    }
+}
 
 } // namespace PCPVertex
 } // namespace Models

@@ -1,17 +1,7 @@
-#ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_INITIALISATION_HH
-#define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_INITIALISATION_HH
+#ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_INITIALISATIONNEW_HH
+#define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_INITIALISATIONNEW_HH
 
-namespace Utopia {
-namespace Models {
-namespace PCPVertex {
-    
-// https://courses.cs.washington.edu/courses/cse326/00wi/projects/voronoi.html
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::initialise_voronoi (int num_cells)
-{
-    throw std::logic_error("Initialise Voronoi function not yet "
-        "implemented.");
-}
+namespace Utopia::Models::PCPVertex {
 
 /** Initialiser for a hexagonal arrangement of cells.
  *  Initializes a odd-r horizontal layout of hexagonal cells
@@ -84,36 +74,39 @@ void PCPVertex<periodic_bc>::initialise_voronoi (int num_cells)
  * 
  *  for additional details see https://www.redblobgames.com/grids/hexagons/
  */
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::initialise_hexagonal (double size,
-                                                        int num_rows,
-                                                        int num_columns)
+template<class Model>
+void CustomAgentManager<Model>::setup_agents_hexagonal_structure (
+        const Config& cfg)
 {
-    double width = sqrt(3) * size;
-    double height = 2 * size;
+    if (_space->dim != 2) {
+        throw std::invalid_argument("Initialisation of hexagonal arrangement "
+            "only defined in 2 dimensional space!");
+    }
 
-    if constexpr (periodic_bc) {
-        _Lx = num_columns * width;
-        _Ly = 0.75 * num_rows * height;
+    double size = get_as<double>("hexagon_size", cfg);
+    int num_rows = get_as<int>("lattice_rows", cfg);
+    int num_columns = get_as<int>("lattice_columns", cfg);
 
+    SpaceVec cell_shape = SpaceVec({sqrt(3), 2}) * size;
+
+    if (_space->periodic) {
         if (num_rows % 2 != 0) {
             throw std::invalid_argument( "\nERROR with periodic boundary "
                 "conditions the hexagonal cell lattice needs pair number "
                 "of rows, but received impair number. Requested "
                 "number of rows was " + std::to_string(num_columns) + "!");
         }
-
-        // set up with relative coordinates
-        width = width / _Lx;
-        height = height / _Ly;
+        
+        _space->set_domain_scale(SpaceVec({double(num_columns),
+                                           0.75 * num_rows}) % cell_shape);
     }
     else {
-        _Lx = (num_columns + 0.5) * width;
-        _Ly = (0.75 * num_rows + 0.5) * height;
-    }
-        
-    width = 1. / double(num_columns);
-    height = 4. / (3. * num_rows);
+        _space->set_domain_scale(SpaceVec({num_columns + 0.5,
+                                           0.75 * num_rows + 0.5}) % cell_shape);
+    }    
+
+    // set up with relative coordinates
+    cell_shape = {1. / num_columns, 4. / (3. * num_rows)};
 
     // Add vertices
     // NOTE one more row and column of vertices initialized in
@@ -122,46 +115,29 @@ void PCPVertex<periodic_bc>::initialise_hexagonal (double size,
     // NOTE some of these vertices have to be removed eventually
     int lim_rows = num_rows;
     int lim_columns = num_columns;
-    if constexpr (not periodic_bc) {
+    if (not _space->periodic) {
         lim_columns += 1;
         lim_rows += 1;
-    }        
+    }
     for (int r = 0; r < lim_rows; r += 1) {
         // pair rows
         if (r % 2 == 0) {
         for (int q = 0; q < lim_columns; ++q) {
-            _vertices.push_back(std::make_shared<Vertex>(
-                q*width, (0.75 * r + 0.25) * height));
-            _vertices.push_back(std::make_shared<Vertex>(
-                (q+0.5)*width, 0.75 * r * height));
+            this->add_vertex(SpaceVec({double(q), (.75*r + .25)}) % cell_shape);
+            this->add_vertex(SpaceVec({q + 0.5, 0.75 * r}) % cell_shape);
         }
         }
         // impair rows
         else {
         for (int q = 0; q < lim_columns; ++q) {
-            _vertices.push_back(std::make_shared<Vertex>(
-                q*width, r * 0.75 * height) );
-            _vertices.push_back(std::make_shared<Vertex>(
-                (q+0.5)*width, (r * 0.75 + 0.25) * height) );
+            this->add_vertex(SpaceVec({double(q), r * 0.75}) % cell_shape);
+            this->add_vertex(SpaceVec({q + 0.5, r * 0.75 + 0.25}) % cell_shape);
         }
-        }
-    }
-    // these vertices are not needed 
-    if constexpr (not periodic_bc) {
-        _vertices[2*(lim_columns - 1) + 1] = nullptr;
-        if (num_rows % 2 == 1) {
-            _vertices.back() = nullptr;
-        }
-        else {
-            _vertices[2*(lim_rows-1)*lim_columns] = nullptr;
         }
     }
 
     // Add edges
-    double linetension = _linetension(CellType::progenitor,
-                                      CellType::progenitor);
-    double contractility = _edge_contractility(CellType::progenitor,
-                                      CellType::progenitor);
+    const auto vertices = this->vertices();
     for (int r = 0; r < lim_rows; r++) {
         /** pair rows
          *  The edges are created as the lower left, lower right and
@@ -183,34 +159,13 @@ void PCPVertex<periodic_bc>::initialise_hexagonal (double size,
                 // id of the cell
                 c_id = q + r * lim_columns;
                 // lower left edge
-                _edges.push_back(std::make_shared<Edge>(
-                    _vertices[2 * c_id], _vertices[2*c_id + 1],
-                    linetension, contractility, nullptr, nullptr, 0., 0.));
+                this->add_edge(vertices[2 * c_id], vertices[2*c_id + 1]);
                 // lower right edge
-                _edges.push_back(std::make_shared<Edge>(
-                    _vertices[2 * c_id + 1],
-                    _vertices[2*((q+1)%lim_columns + r*lim_columns)],
-                    linetension, contractility, nullptr, nullptr, 0., 0.));
+                this->add_edge(vertices[2 * c_id + 1],
+                        vertices[2*((q+1)%lim_columns + r*lim_columns)]);
                 // left edge
-                _edges.push_back(std::make_shared<Edge>(
-                    _vertices[2 * c_id],
-                    _vertices[2*(q + ((r+1)%lim_rows)*lim_columns)],
-                    linetension, contractility, nullptr, nullptr, 0., 0.));
-            }
-            // delete not needed edges
-            if constexpr (not periodic_bc) {
-                if (r == 0) {
-                    _edges[3*(lim_columns - 1)] = nullptr;
-                }
-                
-                _edges[3*((r+1)*lim_columns - 1) + 1] = nullptr;
-
-                if (r == lim_rows - 1) {
-                    _edges[3*(r*lim_columns)] = nullptr;
-                    for (int q = 0; q < lim_columns; ++q) {
-                        _edges[3*(q + r*lim_columns) + 2] = nullptr;
-                    }
-                }
+                this->add_edge(vertices[2 * c_id],
+                        vertices[2*(q + ((r+1)%lim_rows)*lim_columns)]);
             }
         }            
         /** impair rows
@@ -232,141 +187,101 @@ void PCPVertex<periodic_bc>::initialise_hexagonal (double size,
                 // id of the cell
                 c_id = q + r * lim_columns;
                 // lower left edge
-                _edges.push_back(std::make_shared<Edge>(
-                    _vertices[2*c_id],
-                    _vertices[2*c_id + 1],
-                    linetension, contractility, nullptr, nullptr, 0., 0.));
+                this->add_edge(vertices[2*c_id], vertices[2*c_id + 1]);
                 // lower right edge
                 // connects the lower vertex with
                 // the lower left vertex of the cell to the right
-                _edges.push_back(std::make_shared<Edge>(
-                    _vertices[2 * c_id + 1],
-                    _vertices[2*((q+1)%lim_columns + r*lim_columns)],
-                    linetension, contractility, nullptr, nullptr, 0., 0.));
+                this->add_edge(vertices[2 * c_id + 1],
+                        vertices[2*((q+1)%lim_columns + r*lim_columns)]);
                 // left edge connects the lower left vertex with
                 // the upper vertex of the cell in the row above
-                _edges.push_back(std::make_shared<Edge>(
-                    _vertices[2 * c_id + 1],
-                    _vertices[2*(q + ((r+1)%lim_rows)*lim_columns) + 1],
-                    linetension, contractility, nullptr, nullptr, 0., 0.));
-            }
-            // delete not needed edges
-            if constexpr (not periodic_bc) {
-                _edges[3*((r+1)*lim_columns - 1) + 1] = nullptr;
-
-                if (r == lim_rows - 1) {
-                    _edges[3*(lim_rows*lim_columns - 1)] = nullptr;
-
-                    for (int q = 0; q < lim_columns; ++q) {
-                        _edges[3*(q + r*lim_columns) + 2] = nullptr;
-                    }
-                }
+                this->add_edge(vertices[2 * c_id + 1],
+                        vertices[2*(q + ((r+1)%lim_rows)*lim_columns) + 1]);
             }
         }
     }
 
+    const auto edges = this->edges();
     // ** add cells
-    double area_preferential = get_as<double>("area_preferential", this->_cfg);
     // handle last row separately
     for (int r = 0; r < num_rows; r++) {
         // pair rows
         if (r % 2 == 0) {
             for (int q = 0; q < num_columns; q++) {
-                auto center = std::make_shared<Site>(
-                                    (q + 0.5)*width,
-                                    (0.75*r + 0.5) * height);
-                EdgeContainer edges;
                 int c_id = q + r * lim_columns;
-                edges.push_back(_edges[3*c_id]); // lower left
-                edges.push_back(_edges[3*c_id + 1]); // lower right
-                edges.push_back(_edges[3*c_id + 2]); // left
-                // right
-                edges.push_back(_edges[3*((q+1)%lim_columns + r*lim_columns) + 2]);
-
-                edges.push_back(_edges[3*(c_id + lim_columns)]); // upper left
-                edges.push_back(_edges[3*(c_id + lim_columns) + 1]); // upper right
-                // NOTE a pair row cannot be at periodic boundary
-                //      hence no need to handle periodicity
-
-                _cells.push_back(std::make_shared<Cell>(*center, edges,
-                                        area_preferential, _contractility));
-                _cells.back()->link_members();
-                _cells.back()->template area<periodic_bc>();
+                this->add_cell(
+                    SpaceVec({q + 0.5, 0.75 * r + 0.5}) % cell_shape,
+                    { edges[3*c_id], // lower left
+                      edges[3*c_id + 1], // lower right
+                      edges[3*c_id + 2], // left
+                      edges[3*((q+1)%lim_columns + r*lim_columns) + 2], // right
+                      edges[3*(c_id + lim_columns)], // upper left
+                      edges[3*(c_id + lim_columns) + 1] // upper right
+                    });
             }
         }
         else { // impare rows
             for (int q = 0; q < num_columns; q++) {
-                auto center = std::make_shared<Site>(
-                                    (q+1)*width,
-                                    (0.75*r + 0.5) * height);
-                EdgeContainer edges;
                 int c_id = q + r * lim_columns;
-                edges.push_back(_edges[3*c_id + 1]); // lower left
-                edges.push_back(_edges[3*c_id + 2]); // left
-                // lower right
-                edges.push_back(_edges[3*((q+1)%lim_columns + r*lim_columns)]); 
-                
-                // right
-                edges.push_back(_edges[3*((q+1)%lim_columns + r*lim_columns) + 2]);
-
-                // upper left
-                edges.push_back( _edges[3*(q + (r+1)%lim_rows * lim_columns) + 1]);
-
-                // upper right
-                edges.push_back(_edges[3*((q+1)%lim_columns + (r+1)%lim_rows * lim_columns)]);
-
-                _cells.push_back(std::make_shared<Cell>(*center, edges,
-                                        area_preferential, _contractility));
-                _cells.back()->template area<periodic_bc>();
-                _cells.back()->link_members();
+                this->add_cell(
+                    SpaceVec({q + 1., 0.75 * r + 0.5}) % cell_shape,
+                    { edges[3*c_id + 1], // lower left
+                      edges[3*c_id + 2], // lower right
+                      edges[3*((q+1)%lim_columns + r*lim_columns)], // left
+                      edges[3*((q+1)%lim_columns + r*lim_columns) + 2], // right
+                      // upper left
+                      edges[3*(q + (r+1)%lim_rows * lim_columns) + 1],
+                      // upper right
+                      edges[3*((q+1)%lim_columns + (r+1)%lim_rows * lim_columns)]
+                    });
             }
         }
     }
 
-    // remove expired objects
-    _vertices.erase(
-        std::remove_if(_vertices.begin(), _vertices.end(),
-                        [](auto v) { return v == nullptr; }),
-        _vertices.end());
-    _edges.erase(
-        std::remove_if(_edges.begin(), _edges.end(),
-                        [](auto e) { return e == nullptr; }),
-        _edges.end());
+    // remove not needed objects
+    // in non periodic bc more objects are initialised that needed
+    // if (not _space->periodic) {
+    //     // vertices
+    //     _vertices[2*(lim_columns - 1) + 1] = nullptr;
+    //     if (num_rows % 2 == 1) {
+    //         _vertices.back() = nullptr;
+    //     }
+    //     else {
+    //         _vertices[2*(lim_rows-1)*lim_columns] = nullptr;
+    //     }
 
-    for (auto e : _edges) {
-        e->link_members();
-    }
+    //     // edges
+    //     for (int r = 0; r < lim_rows; r++) {
+    //         if (r % 2 == 0) {
+    //             if (r == 0) {
+    //                 _edges[3*(lim_columns - 1)] = nullptr;
+    //             }
+                
+    //             _edges[3*((r+1)*lim_columns - 1) + 1] = nullptr;
+
+    //             if (r == lim_rows - 1) {
+    //                 _edges[3*(r*lim_columns)] = nullptr;
+    //                 for (int q = 0; q < lim_columns; ++q) {
+    //                     _edges[3*(q + r*lim_columns) + 2] = nullptr;
+    //                 }
+    //             }
+    //         }
+    //         else {
+    //             _edges[3*((r+1)*lim_columns - 1) + 1] = nullptr;
+
+    //             if (r == lim_rows - 1) {
+    //                 _edges[3*(lim_rows*lim_columns - 1)] = nullptr;
+
+    //                 for (int q = 0; q < lim_columns; ++q) {
+    //                     _edges[3*(q + r*lim_columns) + 2] = nullptr;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // } // TODO
 
     this->_log->info("Initialised hexagonal cells.");
 }
 
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::initialise_polarity_random (
-        double initialisation_protein_level)
-{
-    for (auto c : _cells) {
-        std::vector<double> rn(6);
-        double sum = 0.;
-        double sum_squares = 0.;
-        for (int i = 0; i < 5; i++) {
-            rn[i] = 2*_prob_distr(*this->_rng) - 1.;
-            sum += rn[i];
-            sum_squares += std::pow(rn[i], 2);
-        }
-        rn[5] = -sum;
-        sum_squares += std::pow(rn[5], 2);
-
-        std::shuffle(rn.begin(), rn.end(), *this->_rng);
-
-        int it = 0;
-        for (auto [e, flip] : c->edges_ordered) {
-            double norm = initialisation_protein_level / sqrt(sum_squares); 
-            e->set_sigma(c, rn[it++] * norm) ;
-        }
-    }
-}
-
-} // namespace PCPVertex
-} // namespace Models
-} // namespace Utopia
+} // namespace Utopia::Models::PCPVertex
 #endif
