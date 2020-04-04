@@ -15,6 +15,7 @@
 #include "geometry.hh"
 #include "entities.hh"
 #include "entities_manager.hh"
+#include "initialisation_new.hh"
 #include "space.hh"
 
 #ifndef PI
@@ -64,11 +65,15 @@ public:
     /// Data type for the model time
     using Time = typename ModelTypes::Time;
 
+    /// The manager of the entities (agents) of this model
     using AgentManager = CustomAgentManager<Model<PCPVertex<periodic_bc>, 
                                                   ModelTypes>>;
 
     /// The types of a cell
     using CellType = typename Cell::CellType;
+
+    /// The type of a config
+    using Config = Utopia::DataIO::Config;
 
 
 private:

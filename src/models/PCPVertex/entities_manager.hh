@@ -54,7 +54,7 @@ public:
     using Cell = Utopia::Agent<CellTraits, Space>;
 
     /// The type of the configuration
-    using Config = Utopia::DataIO::Config;
+    using Config = typename Model::Config;
 
 private:
     /// The logger (same as the model this manager resides in)
@@ -291,7 +291,8 @@ private:
                             "specified method!");
         }
         if (method == "hexagonal") {
-            this->setup_agents_hexagonal(_cfg["setup_params"]["hexagonal"]);
+            this->setup_agents_hexagonal_structure(
+                    _cfg["setup_params"]["hexagonal"]);
         }
         else if (method == "single") {
             this->setup_agents_single_hexagon(_cfg["setup_params"]["single"]);
@@ -303,19 +304,15 @@ private:
         }
     }
 
-    void setup_agents_hexagonal(const Config& cfg) {
-        this->_log->debug("Setting up agents in hexagonal cell arrangement ..");
+    void setup_agents_hexagonal_structure(const Config& cfg);
 
-        throw std::logic_error("Hexagonal setup of agent manager not "
-                               "implemented!");
-    }
-
+    /// Setup a single cell of hexagonal shape in center of space
     void setup_agents_single_hexagon(const Config& cfg) {     
         double size = get_as<double>("size", cfg);   
         double width = sqrt(3) * size;
         double height = 2 * size;
 
-        SpaceVec pos = _space->extent / 2.;
+        SpaceVec pos = get_as_space _space->extent / 2.;
 
         add_vertex(pos + SpaceVec({0., height/2.}));
         add_vertex(pos + SpaceVec({width/2., height/4.}));
@@ -332,7 +329,7 @@ private:
         add_edge(vertices[4], vertices[5]);
         add_edge(vertices[5], vertices[0]);
 
-        auto cell = add_cell(pos, this->vertices(), this->edges());
+        auto cell = add_cell(pos, this->edges());
     }
 
     /// Create a Vertex and associate it with the VertexManager
@@ -342,8 +339,7 @@ private:
     }
 
     /// Create a Edge and associate it with the EdgeManager
-    auto add_edge (std::shared_ptr<Vertex> a,
-                   std::shared_ptr<Vertex> b,
+    auto add_edge (std::shared_ptr<Vertex> a, std::shared_ptr<Vertex> b,
                    const Config& custom_cfg = {})
     {
         auto e = _edge_manager.add_agent({arma::datum::nan, arma::datum::nan},
@@ -354,13 +350,11 @@ private:
     }
 
     /// Create a Cell and associate it with the CellManager
-    auto add_cell (const SpaceVec& pos, 
-                   AgentContainer<Vertex> vertices, 
+    auto add_cell (const SpaceVec& pos,
                    AgentContainer<Edge> edges,
                    const Config& custom_cfg = {})
     {
         auto c = _cell_manager.add_agent(pos);
-        c->custom_links().vertices = vertices;
         c->custom_links().edges = this->order_edges(edges);
 
         // check that edges are anti-clockwise
@@ -373,6 +367,18 @@ private:
             }
             c->custom_links().edges = edges;
         }
+        
+        AgentContainer<Vertex> vertices;
+        for (auto [e, flip] : c->custom_links().edges) {
+            if (not flip) {
+                vertices.push_back(e->custom_links().a);
+            }
+            else {
+                vertices.push_back(e->custom_links().b);
+            }
+        }
+        c->custom_links().vertices = vertices;
+
         return c;
     }
 

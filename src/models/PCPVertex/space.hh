@@ -161,7 +161,13 @@ public:
     /// Map the position in to absolute coordinates
     SpaceVec map_to_absolute_space(const SpaceVec& pos) const {
         return pos % _domain_scale;
-    }    
+    }
+    
+    
+    /// Map the position in to absolute coordinates
+    SpaceVec map_to_relative_space(const SpaceVec& abs_pos) const {
+        return abs_pos / _domain_scale;
+    }  
 
     /// Setter for the scale of the domain
     /** \details positions in space are remapped to stretches of the domain size

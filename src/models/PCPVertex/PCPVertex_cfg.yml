@@ -31,7 +31,7 @@ dt: 0.01
 update_scheme: steepest_gradient
 
 agent_manager:
-  setup_method: single
+  setup_method: hexagonal
   setup_params:
     single:
       size: 0.62
