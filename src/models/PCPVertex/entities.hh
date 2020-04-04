@@ -255,6 +255,102 @@ public:
         return _cell_manager.agents();
     }
 
+    /// Calculate the area of a cell
+    /** \note   It is assumed that the edges are ordered anti-clockwise.
+     *          If the edges are ordered clockwise, the area is correct but of 
+     *          negative sign.
+     */
+    double area_of (const Cell& cell) {
+        static_assert(Space::dim == 2, "Area of a cell is only implemented for "
+                      "2 dimensional space!");
+
+        // the ordered edges using flip boolian: [edge, flip]
+        auto edges = cell.custom_links().edges;
+
+        // define a reference in space
+        auto [e, flip] = edges.front();
+        std::shared_ptr<Vertex> reference;
+        if (not flip) { reference = e->custom_links().a; }
+        else { reference = e->custom_links().b; }
+
+        double area = 0.;
+        for (const auto [e, flip] : edges) {
+            // define the vertices positions relative to the reference
+            /* this is important in periodic space to calculate with "real"
+             * coordinates */
+            SpaceVec a = reference->position() +
+                         _space->displacement(reference->position(), 
+                                              e->custom_links().a->position());
+            SpaceVec b = reference->position() + 
+                         _space->displacement(reference->position(), 
+                                              e->custom_links().b->position());
+
+            if (flip) { std::swap(a, b); }
+
+            area += a(0) * b(1) - b(0) * a(1);
+        }
+
+        // since the edges have to be ordered anti-clockwise 
+        return 0.5 * area;
+    }
+
+    /// Calculate the area of a cell
+    /** \note   It is assumed that the edges are ordered anti-clockwise.
+     *          If the edges are ordered clockwise, the area is correct but of 
+     *          negative sign.
+     */
+    double area_of (const std::shared_ptr<Cell>& cell) {
+        return area_of(*cell);
+    }
+
+    /// Returns the barycenter of the given cell
+    /** \note   It is assumed that the edges are ordered anti-clockwise or 
+     *          clock-wise
+     */
+    SpaceVec barycenter_of (const Cell& cell) {
+        static_assert(Space::dim == 2, "Center of a cell is only implemented "
+                      "for 2 dimensional space!");
+
+        // the ordered edges using flip boolian: [edge, flip]
+        auto edges = cell.custom_links().edges;
+
+        // define a reference in space
+        auto [e, flip] = edges.front();
+        std::shared_ptr<Vertex> reference;
+        if (not flip) { reference = e->custom_links().a; }
+        else { reference = e->custom_links().b; }
+
+        double area = 0.;
+        SpaceVec center(arma::fill::zeros);
+        for (const auto [e, flip] : edges) {
+            // define the vertices positions relative to the reference
+            /* this is important in periodic space to calculate with "real"
+             * coordinates */
+            SpaceVec a = reference->position() +
+                         _space->displacement(reference->position(), 
+                                              e->custom_links().a->position());
+            SpaceVec b = reference->position() + 
+                         _space->displacement(reference->position(), 
+                                              e->custom_links().b->position());
+
+            if (flip) { std::swap(a, b); }
+
+            double da = a(0) * b(1) - b(0) * a(1);
+            area += da;
+            center += (a + b) * da;
+        }
+        area /= 2;
+        return center / (6 * area);
+    }
+    
+    /// Returns the barycenter of the given cell
+    /** \note   It is assumed that the edges are ordered anti-clockwise or 
+     *          clock-wise
+     */
+    SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) {
+        return barycenter_of(*cell);
+    }
+
 private:
     // -- Setup functions -----------------------------------------------------
     /// Set up the custom agent manager configuration member
@@ -371,7 +467,7 @@ private:
         double width = sqrt(3) * size;
         double height = 2 * size;
 
-        SpaceVec pos = _space->extent/2.;
+        SpaceVec pos = _space->extent / 2.;
 
         add_vertex(pos + SpaceVec({0., height/2.}));
         add_vertex(pos + SpaceVec({width/2., height/4.}));
@@ -388,7 +484,7 @@ private:
         add_edge(vertices[4], vertices[5]);
         add_edge(vertices[5], vertices[0]);
 
-        add_cell(pos, this->vertices(), this->edges());
+        auto cell = add_cell(pos, this->vertices(), this->edges());
     }
 
     /// Create a Vertex and associate it with the VertexManager
@@ -418,10 +514,24 @@ private:
         auto c = _cell_manager.add_agent(pos);
         c->custom_links().vertices = vertices;
         c->custom_links().edges = this->order_edges(edges);
+
+        // check that edges are anti-clockwise
+        if (area_of(*c) < 0.) {
+            // they are clockwise -> flip all edges
+            auto edges = c->custom_links().edges;
+            for (int i = 0; i < edges.size(); i++) {
+                edges[i] = std::make_pair(std::get<0>(edges[i]),
+                                          not std::get<1>(edges[i]));
+            }
+            c->custom_links().edges = edges;
+        }
         return c;
     }
 
-    /// Order a container of Edges anti-clockwise
+    /// Order a container of Edges
+    /** \details    The established order is either anti-clockwise or clockwise.
+     *  \warning    It fails if the edges do not form a closed boundary
+     */
     std::vector<std::pair<std::shared_ptr<Edge>, bool>> order_edges (
             AgentContainer<Edge> edges)
     {
