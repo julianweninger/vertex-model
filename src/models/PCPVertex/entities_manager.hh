@@ -12,6 +12,9 @@ public:
     /// The type of a vector in space
     using SpaceVec = typename Space::SpaceVec;
 
+    /// The type of the configuration
+    using Config = typename Model::Config;
+
     /// The traits of a Vertex
     using VertexTraits = Utopia::AgentTraits<VertexState, Update::manual, true>;
 
@@ -53,8 +56,26 @@ public:
     /// The type of the managed cells
     using Cell = Utopia::Agent<CellTraits, Space>;
 
-    /// The type of the configuration
-    using Config = typename Model::Config;
+    /// The type of a rule function acting on vertices of this agent manager
+    /** This is a convenience type def that models can use to easily have this
+      * type available.
+      */
+    using RuleFuncVertex = std::function<typename Vertex::State(
+                                               const std::shared_ptr<Vertex>&)>;
+
+    /// The type of a rule function acting on edges of this agent manager
+    /** This is a convenience type def that models can use to easily have this
+      * type available.
+      */
+    using RuleFuncEdge = std::function<typename Edge::State(
+                                               const std::shared_ptr<Edge>&)>;
+
+    /// The type of a rule function acting on cells of this agent manager
+    /** This is a convenience type def that models can use to easily have this
+      * type available.
+      */
+    using RuleFuncCell = std::function<typename Cell::State(
+                                               const std::shared_ptr<Cell>&)>;
 
 private:
     /// The logger (same as the model this manager resides in)
@@ -66,14 +87,14 @@ private:
     /// The physical space the agents are to reside in
     const std::shared_ptr<Space> _space;
 
+    /// The manager of the vertices
     Utopia::AgentManager<VertexTraits, Model> _vertex_manager;
 
+    /// The manager of the edges
     Utopia::AgentManager<EdgeTraits, Model> _edge_manager;
 
+    /// The manager of the cells
     Utopia::AgentManager<CellTraits, Model> _cell_manager;
-
-    /// Storage container for pre-calculated (!) cell neighbors
-    std::vector<AgentContainer<Vertex>> _cell_neighbors;
 
 public:
     CustomAgentManager (Model& model, const Config& custom_cfg = {})
@@ -103,6 +124,50 @@ public:
         return _cell_manager.agents();
     }
 
+    /// The displacement between two vertices
+    /** \details see Utopia::Space::displacement
+     */
+    auto displacement (const Vertex& a, const Vertex& b) const {
+        return _space->displacement(a.position(), b.position());
+    }
+
+    /// The displacement between two vertices
+    /** \details see Utopia::Space::displacement
+     */
+    auto displacement (const std::shared_ptr<Vertex>& a,
+                       const std::shared_ptr<Vertex>& b) const {
+        return _space->displacement(a->position(), b->position());
+    }
+
+    /// The distance between two vertices
+    /** \details see Utopia::Space::distance
+     */
+    auto distance (const Vertex& a, const Vertex& b) const {
+        return _space->distance(a.position(), b.position());
+    }
+
+    /// The distance between two vertices
+    /** \details see Utopia::Space::distance
+     */
+    auto distance (const std::shared_ptr<Vertex>& a,
+                   const std::shared_ptr<Vertex>& b) const {
+        return _space->distance(a->position(), b->position());
+    }
+
+    /// Calculate the perimeter of a cell
+    double perimeter_of (const Cell& cell) const {
+        double perimeter = 0.;
+        for (auto [e, flip] : cell.custom_links().edges) {
+            perimeter += distance(e->custom_links().a, e->custom_links().b);
+        }
+        return perimeter;
+    }
+
+    /// Calculate the perimeter of a cell
+    double perimeter_of (const std::shared_ptr<Cell>& cell) const {
+        return perimeter_of(*cell);
+    }
+
     /// Calculate the area of a cell
     /** \note   It is assumed that the edges are ordered anti-clockwise.
      *          If the edges are ordered clockwise, the area is correct but of 
@@ -127,11 +192,9 @@ public:
             /* this is important in periodic space to calculate with "real"
              * coordinates */
             SpaceVec a = reference->position() +
-                         _space->displacement(reference->position(), 
-                                              e->custom_links().a->position());
+                         displacement(reference, e->custom_links().a);
             SpaceVec b = reference->position() + 
-                         _space->displacement(reference->position(), 
-                                              e->custom_links().b->position());
+                         displacement(reference, e->custom_links().b);
 
             if (flip) { std::swap(a, b); }
 
@@ -175,11 +238,9 @@ public:
             /* this is important in periodic space to calculate with "real"
              * coordinates */
             SpaceVec a = reference->position() +
-                         _space->displacement(reference->position(), 
-                                              e->custom_links().a->position());
+                         displacement(reference, e->custom_links().a);
             SpaceVec b = reference->position() + 
-                         _space->displacement(reference->position(), 
-                                              e->custom_links().b->position());
+                         displacement(reference, e->custom_links().b);
 
             if (flip) { std::swap(a, b); }
 

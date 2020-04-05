@@ -9,6 +9,7 @@
 
 // Utopia-related includes
 #include <utopia/core/model.hh>
+#include <utopia/core/apply.hh>
 #include <utopia/core/types.hh>
 #include <utopia/core/agent_manager.hh>
 
@@ -65,6 +66,15 @@ public:
     /// Data type for the model time
     using Time = typename ModelTypes::Time;
 
+    /// Type of the space the model is living in
+    using Space = typename ModelTypes::Space;
+
+    /// The type of a coordinate / vector in space
+    using SpaceVec = typename Space::SpaceVec;
+
+    /// The type of a config
+    using Config = Utopia::DataIO::Config;
+
     /// The manager of the entities (agents) of this model
     using AgentManager = CustomAgentManager<Model<PCPVertex<periodic_bc>, 
                                                   ModelTypes>>;
@@ -72,11 +82,23 @@ public:
     /// The type of a Vertex
     using VertexNew = typename AgentManager::Vertex;
 
+    /// The type of an Edge
+    using EdgeNew = typename AgentManager::Edge;
+
+    /// The type of a Cell
+    using CellNew = typename AgentManager::Cell;
+
     /// The types of a cell
     using CellType = typename Cell::CellType;
 
-    /// The type of a config
-    using Config = Utopia::DataIO::Config;
+    /// The type of a rule function acting on vertices of the agent manager
+    using RuleFuncVertex = typename AgentManager::RuleFuncVertex;
+
+    /// The type of a rule function acting on edges of the agent manager
+    using RuleFuncEdge = typename AgentManager::RuleFuncEdge;
+
+    /// The type of a rule function acting on cells of the agent manager
+    using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
 
 private:
@@ -295,15 +317,21 @@ private:
 
     // .. Force setter functions ..............................................
     /// Resets the forces of this vertex
-    std::function<void(Vertex_ptr&)> reset_forces = [](Vertex_ptr &v) {
-        v->fx = 0.;
-        v->fy = 0.;
+    const RuleFuncVertex reset_forces = [] (const auto& vertex)
+    {
+        auto state = vertex->state;
+        vertex->state.f.zeros();
+        return state;
     };
 
     /// Reset the forces associated with polarity-proteins
-    std::function<void(Edge_ptr&)> reset_polarity_change = [](Edge_ptr &e) {
-        e->d_sigma_a = 0.;
-        e->d_sigma_b = 0.;
+    const RuleFuncEdge reset_polarity_change = [](const auto& edge) {
+        auto state = edge->state;
+        
+        state.d_sigma_a = 0.;
+        state.d_sigma_b = 0.;
+        
+        return state;
     };
 
     /** Calculates the forces from linetension
@@ -316,17 +344,19 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    std::function<void(Edge_ptr&)> set_linetension = [this](Edge_ptr &e) {
-        auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
-                                                           _Lx, _Ly);
-        const double length = e->template length<periodic_bc>(_Lx, _Ly);
-        const double fx = e->linetension*dx/length;
-        const double fy = e->linetension*dy/length;
+    const RuleFuncEdge set_linetension = [this](const auto& edge) {
+        auto a = edge->custom_links().a;
+        auto b = edge->custom_links().b;
+        
+        auto displ = this->_am.displacement(a, b);
+        auto length = arma::norm(displ);
 
-        e->a->fx += fx;
-        e->a->fy += fy;
-        e->b->fx -= fx;
-        e->b->fy -= fy;
+        auto force = edge->state.linetension * displ / length;
+
+        a->state.f += force;
+        b->state.f -= force;
+
+        return edge->state;
     };
 
     /** Calculates the forces from edge contractility
@@ -339,17 +369,19 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    std::function<void(Edge_ptr&)> set_edge_contractility = [this](Edge_ptr &e) {
-        auto [dx, dy] = displacement_absolute<periodic_bc>(*e->a, *e->b, 
-                                                           _Lx, _Ly);
-        const double length = e->template length<periodic_bc>(_Lx, _Ly);
-        const double fx = e->contractility*dx;
-        const double fy = e->contractility*dy;
+    const RuleFuncEdge set_edge_contractility = [this](const auto& edge) {
+        auto a = edge->custom_links().a;
+        auto b = edge->custom_links().b;
 
-        e->a->fx += fx;
-        e->a->fy += fy;
-        e->b->fx -= fx;
-        e->b->fy -= fy;
+        auto displ = this->_am.displacement(a, b);
+        auto length = arma::norm(displ);
+
+        auto force = edge->state.contractility * displ;
+
+        a->state.f += force;
+        b->state.f -= force;
+
+        return edge->state;
     };
 
     /** Calculates the forces from area elasticity
@@ -362,76 +394,84 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    std::function<void(Cell_ptr&)> set_area_elasticity = [this](Cell_ptr &c) {   
-        double area_abs = c->template area_abs<periodic_bc>(_Lx, _Ly);     
-        
-        Site centre_site = *c->template centre_site<periodic_bc>();
-        
-        for (int edges_it = 0; edges_it < c->edges_ordered.size(); edges_it++) {
-            Vertex_ptr v_center, v_prior, v_post;
+    const RuleFuncCell set_area_elasticity = [this](const auto& cell) {
+        const auto state = cell->state;
 
-            auto [e0, e0_flip]  = c->edges_ordered[std::max(0, edges_it - 1)];
-            if (edges_it == 0) { 
-                std::tie(e0, e0_flip) = c->edges_ordered.back();
+        const auto cell_area = this->_am.area_of(cell);
+        const auto cell_center = this->_am.barycenter_of(cell);
+        
+        const auto& edges = cell->custom_links().edges;
+        for (int edges_it = 0; edges_it < edges.size(); edges_it++) {
+            std::shared_ptr<EdgeNew> e0; bool e0_flip;
+            if (edges_it > 0) { 
+                std::tie(e0, e0_flip) = edges[edges_it - 1];
+            }
+            else {
+                std::tie(e0, e0_flip) = edges.back();
             }
 
-            const auto [e1, e1_flip] = c->edges_ordered[edges_it];
+            const auto [e1, e1_flip] = edges[edges_it];
             
             // vertices in ordering
-            v_center = e0->b, v_prior = e0->a;
+            auto v_center = e0->custom_links().b;
+            auto v_prior = e0->custom_links().a;
             if (e0_flip) {
                 std::swap(v_center, v_prior);
             }
 
-            if (e1_flip) {
-                v_post = e1->a;
+            std::shared_ptr<VertexNew> v_post;
+            if (not e1_flip) {
+                v_post = e1->custom_links().b;
             }
             else {
-                v_post = e1->b;
+                v_post = e1->custom_links().a;
             }
 
-            auto center = periodic_copy<periodic_bc>(*v_center, centre_site);
-            auto prior = periodic_copy<periodic_bc>(*v_prior, centre_site);
-            auto post = periodic_copy<periodic_bc>(*v_post, centre_site);
+            // get positions relative to cell center
+            auto prior = cell_center + 
+                         this->_space.displacement(cell_center,
+                                                   v_prior->position());
+            auto post = cell_center + 
+                        this->_space.displacement(cell_center,
+                                                  v_post->position());
 
-            double dA_dx = 0.5 * (post.y - prior.y);
-            double dA_dy = 0.5 * (prior.x - post.x);
-            
-            // this is the force on this vertex
-            v_center->fx -= _area_elasticity * (
-                    area_abs - c->area_preferential)*dA_dx;
-            v_center->fy -= _area_elasticity * (
-                    area_abs - c->area_preferential)*dA_dy;
+            auto displ = post - prior;
+
+            double dA_dx = 0.5 * displ[1];
+            double dA_dy = -0.5 * displ[0];
+
+            v_center->state.f -= this->_area_elasticity * 
+                                 (cell_area - state.area_preferential) * 
+                                 SpaceVec({dA_dx, dA_dy});
         }
+        
+        return state;
     };
 
     /// Contractility of the cell perimeter
     /** Associated energy per cell is 
      *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
      */
-    std::function<void(Cell_ptr&)> set_cell_contractility = [this](Cell_ptr &c)
+    const RuleFuncCell set_cell_contractility = [this](const auto& cell)
     {
-        double perimeter = 0.;
+        const auto state = cell->state;
+        const double perimeter = this->_am.perimeter_of(cell);
 
-        for (auto [e, flip] : c->edges_ordered) {
-            perimeter += e->template length<periodic_bc>(_Lx, _Ly);;
+        for (auto [e, flip] : cell->custom_links().edges) {
+            auto a = e->custom_links().a;
+            auto b = e->custom_links().b;
+            if (flip) { std::swap(a, b); }
+
+            const auto displ = this->_am.displacement(a, b);
+            const double length = arma::norm(displ);
+
+            const auto force = state.contractility * perimeter * displ / length;
+
+            a->state.f += force;
+            b->state.f -= force;
         }
 
-        for (auto [e, flip] : c->edges_ordered) {
-            auto a = e->a; auto b = e->b;
-            if (flip) {
-                std::swap(a, b);
-            }
-            auto [dx, dy] = displacement_absolute<periodic_bc>(*a, *b, _Lx, _Ly);
-            const double length = e->template length<periodic_bc>(_Lx, _Ly);
-            double fx = c->contractility * perimeter * dx / length;
-            double fy = c->contractility * perimeter * dy / length;
-
-            a->fx += fx;
-            a->fy += fy;
-            b->fx += -fx;
-            b->fy += -fy;
-        }
+        return state;
     };
 
 
@@ -533,21 +573,23 @@ private:
                                          c->protein_concentration) * this->_gamma;
     };
 
+    /// Set the gradient of energy within the vertices
+    /** \details This function applies the forces arising from the different
+     *           energy terms.
+     *  \note    When adding energy terms, remember to add their gradient here!
+     */
     void set_gradient () {
         // reset forces
-        std::for_each(_vertices.begin(), _vertices.end(), reset_forces);
+        apply_rule<Update::sync>(reset_forces, _am.vertices());
 
         // apply new forces
-        std::for_each(this->_edges.begin(), this->_edges.end(),
-                        this->set_linetension);
-        std::for_each(this->_edges.begin(), this->_edges.end(),
-                        this->set_edge_contractility);
-        std::for_each(this->_cells.begin(), this->_cells.end(),
-                        this->set_area_elasticity);
-        std::for_each(this->_cells.begin(), this->_cells.end(),
-                        this->set_cell_contractility);
-
-        // NOTE remember to add additional terms also to this->get_energy()
+        apply_rule<Update::async, Shuffle::off>(set_linetension, _am.edges());
+        apply_rule<Update::async, Shuffle::off>(set_edge_contractility,
+                                                _am.edges());
+        apply_rule<Update::async, Shuffle::off>(set_area_elasticity,
+                                                _am.cells());
+        apply_rule<Update::async, Shuffle::off>(set_cell_contractility,
+                                                _am.cells());
     }
 
     /** The update of position
@@ -681,6 +723,8 @@ public:
 
         if (_gamma > 0) {
             throw std::logic_error("Polarity proteins update not implemented!");
+            apply_rule<Update::sync>(reset_polarity_change, _am.edges());
+
             std::for_each(_edges.begin(), _edges.end(),
                           set_cell_cell_polarity);
             std::for_each(_cells.begin(), _cells.end(),
