@@ -7,28 +7,43 @@ namespace PCPVertex {
 
 
 /// The energy associated with linetension per edge
-/** \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
+/** \details \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
+ * 
+ *  \param edge     The object
+ *  \param 
  */
 template <bool periodic_bc>
 double PCPVertex<periodic_bc>::line_tension_energy (
-        Edge e, double beta) const
+        const std::shared_ptr<EdgeNew>& edge, double beta) const
 {
+    SpaceVec a, b;
     if (beta > 0) {
-        e = displace_edge_steepest_gradient<periodic_bc>(e, beta, _Lx, _Ly);
+        std::tie(a, b) = this->_am.displace_virtual(edge, beta);
     }
-    const double length = e.template length<periodic_bc>(_Lx, _Ly);
-    return e.linetension * length;
+    else {
+        a = edge->custom_links().a->position();
+        b = edge->custom_links().b->position();
+    }
+    const double length = this->_space.distance(a, b);
+    
+    return edge->state.linetension * length;
 };
 
 template <bool periodic_bc>
 double PCPVertex<periodic_bc>::edge_contractility_energy (
-        Edge e, double beta) const
+        const std::shared_ptr<EdgeNew>& edge, double beta) const
 {
+    SpaceVec a, b;
     if (beta > 0) {
-        e = displace_edge_steepest_gradient<periodic_bc>(e, beta, _Lx, _Ly);
+        std::tie(a, b) = this->_am.displace_virtual(edge, beta);
     }
-    const double length = e.template length<periodic_bc>(_Lx, _Ly);
-    return 0.5 * e.contractility * pow(length, 2);
+    else {
+        a = edge->custom_links().a->position();
+        b = edge->custom_links().b->position();
+    }
+    const double length = this->_space.distance(a, b);
+    
+    return 0.5 * edge->state.contractility * pow(length, 2);
 };
 
 /// The energy associated with area elasticity
@@ -171,12 +186,12 @@ double PCPVertex<periodic_bc>::lagrange_const_concentration_energy (
 /// Getter for energy associated with linetension
 template <bool periodic_bc>
 double PCPVertex<periodic_bc>::get_energy_linetension(
-        EdgeContainer es, double beta) const
+        AgentContainer<EdgeNew> es, double beta) const
 {
-    if (es.empty()) { es = this->_edges; }
+    if (es.empty()) { es = this->_am.edges(); }
     double energy = 0.;
     for (auto &&e : es) {
-        energy += line_tension_energy(*e, beta);
+        energy += line_tension_energy(e, beta);
     }
     return energy;
 }
@@ -193,12 +208,12 @@ double PCPVertex<periodic_bc>::get_energy_linetension_normalised () const
 /// Getter for energy associated with contractility of junctions
 template <bool periodic_bc>
 double PCPVertex<periodic_bc>::get_energy_edge_contractility(
-        EdgeContainer es, double beta) const
+        AgentContainer<EdgeNew> es, double beta) const
 {
-    if (es.empty()) { es = this->_edges; }
+    if (es.empty()) { es = this->_am.edges(); }
     double energy = 0.;
     for (auto &&e : es) {
-        energy += edge_contractility_energy(*e, beta);
+        energy += edge_contractility_energy(e, beta);
     }
     return energy;
 }
@@ -255,7 +270,7 @@ template <bool periodic_bc>
 double PCPVertex<periodic_bc>::get_energy_contractility_normalised () const
 {
     return get_energy_cell_contractility() / _cells.size() + 
-        get_energy_edge_contractility() / _edges.size();
+        get_energy_edge_contractility() / this->_am.edges().size();
 }
 
 
@@ -363,15 +378,15 @@ double PCPVertex<periodic_bc>::get_energy_lagrange_const_concentration_normalise
 /// Getter for energy
 template <bool periodic_bc>
 double PCPVertex<periodic_bc>::get_energy (
-        EdgeContainer es, CellContainer cs, double beta) const
+        AgentContainer<EdgeNew> es, CellContainer cs, double beta) const
 {
-    if (es.empty()) { es = this->_edges; }
+    if (es.empty()) { es = this->_am.edges(); }
     if (cs.empty()) { cs = this->_cells; }
     return get_energy_linetension(es, beta) +
         get_energy_edge_contractility(es, beta) +
         get_energy_areaelasticity(cs, beta) +
         get_energy_cell_contractility(cs, beta) +
-        get_energy_cell_cell_polarity(es) +
+        get_energy_cell_cell_polarity({}) +
         get_energy_polarity_exclusion(cs) +
         get_energy_lagrange_net_polarisation(cs) +
         get_energy_lagrange_const_concentration(cs);

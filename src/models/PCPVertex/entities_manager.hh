@@ -260,6 +260,57 @@ public:
         return barycenter_of(*cell);
     }
 
+    /// Calculate to where a vertex would move
+    /** \details vertices move along the self-managed value Vertex::State::f
+     * 
+     *  \param beta     The step size along the direction of update
+     */
+    SpaceVec displace_virtual (const Vertex& vertex, double beta) const {
+        const auto pos = vertex.position() + beta * vertex.state.f;
+        
+        if (this->_space->periodic) {
+            return this->_space->map_into_space(pos);
+        }
+        else {
+            if (not this->_space->contains(pos)) {
+                throw OutOfSpace(pos, this->_space, "Could not move agent!");
+            }
+            return pos;
+        }
+    }
+
+    /// Calculate to where a vertex would move
+    /** \details vertices move along the self-managed value Vertex::State::f
+     * 
+     *  \param beta     The step size along the direction of update
+     */
+    SpaceVec displace_virtual (const std::shared_ptr<Vertex>& vertex,
+                               double beta) const {
+        return displace_virtual(*vertex, beta);
+    }
+
+    /// Calculate where the two vertices of edge would move to
+    /** \details vertices move along the self-managed value Vertex::State::f
+     * 
+     *  \param beta     The step size along the direction of update
+     */
+    std::pair<SpaceVec, SpaceVec> displace_virtual (const Edge& edge,
+                                                    double beta) const {
+        return std::make_pair(displace_virtual(edge.custom_links().a, beta),
+                              displace_virtual(edge.custom_links().b, beta));
+    }
+
+    /// Calculate where the two vertices of edge would move to
+    /** \details vertices move along the self-managed value Vertex::State::f
+     * 
+     *  \param beta     The step size along the direction of update
+     */
+    std::pair<SpaceVec, SpaceVec> displace_virtual (
+            const std::shared_ptr<Edge>& edge, double beta) const
+    {
+        return displace_virtual(*edge, beta);
+    }
+
 private:
     // -- Setup functions -----------------------------------------------------
     /// Set up the custom agent manager configuration member

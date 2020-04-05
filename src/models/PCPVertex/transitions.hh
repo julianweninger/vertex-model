@@ -133,10 +133,11 @@ std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc>::T1_transition (
     Cell adj_cell_a_copy = Cell(*adj_cell_a), adj_cell_b_copy = Cell(*adj_cell_b);
     Cell adj_cell_c_copy = Cell(*adj_cell_c), adj_cell_d_copy = Cell(*adj_cell_d);
 
-    double current_energy = this->get_energy({edge, adj_edge_a, adj_edge_b,
-                                              adj_edge_c, adj_edge_d},
-                                             {adj_cell_a, adj_cell_b,
-                                              adj_cell_c, adj_cell_d});
+    double current_energy = 0.;
+    // double current_energy = this->get_energy({edge, adj_edge_a, adj_edge_b,
+    //                                           adj_edge_c, adj_edge_d},
+    //                                          {adj_cell_a, adj_cell_b,
+    //                                           adj_cell_c, adj_cell_d});
 
     // create two new vertices that create an edge of threshold length 
     // pointing from cell a to b
@@ -229,10 +230,11 @@ std::pair<EdgeContainer::iterator, bool> PCPVertex<periodic_bc>::T1_transition (
         c->template area<periodic_bc>();
     }
 
-    double new_energy = this->get_energy({new_edge, adj_edge_a, adj_edge_b,
-                                          adj_edge_c, adj_edge_d},
-                                         {adj_cell_a, adj_cell_b,
-                                          adj_cell_c, adj_cell_d});
+    double new_energy = 0.;
+    // double new_energy = this->get_energy({new_edge, adj_edge_a, adj_edge_b,
+    //                                       adj_edge_c, adj_edge_d},
+    //                                      {adj_cell_a, adj_cell_b,
+    //                                       adj_cell_c, adj_cell_d});
 
     double probability = exp(-(new_energy - current_energy)/_T1_barrier);
     if (new_energy > current_energy

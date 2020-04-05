@@ -304,8 +304,10 @@ private:
     // The energy terms
     // See energy.hh for implementation
 
-    double line_tension_energy (Edge e, double beta = 0.) const;
-    double edge_contractility_energy (Edge e, double beta = 0.) const;
+    double line_tension_energy (const std::shared_ptr<EdgeNew>& edge,
+                                double beta = 0.) const;
+    double edge_contractility_energy (const std::shared_ptr<EdgeNew>& edge,
+                                      double beta = 0.) const;
     double area_elasticity_energy (Cell c, double beta = 0.) const;
     double cell_contractility_energy (Cell c, double beta = 0.) const;
     double cell_cell_polarity_energy (Edge_ptr &e) const;
@@ -749,10 +751,10 @@ public:
     // Add getters and setters here to interface with other model
 
     // NOTE when adding energy terms remember to add them to get_energy(..)
-    double get_energy_linetension(EdgeContainer es = {},
+    double get_energy_linetension(AgentContainer<EdgeNew> es = {},
                                   double beta = 0.) const;
     double get_energy_linetension_normalised () const;
-    double get_energy_edge_contractility(EdgeContainer es = {},
+    double get_energy_edge_contractility(AgentContainer<EdgeNew> es = {},
                                          double beta = 0.) const;
     double get_energy_areaelasticity (CellContainer cs = {},
                                       double beta = 0.) const;
@@ -770,7 +772,7 @@ public:
     double get_energy_lagrange_const_concentration(CellContainer cs = {}) const;
     double get_energy_lagrange_const_concentration_normalised() const;
     
-    double get_energy(EdgeContainer es = {}, CellContainer cs = {},
+    double get_energy(AgentContainer<EdgeNew> es = {}, CellContainer cs = {},
                       double beta = 0.) const;
     double get_energy_normalised () const;
     double get_rel_energy_change () const;

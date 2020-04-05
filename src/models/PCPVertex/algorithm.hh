@@ -21,7 +21,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
     dt = std::min(2*dt, 2.);
 
     // check that actually moving towards a minimum
-    if (this->get_energy(_edges, _cells, 1e-6) >= energy_0) {
+    if (this->get_energy({}, {}, 1e-6) >= energy_0) {
         this->_log->debug("Already in minimum. At step size of 1e-8 the energy "
             "along direction of update increased.");
         
@@ -38,7 +38,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
         for (double dt = 1e-11; dt < 100.; dt *= 2) {
             this->_log->debug("DEBUG At step of {} along direction of "
                 "update the energy is changing by {}", dt, 
-                (this->get_energy(_edges, _cells, dt) - energy_0)/dt);
+                (this->get_energy({}, {}, dt) - energy_0)/dt);
         }
         return std::make_pair(0., energy_0);
     }
@@ -49,9 +49,9 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
     double energy_1 = energy_0;
     bool calculate_energy_2 = true;
     double pos_2 = dt; // right boundary
-    double energy_2 = this->get_energy(_edges, _cells, pos_2);
+    double energy_2 = this->get_energy({}, {}, pos_2);
     double pos_min = dt/2.;
-    double energy_min = this->get_energy(_edges, _cells, pos_min);
+    double energy_min = this->get_energy({}, {}, pos_min);
     while (true) {
         if (dt/2 > 100.) {
             if (fabs(energy_2 - energy_1) < _minimisation_precision) {
@@ -64,7 +64,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
             for (double dt = 1e-11; dt < 100.; dt *= 2) {
                 this->_log->warn("DEBUG At step of {} along direction of "
                     "update the energy is changing by {}", dt, 
-                    (this->get_energy(_edges, _cells, dt) - energy_0)/dt);
+                    (this->get_energy({}, {}, dt) - energy_0)/dt);
             }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
             throw std::runtime_error("Unable to find bracket to "
@@ -79,14 +79,14 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
         if (energy_2 < energy_1) {
             dt *= 2.;
             energy_min = energy_2;
-            energy_2 = this->get_energy(_edges, _cells, dt);
+            energy_2 = this->get_energy({}, {}, dt);
             continue; // dt was not a right boundary to minimum
         }
 
         if (energy_min > energy_1) {
             dt = dt/2;
             energy_2 = energy_min;
-            energy_min = this->get_energy(_edges, _cells, dt/2);
+            energy_min = this->get_energy({}, {}, dt/2);
             continue; // we know that close to pos_1 there is a minimum
         }
 
@@ -123,7 +123,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
                                         "Parabola fit outside brackets");
         }
 
-        double energy_4 = this->get_energy(_edges, _cells, pos_4);
+        double energy_4 = this->get_energy({}, {}, pos_4);
         if (fabs(energy_4 - energy_min) < _minimisation_precision) {
             dt = pos_4;
             break; // found the minimum with required precision
@@ -208,7 +208,7 @@ double PCPVertex<periodic_bc>::steepest_gradient_step (
         }
     }
     else {
-        new_energy = this->get_energy(_edges, _cells, _dt);
+        new_energy = this->get_energy({}, {}, _dt);
     }
 
     std::for_each(_vertices.begin(), _vertices.end(), update_position);
