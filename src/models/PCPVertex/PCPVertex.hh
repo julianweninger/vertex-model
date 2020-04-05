@@ -308,8 +308,10 @@ private:
                                 double beta = 0.) const;
     double edge_contractility_energy (const std::shared_ptr<EdgeNew>& edge,
                                       double beta = 0.) const;
-    double area_elasticity_energy (Cell c, double beta = 0.) const;
-    double cell_contractility_energy (Cell c, double beta = 0.) const;
+    double area_elasticity_energy (const std::shared_ptr<CellNew>& cell,
+                                   double beta = 0.) const;
+    double cell_contractility_energy (const std::shared_ptr<CellNew>& cell,
+                                      double beta = 0.) const;
     double cell_cell_polarity_energy (Edge_ptr &e) const;
     double polarity_exclusion_energy (Edge_ptr &a, Edge_ptr &b,
                                       const Cell_ptr &cell) const;
@@ -751,30 +753,56 @@ public:
     // Add getters and setters here to interface with other model
 
     // NOTE when adding energy terms remember to add them to get_energy(..)
-    double get_energy_linetension(AgentContainer<EdgeNew> es = {},
+    double get_energy_linetension(const AgentContainer<EdgeNew>& es,
                                   double beta = 0.) const;
-    double get_energy_linetension_normalised () const;
-    double get_energy_edge_contractility(AgentContainer<EdgeNew> es = {},
-                                         double beta = 0.) const;
-    double get_energy_areaelasticity (CellContainer cs = {},
-                                      double beta = 0.) const;
-    double get_energy_areaelasticity_normalised () const;
-    double get_energy_cell_contractility (CellContainer cs = {},
-                                          double beta = 0.) const;
-    double get_energy_contractility () const;
-    double get_energy_contractility_normalised () const;
-    double get_energy_cell_cell_polarity(EdgeContainer es = {}) const;
-    double get_energy_cell_cell_polarity_normalised() const;
-    double get_energy_polarity_exclusion (CellContainer cs = {}) const;
-    double get_energy_polarity_exclusion_normalised() const;
-    double get_energy_lagrange_net_polarisation(CellContainer cs = {}) const;
-    double get_energy_lagrange_net_polarisation_normalised() const;
-    double get_energy_lagrange_const_concentration(CellContainer cs = {}) const;
-    double get_energy_lagrange_const_concentration_normalised() const;
+    double get_energy_linetension() const {
+        return get_energy_linetension(_am.edges(), 0.); }
     
-    double get_energy(AgentContainer<EdgeNew> es = {}, CellContainer cs = {},
+    double get_energy_edge_contractility(const AgentContainer<EdgeNew>& es,
+                                         double beta = 0.) const;
+    double get_energy_edge_contractility() const {
+        return get_energy_edge_contractility(_am.edges(), 0.);
+    }
+    
+    double get_energy_areaelasticity (const AgentContainer<CellNew>& cs,
+                                      double beta = 0.) const;
+    double get_energy_areaelasticity () const {
+        return get_energy_areaelasticity(_am.cells(), 0.);
+    }
+    
+    double get_energy_cell_contractility (const AgentContainer<CellNew>& cs,
+                                          double beta = 0.) const;
+    double get_energy_cell_contractility () const {
+        return get_energy_cell_contractility(_am.cells(), 0.);
+    }
+    
+    double get_energy_cell_cell_polarity(const EdgeContainer& es) const;
+    double get_energy_cell_cell_polarity() const {
+        return get_energy_cell_cell_polarity(_edges);
+    }
+    
+    double get_energy_polarity_exclusion (const CellContainer& cs) const;
+    double get_energy_polarity_exclusion () const {
+        return get_energy_polarity_exclusion(_cells);
+    }
+    
+    double get_energy_lagrange_net_polarisation(const CellContainer& cs) const;
+    double get_energy_lagrange_net_polarisation() const {
+        return get_energy_lagrange_net_polarisation(_cells);
+    }
+    
+    double get_energy_lagrange_const_concentration(
+            const CellContainer& cs) const;
+    double get_energy_lagrange_const_concentration() const {
+        return get_energy_lagrange_const_concentration(_cells);
+    }
+    
+    double get_energy(const AgentContainer<EdgeNew>& es,
+                      const AgentContainer<CellNew>& cs,
                       double beta = 0.) const;
-    double get_energy_normalised () const;
+    double get_energy() const {
+        return get_energy(_am.edges(), _am.cells(), 0.);
+    }
     double get_rel_energy_change () const;
 
     /// Getter for the domain size

@@ -21,7 +21,7 @@ auto energy_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_normalised());
+        dataset->write(model.get_energy() / model.get_am().cells().size());
     },
 
     // builder function
@@ -83,7 +83,8 @@ auto linetension_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_linetension_normalised());
+        dataset->write(model.get_energy_linetension() /
+                       model.get_am().cells().size());
     },
 
     // builder function
@@ -116,7 +117,8 @@ auto areaelasticity_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_areaelasticity_normalised());
+        dataset->write(model.get_energy_areaelasticity() /
+                       model.get_am().cells().size());
     },
 
     // builder function
@@ -149,7 +151,10 @@ auto contractility_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_contractility_normalised());
+        dataset->write(model.get_energy_edge_contractility() / 
+                       model.get_am().cells().size() + 
+                       model.get_energy_cell_contractility() / 
+                       model.get_am().cells().size());
     },
 
     // builder function
@@ -182,7 +187,8 @@ auto cell_cell_polarity_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_cell_cell_polarity_normalised());
+        dataset->write(model.get_energy_cell_cell_polarity() / 
+                       model.get_am().cells().size());
     },
 
     // builder function
@@ -215,7 +221,8 @@ auto polarity_exclusion_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_polarity_exclusion_normalised());
+        dataset->write(model.get_energy_polarity_exclusion() / 
+                       model.get_am().cells().size());
     },
 
     // builder function
@@ -248,7 +255,8 @@ auto lagrange_net_polarisation_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_lagrange_net_polarisation_normalised());
+        dataset->write(model.get_energy_lagrange_net_polarisation() / 
+                       model.get_am().cells().size());
     },
 
     // builder function
@@ -281,7 +289,8 @@ auto lagrange_const_concentration_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_lagrange_const_concentration_normalised());
+        dataset->write(model.get_energy_lagrange_const_concentration() / 
+                       model.get_am().cells().size());
     },
 
     // builder function

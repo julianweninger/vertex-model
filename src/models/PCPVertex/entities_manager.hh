@@ -156,16 +156,35 @@ public:
 
     /// Calculate the perimeter of a cell
     double perimeter_of (const Cell& cell) const {
-        double perimeter = 0.;
-        for (auto [e, flip] : cell.custom_links().edges) {
-            perimeter += distance(e->custom_links().a, e->custom_links().b);
-        }
-        return perimeter;
+        return this->perimeter_of_virtual(cell, 0.);
     }
 
     /// Calculate the perimeter of a cell
     double perimeter_of (const std::shared_ptr<Cell>& cell) const {
         return perimeter_of(*cell);
+    }
+
+    /// Calculate the perimeter of a cell
+    double perimeter_of_virtual (const Cell& cell, double beta) const {
+        double perimeter = 0.;
+        for (auto [e, flip] : cell.custom_links().edges) {
+            SpaceVec a, b;
+            if (beta == 0) {
+                a = e->custom_links().a->position();
+                b = e->custom_links().b->position();
+            }
+            else {
+                std::tie(a, b) = displace_virtual(e, beta);
+            }
+            perimeter += _space->distance(a, b);
+        }
+        return perimeter;
+    }
+
+    /// Calculate the perimeter of a cell
+    double perimeter_of_virtual (const std::shared_ptr<Cell>& cell,
+                                 double beta) const {
+        return perimeter_of_virtual(*cell, beta);
     }
 
     /// Calculate the area of a cell
@@ -174,6 +193,24 @@ public:
      *          negative sign.
      */
     double area_of (const Cell& cell) const {
+        return this->area_of_virtual(cell, 0.);
+    }
+
+    /// Calculate the area of a cell
+    /** \note   It is assumed that the edges are ordered anti-clockwise.
+     *          If the edges are ordered clockwise, the area is correct but of 
+     *          negative sign.
+     */
+    double area_of (const std::shared_ptr<Cell>& cell) const {
+        return area_of(*cell);
+    }
+
+    /// Calculate the area of a cell
+    /** \note   It is assumed that the edges are ordered anti-clockwise.
+     *          If the edges are ordered clockwise, the area is correct but of 
+     *          negative sign.
+     */
+    double area_of_virtual (const Cell& cell, double beta) const {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
 
@@ -186,15 +223,30 @@ public:
         if (not flip) { reference = e->custom_links().a; }
         else { reference = e->custom_links().b; }
 
+        SpaceVec ref;
+        if (beta == 0.) {
+            ref = reference->position();
+        }
+        else {
+            ref = displace_virtual(reference, beta);
+        }
+
         double area = 0.;
         for (const auto [e, flip] : edges) {
+            SpaceVec a, b;
+            if (beta == 0.) {
+                a = e->custom_links().a->position();
+                b = e->custom_links().b->position();
+            }
+            else {
+                a = displace_virtual(e->custom_links().a, beta);
+                b = displace_virtual(e->custom_links().b, beta);
+            }
             // define the vertices positions relative to the reference
             /* this is important in periodic space to calculate with "real"
              * coordinates */
-            SpaceVec a = reference->position() +
-                         displacement(reference, e->custom_links().a);
-            SpaceVec b = reference->position() + 
-                         displacement(reference, e->custom_links().b);
+            a = ref + _space->displacement(ref, a);
+            b = ref + _space->displacement(ref, b);
 
             if (flip) { std::swap(a, b); }
 
@@ -210,8 +262,9 @@ public:
      *          If the edges are ordered clockwise, the area is correct but of 
      *          negative sign.
      */
-    double area_of (const std::shared_ptr<Cell>& cell) const {
-        return area_of(*cell);
+    double area_of_virtual (const std::shared_ptr<Cell>& cell,
+                            double beta) const {
+        return area_of_virtual(*cell, beta);
     }
 
     /// Returns the barycenter of the given cell
