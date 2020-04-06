@@ -30,15 +30,15 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         uni (int): The universe to use
         hlpr (PlotHelper): The PlotHelper
     """
-    def scatter_vertex(x, y, ax, Lx, Ly):
-        ax.scatter(Lx*x, Ly*y, c='black')
+    def scatter_vertex(x, y, ax):
+        ax.scatter(x, y, c='black')
 
-    def plot_edge(x0, y0, dx, dy, ax, Lx, Ly):
-        ax.arrow(Lx*x0, Ly*y0, Lx*dx, Ly*dy, head_width=0., head_length=0.,
+    def plot_edge(x0, y0, dx, dy, ax):
+        ax.arrow(x0, y0, dx, dy, head_width=0., head_length=0.,
                  color='black')
 
-    def plot_arrow(x0, y0, dx, dy, ax, Lx, Ly):
-        ax.arrow(Lx*x0, Ly*y0, Lx*dx, Ly*dy, head_width=0.01, head_length=0.01,
+    def plot_arrow(x0, y0, dx, dy, ax):
+        ax.arrow(x0, y0, dx, dy, head_width=0.01, head_length=0.01,
                  color='black')
 
 
@@ -68,9 +68,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     vertex_cfg = uni_cfg
     for level in cfgpath.split('/'):
         vertex_cfg = vertex_cfg[level]
-    hexagon_size = vertex_cfg['hexagon_size']
-    num_rows = vertex_cfg['lattice_rows']
-    num_columns = vertex_cfg['lattice_columns']
     # model_cfg = uni_cfg[datapath]
 
 
@@ -94,7 +91,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 v = v_data.sel(id=v_id)
                 x = v.sel(coordinate="x")
                 y = v.sel(coordinate="y")
-                scatter_vertex(x, y, hlpr.ax, Lx, Ly)
+                scatter_vertex(x, y, hlpr.ax)
 
             for e_id in e_data.id:
                 e = e_data.sel(id=e_id)
@@ -106,40 +103,40 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 bx = v_data.sel(id=vertex_b, coordinate='x')
                 by = v_data.sel(id=vertex_b, coordinate='y')
 
-                if (vertex_cfg['periodic_bc']):
+                if (vertex_cfg['space']['periodic']):
                     dx = bx - ax
                     dy = by - ay
-                    if (dx >= 0.5 and dy >= 0.5):
-                        plot_edge(ax+1., ay+1., dx-1., dy-1., hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx-1., dy-1., hlpr.ax, Lx, Ly)
-                    elif (dx <= -0.5 and dy <= -0.5):
-                        plot_edge(ax-1., ay-1., dx+1., dy+1., hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx+1., dy+1., hlpr.ax, Lx, Ly)
-                    elif (dx >= 0.5 and dy <= -0.5):
-                        plot_edge(ax+1., ay-1., dx-1., dy+1., hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx-1., dy+1., hlpr.ax, Lx, Ly)
-                    elif (dx <= -0.5 and dy >= 0.5):
-                        plot_edge(ax-1., ay+1., dx+1., dy-1., hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx+1., dy-1., hlpr.ax, Lx, Ly)
+                    if (dx >= 0.5 * Lx and dy >= 0.5 * Ly):
+                        plot_edge(ax+Lx, ay+Ly, dx-Lx, dy-Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx-Lx, dy-Ly, hlpr.ax)
+                    elif (dx <= -0.5 * Lx and dy <= -0.5 * Ly):
+                        plot_edge(ax-Lx, ay-Ly, dx+Lx, dy+Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx+Lx, dy+Ly, hlpr.ax)
+                    elif (dx >= 0.5 * Lx and dy <= -0.5 * Ly):
+                        plot_edge(ax+Lx, ay-Ly, dx-Lx, dy+Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx-Lx, dy+Ly, hlpr.ax)
+                    elif (dx <= -0.5 * Lx and dy >= 0.5 * Ly):
+                        plot_edge(ax-Lx, ay+Ly, dx+Lx, dy-Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx+Lx, dy-Ly, hlpr.ax)
 
-                    elif (dx >= 0.5):
-                        plot_edge(ax+1., ay, dx-1., dy, hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx-1., dy, hlpr.ax, Lx, Ly)
-                    elif (dx <= -0.5):
-                        plot_edge(ax-1., ay, dx+1., dy, hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx+1., dy, hlpr.ax, Lx, Ly)
-                    elif (dy >= 0.5):
-                        plot_edge(ax, ay+1., dx, dy-1., hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx, dy-1., hlpr.ax, Lx, Ly)
-                    elif (dy <= -0.5):
-                        plot_edge(ax, ay-1., dx, dy+1., hlpr.ax, Lx, Ly)
-                        plot_edge(ax, ay, dx, dy+1., hlpr.ax, Lx, Ly)
+                    elif (dx >= 0.5 * Lx):
+                        plot_edge(ax+Lx, ay, dx-Lx, dy, hlpr.ax)
+                        plot_edge(ax, ay, dx-Lx, dy, hlpr.ax)
+                    elif (dx <= -0.5 * Lx):
+                        plot_edge(ax-Lx, ay, dx+Lx, dy, hlpr.ax)
+                        plot_edge(ax, ay, dx+Lx, dy, hlpr.ax)
+                    elif (dy >= 0.5 * Ly):
+                        plot_edge(ax, ay+Ly, dx, dy-Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx, dy-Ly, hlpr.ax)
+                    elif (dy <= -0.5 * Ly):
+                        plot_edge(ax, ay-Ly, dx, dy+Ly, hlpr.ax)
+                        plot_edge(ax, ay, dx, dy+Ly, hlpr.ax)
                     else:
-                        plot_edge(ax, ay, dx, dy, hlpr.ax, Lx, Ly)
+                        plot_edge(ax, ay, dx, dy, hlpr.ax)
 
                     
                 else:
-                    plot_edge(ax, ay, bx-ax, by-ay, hlpr.ax, Lx, Ly)
+                    plot_edge(ax, ay, bx-ax, by-ay, hlpr.ax)
 
             for c_id in c_data.id:
                 c = c_data.sel(id=c_id)
@@ -150,8 +147,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 pol_y = 0 # c.sel(coordinate="polarity_y")
                 dx = pol_x / 5.
                 dy = pol_y / 5.
-                plot_arrow(x - dx/2, y - dy/2.,
-                           dx, dy, hlpr.ax, Lx, Ly)
+                plot_arrow(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
                 if (cell_type.data == 1):
                     color = 'red'
                     hlpr.ax.scatter(Lx*x, Ly*y, c=color, s=15, alpha=0.5)
@@ -161,7 +157,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
 
-            if (vertex_cfg['periodic_bc']):
+            if (vertex_cfg['space']['periodic']):
                 hlpr.invoke_helper('set_limits', x=(-0.1,Lx+.05), y=(-0.1,Ly+.05))
                 hlpr.ax.axvline(x=0, ymin=-0.1, ymax = Ly +.05, c='gray', 
                                 linestyle=':')

@@ -21,10 +21,10 @@ double PCPVertex<periodic_bc>::line_tension_energy (
         std::tie(a, b) = this->_am.displace_virtual(edge, beta);
     }
     else {
-        a = edge->custom_links().a->position();
-        b = edge->custom_links().b->position();
+        a = _am.position_of(edge->custom_links().a);
+        b = _am.position_of(edge->custom_links().b);
     }
-    const double length = this->_space.distance(a, b);
+    const double length = this->_space->distance(a, b);
     
     return edge->state.linetension * length;
 };
@@ -38,10 +38,10 @@ double PCPVertex<periodic_bc>::edge_contractility_energy (
         std::tie(a, b) = this->_am.displace_virtual(edge, beta);
     }
     else {
-        a = edge->custom_links().a->position();
-        b = edge->custom_links().b->position();
+        a = _am.position_of(edge->custom_links().a);
+        b = _am.position_of(edge->custom_links().b);
     }
-    const double length = this->_space.distance(a, b);
+    const double length = this->_space->distance(a, b);
     
     return 0.5 * edge->state.contractility * pow(length, 2);
 };

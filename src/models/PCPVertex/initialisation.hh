@@ -98,15 +98,14 @@ void CustomAgentManager<Model>::setup_agents_hexagonal_structure (
         }
         
         _space->set_domain_scale(SpaceVec({double(num_columns),
-                                           0.75 * num_rows}) % cell_shape);
+                                           0.75 * num_rows}) % cell_shape /
+                                           _space->extent);
     }
     else {
-        _space->set_domain_scale(SpaceVec({num_columns + 0.5,
-                                           0.75 * num_rows + 0.5}) % cell_shape);
-    }    
-
-    // set up with relative coordinates
-    cell_shape = {1. / num_columns, 4. / (3. * num_rows)};
+        _space->set_domain_scale(SpaceVec({num_columns + 1.,
+                                           0.75 * (num_rows + 1.)}) % 
+                                           cell_shape / _space->extent);
+    }
 
     // Add vertices
     // NOTE one more row and column of vertices initialized in
@@ -240,45 +239,62 @@ void CustomAgentManager<Model>::setup_agents_hexagonal_structure (
 
     // remove not needed objects
     // in non periodic bc more objects are initialised that needed
-    // if (not _space->periodic) {
-    //     // vertices
-    //     _vertices[2*(lim_columns - 1) + 1] = nullptr;
-    //     if (num_rows % 2 == 1) {
-    //         _vertices.back() = nullptr;
-    //     }
-    //     else {
-    //         _vertices[2*(lim_rows-1)*lim_columns] = nullptr;
-    //     }
+    if (not _space->periodic) {
+        
+        // vertices
+        AgentContainer<Vertex> vertices_remove;
+        vertices_remove.push_back(vertices[2*(lim_columns - 1) + 1]);
+        if (num_rows % 2 == 1) {
+            vertices_remove.push_back(vertices.back());
+        }
+        else {
+            vertices_remove.push_back(vertices[2*(lim_rows-1)*lim_columns]);
+        }
 
-    //     // edges
-    //     for (int r = 0; r < lim_rows; r++) {
-    //         if (r % 2 == 0) {
-    //             if (r == 0) {
-    //                 _edges[3*(lim_columns - 1)] = nullptr;
-    //             }
+        // edges
+        AgentContainer<Edge> edges_remove;
+        for (int r = 0; r < lim_rows; r++) {
+            if (r % 2 == 0) {
+                if (r == 0) {
+                    edges_remove.push_back(edges[3*(lim_columns - 1)]);
+                }
                 
-    //             _edges[3*((r+1)*lim_columns - 1) + 1] = nullptr;
+                edges_remove.push_back(edges[3*((r+1)*lim_columns - 1) + 1]);
 
-    //             if (r == lim_rows - 1) {
-    //                 _edges[3*(r*lim_columns)] = nullptr;
-    //                 for (int q = 0; q < lim_columns; ++q) {
-    //                     _edges[3*(q + r*lim_columns) + 2] = nullptr;
-    //                 }
-    //             }
-    //         }
-    //         else {
-    //             _edges[3*((r+1)*lim_columns - 1) + 1] = nullptr;
+                if (r == lim_rows - 1) {
+                    edges_remove.push_back(edges[3*(r*lim_columns)]);
+                    for (int q = 0; q < lim_columns; ++q) {
+                        edges_remove.push_back(
+                            edges[3*(q + r*lim_columns) + 2]);
+                    }
+                }
+            }
+            else {
+                edges_remove.push_back(edges[3*((r+1)*lim_columns - 1) + 1]);
 
-    //             if (r == lim_rows - 1) {
-    //                 _edges[3*(lim_rows*lim_columns - 1)] = nullptr;
+                if (r == lim_rows - 1) {
+                    edges_remove.push_back(edges[3*(lim_rows*lim_columns - 1)]);
 
-    //                 for (int q = 0; q < lim_columns; ++q) {
-    //                     _edges[3*(q + r*lim_columns) + 2] = nullptr;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // } // TODO
+                    for (int q = 0; q < lim_columns; ++q) {
+                        edges_remove.push_back(
+                            edges[3*(q + r*lim_columns) + 2]);
+                    }
+                }
+            }
+        }
+
+        for (const auto& v : vertices_remove) {
+            _vertex_manager.remove_agent(v);
+        }
+        for (const auto& e : edges_remove) {
+            _edge_manager.remove_agent(e);
+        }
+    }
+
+    for (const auto& e : this->edges()) {
+        position_of(e->custom_links().a);
+        position_of(e->custom_links().b);
+    }
 
     this->_log->info("Initialised hexagonal cells.");
 }

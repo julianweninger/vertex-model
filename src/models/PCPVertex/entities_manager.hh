@@ -110,6 +110,7 @@ public:
         _cell_manager(model, setup_cell_cfg(model))
     {
         setup_agents();
+        _log->info("EntitiesManager is all set up.");
     }
 
     // -- Public interface ----------------------------------------------------
@@ -127,40 +128,48 @@ public:
     const auto& cells () const {
         return _cell_manager.agents();
     }
+
+    SpaceVec position_of(const Vertex& vertex) const {
+        return _space->map_to_absolute_space(vertex.position());
+    }
+
+    SpaceVec position_of(const std::shared_ptr<Vertex>& vertex) const {
+        return position_of(*vertex);
+    }
+
+    /// Move an vertex to a new position in the space
+    void move_to(Vertex& vertex,
+                 const SpaceVec& pos) const
+    {
+        return _vertex_manager.move_to(vertex, pos);
+    }
     
     /// Move an vertex to a new position in the space
     void move_to(const std::shared_ptr<Vertex>& vertex,
                  const SpaceVec& pos) const
     {
-        return _vertex_manager.move_to(vertex, pos);
+        return move_to(*vertex, pos);
     }
 
-    /// Move an vertex to a new position in the space
-    void move_to(const Vertex& vertex,
-                 const SpaceVec& pos) const
+    /// Move an vertex relative to its current position
+    void move_by(Vertex& vertex,
+                 const SpaceVec& move_vec) const
     {
-        return _vertex_manager.move_to(vertex, pos);
+        return move_to(vertex, position_of(vertex) + move_vec);
     }
 
     /// Move an vertex relative to its current position
     void move_by(const std::shared_ptr<Vertex>& vertex,
-                 const SpaceVec& move_vec)
-    {
-        return _vertex_manager.move_by(vertex, move_vec);
-    }
-
-    /// Move an vertex relative to its current position
-    void move_by(const Vertex& vertex,
                  const SpaceVec& move_vec) const
     {
-        return _vertex_manager.move_by(vertex, move_vec);
+        return move_by(*vertex, move_vec);
     }
 
     /// The displacement between two vertices
     /** \details see Utopia::Space::displacement
      */
     auto displacement (const Vertex& a, const Vertex& b) const {
-        return _space->displacement(a.position(), b.position());
+        return _space->displacement(position_of(a), position_of(b));
     }
 
     /// The displacement between two vertices
@@ -168,14 +177,14 @@ public:
      */
     auto displacement (const std::shared_ptr<Vertex>& a,
                        const std::shared_ptr<Vertex>& b) const {
-        return _space->displacement(a->position(), b->position());
+        return _space->displacement(position_of(a), position_of(b));
     }
 
     /// The distance between two vertices
     /** \details see Utopia::Space::distance
      */
     auto distance (const Vertex& a, const Vertex& b) const {
-        return _space->distance(a.position(), b.position());
+        return _space->distance(position_of(a), position_of(b));
     }
 
     /// The distance between two vertices
@@ -183,7 +192,7 @@ public:
      */
     auto distance (const std::shared_ptr<Vertex>& a,
                    const std::shared_ptr<Vertex>& b) const {
-        return _space->distance(a->position(), b->position());
+        return _space->distance(position_of(a), position_of(b));
     }
 
     /// Calculate the perimeter of a cell
@@ -202,8 +211,8 @@ public:
         for (auto [e, flip] : cell.custom_links().edges) {
             SpaceVec a, b;
             if (beta == 0) {
-                a = e->custom_links().a->position();
-                b = e->custom_links().b->position();
+                a = position_of(e->custom_links().a);
+                b = position_of(e->custom_links().b);
             }
             else {
                 std::tie(a, b) = displace_virtual(e, beta);
@@ -257,7 +266,7 @@ public:
 
         SpaceVec ref;
         if (beta == 0.) {
-            ref = reference->position();
+            ref = position_of(reference);
         }
         else {
             ref = displace_virtual(reference, beta);
@@ -267,8 +276,8 @@ public:
         for (const auto [e, flip] : edges) {
             SpaceVec a, b;
             if (beta == 0.) {
-                a = e->custom_links().a->position();
-                b = e->custom_links().b->position();
+                a = position_of(e->custom_links().a);
+                b = position_of(e->custom_links().b);
             }
             else {
                 a = displace_virtual(e->custom_links().a, beta);
@@ -322,9 +331,9 @@ public:
             // define the vertices positions relative to the reference
             /* this is important in periodic space to calculate with "real"
              * coordinates */
-            SpaceVec a = reference->position() +
+            SpaceVec a = position_of(reference) +
                          displacement(reference, e->custom_links().a);
-            SpaceVec b = reference->position() + 
+            SpaceVec b = position_of(reference) + 
                          displacement(reference, e->custom_links().b);
 
             if (flip) { std::swap(a, b); }
@@ -351,7 +360,7 @@ public:
      *  \param beta     The step size along the direction of update
      */
     SpaceVec displace_virtual (const Vertex& vertex, double beta) const {
-        const auto pos = vertex.position() + beta * vertex.state.f;
+        const auto pos = position_of(vertex) + beta * vertex.state.f;
         
         if (this->_space->periodic) {
             return this->_space->map_into_space(pos);
@@ -620,19 +629,20 @@ private:
                     auto a = e->custom_links().a;
                     auto b = e->custom_links().b;
                     if (not flip) {
-                        std::cout << a->position() << " to "
-                                  << b->position() << "\n";
+                        std::cout << position_of(a) << " to "
+                                  << position_of(b) << "\n";
                     }
                     else {
-                        std::cout << b->position() << " to "
-                                  << a->position() << "\n";
+                        std::cout << position_of(b) << " to "
+                                  << position_of(a) << "\n";
                     }
                 }
                 std::cout << " stopped here.\n";
                 for (const auto& e : edges) {
                     auto a = e->custom_links().a;
                     auto b = e->custom_links().b;
-                    std::cout << a->position() << " to " << b->position() << "\n";
+                    std::cout << position_of(a) << " to " 
+                              << position_of(b) << "\n";
                 }
                 std::cout << std::flush;
 

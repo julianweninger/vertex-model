@@ -425,11 +425,11 @@ private:
 
             // get positions relative to cell center
             auto prior = cell_center + 
-                         this->_space.displacement(cell_center,
-                                                   v_prior->position());
+                         this->_space->displacement(cell_center,
+                                                   _am.position_of(v_prior));
             auto post = cell_center + 
-                        this->_space.displacement(cell_center,
-                                                  v_post->position());
+                        this->_space->displacement(cell_center,
+                                                  _am.position_of(v_post));
 
             auto displ = post - prior;
 
@@ -797,11 +797,11 @@ public:
     }
 
     /// Getter for the periodic bc
-    const bool get_periodic_bc () {
-        return periodic_bc;
+    const bool get_periodic_bc () const {
+        return this->_space->periodic;
     }
 
-    AgentManager& get_am () {
+    const AgentManager& get_am () const {
         return _am;
     }
 

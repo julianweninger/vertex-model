@@ -323,11 +323,14 @@ auto vertex_position_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& vertices = model.get_am().vertices();
+        const auto& am = model.get_am();
+        const auto& vertices = am.vertices();
         dataset->write(vertices.begin(), vertices.end(),
-                        [](auto&& vertex) { return vertex->position()[0]; });
+                        [am](auto&& vertex) { 
+                            return am.position_of(vertex)[0]; });
         dataset->write(vertices.begin(), vertices.end(),
-                        [](auto&& vertex) { return vertex->position()[1]; });
+                        [am](auto&& vertex) { 
+                            return am.position_of(vertex)[1]; });
     },
 
     // builder function
@@ -347,8 +350,8 @@ auto vertex_position_adaptor = std::make_tuple(
                                   std::vector<std::string>({"x", "y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         auto [Lx, Ly] = model.get_domain_size();
-        hdfdataset->add_attribute("Lx", Lx);
-        hdfdataset->add_attribute("Ly", Ly);
+        hdfdataset->add_attribute("Lx",model.get_space()->get_domain_size()[0]);
+        hdfdataset->add_attribute("Ly",model.get_space()->get_domain_size()[1]);
         // For ids, the dimensions are trivial
         // hdfdataset->add_attribute("coords__coordinate", std::vector<std::size_t>{1, 1});
     }

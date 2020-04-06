@@ -171,9 +171,9 @@ void PCPVertex<periodic_bc>::init_minimisation ()
         return;
     }
 
-    RuleFuncVertex init = [](const auto& vertex) {
+    RuleFuncVertex init = [this](const auto& vertex) {
         auto state = vertex->state;
-        state.g = vertex->position();
+        state.g = this->_am.position_of(vertex);
         state.h = state.g;
         return state;
     };
