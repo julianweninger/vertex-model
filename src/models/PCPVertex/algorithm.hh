@@ -21,7 +21,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
     dt = std::min(2*dt, 2.);
 
     // check that actually moving towards a minimum
-    if (this->get_energy({}, {}, 1e-6) >= energy_0) {
+    if (this->get_energy(1e-6) >= energy_0) {
         this->_log->debug("Already in minimum. At step size of 1e-8 the energy "
             "along direction of update increased.");
         
@@ -30,15 +30,16 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
     
     // check that direction of update actually is non-zero
     double f_squared = 0.;
-    for (auto v : _vertices) {
-        f_squared += pow(v->fx, 2) + pow(v->fy, 2);
+    const auto& vertices = _am.vertices();
+    for (const auto& v : vertices) {
+        f_squared += arma::norm(v->state.f);
     }
-    if (sqrt(f_squared)/_vertices.size() < _minimisation_precision/100.) {
-        this->_log->debug("Linear extrapolation: {}", sqrt(f_squared));
+    if (f_squared/vertices.size() < _minimisation_precision/100.) {
+        this->_log->debug("Linear extrapolation: {}", f_squared);
         for (double dt = 1e-11; dt < 100.; dt *= 2) {
             this->_log->debug("DEBUG At step of {} along direction of "
                 "update the energy is changing by {}", dt, 
-                (this->get_energy({}, {}, dt) - energy_0)/dt);
+                (this->get_energy(dt) - energy_0)/dt);
         }
         return std::make_pair(0., energy_0);
     }
@@ -49,9 +50,9 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
     double energy_1 = energy_0;
     bool calculate_energy_2 = true;
     double pos_2 = dt; // right boundary
-    double energy_2 = this->get_energy({}, {}, pos_2);
+    double energy_2 = this->get_energy(pos_2);
     double pos_min = dt/2.;
-    double energy_min = this->get_energy({}, {}, pos_min);
+    double energy_min = this->get_energy(pos_min);
     while (true) {
         if (dt/2 > 100.) {
             if (fabs(energy_2 - energy_1) < _minimisation_precision) {
@@ -64,7 +65,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
             for (double dt = 1e-11; dt < 100.; dt *= 2) {
                 this->_log->warn("DEBUG At step of {} along direction of "
                     "update the energy is changing by {}", dt, 
-                    (this->get_energy({}, {}, dt) - energy_0)/dt);
+                    (this->get_energy(dt) - energy_0)/dt);
             }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
             throw std::runtime_error("Unable to find bracket to "
@@ -79,14 +80,14 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
         if (energy_2 < energy_1) {
             dt *= 2.;
             energy_min = energy_2;
-            energy_2 = this->get_energy({}, {}, dt);
+            energy_2 = this->get_energy(dt);
             continue; // dt was not a right boundary to minimum
         }
 
         if (energy_min > energy_1) {
             dt = dt/2;
             energy_2 = energy_min;
-            energy_min = this->get_energy({}, {}, dt/2);
+            energy_min = this->get_energy(dt/2);
             continue; // we know that close to pos_1 there is a minimum
         }
 
@@ -123,7 +124,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
                                         "Parabola fit outside brackets");
         }
 
-        double energy_4 = this->get_energy({}, {}, pos_4);
+        double energy_4 = this->get_energy(pos_4);
         if (fabs(energy_4 - energy_min) < _minimisation_precision) {
             dt = pos_4;
             break; // found the minimum with required precision
@@ -170,12 +171,16 @@ void PCPVertex<periodic_bc>::init_minimisation ()
         return;
     }
 
+    RuleFuncVertex init = [](const auto& vertex) {
+        auto state = vertex->state;
+        state.g = vertex->position();
+        state.h = state.g;
+        return state;
+    };
+
     set_gradient();
 
-    for (auto v : _vertices) {
-        v->gx = v->x; v->gy = v->y;
-        v->hx = v->x; v->hy = v->y;
-    }
+    apply_rule<Update::sync>(init, _am.vertices());
 
     _dt = 1e-3;
 };
@@ -198,20 +203,20 @@ double PCPVertex<periodic_bc>::steepest_gradient_step (
 
         if (energy_change < -1e-14) {
             this->_log->debug("Updating with timestep {} at energy change {}",
-                                _dt, energy_change);
+                              _dt, energy_change);
         }
         else {
             this->_log->debug("NOT updating with step size {} along direction "
-                            "of update at energy change {}", _dt,
-                            energy_change);
+                              "of update at energy change {}", _dt,
+                              energy_change);
             return this->_energy;
         }
     }
     else {
-        new_energy = this->get_energy({}, {}, _dt);
+        new_energy = this->get_energy(_dt);
     }
 
-    std::for_each(_vertices.begin(), _vertices.end(), update_position);
+    apply_rule<Update::sync>(update_position, _am.vertices());
 
     return new_energy;
 };
@@ -232,7 +237,7 @@ double PCPVertex<periodic_bc>::conjugate_gradient_step ()
     if (energy_change < -1e-14) {
         this->_log->debug("Updating with timestep {} at energy change {}",
                             _dt, energy_change);
-        std::for_each(_vertices.begin(), _vertices.end(), update_position);
+        apply_rule<Update::sync>(update_position, _am.vertices());
     }
     else {
         this->_log->debug("NOT updating with step size {} along direction "
@@ -245,18 +250,16 @@ double PCPVertex<periodic_bc>::conjugate_gradient_step ()
     set_gradient();
     double gamma = 0.;
     double g_square = 0.;
-    for (auto v : _vertices) {
-        gamma += std::pow(v->fx, 2) + std::pow(v->fy, 2);
-        g_square += std::pow(v->gx, 2) + std::pow(v->gy, 2);
-        
-        v->gx = v->fx; v->gy = v->fy;
+    for (auto&& v : _am.vertices()) {
+        gamma += arma::norm(v->state.f);
+        g_square += arma::norm(v->state.g);
+
+        v->state.g = v->state.f;
     }
     gamma /= g_square;
-    for (auto v : _vertices) {
-        v->hx = v->gx + gamma * v->hx;
-        v->hy = v->gy + gamma * v->hy;
-
-        v->fx = v->hx; v->fy = v->hy; 
+    for (auto&& v : _am.vertices()) {
+        v->state.h = v->state.g + gamma * v->state.h;
+        v->state.f = v->state.h;
     }
 
     return new_energy;

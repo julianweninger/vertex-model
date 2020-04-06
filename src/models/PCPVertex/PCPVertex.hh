@@ -198,12 +198,6 @@ private:
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
-    
-    /// A normal distribution used for evaluating noise of order zero
-    std::normal_distribution<double> _distr_noise_const;
-
-    /// A normal distribution used for evaluating noise of order one
-    std::normal_distribution<double> _distr_noise_linear;
 
     // .. Temporary objects ...................................................
     /// The total energy in the last step
@@ -249,8 +243,6 @@ public:
         _cell_polarity_exclusion(get_as<double>("cell_polarity_exclusion", 
                                                 this->_cfg)),
         _prob_distr(0.,1.),
-        _distr_noise_const(0., get_as<double>("noise_constant", this->_cfg)),
-        _distr_noise_linear(0., get_as<double>("noise_linear", this->_cfg)),
         _energy_previous_step(0.),
         _energy(0.)
     {
@@ -602,16 +594,10 @@ private:
      * 
      *  @param v    The pointer to the vertex to update
      */
-    std::function<void(Vertex_ptr&)> update_position = [this](Vertex_ptr &v) {
-        double Df_lin = _distr_noise_linear(*this->_rng);
-        double Df_const = _distr_noise_const(*this->_rng);
-        v->x += ((1 + Df_lin) * v->fx + Df_const) * _dt / _Lx;
-
-        Df_lin = _distr_noise_linear(*this->_rng);
-        Df_const = _distr_noise_const(*this->_rng);
-        v->y += ((1 + Df_lin) * v->fy + Df_const) * _dt / _Ly;
-        
-        correct_periodic_bc<periodic_bc>(v);
+    const RuleFuncVertex update_position = [this](const auto& vertex) {
+        const auto state = vertex->state;
+        _am.move_by(vertex, state.f * this->_dt);
+        return state;
     };
 
     /** The update of polarity protein levels
@@ -800,8 +786,8 @@ public:
     double get_energy(const AgentContainer<EdgeNew>& es,
                       const AgentContainer<CellNew>& cs,
                       double beta = 0.) const;
-    double get_energy() const {
-        return get_energy(_am.edges(), _am.cells(), 0.);
+    double get_energy(double beta = 0.) const {
+        return get_energy(_am.edges(), _am.cells(), beta);
     }
     double get_rel_energy_change () const;
 
@@ -817,16 +803,6 @@ public:
 
     AgentManager& get_am () {
         return _am;
-    }
-
-    /// Change the const noise distribution
-    void set_noise_const (double stddev) {
-        _distr_noise_const = std::normal_distribution<double>(0., stddev);
-    }
-
-    /// Change the linear noise distribution
-    void set_noise_linear (double stddev) {
-        _distr_noise_linear = std::normal_distribution<double>(0., stddev);
     }
 
     /** Criterion for the equilibrium state

@@ -77,6 +77,9 @@ public:
     using RuleFuncCell = std::function<typename Cell::State(
                                                const std::shared_ptr<Cell>&)>;
 
+    /// The type of the move function type
+    using MoveFunc = std::function<void(Vertex&, const SpaceVec&)>;
+
 private:
     /// The logger (same as the model this manager resides in)
     const std::shared_ptr<spdlog::logger> _log;
@@ -109,6 +112,7 @@ public:
         setup_agents();
     }
 
+    // -- Public interface ----------------------------------------------------
     /// Return const reference to the managed vertices
     const auto& vertices () const {
         return _vertex_manager.agents();
@@ -122,6 +126,34 @@ public:
     /// Return const reference to the managed cells
     const auto& cells () const {
         return _cell_manager.agents();
+    }
+    
+    /// Move an vertex to a new position in the space
+    void move_to(const std::shared_ptr<Vertex>& vertex,
+                 const SpaceVec& pos) const
+    {
+        return _vertex_manager.move_to(vertex, pos);
+    }
+
+    /// Move an vertex to a new position in the space
+    void move_to(const Vertex& vertex,
+                 const SpaceVec& pos) const
+    {
+        return _vertex_manager.move_to(vertex, pos);
+    }
+
+    /// Move an vertex relative to its current position
+    void move_by(const std::shared_ptr<Vertex>& vertex,
+                 const SpaceVec& move_vec)
+    {
+        return _vertex_manager.move_by(vertex, move_vec);
+    }
+
+    /// Move an vertex relative to its current position
+    void move_by(const Vertex& vertex,
+                 const SpaceVec& move_vec) const
+    {
+        return _vertex_manager.move_by(vertex, move_vec);
     }
 
     /// The displacement between two vertices
@@ -507,8 +539,7 @@ private:
     auto add_edge (std::shared_ptr<Vertex> a, std::shared_ptr<Vertex> b,
                    const Config& custom_cfg = {})
     {
-        auto e = _edge_manager.add_agent({arma::datum::nan, arma::datum::nan},
-                                         custom_cfg);
+        auto e = _edge_manager.add_agent({0., 0.}, custom_cfg);
         e->custom_links().a = a;
         e->custom_links().b = b;
         return e;

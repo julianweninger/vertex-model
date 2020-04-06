@@ -45,39 +45,6 @@ public:
         Space(),
         _domain_scale(arma::fill::ones)
     { }
-
-    /// The displacement between 2 coordinates in absolute coordinates
-    /** \details Calculates vector pointing from pos_0 to pos_1.
-     *           In periodic boundary it calculates the shorter displacement.
-     *  
-     *  \warning The displacement of two coordinates in periodic boundary can be
-     *           maximum of half the domain size, i.e. moving away from a
-     *           coordinate in a certain direction will decrease the
-     *           displacement once reached half the domain size.
-     */
-    SpaceVec displacement(const SpaceVec& pos_0, const SpaceVec& pos_1) const {
-        return map_to_absolute_space(Space::displacement(pos_0, pos_1));
-    }
-
-    /// The distance of 2 coordinates in distored space
-    /** \details Calculates the distance of 2 coordinates using the norm
-     *           implemented within Armadillo.
-     *           In periodic boundary it calculates the shorter distance.
-     * 
-     *  \warning The distance of two coordinates in periodic boundary can be
-     *           maximum of half the domain size wrt every dimension,
-     *           i.e. moving away from a coordinate in a certain direction will
-     *           decrease the distance once reached half the domain size.
-     * 
-     *  \param   p   The norm used to compute the distance, see arma::norm(X, p).
-     *               Can be either an integer >= 1 or one of "-inf", "inf", "fro"
-     */
-    template<class NormType=std::size_t>
-    auto distance(const SpaceVec& pos_0, const SpaceVec& pos_1,
-                  const NormType p=2) const
-    {
-        return arma::norm(displacement(pos_0, pos_1), p);
-    }
     
     /// Intersection of two (finite) lines
     /** \param pos_0    The origin of first line
