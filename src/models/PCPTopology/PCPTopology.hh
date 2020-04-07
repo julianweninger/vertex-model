@@ -402,7 +402,7 @@ private:
         }
 
         c->state.area_preferential /= 2;
-        // _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
+        _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
 
         return;
     }

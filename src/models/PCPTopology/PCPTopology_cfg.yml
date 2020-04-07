@@ -17,6 +17,9 @@
 ---
 # --- Space
 # The physical space this model is embedded in
+space: &SPACE
+  extent: [1., 1.]
+  periodic: true
 
 # --- Operations
 # Proliferation -- cell division
@@ -71,7 +74,6 @@ stretch_domain:
   times:
     begin: 1
     # no end
-
   stretch_speed: [0.01, 0.0]
   fix_hair_cell_volume: True
 
@@ -192,13 +194,36 @@ equilibration:
 
 # The model for energy minimization
 PCPVertex:
-  # space periodicity
+  space: *SPACE
+
   periodic_bc: true
 
   # damping factor
   dt: 0.01
   update_scheme: conjugate_gradient
-  
+
+  agent_manager:
+    setup_method: hexagonal
+    setup_params:
+      single:
+        size: 0.62
+      hexagonal:
+        hexagon_size: 0.62
+        lattice_rows: 8
+        lattice_columns: 8
+    vertex_manager: ~
+
+    edge_manager:
+      agent_params:
+        linetension: *Linetension
+        contractility: *Contractility
+
+    cell_manager:
+      agent_params:
+        area_preferential: *Area_preferential
+        contractility: *Contractility
+        cell_type: progenitor
+
   # Linetension parameter
   linetension: *Linetension
 
@@ -216,22 +241,22 @@ PCPVertex:
   cell_polarity_exclusion: 0.
   cell_initialisation_protein_level: 0.
 
-  # topological transition properties
-  T1_threshold: 0.01
-  T1_probability: 1.
-  T1_barrier: 0.001
-  T2_threshold: 0.0075
+  T1_threshold: 0.1
+  T1_probability: 0.05
+  T1_barrier: 0.02
+  T2_threshold: 0.075
 
-  # Initialization parameter
+  # Topology parameter
   hexagon_size: 0.62
   lattice_rows: 8
   lattice_columns: 8
+  initial_jiggle: 0.05
 
   # Noise
   noise_constant: 0.0
   noise_linear: 0.0
 
-  energy_change_history_length: 1
+  energy_change_history_length: 10
 
   data_manager: &data_manager
     # this builds the deciders

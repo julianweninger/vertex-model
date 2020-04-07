@@ -56,6 +56,9 @@ public:
     /// The type of the managed cells
     using Cell = Utopia::Agent<CellTraits, Space>;
 
+    /// The cell-type (hair, support) of the cells
+    using CellType = typename Cell::State::CellType;
+
     /// The type of a rule function acting on vertices of this agent manager
     /** This is a convenience type def that models can use to easily have this
       * type available.
@@ -364,12 +367,23 @@ public:
         return barycenter_of(*cell);
     }
 
+    AgentContainer<Edge> adjoint_edges_of(
+            const std::shared_ptr<Vertex>& vertex) const
+    {
+        return _vertices_adjoint_edges.at(vertex->id());
+    }
+
+    AgentContainer<Cell> adjoint_cells_of(
+            const std::shared_ptr<Vertex>& vertex) const
+    {
+        return _vertices_adjoint_cells.at(vertex->id());
+    }
+
     /// The adjoint cells of an edge
     std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell>> adjoints_of(
             const std::shared_ptr<Edge>& edge) const
     {
-        const auto [adj_a, adj_b] = _edges_adjoint_cells.at(edge->id());
-        return std::make_pair(adj_a, adj_b);
+        return _edges_adjoint_cells.at(edge->id());
     }
 
     /// The neighbors of a cell
@@ -378,7 +392,7 @@ public:
         AgentContainer<Cell> neighbors;
 
         for (const auto& [e, flip] : cell->custom_links().edges) {
-            auto [adj_cell_a, adj_cell_b] = adjoints_of(e);
+            const auto [adj_cell_a, adj_cell_b] = adjoints_of(e);
             if (adj_cell_a and adj_cell_a != cell) {
                 neighbors.push_back(adj_cell_a);
             }
@@ -440,6 +454,9 @@ public:
     {
         return displace_virtual(*edge, beta);
     }
+
+    void divide_cell(const std::shared_ptr<Cell> cell, double division_angle,
+            double linetension, double edge_contractility);
 
 private:
     // -- Setup functions -----------------------------------------------------

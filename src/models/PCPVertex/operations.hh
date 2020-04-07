@@ -1,5 +1,5 @@
-#ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_OPERATIONS_HH
-#define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_OPERATIONS_HH
+#ifndef UTOPIA_MODELS_PCPVERTEX_OPERATIONS_HH
+#define UTOPIA_MODELS_PCPVERTEX_OPERATIONS_HH
 
 #include <typeinfo>
 
@@ -230,30 +230,6 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
 
     differentiate_hair_cells_hlpr(linetension, edge_contractility,
                                   area_preferential);
-};
-
-/// Perform a cell division on specific cell
-/** Divides a specific cell into two identical cells with properties derived
- *  from the common parent cell. 
- *  The division is performed at a given angle through the parent cell's
- *  center. This defines the axis of division that will form a new edge 
- *  between the two new cells.
- * 
- *  \param cell     pointer to the cell that is to be divided
- *  \param division_angle   angle (in rad) at which the cell
- */
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::divide_cell(
-        Cell_ptr cell, double division_angle)
-{
-    auto cell_it = std::find(_cells.begin(), _cells.end(), cell);
-
-    if (cell_it == _cells.end()) {
-        throw std::invalid_argument("Cannot divide cell at position "
-            "({}, {}), because its not a member of cells in vertex model!");
-    }
-
-    this->divide_cell(cell_it, division_angle);
 };
 
 /// Increase the domain size by a certain area

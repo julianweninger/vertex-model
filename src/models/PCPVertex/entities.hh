@@ -18,6 +18,7 @@ struct VertexState {
 
     /// Whether to remove
     bool remove;
+    // TODO move to flags:
 
     /// Constructor
     VertexState ()

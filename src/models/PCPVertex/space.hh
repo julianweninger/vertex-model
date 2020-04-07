@@ -128,7 +128,7 @@ public:
      */
     std::pair<SpaceVec, bool> intersection(SpaceVec pos_0, SpaceVec vec_0,
             SpaceVec pos_1, SpaceVec vec_1,
-            bool finite_0=true, bool finite_1=true)
+            bool finite_0=true, bool finite_1=true) const
     {
         static_assert(this->dim == 2, "Intersection of lines not implemented " 
                       "in other than 2 dimensional space! ");

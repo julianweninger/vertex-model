@@ -14,15 +14,11 @@
 #include <utopia/core/agent_manager.hh>
 
 #include "geometry.hh"
+#include "space.hh"
 #include "entities.hh"
 #include "entities_manager.hh"
 #include "initialisation.hh"
-#include "space.hh"
-
-#ifndef PI
-#define PI 3.14159265
-#endif
-
+#include "transitions_new.hh"
 
 namespace Utopia {
 namespace Models {
@@ -623,9 +619,6 @@ private:
     std::pair<CellContainer::iterator,
               bool> T2_transition (CellContainer::iterator &cell_it);
     
-    CellContainer::iterator divide_cell(CellContainer::iterator cell_it,
-                                        double division_angle);
-
     // see algorithm.hh
     std::pair<double, double> determine_timestep (double dt,
                                                   const double energy_0) const;
@@ -659,7 +652,26 @@ public:
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> edge_contractility,
         arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
-    void divide_cell(Cell_ptr cell, double division_angle);
+        
+    /// Perform a cell division on specific cell
+    /** Divides a specific cell into two identical cells with properties derived
+     *  from the common parent cell. 
+     *  The division is performed at a given angle through the parent cell's
+     *  center. This defines the axis of division that will form a new edge 
+     *  between the two new cells.
+     * 
+     *  \param cell         the cell that is to be divided
+     *  \param division_angle   angle (in rad) at which the cell is divided
+     */
+    void divide_cell(std::shared_ptr<CellNew> cell, double division_angle) {
+        this->_log->info("Dividing cell..");
+        double linetension = _linetension(cell->state.type, cell->state.type);
+        double contractility = _edge_contractility(cell->state.type,
+                                                   cell->state.type);
+        return _am.divide_cell(cell, division_angle, linetension,
+                               contractility);
+    }
+
     void increase_domain_size(double area);
     double stretch_domain(double dx, double dy, bool compensate,
                           bool fix_hc_volume);

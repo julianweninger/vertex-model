@@ -12,7 +12,7 @@ auto model_factory(ParentType parent) {
     return PCPTopology<periodic_bc>("PCPTopology", parent,
         // statistics
         statistics_time_adaptor, cell_neighbourhood_adaptor,
-        cell_area_adaptor<PCPTopology<periodic_bc>::CellType>,
+        cell_area_adaptor<typename PCPTopology<periodic_bc>::CellType>,
         cell_area_histogram_adaptor,
         // the position adaptors
         vertex_position_adaptor,
