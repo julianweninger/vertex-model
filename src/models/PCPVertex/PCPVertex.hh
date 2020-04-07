@@ -89,7 +89,7 @@ public:
     using CellNew = typename AgentManager::Cell;
 
     /// The types of a cell
-    using CellType = typename Cell::CellType;
+    using CellType = typename CellNew::State;
 
     /// The type of a rule function acting on vertices of the agent manager
     using RuleFuncVertex = typename AgentManager::RuleFuncVertex;

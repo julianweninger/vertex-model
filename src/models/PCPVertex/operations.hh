@@ -14,16 +14,21 @@ namespace PCPVertex {
  * TODO write test
  */
 template <bool periodic_bc>
-void PCPVertex<periodic_bc>::jiggle_vertices(
-        double intensity)
+void PCPVertex<periodic_bc>::jiggle_vertices(double intensity)
 {
     this->_log->debug("Jiggling the vertices on a length scale of "
                         "{} ..", intensity);
-    for (auto v : _vertices) {
-        v->x += 2*intensity * _prob_distr(*this->_rng) - intensity;
-        v->y += 2*intensity * _prob_distr(*this->_rng) - intensity;
-        correct_periodic_bc<periodic_bc>(v);
-    }
+    
+    const RuleFuncVertex jiggle = [this, intensity] (const auto& vertex)
+    {
+        SpaceVec displ = SpaceVec({this->_prob_distr(*this->_rng),
+                                   this->_prob_distr(*this->_rng)}) *
+                         2. * intensity - intensity;
+        this->_am.move_by(vertex, displ);
+        return vertex->state;
+    };
+
+    apply_rule<Update::sync>(jiggle, _am.vertices());
 
     this->init_minimisation();
 };
@@ -69,29 +74,46 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_hlpr(
                 "matrix");
         }
     }
-    
-    // Set the cell preferential area
-    for (auto &c : _cells) {
-        c->area_preferential = area_preferential(c->type);
-    }
 
-    // Set the surface tension
-    for (auto &e : _edges) {
-        Cell::CellType cell_a_type, cell_b_type;
-        if (e->adj_cell_a.expired()) {
-            cell_a_type = Cell::CellType::support; }
-        else { cell_a_type = e->adj_cell_a.lock()->type; }
-        if (e->adj_cell_b.expired()) {
-            cell_b_type = Cell::CellType::support; }
-        else { cell_b_type = e->adj_cell_b.lock()->type; }
-
-        e->linetension = linetension(cell_a_type, cell_b_type);
-        e->contractility = edge_contractility(cell_a_type, cell_b_type);
-    }
+    const RuleFuncCell update_area_pref = [this, area_preferential] (
+            const auto& cell)
+    {
+        auto state = cell->state;
+        state.area_preferential = area_preferential(state.type);
+        return state;
+    };
 
     _linetension = linetension;
     _edge_contractility = edge_contractility;
 
+    const RuleFuncEdge set_edge_prop = [this] (
+            const auto& edge)
+    {
+        const auto& [adj_cell_a, adj_cell_b] = _am.adjoins_of(edge);
+        Cell::CellType cell_a_type, cell_b_type;
+        if (adj_cell_a) {
+            cell_a_type = adj_cell_a->state.type;
+        }
+        else {
+            cell_a_type = Cell::CellType::support;
+        }
+        if (adj_cell_b) {
+            cell_b_type = adj_cell_b->state.type;
+        }
+        else {
+            cell_b_type = Cell::CellType::support;
+        }
+
+        auto state = edge->state;
+        state.linetension = this->_linetension(cell_a_type, cell_b_type);
+        state.contractility = this->_edge_contractility(cell_a_type,
+                                                        cell_b_type);
+
+        return state;
+    };
+
+    apply_rule<Update::sync>(update_area_pref, _am.cells());
+    apply_rule<Update::sync>(set_edge_prop, _am.edges());
 }
 
 /// Differentiates progenitor cells with random hair cell distribution
@@ -115,14 +137,23 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_random(
     this->_log->info("Differentiating progenitor cells to {}% hair cells "
         "and {}% support cells with uniform spatial distribution ...",
         fraction, 1-fraction);
+
     
-    // Set the cell type
-    for (auto &c : _cells) {
-        if (_prob_distr(*this->_rng) < fraction) { 
-            c->type = CellType::hair; }
-        else { 
-            c->type = CellType::support; }
-    }
+
+    const RuleFuncCell set_type_rand = [this, fraction] (
+            const auto& cell)
+    {
+        auto state = cell->state;
+        if (this->_prob_distr(*this->_rng) < fraction) {
+            cell->type = CellType::hair;
+        }
+        else {
+            cell->type = CellType::support;
+        }
+        return state;
+    };
+
+    apply_rule<Update::sync>(set_type_rand, _am.cells());
 
     differentiate_hair_cells_hlpr(linetension, edge_contractility,
                                   area_preferential);
@@ -153,7 +184,8 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
 
     auto nd_cells = notch_delta->get_cm()->cells();
 
-    std::unordered_map<Cell_ptr, typeof(nd_cells.back())> cell_map;
+    std::unordered_map<std::shared_ptr<CellNew>,
+                       typeof(nd_cells.back())> cell_map;
     if (_cells.size() > nd_cells.size()) {
         this->_log->warn("Cells in NotchDelta: {}. Cells in Vertex: {}",
             nd_cells.size(), _cells.size());
@@ -161,16 +193,18 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
             "models. More cells in Vertex than in NotchDelta model!");
     }
     int iterator;
-    for (iterator = 0; iterator < _cells.size(); iterator++) {
-        cell_map.insert(std::make_pair(_cells[iterator], nd_cells[iterator]));
+    const auto& cells = _am.cells();
+    for (iterator = 0; iterator < cells.size(); iterator++) {
+        cell_map.insert(std::make_pair(cells[iterator], nd_cells[iterator]));
     }
     for (void(); iterator < nd_cells.size(); iterator++) {
         nd_cells[iterator]->state.cell_type = NotchDelta::CellType::inactive;
     }
-    for (auto c : _cells) {
+
+    for (const auto& c : cells) {
         auto mapped_cell = cell_map.at(c);
         mapped_cell->custom_links().neighbors.clear();
-        for (auto n : neighbors_of(c)) {
+        for (auto n : _am.neighbors_of(c)) {
             mapped_cell->custom_links().neighbors.push_back(cell_map.at(n));
         }
     }
@@ -184,13 +218,13 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
     for (auto pair = cell_map.begin(); pair != cell_map.end(); pair++) {
         auto type = pair->second->state.cell_type;
         if (type == NotchDelta::CellType::hair) {
-            pair->first->type = Cell::CellType::hair;
+            pair->first->state.type = Cell::CellType::hair;
         }
         else if (type == NotchDelta::CellType::support) {
-            pair->first->type = Cell::CellType::support;
+            pair->first->state.type = Cell::CellType::support;
         }
         else {
-            pair->first->type = Cell::CellType::progenitor;
+            pair->first->state.type = Cell::CellType::progenitor;
         }
     }
 
