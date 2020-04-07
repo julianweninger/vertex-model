@@ -20,11 +20,11 @@ auto cell_neighbourhood_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        auto cells = model.get_cells();
+        const auto& cells = model.get_am().cells();
 
         std::array<int, 7> histogram = {0};
         for (auto c : cells) {
-            int neighbours = c.lock()->edges_ordered.size();
+            int neighbours = c->custom_links().edges.size();
             neighbours = std::min(neighbours, 9);
             if (neighbours < 3) {
                 throw std::runtime_error("Encountered cell with less than 3 "
@@ -60,7 +60,6 @@ auto cell_neighbourhood_adaptor = std::make_tuple(
 ); // end cell neighbourhood adaptor
 
 /// Datamanager adaptor for vertex-position
-template <bool periodic_bc>
 auto cell_area_histogram_adaptor = std::make_tuple(
 
     // name of the task
@@ -73,18 +72,17 @@ auto cell_area_histogram_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        auto cells = model.get_cells();
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
         std::array<int, 8> histogram = {0};
         std::array<double, 8> area = {0};
         histogram[0] = cells.size();
-        for (auto c_weak : cells) {
-            auto c = c_weak.lock();
-            int neighbours = c->edges_ordered.size();
+        for (const auto& c : cells) {
+            int neighbours = c->custom_links().edges.size();
             neighbours = std::min(neighbours, 9);
             histogram[neighbours-2]++;
 
-            auto [Lx, Ly] = model.get_domain_size();
-            area[neighbours-2] += c->template area_abs<periodic_bc>(Lx, Ly);
+            area[neighbours-2] += am.area_of(c);
         }
         for (int i = 1; i < 8; i++) {
             if (histogram[i] == 0) { continue; }

@@ -92,7 +92,8 @@ using EnvCellState = Environment::DummyEnvCellState;
 using EnvModel = Environment::Environment<EnvParam, EnvCellState>;
 
 /// Type helper to define types used by the model
-using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
+using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
+                                                 Space::CustomSpace<2>>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
@@ -107,8 +108,11 @@ public:
     /// Type of the config
     using typename Base::Config;
 
-    /// The types of a cell
+    /// The types of a cell (support, hair)
     using CellType = typename PCPVertex<periodic_bc>::CellType;
+
+    /// The type of coordinates and vectors in space
+    using SpaceVec = typename PCPVertex<periodic_bc>::SpaceVec;
                                     
 
 private:
@@ -195,7 +199,7 @@ public:
                     DataIO::lagrange_net_polarisation_adaptor,
                     DataIO::lagrange_const_concentration_adaptor,
                     DataIO::vertex_position_adaptor,  
-                    DataIO::cell_position_adaptor<periodic_bc>,
+                    DataIO::cell_position_adaptor<SpaceVec>,
                     DataIO::edge_link_adaptor),
         
         // the parameter
@@ -209,6 +213,8 @@ public:
         _area_preferential(),
         _prob_distr(0.,1.)
     {
+        this->_space = _vertex_model.get_space();
+
         if (not this->_cfg["equilibration"]) {
             throw std::invalid_argument("No cfg entry 'equilibration' "
                 "available for model " + this->_name + "!");
@@ -289,9 +295,10 @@ private:
                 tolerance = _equilibration_tolerance;
             }
             
-            auto [Lx, Ly] = _vertex_model.get_domain_size();
-            auto num_cells = _vertex_model.get_cells().size();
-            double intensity = _jiggle_intensity * sqrt(Lx*Ly / num_cells);
+            auto num_cells = _vertex_model.get_am().cells().size();
+            const auto domain = _vertex_model.get_space()->get_domain_size();
+            double intensity = _jiggle_intensity * sqrt(domain[0]*domain[1] / 
+                                                        num_cells);
             // NOTE the sqrt(x) defines a typical lengthscale under the 
             //      assumption of isotropic cells
             
@@ -310,7 +317,8 @@ private:
                     energy_change) = _vertex_model.equilibrium_state_reached();
                 
                 if (not equilibrated
-                    and _vertex_model.get_time() - time_start >= _num_equilibration_steps)
+                    and _vertex_model.get_time() - time_start >= 
+                            _num_equilibration_steps)
                 {
                     this->_log->warn("ERROR Equilibrium not reached within {} "
                         "steps at a tolerance of {}! Energy change in last "
@@ -359,15 +367,17 @@ private:
      *                      is not divided
      */
     void divide_random_cell(double threshold = 0.5) {
-        auto cells = _vertex_model.get_cells();
+        const auto& am = _vertex_model.get_am();
+        const auto& cells = am.cells();
         std::uniform_int_distribution<> int_dist(0, cells.size() - 1);
         
-        auto c = cells[int_dist(*this->_rng)].lock();
-        auto [Lx, Ly] = _vertex_model.get_domain_size();
+        auto c = cells[int_dist(*this->_rng)];
+        const auto& domain = _vertex_model.get_space()->get_domain_size();
 
         if constexpr (not periodic_bc) {
-            for (auto [e, flip] : c->edges_ordered) {
-                if (e->adj_cell_a.expired() or e->adj_cell_b.expired()) {
+            for (auto [e, flip] : c->custom_links().edges) {
+                const auto [adj_cell_a, adj_cell_b] = am.adjoints_of(e);
+                if (not adj_cell_a or not adj_cell_b) {
                     this->_log->warn("Cannot divide randomly chosen cell, "
                                       "because it is a boundary cell. Division "
                                       "od boundary cells in non-periodic "
@@ -378,21 +388,21 @@ private:
             }
         }
 
-        _vertex_model.increase_domain_size(c->area_preferential);
-        c->area_preferential *= 2;
+        _vertex_model.increase_domain_size(c->state.area_preferential);
+        c->state.area_preferential *= 2;
 
         equilibrate_vertex_model();
 
-        if (c->template area_abs<periodic_bc>(Lx, Ly) < threshold * c->area_preferential) {
+        if (am.area_of(c) < threshold * c->state.area_preferential) {
             this->_log->warn("Could not divide cell, because it would "
                 "not grow to sufficient area. For division requested area: "
                 "75\% of {}. Area reached: {}. !!ABORTING!!",
-                c->area_preferential, c->template area_abs<periodic_bc>(Lx, Ly));
+                c->state.area_preferential, am.area_of(c));
             throw std::runtime_error("Cell division not possible!");
         }
 
-        c->area_preferential /= 2;
-        _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
+        c->state.area_preferential /= 2;
+        // _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
 
         return;
     }
@@ -414,9 +424,9 @@ private:
                             std::get<1>(stretch_speed),
                             true, fix_hair_cell_volume);
         if (fix_hair_cell_volume) {
-            int num_cells = _vertex_model.get_cells().size();
-            for (auto c : _vertex_model.get_cells()) {
-                num_cells -= c.lock()->type == CellType::hair;
+            int num_cells = _vertex_model.get_am().cells().size();
+            for (auto c : _vertex_model.get_am().cells()) {
+                num_cells -= (c->state.type == CellType::hair);
             }
             for (int i = 0; i < CellType::num_cell_types; i++) {
                 if (i == CellType::hair) { continue; }                    
@@ -424,7 +434,7 @@ private:
             }
         }
         else {
-            int num_cells = _vertex_model.get_cells().size();
+            int num_cells = _vertex_model.get_am().cells().size();
             for (int i = 0; i < CellType::num_cell_types; i++) {                
                 _area_preferential(i) += dA / num_cells;
             }                
@@ -534,17 +544,17 @@ private:
                 "random, " "NotchDelta");
         }
 
-        auto cells = _vertex_model.get_cells();
         int num_hc = 0;
-        for (auto c : cells) {
-            if (c.lock()->type == CellType::hair) {
+        for (const auto& c : _vertex_model.get_am().cells()) {
+            if (c->state.type == CellType::hair) {
                 num_hc++;
             }
         }
         
         this->_log->info("Differentiated progenitor cells; "
             "there are {} hair cells out of {} cells ({}%)", num_hc,
-            cells.size(), double(num_hc)/_vertex_model.get_cells().size());
+            _vertex_model.get_am().cells().size(),
+            double(num_hc)/_vertex_model.get_am().cells().size());
         
         return;
     }
@@ -560,10 +570,10 @@ private:
         _area_preferential(CellType::hair) = new_value;
         double dA = new_value - _area_preferential(CellType::hair);
         
-        auto cells = _vertex_model.get_cells();
+        const auto& cells = _vertex_model.get_am().cells();
         int num_hcs = 0;
-        for (auto c : cells) {
-            num_hcs += (c.lock()->type == CellType::hair);
+        for (const auto& c : cells) {
+            num_hcs += (c->state.type == CellType::hair);
         }
 
         dA *= num_hcs; // the total increase of area by all hcs
@@ -579,9 +589,8 @@ private:
             _area_preferential(i) -= dA;
         }
 
-        for (auto c_weak : cells) {
-            auto c = c_weak.lock();
-            c->area_preferential = _area_preferential(c->type);
+        for (auto& c : cells) {
+            c->state.area_preferential = _area_preferential(c->state.type);
         }
         
         this->_log->debug("Updated area preferential from Environment model "
@@ -712,7 +721,8 @@ public:
 
     /// Monitor model information
     void monitor () {        
-        this->_monitor.set_entry("num cells", _vertex_model.get_cells().size());
+        this->_monitor.set_entry("num cells",
+                                 _vertex_model.get_am().cells().size());
     }
 
     /// The prolog
@@ -731,7 +741,7 @@ public:
             "proliferation", _cfg_proliferation, true);
         this->_log->debug("Model initialised with proliferated vertex model. "
                           "There are {} cells on equilibrated tissue.",
-                          _vertex_model.get_cells().size());
+                          _vertex_model.get_am().cells().size());
         
         perform_operation(
             [this] () { return this->differentiate_cells(); },
@@ -757,37 +767,23 @@ public:
         _vertex_model.epilog();
         _envm.epilog();
         
-        auto [Lx, Ly] = _vertex_model.get_domain_size();
-        this->_log->info("Domain size is {} x {}.", Lx, Ly);
+        const auto domain = _vertex_model.get_space()->get_domain_size();
+        this->_log->info("Domain size is {} x {}.", domain[0], domain[1]);
 
         if (not this->_cfg["epilog"]) {
             return this->__epilog();
         }
 
         auto epilog_cfg = this->_cfg["epilog"];
-        if (epilog_cfg["set_noise_const"]) {
-            _vertex_model.set_noise_const(get_as<double>("set_noise_const",
-                                                          epilog_cfg));
-        }
-        if (epilog_cfg["set_noise_linear"]) {
-            _vertex_model.set_noise_linear(get_as<double>("set_noise_linear",
-                                                          epilog_cfg));
-        }
 
         int time_start = _vertex_model.get_time();
         int num_steps = get_as<int>("num_epilog_steps", epilog_cfg);
 
-        this->_log->info("Iterating vertex model from time {} to {}", 
-                         time_start, time_start + num_steps);
+        this->_log->info("Equilibrating vertex model another {} times ..", 
+                         num_steps);
 
         for (int i = 0; i < num_steps; ++i) {
-            _vertex_model.iterate();
-
-            if (stop_now.load()) {
-                this->_log->warn("Was told to stop. Not iterating vertex "
-                    "model further ...");
-                throw GotSignal(received_signum.load());
-            }
+            this->equilibrate_vertex_model();
         }
 
         return this->__epilog();
@@ -797,24 +793,9 @@ public:
     // Add getters and setters here to interface with other model
 
     /// Getter for vertices
-    std::vector<std::weak_ptr<Vertex>> get_vertices () {
-        return _vertex_model.get_vertices();
+    const auto& get_am () const {
+        return _vertex_model.get_am();
     }
-
-    /// Getter for edges
-    std::vector<std::weak_ptr<Edge>> get_edges () {
-        return _vertex_model.get_edges();
-    }
-
-    /// Getter for cells
-    std::vector<std::weak_ptr<Cell>> get_cells () {
-        return _vertex_model.get_cells();
-    }
-
-    auto get_domain_size() const {
-        return _vertex_model.get_domain_size();
-    }
-
 };
 
 } // namespace PCPTopology

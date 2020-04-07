@@ -12,10 +12,11 @@ auto model_factory(ParentType parent) {
     return PCPTopology<periodic_bc>("PCPTopology", parent,
         // statistics
         statistics_time_adaptor, cell_neighbourhood_adaptor,
-        cell_area_adaptor<periodic_bc>,
-        cell_area_histogram_adaptor<periodic_bc>,
+        cell_area_adaptor<PCPTopology<periodic_bc>::CellType>,
+        cell_area_histogram_adaptor,
         // the position adaptors
-        vertex_position_adaptor, cell_position_adaptor<periodic_bc>,
+        vertex_position_adaptor,
+        cell_position_adaptor<typename PCPVertex<periodic_bc>::Space::SpaceVec>,
         edge_link_adaptor);
 }
 
