@@ -99,6 +99,18 @@ private:
     /// The manager of the cells
     Utopia::AgentManager<CellTraits, Model> _cell_manager;
 
+    /// The container of adjoint cells to every cell
+    std::unordered_map<int, std::pair<std::weak_ptr<Cell>,
+                                std::weak_ptr<Cell>>> _edges_adjoint_cells;
+
+    /// The container of adjoint edges to a every vertex
+    std::unordered_map<int, 
+            std::vector<std::weak_ptr<Edge>>> _vertices_adjoint_edges;
+
+    /// The container of adjoint edges to a every vertex
+    std::unordered_map<int, 
+            std::vector<std::weak_ptr<Cell>>> _vertices_adjoint_cells;
+
 public:
     CustomAgentManager (Model& model, const Config& custom_cfg = {})
     :
@@ -354,6 +366,31 @@ public:
         return barycenter_of(*cell);
     }
 
+    /// The adjoint cells of an edge
+    std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell>>& adjoints_of(
+            const std::shared_ptr<Edge>& edge) const
+    {
+        return _edges_adjoint_cells[edge->id()];
+    }
+
+    /// The neighbors of a cell
+    AgentContainer<Cell>& neighbors_of(const std::shared_ptr<Cell>& cell) const
+    {
+        AgentContainer<Cell> neighbors;
+
+        for (const auto& [e, flip] : cell->custom_links().edges) {
+            const auto [adj_cell_a, adj_cell_b] = this->adjoints_of(e);
+            if (adj_cell_a and adj_cell_a != cell) {
+                neighbors.push_back(adj_cell_a);
+            }
+            else if (adj_cell_b and adj_cell_b != cell) {
+                neighbors.push_back(adj_cell_b);
+            }
+        }
+
+        return neighbors;
+    }
+
     /// Calculate to where a vertex would move
     /** \details vertices move along the self-managed value Vertex::State::f
      * 
@@ -551,6 +588,12 @@ private:
         auto e = _edge_manager.add_agent({0., 0.}, custom_cfg);
         e->custom_links().a = a;
         e->custom_links().b = b;
+
+        // Create the required weak links
+        for (const auto& v : {a, b}) {
+            _vertices_adjoint_edges[v->id()].push_back(e);
+        }
+
         return e;
     }
 
@@ -583,6 +626,24 @@ private:
             }
         }
         c->custom_links().vertices = vertices;
+
+        // Create the required weak links
+        for (const auto& v : vertices) {
+            _vertices_adjoint_cells[v->id()].push_back(c);
+        }
+        for (const auto& [e, flip] : c->custom_links().edges) {
+            auto [adj_cell_a, adj_cell_b] = _edges_adjoint_cells[e->id()];
+
+            if (adj_cell_a.expired()) {
+                adj_cell_a = c;
+            }
+            else if (adj_cell_b.expired()) {
+                adj_cell_b = c;
+            }
+
+            _edges_adjoint_cells[e->id()] = std::make_pair(adj_cell_a,
+                                                           adj_cell_b);
+        }
 
         return c;
     }
