@@ -100,16 +100,14 @@ private:
     Utopia::AgentManager<CellTraits, Model> _cell_manager;
 
     /// The container of adjoint cells to every cell
-    std::unordered_map<int, std::pair<std::weak_ptr<Cell>,
-                                std::weak_ptr<Cell>>> _edges_adjoint_cells;
+    std::unordered_map<int, std::pair<
+            std::shared_ptr<Cell>, std::shared_ptr<Cell>>> _edges_adjoint_cells;
 
     /// The container of adjoint edges to a every vertex
-    std::unordered_map<int, 
-            std::vector<std::weak_ptr<Edge>>> _vertices_adjoint_edges;
+    std::unordered_map<int, AgentContainer<Edge>> _vertices_adjoint_edges;
 
     /// The container of adjoint edges to a every vertex
-    std::unordered_map<int, 
-            std::vector<std::weak_ptr<Cell>>> _vertices_adjoint_cells;
+    std::unordered_map<int, AgentContainer<Cell>> _vertices_adjoint_cells;
 
 public:
     CustomAgentManager (Model& model, const Config& custom_cfg = {})
@@ -367,19 +365,20 @@ public:
     }
 
     /// The adjoint cells of an edge
-    std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell>>& adjoints_of(
+    std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell>> adjoints_of(
             const std::shared_ptr<Edge>& edge) const
     {
-        return _edges_adjoint_cells[edge->id()];
+        const auto [adj_a, adj_b] = _edges_adjoint_cells.at(edge->id());
+        return std::make_pair(adj_a, adj_b);
     }
 
     /// The neighbors of a cell
-    AgentContainer<Cell>& neighbors_of(const std::shared_ptr<Cell>& cell) const
+    AgentContainer<Cell> neighbors_of(const std::shared_ptr<Cell>& cell) const
     {
         AgentContainer<Cell> neighbors;
 
         for (const auto& [e, flip] : cell->custom_links().edges) {
-            const auto [adj_cell_a, adj_cell_b] = this->adjoints_of(e);
+            auto [adj_cell_a, adj_cell_b] = adjoints_of(e);
             if (adj_cell_a and adj_cell_a != cell) {
                 neighbors.push_back(adj_cell_a);
             }
@@ -634,10 +633,10 @@ private:
         for (const auto& [e, flip] : c->custom_links().edges) {
             auto [adj_cell_a, adj_cell_b] = _edges_adjoint_cells[e->id()];
 
-            if (adj_cell_a.expired()) {
+            if (not adj_cell_a) {
                 adj_cell_a = c;
             }
-            else if (adj_cell_b.expired()) {
+            else if (not adj_cell_b) {
                 adj_cell_b = c;
             }
 

@@ -97,14 +97,13 @@ void CustomAgentManager<Model>::setup_agents_hexagonal_structure (
                 "number of rows was " + std::to_string(num_columns) + "!");
         }
         
-        _space->set_domain_scale(SpaceVec({double(num_columns),
-                                           0.75 * num_rows}) % cell_shape /
-                                           _space->extent);
+        _space->set_domain_size(SpaceVec({double(num_columns),
+                                           0.75 * num_rows}) % cell_shape);
     }
     else {
-        _space->set_domain_scale(SpaceVec({num_columns + 1.,
+        _space->set_domain_size(SpaceVec({num_columns + 1.,
                                            0.75 * (num_rows + 1.)}) % 
-                                           cell_shape / _space->extent);
+                                           cell_shape);
     }
 
     // Add vertices

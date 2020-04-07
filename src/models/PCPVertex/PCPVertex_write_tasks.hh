@@ -349,9 +349,9 @@ auto vertex_position_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__coordinate", 
                                   std::vector<std::string>({"x", "y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
-        auto [Lx, Ly] = model.get_domain_size();
-        hdfdataset->add_attribute("Lx",model.get_space()->get_domain_size()[0]);
-        hdfdataset->add_attribute("Ly",model.get_space()->get_domain_size()[1]);
+        const auto domain = model.get_space()->get_domain_size();
+        hdfdataset->add_attribute("Lx", domain[0]);
+        hdfdataset->add_attribute("Ly", domain[1]);
         // For ids, the dimensions are trivial
         // hdfdataset->add_attribute("coords__coordinate", std::vector<std::size_t>{1, 1});
     }
@@ -429,9 +429,9 @@ auto cell_position_adaptor = std::make_tuple(
                                                             // "polarity_x",
                                                             // "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
-        auto [Lx, Ly] = model.get_domain_size();
-        hdfdataset->add_attribute("Lx", Lx);
-        hdfdataset->add_attribute("Ly", Ly);
+        const auto domain = model.get_space()->get_domain_size();
+        hdfdataset->add_attribute("Lx", domain[0]);
+        hdfdataset->add_attribute("Ly", domain[1]);
     }    
 ); // end cell position adaptor
 
@@ -480,6 +480,7 @@ auto edge_link_adaptor = std::make_tuple(
 ); // end edge link adaptor
 
 /// Datamanager adaptor for total energy
+template <typename CellType>
 auto cell_area_adaptor = std::make_tuple(
 
     // name of the task
@@ -492,24 +493,23 @@ auto cell_area_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        auto [Lx, Ly] = model.get_domain_size();
         const auto& am = model.get_am();
         const auto& cells = am.cells();
-        std::vector<double> area_cells(Cell::CellType::num_cell_types, 0.);
-        std::vector<int> num_cells(Cell::CellType::num_cell_types, 0.);
+        std::vector<double> area_cells(CellType::num_cell_types, 0.);
+        std::vector<int> num_cells(CellType::num_cell_types, 0.);
         for (auto c : cells) {
-            num_cells[c->type]++;
-            area_cells[c->type] += am.area_of(c);
+            num_cells[c->state.type]++;
+            area_cells[c->state.type] += am.area_of(c);
         }
         double area_total = std::accumulate(area_cells.begin(),
                                             area_cells.end(), 0.);
         double area_average = area_total / cells.size();
 
-        for (int i = 0; i < Cell::CellType::num_cell_types; i++) {
+        for (int i = 0; i < CellType::num_cell_types; i++) {
             area_cells[i] /= num_cells[i];
         }
-        double average_hair = area_cells[Cell::CellType::hair];
-        double average_support = area_cells[Cell::CellType::support];
+        double average_hair = area_cells[CellType::hair];
+        double average_support = area_cells[CellType::support];
 
         std::vector<double> data = {area_average,
                                     average_hair, average_support};

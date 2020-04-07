@@ -89,19 +89,19 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_hlpr(
     const RuleFuncEdge set_edge_prop = [this] (
             const auto& edge)
     {
-        const auto& [adj_cell_a, adj_cell_b] = _am.adjoins_of(edge);
-        Cell::CellType cell_a_type, cell_b_type;
+        const auto& [adj_cell_a, adj_cell_b] = _am.adjoints_of(edge);
+        CellType cell_a_type, cell_b_type;
         if (adj_cell_a) {
             cell_a_type = adj_cell_a->state.type;
         }
         else {
-            cell_a_type = Cell::CellType::support;
+            cell_a_type = CellType::support;
         }
         if (adj_cell_b) {
             cell_b_type = adj_cell_b->state.type;
         }
         else {
-            cell_b_type = Cell::CellType::support;
+            cell_b_type = CellType::support;
         }
 
         auto state = edge->state;
@@ -145,10 +145,10 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_random(
     {
         auto state = cell->state;
         if (this->_prob_distr(*this->_rng) < fraction) {
-            cell->type = CellType::hair;
+            state.type = CellType::hair;
         }
         else {
-            cell->type = CellType::support;
+            state.type = CellType::support;
         }
         return state;
     };
@@ -218,13 +218,13 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
     for (auto pair = cell_map.begin(); pair != cell_map.end(); pair++) {
         auto type = pair->second->state.cell_type;
         if (type == NotchDelta::CellType::hair) {
-            pair->first->state.type = Cell::CellType::hair;
+            pair->first->state.type = CellType::hair;
         }
         else if (type == NotchDelta::CellType::support) {
-            pair->first->state.type = Cell::CellType::support;
+            pair->first->state.type = CellType::support;
         }
         else {
-            pair->first->state.type = Cell::CellType::progenitor;
+            pair->first->state.type = CellType::progenitor;
         }
     }
 
@@ -267,15 +267,18 @@ template <bool periodic_bc>
 void PCPVertex<periodic_bc>::increase_domain_size(
         double area)
 {
-    if (-1. * area > _Lx * _Ly) {
+    const auto domain = this->_space->get_domain_size();
+    if (-1. * area > domain[0] * domain[1]) {
         throw std::invalid_argument("Cannot decrease the domain size by "
                 "an area larger than the domain size. dA = " + 
                 std::to_string(area) + " and A = " +
-                std::to_string(_Lx * _Ly));
+                std::to_string(domain[0] * domain[1]));
     }
-    double ratio = _Lx / double(_Ly);
-    _Ly = std::sqrt(_Ly*_Ly + area / ratio);
-    _Lx = ratio * _Ly;
+    double ratio = domain[0] / domain[1];
+    double ly = std::sqrt(domain[0] * domain[1] + area / ratio);
+    double lx = ratio * ly;
+
+    this->_space->set_domain_size({lx, ly});
 };
 
 /// Stretch the domain size
@@ -301,10 +304,10 @@ double PCPVertex<periodic_bc>::stretch_domain(
         return dx * _Ly + dy * _Lx;
     }
 
-    int num_cells = _cells.size();
+    int num_cells = _am.cells().size();
     if (fix_hc_volume) {
-        for (auto c : _cells) {
-            num_cells -= c->type == CellType::hair;
+        for (const auto& c : _am.cells()) {
+            num_cells -= (c->state.type == CellType::hair);
         }
         if (num_cells == 0) {
             throw std::runtime_error("All support cells eliminated!");
@@ -313,24 +316,22 @@ double PCPVertex<periodic_bc>::stretch_domain(
 
     double dA = (dx * _Ly + dy * _Lx) / num_cells;
 
-    std::function<void(Cell_ptr&)> compensate_dA = [dA](Cell_ptr& cell) {
-        cell->area_preferential += dA;
-        return;
-    };
-    std::function<void(Cell_ptr&)> compensate_dA_non_hc = [dA](
-            Cell_ptr& cell)
-    {
-        if (cell->type != CellType::hair) {
-            cell->area_preferential += dA;
-        }
-        return;
-    };
-
-    if (not fix_hc_volume) {
-        std::for_each(_cells.begin(), _cells.end(), compensate_dA);
+    if (not fix_hc_volume) {        
+        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+            cell->state.area_preferential += dA;
+            return cell->state;
+        };
+        apply_rule<Update::sync>(compensate_dA, _am.cells());
     }
     else {
-        std::for_each(_cells.begin(), _cells.end(), compensate_dA_non_hc);
+        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+            auto state = cell->state;
+            if (state.type != CellType::hair) {
+                cell->state.area_preferential += dA;
+            }
+            return state;
+        };
+        apply_rule<Update::sync>(compensate_dA, _am.cells());
     }
 
     return dx * _Ly + dy * _Lx;

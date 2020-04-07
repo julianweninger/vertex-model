@@ -89,7 +89,10 @@ public:
     using CellNew = typename AgentManager::Cell;
 
     /// The types of a cell
-    using CellType = typename CellNew::State;
+    using CellState = typename CellNew::State;
+
+    /// The types of a cell
+    using CellType = typename CellState::CellType;
 
     /// The type of a rule function acting on vertices of the agent manager
     using RuleFuncVertex = typename AgentManager::RuleFuncVertex;
@@ -790,16 +793,6 @@ public:
         return get_energy(_am.edges(), _am.cells(), beta);
     }
     double get_rel_energy_change () const;
-
-    /// Getter for the domain size
-    const std::pair<double, double> get_domain_size () const {
-        return std::make_pair(_Lx, _Ly);
-    }
-
-    /// Getter for the periodic bc
-    const bool get_periodic_bc () const {
-        return this->_space->periodic;
-    }
 
     const AgentManager& get_am () const {
         return _am;

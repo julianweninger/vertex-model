@@ -217,8 +217,8 @@ public:
     /// Setter for the scale of the domain
     /** \details positions in space are remapped to stretches of the domain size
      */
-    void set_domain_scale(const SpaceVec& domain_scale) {
-        _domain_scale = domain_scale;
+    void set_domain_size(const SpaceVec& domain_size) {
+        _domain_scale = domain_size / this->extent;
     }
 }; // struct CustomSpace
 

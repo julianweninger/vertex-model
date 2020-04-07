@@ -81,7 +81,7 @@ BOOST_FIXTURE_TEST_CASE(test_CustomSpace, Fixture)
     BOOST_TEST(success);
 
     // absolute coordinates
-    space.set_domain_scale({2., 1.});
+    space.set_domain_size({2., 1.});
 
     BOOST_CHECK_CLOSE(space.map_to_absolute_space({0.1, 0.1}).at(0), 0.2, 
                       precision);
