@@ -351,12 +351,12 @@ public:
 
             if (flip) { std::swap(a, b); }
 
-            double da = a(0) * b(1) - b(0) * a(1);
+            double da = a[0] * b[1] - b[0] * a[1];
             area += da;
             center += (a + b) * da;
         }
         area /= 2;
-        return center / (6 * area);
+        return _space->map_into_space(center / (6 * area));
     }
     
     /// Returns the barycenter of the given cell
