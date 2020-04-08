@@ -181,14 +181,14 @@ public:
     /// The displacement between two vertices
     /** \details see Utopia::Space::displacement
      */
-    auto displacement (const Vertex& a, const Vertex& b) const {
+    SpaceVec displacement (const Vertex& a, const Vertex& b) const {
         return _space->displacement(position_of(a), position_of(b));
     }
 
     /// The displacement between two vertices
     /** \details see Utopia::Space::displacement
      */
-    auto displacement (const std::shared_ptr<Vertex>& a,
+    SpaceVec displacement (const std::shared_ptr<Vertex>& a,
                        const std::shared_ptr<Vertex>& b) const {
         return _space->displacement(position_of(a), position_of(b));
     }

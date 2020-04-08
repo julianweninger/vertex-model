@@ -315,7 +315,7 @@ private:
     const RuleFuncVertex reset_forces = [] (const auto& vertex)
     {
         auto state = vertex->state;
-        vertex->state.f.zeros();
+        state.f.zeros();
         return state;
     };
 
@@ -343,7 +343,7 @@ private:
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
         
-        auto displ = this->_am.displacement(a, b);
+        SpaceVec displ = this->_am.displacement(a, b);
         auto length = arma::norm(displ);
 
         auto force = edge->state.linetension * displ / length;
@@ -423,14 +423,14 @@ private:
             }
 
             // get positions relative to cell center
-            auto prior = cell_center + 
-                         this->_space->displacement(cell_center,
-                                                   _am.position_of(v_prior));
-            auto post = cell_center + 
-                        this->_space->displacement(cell_center,
-                                                  _am.position_of(v_post));
+            SpaceVec prior = cell_center + 
+                             this->_space->displacement(cell_center,
+                                                    _am.position_of(v_prior));
+            SpaceVec post = cell_center + 
+                            this->_space->displacement(cell_center,
+                                                    _am.position_of(v_post));
 
-            auto displ = post - prior;
+            SpaceVec displ = post - prior;
 
             double dA_dx = 0.5 * displ[1];
             double dA_dy = -0.5 * displ[0];
@@ -449,18 +449,19 @@ private:
      */
     const RuleFuncCell set_cell_contractility = [this](const auto& cell)
     {
-        const auto state = cell->state;
-        const double perimeter = this->_am.perimeter_of(cell);
+        auto state = cell->state;
+        double perimeter = this->_am.perimeter_of(cell);
 
         for (auto [e, flip] : cell->custom_links().edges) {
             auto a = e->custom_links().a;
             auto b = e->custom_links().b;
             if (flip) { std::swap(a, b); }
 
-            const auto displ = this->_am.displacement(a, b);
-            const double length = arma::norm(displ);
+            SpaceVec displ = this->_am.displacement(a, b);
+            double length = arma::norm(displ);
 
-            const auto force = state.contractility * perimeter * displ / length;
+            SpaceVec force = state.contractility * perimeter * displ /
+                                   length;
 
             a->state.f += force;
             b->state.f -= force;

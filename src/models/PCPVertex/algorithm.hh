@@ -1,5 +1,5 @@
-#ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_ALGORITHM_HH
-#define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_ALGORITHM_HH
+#ifndef UTOPIA_MODELS_PCPVERTEX_ALGORITHM_HH
+#define UTOPIA_MODELS_PCPVERTEX_ALGORITHM_HH
 
 namespace Utopia {
 namespace Models {
@@ -21,10 +21,11 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
     dt = std::min(2*dt, 2.);
 
     // check that actually moving towards a minimum
-    if (this->get_energy(1e-6) >= energy_0) {
-        this->_log->debug("Already in minimum. At step size of 1e-8 the energy "
-            "along direction of update increased.");
-        
+    if (this->get_energy(1e-8) >= energy_0) {
+        this->_log->debug("Already in minimum. At step size of 1e-10 the energy "
+            "along direction of update increased by {}.",
+            this->get_energy(1e-8)-energy_0);
+
         return std::make_pair(0., energy_0);
     }
     
@@ -41,7 +42,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
                 "update the energy is changing by {}", dt, 
                 (this->get_energy(dt) - energy_0)/dt);
         }
-        return std::make_pair(0., energy_0);
+        throw;
     }
     // TODO remove this part if not causing abortions 
 
