@@ -10,9 +10,8 @@
 #include <utopia/core/model.hh>
 #include <utopia/core/types.hh>
 
-#include "../PCPVertex/geometry.hh"
 #include "../PCPVertex/PCPVertex.hh"
-#include "../PCPVertex/initialisation.hh"
+#include "../PCPVertex/space.hh"
 #include "../PCPVertex/energy.hh"
 #include "../PCPVertex/algorithm.hh"
 #include "../PCPVertex/transitions.hh"

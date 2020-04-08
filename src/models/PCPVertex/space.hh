@@ -1,5 +1,5 @@
-#ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_SPACE_HH
-#define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_SPACE_HH
+#ifndef UTOPIA_MODELS_PCPVERTEX_SPACE_HH
+#define UTOPIA_MODELS_PCPVERTEX_SPACE_HH
 
 #include <cmath>
 #include <limits>
@@ -131,7 +131,7 @@ public:
             bool finite_0=true, bool finite_1=true) const
     {
         static_assert(this->dim == 2, "Intersection of lines not implemented " 
-                      "in other than 2 dimensional space! ");
+                      "in other than in 2 dimensional space! ");
                       // Space dimension was "+ std::to_string(this->dim)+ ".");
         
         // work with a copy of pos_1 relative to pos_0
@@ -151,10 +151,10 @@ public:
 
         double x = (c-a) / (b-d);
         SpaceVec intersection = {x, a + b*x};
-        intersection = this->map_into_space(intersection);
-        
+
         // parallel lines
         if (fabs(d - b) < 1e-14) {
+            intersection = this->map_into_space(intersection);
             return std::make_pair(intersection, false);
         }
                 
@@ -166,10 +166,12 @@ public:
 
             if (x0 <= x1 and (intersection.at(0) < x0 - 1e-14 or 
                               intersection.at(0) > x1 + 1e-14)) {
+                intersection = this->map_into_space(intersection);
                 return std::make_pair(intersection, false);
             }
             if (x0 > x1 and (intersection.at(0)  > x0 + 1e-14 or 
                              intersection.at(0)  < x1 - 1e-14)) {
+                intersection = this->map_into_space(intersection);
                 return std::make_pair(intersection, false);
             }
         }
@@ -180,14 +182,17 @@ public:
 
             if (x0 <= x1 and (intersection.at(0) < x0 - 1e-14 or 
                               intersection.at(0) > x1 + 1e-14)) {
+                intersection = this->map_into_space(intersection);
                 return std::make_pair(intersection, false);
             }
             if (x0 > x1 and (intersection.at(0)  > x0 + 1e-14 or 
                              intersection.at(0)  < x1 - 1e-14)) {
+                intersection = this->map_into_space(intersection);
                 return std::make_pair(intersection, false);
             }
         }
 
+        intersection = this->map_into_space(intersection);
         return std::make_pair(intersection, true);
     }
     

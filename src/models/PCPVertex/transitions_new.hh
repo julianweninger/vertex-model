@@ -36,7 +36,8 @@ void CustomAgentManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
 
     // generate the axis of division
     auto domain = this->_space->get_domain_size();
-    auto axis = SpaceVec({cos(division_angle), sin(division_angle)}) / domain;
+    const SpaceVec axis = SpaceVec({cos(division_angle), sin(division_angle)}) / 
+                          domain;
 
     // determine the new vertices from this axis
     // These are the intersections of the division axis with edges of cell
@@ -149,17 +150,20 @@ void CustomAgentManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
             if (not c) { continue; }
             if (c == cell) { continue; }
             else {
-                auto adj_edges = c->custom_links().edges;
-                adj_edges.erase(std::remove_if(
+                auto& adj_edges = c->custom_links().edges;
+                auto it = adj_edges.erase(std::remove_if(
                         adj_edges.begin(), adj_edges.end(),
                         [](const auto& e){ 
                             return std::get<0>(e)->state.remove; }),
                     adj_edges.end());
-                adj_edges.push_back(std::make_pair(new_edge_0, flip));
-                adj_edges.push_back(std::make_pair(new_edge_1, flip));
-
-                c->custom_links().edges = adj_edges;
+                // edge is flipped in neighboring cell
+                // add b->pivot (edge_1, true) then pivot->a (edge_0, true)
+                adj_edges.insert(it, std::make_pair(new_edge_1, true));
+                adj_edges.insert(it, std::make_pair(new_edge_0, true));
             }
+            auto& vertices = c->custom_links().vertices;
+            vertices.insert(std::find(vertices.begin(), vertices.end(), a),
+                            pivot);
         }
 
         return std::make_pair(new_edge_0, new_edge_1);
