@@ -1,5 +1,5 @@
-#ifndef UTOPIA_MODELS_SAVANNAHETEROGENEOUS_INITIALISATIONNEW_HH
-#define UTOPIA_MODELS_SAVANNAHETEROGENEOUS_INITIALISATIONNEW_HH
+#ifndef UTOPIA_MODELS_PCPVERTEX_INITIALISATION_HH
+#define UTOPIA_MODELS_PCPVERTEX_INITIALISATION_HH
 
 namespace Utopia::Models::PCPVertex {
 
@@ -75,7 +75,7 @@ namespace Utopia::Models::PCPVertex {
  *  for additional details see https://www.redblobgames.com/grids/hexagons/
  */
 template<class Model>
-void CustomAgentManager<Model>::setup_agents_hexagonal_structure (
+void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         const Config& cfg)
 {
     if (_space->dim != 2) {

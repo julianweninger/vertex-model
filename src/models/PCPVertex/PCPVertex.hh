@@ -72,8 +72,8 @@ public:
     using Config = Utopia::DataIO::Config;
 
     /// The manager of the entities (agents) of this model
-    using AgentManager = CustomAgentManager<Model<PCPVertex<periodic_bc>, 
-                                                  ModelTypes>>;
+    using AgentManager = EntitiesManager<Model<PCPVertex<periodic_bc>, 
+                                               ModelTypes>>;
 
     /// The type of a Vertex
     using VertexNew = typename AgentManager::Vertex;

@@ -4,7 +4,7 @@
 namespace Utopia::Models::PCPVertex {
 
 template<class Model>
-struct CustomAgentManager {
+struct EntitiesManager {
 public:
     /// The type of the space
     using Space = typename Model::Space;
@@ -112,15 +112,19 @@ private:
     /// The container of adjoint edges to a every vertex
     std::unordered_map<int, AgentContainer<Cell>> _vertices_adjoint_cells;
 
+    /// Function that will be used to prepare positions for adding an agent
+    std::function<SpaceVec(const SpaceVec&)> _prepare_pos;
+
 public:
-    CustomAgentManager (Model& model, const Config& custom_cfg = {})
+    EntitiesManager (Model& model, const Config& custom_cfg = {})
     :
         _log(model.get_logger()),
         _cfg(setup_cfg(model, custom_cfg)),
         _space(model.get_space()),
         _vertex_manager(model, setup_vertex_cfg(model)),
         _edge_manager(model, setup_edge_cfg(model)),
-        _cell_manager(model, setup_cell_cfg(model))
+        _cell_manager(model, setup_cell_cfg(model)),
+        _prepare_pos(setup_prepare_pos_func())
     {
         setup_agents();
         _log->info("EntitiesManager is all set up.");
@@ -154,7 +158,7 @@ public:
     void move_to(Vertex& vertex,
                  const SpaceVec& pos) const
     {
-        return _vertex_manager.move_to(vertex, pos);
+        return _vertex_manager.move_to(vertex, _prepare_pos(pos));
     }
     
     /// Move an vertex to a new position in the space
@@ -594,7 +598,7 @@ private:
     /// Create a Vertex and associate it with the VertexManager
     auto add_vertex (const SpaceVec& pos, const Config& custom_cfg = {})
     {
-        return _vertex_manager.add_agent(pos, custom_cfg);
+        return _vertex_manager.add_agent(_prepare_pos(pos), custom_cfg);
     }
 
     /// Create a Edge and associate it with the EdgeManager
@@ -618,7 +622,7 @@ private:
                    AgentContainer<Edge> edges,
                    const Config& custom_cfg = {})
     {
-        auto c = _cell_manager.add_agent(pos);
+        auto c = _cell_manager.add_agent(_prepare_pos(pos));
         c->custom_links().edges = this->order_edges(edges);
 
         // check that edges are anti-clockwise
@@ -730,7 +734,51 @@ private:
 
         return ordered_edges;        
     }
-}; // CustomAgentManager
+
+    /// Depending on periodicity, return the function to prepare positions of
+    /// agents before they are added
+    /** \details The function that is used to prepare a position before an
+     *          agent is added (if passed explicitly) depends on whether the
+     *          space is periodic or not.
+     *          In the case of a periodic space the position is automatically
+     *          mapped into space again across the borders.
+     *          For a nonperiodic space a position outside of the borders will
+     *          throw an error.
+     */
+    std::function<SpaceVec(const SpaceVec&)> setup_prepare_pos_func() const {
+        for (int i = 0; i < this->_space->dim; i++) {
+            if (this->_space->get_domain_size()[i] < 1) {
+                std::cout << "Received domain size: "
+                          << this->_space->get_domain_size()
+                          << std::endl << std::flush;
+                throw std::invalid_argument("Domain size has to be larger than "
+                    "1 in all entries!");
+                // NOTE this can be remove if consistently integrated in
+                //      agent_manager.
+            }
+        }
+
+        // If periodic, map the position back into space
+        if (_space->periodic) {
+            return
+                [this](const SpaceVec& pos){
+                    return this->_space->map_to_relative_space(
+                                this->_space->map_into_space(pos));
+                };
+        }
+        // If non-periodic, check wether the position is valid
+        else {
+            return
+                [this](const SpaceVec& pos) {
+                    if (not _space->contains(pos)) {
+                        throw OutOfSpace(pos, _space,
+                                         "Given position is out of space!");
+                    }
+                    return this->_space->map_to_relative_space(pos);
+                };
+        }
+    }
+}; // EntitiesManager
 
 } // namespace Utopia::Models::PCPVertex
 

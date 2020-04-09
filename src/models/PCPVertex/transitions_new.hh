@@ -25,7 +25,7 @@ namespace Utopia::Models::PCPVertex {
  *        objects.
  */
 template<class Model>
-void CustomAgentManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
+void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         double division_angle, double linetension, double edge_contractility)
 {
     // The cell to be divided
