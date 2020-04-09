@@ -570,7 +570,7 @@ private:
     void setup_agents_hexagonal_structure(const Config& cfg);
 
     /// Setup a single cell of hexagonal shape in center of space
-    void setup_agents_single_hexagon(const Config& cfg) {     
+    void setup_agents_single_hexagon(const Config& cfg) {
         double size = get_as<double>("size", cfg);   
         double width = sqrt(3) * size;
         double height = 2 * size;
@@ -627,13 +627,13 @@ private:
 
         // check that edges are anti-clockwise
         if (area_of(*c) < 0.) {
-            // they are clockwise -> flip all edges
-            auto edges = c->custom_links().edges;
-            for (int i = 0; i < edges.size(); i++) {
-                edges[i] = std::make_pair(std::get<0>(edges[i]),
-                                          not std::get<1>(edges[i]));
+            // they are clockwise -> flip all edges and start from back
+            auto& edges = c->custom_links().edges;
+            const auto tmp_edges = c->custom_links().edges;
+            edges.clear();
+            for (const auto& [e, flip] : tmp_edges) {
+                edges.insert(edges.begin(), std::make_pair(e, not flip));
             }
-            c->custom_links().edges = edges;
         }
         
         AgentContainer<Vertex> vertices;
