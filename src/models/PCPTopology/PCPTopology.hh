@@ -407,20 +407,17 @@ private:
     
     /// Perform stretch domain
     void stretch_domain () {
-        auto stretch_speed = get_as<std::pair<double, double>>(
+        auto stretch_speed = get_as_SpaceVec<2>(
                 "stretch_speed", this->_cfg["stretch_domain"]);
         
-        if (std::get<0>(stretch_speed) == 0 and
-            std::get<1>(stretch_speed) == 0)
-        {
+        if (stretch_speed[0] == 0 and stretch_speed[1] == 0) {
             return;
         }
         auto fix_hair_cell_volume = get_as<bool>("fix_hair_cell_volume",
             this->_cfg["stretch_domain"], false);
-        double dA = _vertex_model.stretch_domain(
-                            std::get<0>(stretch_speed),
-                            std::get<1>(stretch_speed),
-                            true, fix_hair_cell_volume);
+        double dA = _vertex_model.stretch_domain(stretch_speed, true,
+                                                 fix_hair_cell_volume);
+        
         if (fix_hair_cell_volume) {
             int num_cells = _vertex_model.get_am().cells().size();
             for (auto c : _vertex_model.get_am().cells()) {

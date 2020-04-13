@@ -184,11 +184,11 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
 
     auto nd_cells = notch_delta->get_cm()->cells();
 
-    std::unordered_map<std::shared_ptr<CellNew>,
+    std::unordered_map<std::shared_ptr<Cell>,
                        typeof(nd_cells.back())> cell_map;
-    if (_cells.size() > nd_cells.size()) {
+    if (_am.cells().size() > nd_cells.size()) {
         this->_log->warn("Cells in NotchDelta: {}. Cells in Vertex: {}",
-            nd_cells.size(), _cells.size());
+            nd_cells.size(), _am.cells().size());
         throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
             "models. More cells in Vertex than in NotchDelta model!");
     }
@@ -258,8 +258,7 @@ void PCPVertex<periodic_bc>::increase_domain_size(
 };
 
 /// Stretch the domain size
-/** \param dx   The stretching distance in x
- *  \param dy   The stretching distance in y
+/** \param stretch   The stretching distance
  *  \param compensate   Whether to compensate the growth of the dissue by 
  *                      increase of preferential area
  *  \param fix_hc_volume   Whether to fix the volume of type CellType::hair
@@ -268,16 +267,17 @@ void PCPVertex<periodic_bc>::increase_domain_size(
  */
 template <bool periodic_bc>
 double PCPVertex<periodic_bc>::stretch_domain(
-        double dx, double dy, bool compensate, bool fix_hc_volume)
+        SpaceVec stretch, bool compensate, bool fix_hc_volume)
 {
     this->_log->debug("stretching domain by ({}, {}). Compensate {}, "
-                        "fix hair cell volume {}", dx, dy, compensate, 
-                        fix_hc_volume);
-    _Lx += dx;
-    _Ly += dy;
+                      "fix hair cell volume {}", stretch[0], stretch[1], 
+                      compensate, fix_hc_volume);
+
+    this->_space->set_domain_size(this->_space->get_domain_size() + stretch);
+    auto domain = this->_space->get_domain_size();
 
     if (not compensate) {
-        return dx * _Ly + dy * _Lx;
+        return stretch[0]*domain[1] + stretch[1]*domain[0];
     }
 
     int num_cells = _am.cells().size();
@@ -286,11 +286,11 @@ double PCPVertex<periodic_bc>::stretch_domain(
             num_cells -= (c->state.type == CellType::hair);
         }
         if (num_cells == 0) {
-            throw std::runtime_error("All support cells eliminated!");
+            throw std::runtime_error("All cells eliminated!");
         }
     }
 
-    double dA = (dx * _Ly + dy * _Lx) / num_cells;
+    double dA = (stretch[0]*domain[1] + stretch[1]*domain[0]) / num_cells;
 
     if (not fix_hc_volume) {        
         const RuleFuncCell compensate_dA = [dA](const auto& cell) {
@@ -309,8 +309,8 @@ double PCPVertex<periodic_bc>::stretch_domain(
         };
         apply_rule<Update::sync>(compensate_dA, _am.cells());
     }
-
-    return dx * _Ly + dy * _Lx;
+    
+    return stretch[0]*domain[1] + stretch[1]*domain[0];
 };
 
 } // namespace PCPVertex
