@@ -301,8 +301,6 @@ private:
             //      assumption of isotropic cells
             
             int time_start = _vertex_model.get_time();
-            this->_log->debug("  Jiggling the vertices on a length scale of "
-                "{}. Then equilibrating the vertex model ..", intensity);
             
             _vertex_model.jiggle_vertices(intensity);
             _vertex_model.set_minimisation_precision(tolerance);
@@ -556,10 +554,10 @@ private:
     }
 
     /// Update the parameters for area preferential from environment model
-    void update_area_preferential () {
+    bool update_area_preferential () {
         double new_value = _envm.get_parameter("area_preferential_hair");
         if (_area_preferential(CellType::hair) == new_value) {
-            return;
+            return false;
         }
 
         // area increase per hair cell
@@ -596,7 +594,7 @@ private:
         _envm.set_parameter("area_preferential_support",
                             _area_preferential(CellType::support));
         
-        return;
+        return true;
     }
 
 public:
@@ -696,11 +694,11 @@ public:
     // .. Simulation Control ..................................................
     /// Iterate a single step
     void perform_step () {
-        perform_operation(
-            [this] () {
-                this->_envm.iterate();
-                return this->update_area_preferential(); },
-            "hair cell growth", 1, 0);
+        this->_envm.iterate();
+        bool update = this->update_area_preferential();
+        if (update) {
+            perform_operation([] () {}, "hair cell growth", 1, 0);
+        }
 
         // deformations
         perform_operation(
@@ -742,14 +740,14 @@ public:
         perform_operation(
             [this] () { return this->differentiate_cells(); },
             "differentiation", _cfg_differentiation, true);            
-            
-        perform_operation(
-            [this] () {
-                _envm.track_parameters({"area_preferential_hair",
-                                        "area_preferential_support"});
-                this->_envm.prolog();
-                return this->update_area_preferential(); },
-            "hair cell growth", 1, 0);
+        
+        _envm.track_parameters({"area_preferential_hair",
+                                "area_preferential_support"});
+        this->_envm.prolog();
+        bool update = this->update_area_preferential();
+        if (update) {
+            perform_operation([] () {}, "hair cell growth", 1, 0);
+        }
         
         return this->__prolog();
     }
