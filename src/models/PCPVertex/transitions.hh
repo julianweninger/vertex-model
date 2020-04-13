@@ -133,7 +133,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         if (flip) { std::swap(a, b); }
 
         for (auto v : {a, b}) {
-            auto adj_edges = _vertices_adjoint_edges.at(v->id());
+            auto& adj_edges = _vertices_adjoint_edges[v->id()];
             adj_edges.erase(std::remove_if(
                     adj_edges.begin(), adj_edges.end(),
                     [](const auto& e){ return e->state.remove; }),
@@ -277,7 +277,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     // remove expired crosslinks
     for (const auto& new_c : {new_cell_0, new_cell_1}) {
         for (const auto& v : new_c->custom_links().vertices) {
-            auto adj_cells = _vertices_adjoint_cells.at(v->id());
+            auto& adj_cells = _vertices_adjoint_cells[v->id()];
 
             adj_cells.erase(std::remove_if(adj_cells.begin(), adj_cells.end(),
                                            [cell](const auto& c){
@@ -296,8 +296,9 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
                                                            adj_cell_b);
         }
     }
-}
 
+    return;
+} // divide cell
 
 
 /// Removes an edge in a T1 neighborhood exchange
@@ -332,6 +333,8 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     const Edge edge_copy = *edge;
     const Vertex vertex_a_copy = *vertex_a;
     const Vertex vertex_b_copy = *vertex_b;
+    const auto adjoint_edges_vertex_a = adjoint_edges_of(vertex_a);
+    const auto adjoint_edges_vertex_b = adjoint_edges_of(vertex_b);
 
     // tag objects to be removed
     edge->state.remove = true;
@@ -535,6 +538,12 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         
         // undo the changes
         edge->state.remove = false;
+        vertex_a->state.remove = false;
+        vertex_b->state.remove = false;
+
+        _vertices_adjoint_edges[vertex_a->id()] = adjoint_edges_vertex_a;
+        _vertices_adjoint_edges[vertex_b->id()] = adjoint_edges_vertex_b;
+        // NOTE these are changed with add_edge(..)
 
         adj_edge_a->custom_links().a = adj_edge_a_copy.custom_links().a;
         adj_edge_a->custom_links().b = adj_edge_a_copy.custom_links().b;

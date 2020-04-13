@@ -300,7 +300,7 @@ private:
             // NOTE the sqrt(x) defines a typical lengthscale under the 
             //      assumption of isotropic cells
             
-            int time_start = _vertex_model.get_time(); 
+            int time_start = _vertex_model.get_time();
             this->_log->debug("  Jiggling the vertices on a length scale of "
                 "{}. Then equilibrating the vertex model ..", intensity);
             
