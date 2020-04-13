@@ -11,9 +11,9 @@ using namespace DataIO;
 using Utopia::get_as;
 
 /// Factory for model 
-template<bool periodic_bc, typename ParentType>
+template<typename ParentType>
 auto model_factory(ParentType parent) {
-    return PCPVertex<periodic_bc>("PCPVertex", parent,
+    return PCPVertex("PCPVertex", parent,
         // the energy adaptors
         time_energy_adaptor, energy_adaptor, linetension_adaptor,
         areaelasticity_adaptor, contractility_adaptor,
@@ -21,7 +21,7 @@ auto model_factory(ParentType parent) {
         lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // the position adaptors
         vertex_position_adaptor,
-        cell_position_adaptor<typename PCPVertex<periodic_bc>::Space::SpaceVec>,
+        cell_position_adaptor<typename PCPVertex::Space::SpaceVec>,
         edge_link_adaptor);
 }
 
@@ -29,19 +29,9 @@ int main (int, char** argv) {
     try {
         // Initialize the PseudoParent from config file path
         Utopia::PseudoParent pp(argv[1]);
-        auto model_cfg = pp.get_cfg()["PCPVertex"];
-
-        // Initialize the main model instance and directly run it
-        if (get_as<bool>("periodic_bc", model_cfg))
-        {
-            auto model = model_factory<true>(pp);
-            model.run();
-        }
-        else
-        {
-            auto model = model_factory<false>(pp);
-            model.run();
-        }    
+        
+        auto model = model_factory(pp);
+        model.run(); 
 
         // Done
         return 0;

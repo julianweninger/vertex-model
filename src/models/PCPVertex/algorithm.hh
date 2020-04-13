@@ -13,8 +13,7 @@ namespace PCPVertex {
  *  \param energy_0     The energy at current position
  *  \return {step size to reach line minimum, energy at line minimum}
  */
-template <bool periodic_bc>
-std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
+std::pair<double, double> PCPVertex::determine_timestep (
         double dt, const double energy_0) const
 {
     // Bracket the minimum
@@ -165,8 +164,7 @@ std::pair<double, double> PCPVertex<periodic_bc>::determine_timestep (
 };
 
 /// Initialisation of the energy minisation process
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::init_minimisation ()
+void PCPVertex::init_minimisation ()
 {
     if (this->_update_scheme != ConjugateGradient) {
         return;
@@ -191,8 +189,7 @@ void PCPVertex<periodic_bc>::init_minimisation ()
  *                          is performed. Else, update with fixed stepsize.
  *  \return the energy after upate
  */
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::steepest_gradient_step (
+double PCPVertex::steepest_gradient_step (
         bool adaptive_step)
 {
     set_gradient();
@@ -225,8 +222,7 @@ double PCPVertex<periodic_bc>::steepest_gradient_step (
 /// Single step in direction of conjugate gradient
 /** \return the energy after upate
  */
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::conjugate_gradient_step ()
+double PCPVertex::conjugate_gradient_step ()
 {
     const double prev_dt = _dt;
 
@@ -269,8 +265,7 @@ double PCPVertex<periodic_bc>::conjugate_gradient_step ()
 /// Select the chosen update scheme
 /** \return the energy after upate
  */
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::perform_update_step(
+double PCPVertex::perform_update_step(
         UpdateScheme update_scheme)
 {
     if (update_scheme == SteepestGradient) {

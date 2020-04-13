@@ -12,8 +12,7 @@ namespace PCPVertex {
  *  \param edge     The object
  *  \param 
  */
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::line_tension_energy (
+double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
     SpaceVec a, b;
@@ -29,8 +28,7 @@ double PCPVertex<periodic_bc>::line_tension_energy (
     return edge->state.linetension * length;
 };
 
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::edge_contractility_energy (
+double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
     SpaceVec a, b;
@@ -49,8 +47,7 @@ double PCPVertex<periodic_bc>::edge_contractility_energy (
 /// The energy associated with area elasticity
 /** \f$ E = K/2 * (A - A0)**2 \f$
  */
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::area_elasticity_energy (
+double PCPVertex::area_elasticity_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     // for beta = 0, returns same as area_of(cell)
@@ -60,8 +57,7 @@ double PCPVertex<periodic_bc>::area_elasticity_energy (
 };
 
 /// The energy associated with cell contractility
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::cell_contractility_energy (
+double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     double perimeter = _am.perimeter_of_virtual(cell, beta);
@@ -74,8 +70,7 @@ double PCPVertex<periodic_bc>::cell_contractility_energy (
 //  *  two neighbouring cells to edge \f$ i \f$. \f$ J_1 \f$ is an interaction
 //  *  parameter PCPVertex::_cell_cell_polarity_interaction.
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::cell_cell_polarity_energy (
+// double PCPVertex::cell_cell_polarity_energy (
 //         Edge_ptr &e) const
 // {
 //     return _cell_cell_polarity_interaction * e->sigma_a * e->sigma_b;
@@ -95,8 +90,7 @@ double PCPVertex<periodic_bc>::cell_contractility_energy (
 //  *              for instance a neighbour, alias edge \f$ j \f$
 //  *  \param cell The cell \f$ \alpha \f$ within which exclusion is applied
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::polarity_exclusion_energy (
+// double PCPVertex::polarity_exclusion_energy (
 //         Edge_ptr &a, Edge_ptr &b, const Cell_ptr &cell) const
 // {        
 //     double sigma_a = a->get_sigma(cell);
@@ -109,8 +103,7 @@ double PCPVertex<periodic_bc>::cell_contractility_energy (
 // /** Cumulative for the pairwise interactions of edges within cell, 
 //  *  see PCPVertex::polarity_exclusion energy
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::cell_polarity_exclusion_energy (
+// double PCPVertex::cell_polarity_exclusion_energy (
 //         Cell_ptr &c) const
 // {
 //     EdgeContainer edges;
@@ -144,8 +137,8 @@ double PCPVertex<periodic_bc>::cell_contractility_energy (
 //  *           \f$\dot{\lambda} = \gamma dE/d\lambda\f$
 //  *           instead of \f$\dot{\lambda} = -\gamma dE/d\lambda\f$
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::lagrange_net_polarisation_energy (
+// 
+// double PCPVertex::lagrange_net_polarisation_energy (
 //         Cell_ptr &c) const
 // {
 //     double cum_sigma = 0.;
@@ -162,8 +155,7 @@ double PCPVertex<periodic_bc>::cell_contractility_energy (
 //  * 
 //  *  \f$ E = -\lambda_{II}^\alpha (\sum_i (\sigma_i^\alpha)^2 - c^\alpha) \f$
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::lagrange_const_concentration_energy (
+// double PCPVertex::lagrange_const_concentration_energy (
 //         Cell_ptr &c) const
 // {
 //     double concentration = 0.;
@@ -176,8 +168,7 @@ double PCPVertex<periodic_bc>::cell_contractility_energy (
 // };
 
 /// Getter for energy associated with linetension
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::get_energy_linetension(
+double PCPVertex::get_energy_linetension(
         const AgentContainer<Edge>& es, double beta) const
 {
     double energy = 0.;
@@ -188,8 +179,7 @@ double PCPVertex<periodic_bc>::get_energy_linetension(
 }
 
 /// Getter for energy associated with contractility of junctions
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::get_energy_edge_contractility(
+double PCPVertex::get_energy_edge_contractility(
         const AgentContainer<Edge>& es, double beta) const
 {
     double energy = 0.;
@@ -200,8 +190,7 @@ double PCPVertex<periodic_bc>::get_energy_edge_contractility(
 }
 
 /// Getter for energy associated with area elasticity
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::get_energy_areaelasticity (
+double PCPVertex::get_energy_areaelasticity (
         const AgentContainer<Cell>& cs, double beta) const
 {
     double energy = 0.;
@@ -212,8 +201,7 @@ double PCPVertex<periodic_bc>::get_energy_areaelasticity (
 }
 
 /// Getter for energy associated with contractility of cells
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::get_energy_cell_contractility(
+double PCPVertex::get_energy_cell_contractility(
         const AgentContainer<Cell>& cs, double beta) const
 {
     double energy = 0.;
@@ -225,8 +213,7 @@ double PCPVertex<periodic_bc>::get_energy_cell_contractility(
 
 
 // /// Getter for energy associated with cell-cell polarity
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::get_energy_cell_cell_polarity(
+// double PCPVertex::get_energy_cell_cell_polarity(
 //         const EdgeContainer& es) const
 // {
 //     double energy = 0.;
@@ -237,8 +224,7 @@ double PCPVertex<periodic_bc>::get_energy_cell_contractility(
 // }
 
 // /// Getter for energy associated with polarity exclusion
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::get_energy_polarity_exclusion (
+// double PCPVertex::get_energy_polarity_exclusion (
 //         const CellContainer& cs) const
 // {
 //     double energy = 0.;
@@ -252,8 +238,7 @@ double PCPVertex<periodic_bc>::get_energy_cell_contractility(
 // /** Langrange multiplier I is the constrain of zero net polarisation within
 //  *  a cell.
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::get_energy_lagrange_net_polarisation(
+// double PCPVertex::get_energy_lagrange_net_polarisation(
 //         const CellContainer& cs) const
 // {
 //     double energy = 0.;
@@ -266,8 +251,7 @@ double PCPVertex<periodic_bc>::get_energy_cell_contractility(
 // /// Getter for energy associated with lagrange multiplier II
 // /** Langrange multiplier II is the constrain of constant level of proteins
 //  */
-// template <bool periodic_bc>
-// double PCPVertex<periodic_bc>::get_energy_lagrange_const_concentration(
+// double PCPVertex::get_energy_lagrange_const_concentration(
 //         const CellContainer& cs) const
 // {
 //     double energy = 0.;
@@ -278,8 +262,7 @@ double PCPVertex<periodic_bc>::get_energy_cell_contractility(
 // }
 
 /// Getter for energy
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::get_energy (
+double PCPVertex::get_energy (
         const AgentContainer<Edge>& es,
         const AgentContainer<Cell>& cs,
         double beta) const
@@ -295,8 +278,7 @@ double PCPVertex<periodic_bc>::get_energy (
 }
 
 /// Getter for the relative energy change from previous to last step
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::get_rel_energy_change () const
+double PCPVertex::get_rel_energy_change () const
 {
     const double energy = get_energy();
     double energy_change = energy - _energy_previous_step;

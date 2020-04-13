@@ -50,13 +50,12 @@ using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
  *      - T2 transition: cell extrusion when cell area shrinks below threshold
  *          value
  */
-template<bool periodic_bc>
 class PCPVertex:
-    public Model<PCPVertex<periodic_bc>, ModelTypes>
+    public Model<PCPVertex, ModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPVertex<periodic_bc>, ModelTypes>;
+    using Base = Model<PCPVertex, ModelTypes>;
 
     /// Data type for the model time
     using Time = typename ModelTypes::Time;
@@ -71,8 +70,7 @@ public:
     using Config = Utopia::DataIO::Config;
 
     /// The manager of the entities (agents) of this model
-    using AgentManager = EntitiesManager<Model<PCPVertex<periodic_bc>, 
-                                               ModelTypes>>;
+    using AgentManager = EntitiesManager<Model<PCPVertex, ModelTypes>>;
 
     /// The type of a Vertex
     using Vertex = typename AgentManager::Vertex;
@@ -255,8 +253,8 @@ public:
                 "'conjugate_gradient'.");
         }
 
-        this->initialise_polarity_random(get_as<double>(
-                "cell_initialisation_protein_level", this->_cfg));
+        // this->initialise_polarity_random(get_as<double>(
+        //         "cell_initialisation_protein_level", this->_cfg));
 
         jiggle_vertices(get_as<double>("initial_jiggle", this->_cfg, 0.));
         
@@ -812,8 +810,7 @@ public:
 
 
 
-// template <bool periodic_bc>
-// void PCPVertex<periodic_bc>::initialise_polarity_random (
+// void PCPVertex::initialise_polarity_random (
 //         double initialisation_protein_level)
 // {
 //     for (auto c : _cells) {

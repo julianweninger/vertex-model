@@ -95,22 +95,21 @@ using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
-template <bool periodic_bc>
 class PCPTopology:
-    public Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>
+    public Model<PCPTopology, PCPTopologyModelTypes>
 {
 public:
     /// The type of the Model base class of this derived class
-    using Base = Model<PCPTopology<periodic_bc>, PCPTopologyModelTypes>;
+    using Base = Model<PCPTopology, PCPTopologyModelTypes>;
 
     /// Type of the config
     using typename Base::Config;
 
     /// The types of a cell (support, hair)
-    using CellType = typename PCPVertex<periodic_bc>::CellType;
+    using CellType = typename PCPVertex::CellType;
 
     /// The type of coordinates and vectors in space
-    using SpaceVec = typename PCPVertex<periodic_bc>::SpaceVec;
+    using SpaceVec = typename PCPVertex::SpaceVec;
                                     
 
 private:
@@ -119,7 +118,7 @@ private:
 
     // -- Members -------------------------------------------------------------
     /// The Vertex model
-    PCPVertex<periodic_bc> _vertex_model;
+    PCPVertex _vertex_model;
 
     /// A tolerance value for equilibrium
     double _equilibration_tolerance;
@@ -270,7 +269,7 @@ private:
     // .. Helper functions ....................................................
     /// Equilibrates the vertex model
     /** Iterate the vertex model until it reaches an equilibrium state
-     *  (see PCPVertex<periodic_bc>::equilibrium_state_reached(double tolerance) const)
+     *  (see PCPVertex::equilibrium_state_reached(double tolerance) const)
      *  with tolerance = _equilibrium_tolerance
      * 
      *  More precisely, the _vertex_model is iterated for 
@@ -372,7 +371,7 @@ private:
         auto c = cells[int_dist(*this->_rng)];
         const auto& domain = _vertex_model.get_space()->get_domain_size();
 
-        if constexpr (not periodic_bc) {
+        if (not this->_space->periodic) {
             for (auto [e, flip] : c->custom_links().edges) {
                 const auto [adj_cell_a, adj_cell_b] = am.adjoints_of(e);
                 if (not adj_cell_a or not adj_cell_b) {

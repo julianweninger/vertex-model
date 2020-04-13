@@ -13,8 +13,7 @@ namespace PCPVertex {
  * 
  * TODO write test
  */
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::jiggle_vertices(double intensity)
+void PCPVertex::jiggle_vertices(double intensity)
 {
     this->_log->debug("Jiggling the vertices on a length scale of "
                         "{} ..", intensity);
@@ -41,8 +40,7 @@ void PCPVertex<periodic_bc>::jiggle_vertices(double intensity)
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::differentiate_hair_cells_hlpr(
+void PCPVertex::differentiate_hair_cells_hlpr(
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
         arma::Mat<double>::fixed<CellType::num_cell_types,
@@ -125,8 +123,7 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_hlpr(
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::differentiate_hair_cells_random(
+void PCPVertex::differentiate_hair_cells_random(
         double fraction,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
@@ -169,9 +166,8 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_random(
  *  \param area_preferential    The preferential cell area of the different
  *                              cell types
  */
-template <bool periodic_bc>
 template <class NotchDelta>
-void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
+void PCPVertex::differentiate_hair_cells_NotchDelta(
         std::shared_ptr<NotchDelta> notch_delta, int steps,
         arma::Mat<double>::fixed<CellType::num_cell_types,
                                  CellType::num_cell_types> linetension,
@@ -239,9 +235,7 @@ void PCPVertex<periodic_bc>::differentiate_hair_cells_NotchDelta(
  *  Thereby proliferation of cells can be performed in a periodic setup
  *  without changing the parameters of the system. 
  */
-template <bool periodic_bc>
-void PCPVertex<periodic_bc>::increase_domain_size(
-        double area)
+void PCPVertex::increase_domain_size(double area)
 {
     const auto domain = this->_space->get_domain_size();
     if (-1. * area > domain[0] * domain[1]) {
@@ -265,9 +259,8 @@ void PCPVertex<periodic_bc>::increase_domain_size(
  * 
  *  \return The total change in area
  */
-template <bool periodic_bc>
-double PCPVertex<periodic_bc>::stretch_domain(
-        SpaceVec stretch, bool compensate, bool fix_hc_volume)
+double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
+        bool fix_hc_volume)
 {
     this->_log->debug("stretching domain by ({}, {}). Compensate {}, "
                       "fix hair cell volume {}", stretch[0], stretch[1], 
