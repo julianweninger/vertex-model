@@ -18,7 +18,9 @@ struct VertexState {
 
     /// Whether to remove
     bool remove;
-    // TODO move to flags:
+
+    /// An id that identifies the vertex within the container
+    int current_id;
 
     /// Constructor
     VertexState ()

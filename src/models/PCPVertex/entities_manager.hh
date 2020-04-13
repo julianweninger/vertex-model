@@ -476,6 +476,9 @@ public:
                              const AgentContainer<Cell>&)> get_energy,
         double T1_threshold, double T1_barrier, double random_number);
 
+        
+    bool remove_cell_T2 (const std::shared_ptr<Cell> cell);
+
 private:
     // -- Setup functions -----------------------------------------------------
     /// Set up the custom agent manager configuration member

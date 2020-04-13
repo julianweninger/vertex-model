@@ -18,7 +18,7 @@
 #include "entities.hh"
 #include "entities_manager.hh"
 #include "initialisation.hh"
-#include "transitions_new.hh"
+#include "transitions.hh"
 
 namespace Utopia {
 namespace Models {
@@ -691,14 +691,13 @@ public:
         bool transition_occurred = false;
 
         // T2 transitions -- cell extrusion
-        for (auto c_it = _cells.begin(); c_it != _cells.end(); /*void*/) {
-            double area = (*c_it)->template area_abs<periodic_bc>(_Lx, _Ly);
+        for (int i = _am.cells().size() - 1; i >= 0; i--) {
+            double area = _am.area_of(_am.cells()[i]);
             if (area < _T2_threshold) {
-                std::tie(c_it, transition_occurred) = T2_transition(c_it);
-                transition_occurred = true;
-            }
-            else {
-                ++c_it;
+                this->_log->info("Removing cell in T2 transition in step {}..",
+                                 this->_time);
+                bool T2 = _am.remove_cell_T2(_am.cells()[i]);
+                transition_occurred = transition_occurred or T2;
             }
         }
 
@@ -708,16 +707,15 @@ public:
             if (length < _T1_threshold
                 and _prob_distr(*this->_rng) < _T1_probability)
             {
-                
                 this->_log->info("Removing edge in T1 transition in step {}..",
                                  this->_time);
-                transition_occurred = _am.remove_edge_T1(_am.edges()[i],
+                bool T1 = _am.remove_edge_T1(_am.edges()[i],
                         _linetension(0, 0), _edge_contractility(0,0),
                         [this](const AgentContainer<EdgeNew>& es,
                                const AgentContainer<CellNew>& cs) { 
                                     return this->get_energy(es, cs, 0.); },
                         _T1_threshold, _T1_barrier, _prob_distr(*this->_rng));
-
+                transition_occurred = transition_occurred or T1;
             }
         }
 

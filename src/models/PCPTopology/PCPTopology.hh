@@ -14,7 +14,6 @@
 #include "../PCPVertex/space.hh"
 #include "../PCPVertex/energy.hh"
 #include "../PCPVertex/algorithm.hh"
-#include "../PCPVertex/transitions.hh"
 #include "../PCPVertex/operations.hh"
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 

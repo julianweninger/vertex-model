@@ -449,14 +449,21 @@ auto edge_link_adaptor = std::make_tuple(
     // writer function
     [](auto& dataset, auto& model) {
         const auto& vertices = model.get_am().vertices();
+        int running_id = 0;
+        for (auto& v : vertices) {
+            v->state.current_id = running_id++; // set identity within container
+        }
+
         const auto& edges = model.get_am().edges();
         dataset->write(edges.begin(), edges.end(),
                        [](const auto& edge) {
-                           return static_cast<int>(edge->custom_links().a->id());
+                           return static_cast<int>(
+                                    edge->custom_links().a->state.current_id);
                        });
         dataset->write(edges.begin(), edges.end(),
                        [](const auto& edge) {
-                           return static_cast<int>(edge->custom_links().b->id());
+                           return static_cast<int>(
+                                    edge->custom_links().b->state.current_id);
                        });
     },
 
