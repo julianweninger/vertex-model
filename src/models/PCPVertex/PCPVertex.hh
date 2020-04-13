@@ -163,17 +163,6 @@ private:
     /// Cells with area smaller than this value are removed in T2 transition
     double _T2_threshold;
 
-    /// Contractility of cell perimeter
-    /** This reflects mechanics and contractility of the actin-myosin ring
-     */
-    double _contractility;
-
-    /// Noise applied in order zero of forces
-    double _noise_constant;
-
-    /// Noise applied in first order of forces
-    double _noise_linear;
-
     /// Interaction parameter of cell-cell polarity interaction
     double _cell_cell_polarity_interaction;
 
@@ -216,7 +205,6 @@ public:
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
-        _contractility(get_as<double>("contractility", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
             "cell_cell_polarity_interaction",this->_cfg)),
         _cell_polarity_exclusion(get_as<double>("cell_polarity_exclusion", 
@@ -225,9 +213,11 @@ public:
         _energy_previous_step(0.),
         _energy(0.)
     {
-        _linetension.fill(get_as<double>("linetension", this->_cfg));
-        _edge_contractility.fill(get_as<double>("edge_contractility",
-                                                this->_cfg));
+        const auto edge_cfg = this->_cfg["agent_manager"]["edge_manager"];
+        _linetension.fill(get_as<double>("linetension",
+                                         edge_cfg["agent_params"]));
+        _edge_contractility.fill(get_as<double>("contractility",
+                                                edge_cfg["agent_params"]));
 
         if (get_as<std::string>("update_scheme",
                                 this->_cfg) == "steepest_gradient") {
@@ -272,7 +262,7 @@ private:
     // void initialise_polarity_random (double initialisation_protein_level);
 
 
-    // The energy terms
+    // ..energy terms .........................................................
     // See energy.hh for implementation
 
     double line_tension_energy (const std::shared_ptr<Edge>& edge,

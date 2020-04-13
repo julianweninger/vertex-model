@@ -52,7 +52,7 @@ differentiation:
     progenitor_hair: *Linetension
     progenitor_support: *Linetension
     hair_hair: 0.12
-    hair_support: 0.08
+    hair_support: *Linetension
     support_support: *Linetension
 
   area_preferential:
@@ -70,7 +70,7 @@ differentiation:
 
 # stretch the domain
 stretch_domain:
-  active: true
+  active: True
   times:
     begin: 1
     # no end
@@ -196,12 +196,7 @@ equilibration:
 PCPVertex:
   space: *SPACE
 
-  periodic_bc: true
-
-  # damping factor
-  dt: 0.01
-  update_scheme: conjugate_gradient
-
+  # --- Initialization parameters
   agent_manager:
     setup_method: hexagonal
     setup_params:
@@ -221,19 +216,16 @@ PCPVertex:
     cell_manager:
       agent_params:
         area_preferential: *Area_preferential
-        contractility: *Contractility
+        contractility: 0.
         cell_type: progenitor
 
-  # Linetension parameter
-  linetension: *Linetension
 
-  # Area elasticity parameter
-  area_elasticity: 10.
-  area_preferential: *Area_preferential
+  # --- Dynamics
+  # damping factor
+  dt: 0.01
+  update_scheme: conjugate_gradient
 
-  # Contractility of perimeter
-  contractility: *Contractility
-  edge_contractility: *Contractility
+  area_elasticity: 1.
 
   # Polarity interaction
   gamma: 0.
@@ -246,18 +238,6 @@ PCPVertex:
   T1_barrier: 0.02
   T2_threshold: 0.075
 
-  # Topology parameter
-  hexagon_size: 0.62
-  lattice_rows: 8
-  lattice_columns: 8
-  initial_jiggle: 0.05
-
-  # Noise
-  noise_constant: 0.0
-  noise_linear: 0.0
-
-  energy_change_history_length: 10
-
   data_manager: &data_manager
     # this builds the deciders
     deciders:
@@ -267,9 +247,9 @@ PCPVertex:
       write_slice: &slicer
         type: slice
         args:
-          start: 0
-          stop: 10000
-          step: 1000
+          start: 90
+          stop: 820
+          step: 1
 
       write_at_last:
         type: once

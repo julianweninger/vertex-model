@@ -238,7 +238,8 @@ public:
         }
                                 
         double area_preferential = get_as<double>("area_preferential",
-                    this->_cfg["PCPVertex"]);            
+                                        this->_cfg["PCPVertex"]["agent_manager"]
+                                        ["cell_manager"]["agent_params"]);            
         for (int i = 0; i < CellType::num_cell_types; i++) {
             _area_preferential(i) = area_preferential;
         }
@@ -458,7 +459,8 @@ private:
 
         // initialise area preferential from Vertex model
         double area_preferential = get_as<double>("area_preferential",
-                                                  this->_cfg["PCPVertex"]);            
+                                    this->_cfg["PCPVertex"]["agent_manager"]
+                                            ["cell_manager"]["agent_params"]);          
         for (int i = 0; i < CellType::num_cell_types; i++) {
             _area_preferential(i) = area_preferential;
         }
