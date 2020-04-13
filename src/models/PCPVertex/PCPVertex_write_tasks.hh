@@ -565,7 +565,7 @@ auto statistics_time_adaptor = std::make_tuple(
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
     }
-); // end time_energy_adaptor
+); // end statistics_time_adaptor
 
 } // namespace Utopia::Models::PCPVertex::DataIO
 

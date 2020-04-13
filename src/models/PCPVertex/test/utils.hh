@@ -1,11 +1,14 @@
 #ifndef UTOPIA_MODELS_PCPVERTEX_TEST_UTILS_HH
 #define UTOPIA_MODELS_PCPVERTEX_TEST_UTILS_HH
 
-#include "../PCPVertex.hh"
-#include "../initialisation.hh"
-#include "../transitions.hh"
-#include "../PCPVertex_write_tasks.hh"
 #include <boost/test/unit_test.hpp>
+
+#include "../PCPVertex.hh"
+#include "../energy.hh"
+#include "../algorithm.hh"
+#include "../transitions.hh"
+#include "../operations.hh"
+#include "../PCPVertex_write_tasks.hh"
 
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex;

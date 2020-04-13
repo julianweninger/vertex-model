@@ -212,6 +212,14 @@ public:
         return _space->distance(position_of(a), position_of(b));
     }
 
+    auto length_of (const Edge& edge) const {
+        return distance(edge.custom_links().a, edge.custom_links().b);
+    }
+
+    auto length_of (const std::shared_ptr<Edge>& edge) const {
+        return length_of(*edge);
+    }
+
     /// Calculate the perimeter of a cell
     double perimeter_of (const Cell& cell) const {
         return this->perimeter_of_virtual(cell, 0.);
@@ -462,6 +470,12 @@ public:
     void divide_cell(const std::shared_ptr<Cell> cell, double division_angle,
             double linetension, double edge_contractility);
 
+    bool remove_edge_T1 (const std::shared_ptr<Edge> edge,
+        double linetension, double contractility,
+        std::function<double(const AgentContainer<Edge>&,
+                             const AgentContainer<Cell>&)> get_energy,
+        double T1_threshold, double T1_barrier, double random_number);
+
 private:
     // -- Setup functions -----------------------------------------------------
     /// Set up the custom agent manager configuration member
@@ -666,6 +680,24 @@ private:
         }
 
         return c;
+    }
+
+    /// Remove a vertex
+    void remove_vertex (const std::shared_ptr<Vertex>& vertex) {
+        _vertices_adjoint_edges.erase(vertex->id());
+        _vertices_adjoint_cells.erase(vertex->id());
+        _vertex_manager.remove_agent(vertex);
+    }
+
+    /// Remove an edge
+    void remove_edge (const std::shared_ptr<Edge>& edge) {
+        _edges_adjoint_cells.erase(edge->id());
+        _edge_manager.remove_agent(edge);
+    }
+
+    /// Remove an edge
+    void remove_cell (const std::shared_ptr<Cell>& cell) {
+        _cell_manager.remove_agent(cell);
     }
 
     /// Order a container of Edges

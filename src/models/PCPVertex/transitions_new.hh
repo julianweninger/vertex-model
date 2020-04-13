@@ -28,6 +28,11 @@ template<class Model>
 void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         double division_angle, double linetension, double edge_contractility)
 {
+    if (not _space->periodic) {
+        throw std::runtime_error("Cell division not implemented in "
+            "non-periodic boundary condition!");
+    }
+
     // The cell to be divided
     cell->state.remove = true;
     _cell_manager.remove_agent(cell);
@@ -289,6 +294,283 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
                                                            adj_cell_b);
         }
     }
+}
+
+
+
+/// Removes an edge in a T1 neighborhood exchange
+/** \details Adds a new edge separating the adjoint cells
+ * 
+ *  \param linetension  The linetension of the new edge
+ *  \param contractility  The contractility of the new edge
+ *  \param get_energy   Calculate the energy for container of edges and cells
+ *  \param T1_barrier   The height of the energy barrier
+ * 
+ *  \returns whether edge was removed.
+ *           The edge is not removed if one of the adjoint cells is triangular.
+ *           Remove it rather in a T2 transition.
+ *           The edge is also not removed if the transition increases energy.
+ */
+template<class Model>
+bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
+        double linetension, double contractility,
+        std::function<double(const AgentContainer<Edge>&,
+                             const AgentContainer<Cell>&)> get_energy,
+        double T1_threshold, double T1_barrier, double random_number)
+{
+    if (not _space->periodic) {
+        throw std::runtime_error("T1 transition not implemented in "
+            "non-periodic boundary condition!");
+    }
+
+    auto vertex_a = edge->custom_links().a;
+    auto vertex_b = edge->custom_links().b;
+
+    // create copies of the objects - T1 might be aborted
+    const Edge edge_copy = *edge;
+    const Vertex vertex_a_copy = *vertex_a;
+    const Vertex vertex_b_copy = *vertex_b;
+
+    // tag objects to be removed
+    edge->state.remove = true;
+    vertex_a->state.remove = true;
+    vertex_b->state.remove = true;
+
+    auto [adj_cell_a, adj_cell_b] = adjoints_of(edge);
+    // NOTE a, b arbitrary
+    
+    for (auto c : {adj_cell_a, adj_cell_b}) {
+        if (c->custom_links().edges.size() <= 3) {
+            this->_log->warn("The triangular cell has area {}. Adapt the "
+                "threshold area for T2 transitions, such that this cell "
+                "is removed, rather than performing a T1 transition!",
+                area_of(c));
+            return false;
+            // TODO check algorithm at this point
+        }
+    }
+
+    // the two cells that become neighbours in this T1 transition
+    // NOTE c is the cell adjoint to vertex edge->a (arbitrary)
+    //      d is the cell adjoint to vertex edge->b
+    std::shared_ptr<Cell> adj_cell_c, adj_cell_d;
+    for (const auto& c : adjoint_cells_of(vertex_a)) {
+        if (c != adj_cell_a and c != adj_cell_b) {
+            adj_cell_c = c;
+        }
+    }
+    for (const auto& c : adjoint_cells_of(vertex_b)) {
+        if (c != adj_cell_a and c != adj_cell_b) {
+            adj_cell_d = c;
+        }
+    }
+
+    // The involved edges
+    // (a, b) and (c, d) currently share a vertex
+    // (a, c) and (b, c) currently share an adjoint cell a, resp. b
+    // they will share a vertex a (resp. b) after transition
+    std::shared_ptr<Edge> adj_edge_a, adj_edge_b, adj_edge_c, adj_edge_d;
+    for (const auto& e : adjoint_edges_of(vertex_a)) {
+        if (e != edge) {
+            const auto& [e_adj_cell_a, e_adj_cell_b] =  adjoints_of(e);
+            if (e_adj_cell_a == adj_cell_a or e_adj_cell_b == adj_cell_a)
+            {
+                adj_edge_a = e;
+            }
+            else {
+                adj_edge_b = e;
+            }
+        }
+    }
+    for (const auto& e : adjoint_edges_of(vertex_b)) {
+        if (e != edge) {
+            const auto& [e_adj_cell_a, e_adj_cell_b] =  adjoints_of(e);
+            if (e_adj_cell_a == adj_cell_a or e_adj_cell_b == adj_cell_a)
+            {
+                adj_edge_c = e;
+            }
+            else {
+                adj_edge_d = e;
+            }
+        }
+    }
+
+    // make copies of the status quo
+    const auto adj_edge_a_copy = *adj_edge_a;
+    const auto adj_edge_b_copy = *adj_edge_b;
+    const auto adj_edge_c_copy = *adj_edge_c;
+    const auto adj_edge_d_copy = *adj_edge_d;
+
+    const auto adj_cell_a_copy = *adj_cell_a;
+    const auto adj_cell_b_copy = *adj_cell_b;
+    const auto adj_cell_c_copy = *adj_cell_c;
+    const auto adj_cell_d_copy = *adj_cell_d;
+
+    double current_energy = get_energy({edge, adj_edge_a, adj_edge_b,
+                                              adj_edge_c, adj_edge_d},
+                                             {adj_cell_a, adj_cell_b,
+                                              adj_cell_c, adj_cell_d});
+
+    // create two new vertices that create an edge of threshold length 
+    // pointing from cell a to b
+    auto displ = _space->displacement(barycenter_of(adj_cell_a),
+                                      barycenter_of(adj_cell_b));
+    displ = displ / arma::norm(displ) * T1_threshold /
+            _space->get_domain_size();
+    
+    auto center = position_of(vertex_a) + displacement(vertex_a, vertex_b) / 2;
+    auto new_v_a = add_vertex(SpaceVec(center - displ / 2.));
+    auto new_v_b = add_vertex(SpaceVec(center + displ / 2.));
+
+    _vertices_adjoint_edges[new_v_a->id()] = {adj_edge_a, adj_edge_c};
+    _vertices_adjoint_edges[new_v_b->id()] = {adj_edge_b, adj_edge_d};
+
+    _vertices_adjoint_cells[new_v_a->id()] = {adj_cell_a, adj_cell_c,
+                                              adj_cell_d};
+    _vertices_adjoint_cells[new_v_b->id()] = {adj_cell_b, adj_cell_c,
+                                              adj_cell_d};
+
+    // create a new edge
+    DataIO::Config edge_cfg;
+    edge_cfg["linetension"] = linetension;
+    edge_cfg["contractility"] = contractility;
+    auto new_edge = add_edge(new_v_a, new_v_b, edge_cfg);
+    _edges_adjoint_cells[new_edge->id()] = std::make_pair(adj_cell_c,
+                                                          adj_cell_d);
+
+    // remove objects
+    for (auto &c : {adj_cell_a, adj_cell_b, adj_cell_c, adj_cell_d}) {
+        auto& vertices = c->custom_links().vertices;
+        vertices.erase(std::remove_if(
+                vertices.begin(), vertices.end(), 
+                [](const auto& v) { return v->state.remove; }),
+            vertices.end());
+    }
+    // NOTE edge_it will be removed at the very end
+    // NOTE a and b will be replaced within edges
+
+    // remove edge from adj_cells a and b
+    // NOTE the neighbouring edges now have a common vertex, hence order of
+    //      edges is maintained
+    for (auto &c : {adj_cell_a, adj_cell_b}) {
+        auto& edges = c->custom_links().edges;
+        edges.erase(std::remove_if(
+                edges.begin(), edges.end(), 
+                [](auto e_pair) { return std::get<0>(e_pair)->state.remove; }),
+            edges.end());
+    }
+    
+    // replace vertices in edges
+    // NOTE a, c share cell a; b, d share cell b
+    //      hence, new_v_a associated with cell a
+    //      and new_v_b associated with cell b
+    for (auto &e : {adj_edge_a, adj_edge_c}) {
+        if (e->custom_links().a->state.remove) { 
+            e->custom_links().a = new_v_a;
+        }
+        else {
+            e->custom_links().b = new_v_a;
+        }
+    }
+    for (auto &e : {adj_edge_b, adj_edge_d}) {
+        if (e->custom_links().a->state.remove) {
+            e->custom_links().a = new_v_b;
+        }
+        else {
+            e->custom_links().b = new_v_b;
+        }
+    }
+
+    // add new vertices to cells
+    // NOTE vertex a is associated with cell a; 
+    //      vertex b is associated with cell b
+    //      both associated with cells c and d
+    for (auto c : {adj_cell_a, adj_cell_c, adj_cell_d}) {
+        c->custom_links().vertices.push_back(new_v_a);
+    }
+    for (auto c : {adj_cell_b, adj_cell_c, adj_cell_d}) {
+        c->custom_links().vertices.push_back(new_v_b);
+    }
+
+    // make a new edge in adj_cells c and d
+    // NOTE this is symmetric, directionality is given by void order_edges()
+    for (auto &c : {adj_cell_c, adj_cell_d}) {
+        auto& edges = c->custom_links().edges;
+        for (auto it = edges.begin(); it != edges.end(); it++) {
+            auto [e, flip] = *it;
+            std::shared_ptr<Vertex> a; // the start of e
+            if (not flip) {
+                a = e->custom_links().a;
+            }
+            else {
+                a = e->custom_links().b;
+            }
+
+            if (a == new_edge->custom_links().b) {
+                // the start is end of new_edge -> insert before
+                edges.insert(it, std::make_pair(new_edge, false));
+                break;
+            }
+            else if (a == new_edge->custom_links().a) {
+                // the start is start of new_edge -> insert before, but flip
+                edges.insert(it, std::make_pair(new_edge, true));
+                break;
+            }
+        }
+    }
+
+    double new_energy = get_energy({new_edge, adj_edge_a, adj_edge_b,
+                                    adj_edge_c, adj_edge_d},
+                                   {adj_cell_a, adj_cell_b,
+                                    adj_cell_c, adj_cell_d});
+
+    double probability = exp(-(new_energy - current_energy)/T1_barrier);
+    if (random_number > probability)
+    {
+        this->_log->info("Aborting T1 transition, because energy increased by "
+                "{} .. The probability to do this T1 transition is {}.",
+                new_energy - current_energy, probability);
+        
+        // undo the changes
+        edge->state.remove = false;
+
+        adj_edge_a->custom_links().a = adj_edge_a_copy.custom_links().a;
+        adj_edge_a->custom_links().b = adj_edge_a_copy.custom_links().b;
+        adj_edge_b->custom_links().a = adj_edge_b_copy.custom_links().a;
+        adj_edge_b->custom_links().b = adj_edge_b_copy.custom_links().b;
+        adj_edge_c->custom_links().a = adj_edge_c_copy.custom_links().a;
+        adj_edge_c->custom_links().b = adj_edge_c_copy.custom_links().b;
+        adj_edge_d->custom_links().a = adj_edge_d_copy.custom_links().a;
+        adj_edge_d->custom_links().b = adj_edge_d_copy.custom_links().b;
+
+        adj_cell_a->custom_links().vertices = adj_cell_a_copy.custom_links().vertices;
+        adj_cell_a->custom_links().edges = adj_cell_a_copy.custom_links().edges;
+        adj_cell_b->custom_links().vertices = adj_cell_b_copy.custom_links().vertices;
+        adj_cell_b->custom_links().edges = adj_cell_b_copy.custom_links().edges;
+        adj_cell_c->custom_links().vertices = adj_cell_c_copy.custom_links().vertices;
+        adj_cell_c->custom_links().edges = adj_cell_c_copy.custom_links().edges;
+        adj_cell_d->custom_links().vertices = adj_cell_d_copy.custom_links().vertices;
+        adj_cell_d->custom_links().edges = adj_cell_d_copy.custom_links().edges;
+
+        remove_edge(new_edge);
+        remove_vertex(new_v_a);
+        remove_vertex(new_v_b);
+
+        return false;
+    }
+    else if (new_energy >= current_energy) {
+        this->_log->debug("This T1 transition increases energy by {}, but "
+            "given the parameter 'T1_barrier'={} the probability is {} do "
+            "perform this transition non the less.",
+            new_energy - current_energy, T1_barrier, probability);
+    }
+
+    // remove the entities
+    remove_edge(edge);
+    remove_vertex(vertex_a);
+    remove_vertex(vertex_b);
+
+    return true;
 }
 
 } // namespace Utopia::Models::PCPVertex

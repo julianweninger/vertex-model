@@ -703,16 +703,21 @@ public:
         }
 
         // T1 transition -- neighborhood change
-        for (auto e_it = _edges.begin(); e_it != _edges.end(); /*void*/) {
-            double length = (*e_it)->template length<periodic_bc>(_Lx, _Ly);
+        for (int i = _am.edges().size() - 1; i >= 0; i--) {
+            double length = _am.length_of(_am.edges()[i]);
             if (length < _T1_threshold
                 and _prob_distr(*this->_rng) < _T1_probability)
             {
-                std::tie(e_it, transition_occurred) = T1_transition(e_it);
-                transition_occurred = true;
-            }
-            else {
-                ++e_it;
+                
+                this->_log->info("Removing edge in T1 transition in step {}..",
+                                 this->_time);
+                transition_occurred = _am.remove_edge_T1(_am.edges()[i],
+                        _linetension(0, 0), _edge_contractility(0,0),
+                        [this](const AgentContainer<EdgeNew>& es,
+                               const AgentContainer<CellNew>& cs) { 
+                                    return this->get_energy(es, cs, 0.); },
+                        _T1_threshold, _T1_barrier, _prob_distr(*this->_rng));
+
             }
         }
 
