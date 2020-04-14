@@ -1,16 +1,38 @@
 ---
-PCPVertex: 
-  periodic_bc: false
-  
+PCPVertex:
+  space:
+    extent: [1., 1.]
+    periodic: false
+
+  agent_manager:
+    setup_method: hexagonal
+    setup_params:
+      hexagonal:
+        hexagon_size: 0.62
+        lattice_rows: 8
+        lattice_columns: 8
+    vertex_manager:
+      non_periodic_offset: [1, 1]
+
+    edge_manager:
+      agent_params:
+        linetension: 0.1
+        contractility: 0.02
+
+    cell_manager:
+      agent_params:
+        area_preferential: 1.
+        contractility: 0.02
+        cell_type: progenitor
+
+  initial_jiggle: 0.05
+
+  # --- Dynamics
+  # damping factor
   dt: 0.01
-  
-  linetension: 0.1
+  update_scheme: steepest_gradient
 
-  area_elasticity: 10.
-  area_preferential: 1.
-
-  # Contractility of perimeter
-  contractility: 0.
+  area_elasticity: 1.
 
   # Polarity interaction
   gamma: 0.
@@ -21,16 +43,7 @@ PCPVertex:
   T1_threshold: 0.1
   T1_probability: 0.05
   T1_barrier: 0.02
-  T2_threshold: 0.02
-
-  hexagon_size: 0.62
-  lattice_columns: 4
-  lattice_rows: 4
-  
-  noise_constant: 0.0
-  noise_linear: 0.0
-
-  energy_change_history_length: 10
+  T2_threshold: 0.075
 
   data_manager:
     # this builds the deciders
@@ -53,9 +66,6 @@ PCPVertex:
 
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: debug}
 monitor_emit_interval: 2.0
-num_steps: 2000
+num_steps: 1
 output_path: test_data.h5
 seed: 42
-write_every: 25
-write_start: 0
-
