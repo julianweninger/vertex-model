@@ -37,7 +37,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
 
     // The cell to be divided
     cell->state.remove = true;
-    _cell_manager.remove_agent(cell);
+    remove_cell(cell);
 
     const auto cell_center = this->barycenter_of(cell);
 
@@ -154,7 +154,6 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         // update the crosslinks in the adjoint cell
         const auto [adj_cell_a, adj_cell_b] = adjoints_of(edge);
         for (const auto& c : {adj_cell_a, adj_cell_b}) {
-            if (not c) { continue; }
             if (c == cell) { continue; }
             else {
                 auto& adj_edges = c->custom_links().edges;
@@ -165,8 +164,8 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
                     adj_edges.end());
                 // edge is flipped in neighboring cell
                 // add b->pivot (edge_1, true) then pivot->a (edge_0, true)
-                adj_edges.insert(it, std::make_pair(new_edge_1, true));
-                adj_edges.insert(it, std::make_pair(new_edge_0, true));
+                it = adj_edges.insert(it, std::make_pair(new_edge_1, true));
+                adj_edges.insert(it+1, std::make_pair(new_edge_0, true));
             }
             auto& vertices = c->custom_links().vertices;
             vertices.insert(std::find(vertices.begin(), vertices.end(), a),

@@ -88,6 +88,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     int num_columns = get_as<int>("lattice_columns", cfg);
 
     SpaceVec cell_shape = SpaceVec({sqrt(3), 2}) * size;
+    SpaceVec offset(arma::fill::zeros);
 
     if (_space->periodic) {
         if (num_rows % 2 != 0) {
@@ -101,9 +102,19 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                                            0.75 * num_rows}) % cell_shape);
     }
     else {
+        if (not this->_cfg["vertex_manager"]["non_periodic_offset"]) {
+            throw KeyError("non_periodic_offset", this->_cfg["vertex_manager"],
+                           "Vertex manager requires offset in non-periodic "
+                           "boundary conditions. This is due to the impermeable "
+                           "boundary walls. The offset should be such that "
+                           "vertices never cross the boundary; the simulation "
+                           "will throw otherwise!");
+        }
+        offset = get_as_SpaceVec<2>("non_periodic_offset",
+                                    this->_cfg["vertex_manager"]);
         _space->set_domain_size(SpaceVec({num_columns + 1.,
-                                           0.75 * (num_rows + 1.)}) % 
-                                           cell_shape);
+                                           0.75 * (num_rows + 1)}) % 
+                                           cell_shape + 2 * offset);
     }
 
     // Add vertices
@@ -121,15 +132,24 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         // pair rows
         if (r % 2 == 0) {
         for (int q = 0; q < lim_columns; ++q) {
-            this->add_vertex(SpaceVec({double(q), (.75*r + .25)}) % cell_shape);
-            this->add_vertex(SpaceVec({q + 0.5, 0.75 * r}) % cell_shape);
+            SpaceVec position = SpaceVec({double(q),
+                                         (.75*r + .25)}) % cell_shape;
+            this->add_vertex(position + offset);
+            // NOTE the vertices have an offset in non-periodic boundary
+            //      condition to avoid collision with boundary wall
+            
+            position = SpaceVec({q + 0.5, 0.75 * r}) % cell_shape;
+            this->add_vertex(position + offset);
         }
         }
         // impair rows
         else {
         for (int q = 0; q < lim_columns; ++q) {
-            this->add_vertex(SpaceVec({double(q), r * 0.75}) % cell_shape);
-            this->add_vertex(SpaceVec({q + 0.5, r * 0.75 + 0.25}) % cell_shape);
+            SpaceVec position = SpaceVec({double(q), r * 0.75}) % cell_shape;
+            this->add_vertex(position + offset);
+            
+            position = SpaceVec({q + 0.5, r * 0.75 + 0.25}) % cell_shape;
+            this->add_vertex(position + offset);
         }
         }
     }

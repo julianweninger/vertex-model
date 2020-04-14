@@ -80,9 +80,6 @@ public:
     using RuleFuncCell = std::function<typename Cell::State(
                                                const std::shared_ptr<Cell>&)>;
 
-    /// The type of the move function type
-    using MoveFunc = std::function<void(Vertex&, const SpaceVec&)>;
-
 private:
     /// The logger (same as the model this manager resides in)
     const std::shared_ptr<spdlog::logger> _log;

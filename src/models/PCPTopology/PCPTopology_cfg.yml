@@ -206,7 +206,8 @@ PCPVertex:
         hexagon_size: 0.62
         lattice_rows: 8
         lattice_columns: 8
-    vertex_manager: ~
+    vertex_manager:
+      non_periodic_offset: [1, 1]
 
     edge_manager:
       agent_params:
@@ -247,8 +248,8 @@ PCPVertex:
       write_slice: &slicer
         type: slice
         args:
-          start: 90
-          stop: 820
+          start: 0
+          stop: 1
           step: 1
 
       write_at_last:
