@@ -328,8 +328,6 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
     // create copies of the objects - T1 might be aborted
     const Edge edge_copy = *edge;
-    const Vertex vertex_a_copy = *vertex_a;
-    const Vertex vertex_b_copy = *vertex_b;
     const auto adjoint_edges_vertex_a = adjoint_edges_of(vertex_a);
     const auto adjoint_edges_vertex_b = adjoint_edges_of(vertex_b);
 
@@ -417,7 +415,7 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     // pointing from cell a to b
     auto displ = _space->displacement(barycenter_of(adj_cell_a),
                                       barycenter_of(adj_cell_b));
-    displ = displ / arma::norm(displ) * T1_threshold /
+    displ = displ / arma::norm(displ) * 2 * T1_threshold /
             _space->get_domain_size();
     
     auto center = position_of(vertex_a) + displacement(vertex_a, vertex_b) / 2;

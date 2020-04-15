@@ -365,6 +365,7 @@ public:
             center += (a + b) * da;
         }
         area /= 2;
+        if (area == 0) { area += 1e-12; }
         return _space->map_into_space(center / (6 * area));
     }
     
