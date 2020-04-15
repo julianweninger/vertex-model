@@ -1,71 +1,70 @@
 ---
 PCPVertex:
-  space:
-    extent: [1., 1.]
-    periodic: true
-
+  T1_barrier: 0.2
+  T1_probability: 1.
+  T1_threshold: 0.2
+  T2_threshold: 0.075
   agent_manager:
+    cell_manager:
+      agent_params: {area_preferential: 1.0, cell_type: progenitor, contractility: 0.02}
+    edge_manager:
+      agent_params: {contractility: 0.02, linetension: 0.1}
     setup_method: hexagonal
     setup_params:
-      hexagonal:
-        hexagon_size: 0.62
-        lattice_rows: 8
-        lattice_columns: 8
-    vertex_manager:
-      non_periodic_offset: [1, 1]
-
-    edge_manager:
-      agent_params:
-        linetension: 0.1
-        contractility: 0.02
-
-    cell_manager:
-      agent_params:
-        area_preferential: 1.
-        contractility: 0.02
-        cell_type: progenitor
-
-  initial_jiggle: 0.05
-
-  # --- Dynamics
-  # damping factor
-  dt: 0.01
-  update_scheme: steepest_gradient
-
-  area_elasticity: 1.
-
-  # Polarity interaction
-  gamma: 0.
-  cell_cell_polarity_interaction: 0.
-  cell_polarity_exclusion: 0.
-  cell_initialisation_protein_level: 0.
-
-  T1_threshold: 0.1
-  T1_probability: 0.05
-  T1_barrier: 0.02
-  T2_threshold: 0.075
-
+      hexagonal: {hexagon_size: 0.62, lattice_columns: 8, lattice_rows: 8}
+      single: {size: 0.62}
+    vertex_manager: null
+  area_elasticity: 10.0
+  cell_cell_polarity_interaction: 0.0
+  cell_initialisation_protein_level: 0.0
+  cell_polarity_exclusion: 0.0
   data_manager:
-    # this builds the deciders
     deciders:
-      write_always:
-        type: always
-
-    # this builds the triggers, here deciders are used
-    triggers:
-      build_once:
+      write_always: {type: always}
+      write_at_last:
+        args: {time: 3000}
         type: once
-        args:
-          time: 0
-
+      write_slice: &id003
+        args: {start: 0, step: 1, stop: 1000000}
+        type: slice
     tasks:
-      Energy_time:
-        active: true
-        decider: write_always
-        trigger: build_once
-
-log_levels: {core: warning, data_io: warning, data_mngr: warning, model: debug}
+      Cell_position: &id001 {active: true, decider: write_slice, trigger: build_slice}
+      Edge_link: *id001
+      Energy_areaelasticity: &id002 {active: true, decider: write_always, trigger: build_once}
+      Energy_cell_cell_polarity: {active: false, decider: write_always, trigger: build_once}
+      Energy_contractility: *id002
+      Energy_lagrange_const_concentration: {active: false, decider: write_always,
+        trigger: build_once}
+      Energy_lagrange_net_polarisation: {active: false, decider: write_always, trigger: build_once}
+      Energy_linetension: *id002
+      Energy_polarity_exclusion: {active: false, decider: write_always, trigger: build_once}
+      Energy_time: *id002
+      Energy_total: *id002
+      Vertex_position: *id001
+    triggers:
+      build_always: {type: always}
+      build_at_last:
+        args: {time: 1000000}
+        type: once
+      build_once:
+        args: {time: 0}
+        type: once
+      build_once_at_1:
+        args: {time: 1}
+        type: once
+      build_slice: *id003
+  dt: 0.01
+  gamma: 0.0
+  initial_jiggle: 0.05
+  space:
+    extent: [1.0, 1.0]
+    periodic: true
+  update_scheme: steepest_gradient
+log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
 monitor_emit_interval: 2.0
-num_steps: 2000
+num_steps: 0
 output_path: test_data.h5
 seed: 42
+write_every: 1
+write_start: 0
+

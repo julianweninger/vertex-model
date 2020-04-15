@@ -8,7 +8,7 @@ add_model_tests(# Use consistent capitalization for the model name!
                 SOURCES
                     "test_space.cc"
                     # "test.cc"  # FIXME Reactivate after fixing
-                    "test_new.cc"
+                    "test_transition.cc"
                 # Optional: Files to be copied to the build directory
                 AUX_FILES
                     "space_test.yml"
