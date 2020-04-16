@@ -16,6 +16,8 @@ public:
     using Config = typename Model::Config;
 
     /// The traits of a Vertex
+    /** Using no config for initialisation
+     */
     using VertexTraits = Utopia::AgentTraits<VertexState, Update::manual, true>;
 
     /// The type of the managed vertices
@@ -118,9 +120,9 @@ public:
         _log(model.get_logger()),
         _cfg(setup_cfg(model, custom_cfg)),
         _space(model.get_space()),
-        _vertex_manager(model, setup_vertex_cfg(model)),
-        _edge_manager(model, setup_edge_cfg(model)),
-        _cell_manager(model, setup_cell_cfg(model)),
+        _vertex_manager(model, setup_vertex_cfg()),
+        _edge_manager(model, setup_edge_cfg()),
+        _cell_manager(model, setup_cell_cfg()),
         _prepare_pos(setup_prepare_pos_func())
     {
         setup_agents();
@@ -510,7 +512,7 @@ private:
     /** \details Connot use default agent constructor if initializing hexagon.
      *           Hence, set up agent manager with 0 agents and add manually
      */
-    Config setup_vertex_cfg (Model& model) {
+    Config setup_vertex_cfg () {
         this->_log->debug("Setting up vertex manager ..");
         if (not _cfg["vertex_manager"]) {
             throw KeyError("vertex_manager", _cfg, "In 'agent_manager'");
@@ -526,7 +528,7 @@ private:
     /** \details Connot use default agent constructor if initializing hexagon.
      *           Hence, set up agent manager with 0 agents and add manually
      */
-    Config setup_edge_cfg (Model& model) {
+    Config setup_edge_cfg () {
         this->_log->debug("Setting up edge manager ..");
         if (not _cfg["edge_manager"]) {
             throw KeyError("edge_manager", _cfg, "In 'agent_manager'");
@@ -543,7 +545,7 @@ private:
     /** \details Connot use default agent constructor if initializing hexagon.
      *           Hence, set up agent manager with 0 agents and add manually
      */
-    Config setup_cell_cfg (Model& model) {
+    Config setup_cell_cfg () {
         this->_log->debug("Setting up cell manager ..");
         if (not _cfg["cell_manager"]) {
             throw KeyError("cell_manager", _cfg, "In 'agent_manager'");
@@ -637,7 +639,7 @@ private:
                    AgentContainer<Edge> edges,
                    const Config& custom_cfg = {})
     {
-        auto c = _cell_manager.add_agent(_prepare_pos(pos));
+        auto c = _cell_manager.add_agent(_prepare_pos(pos), custom_cfg);
         c->custom_links().edges = this->order_edges(edges);
 
         // check that edges are anti-clockwise
@@ -779,7 +781,7 @@ private:
      *          throw an error.
      */
     std::function<SpaceVec(const SpaceVec&)> setup_prepare_pos_func() const {
-        for (int i = 0; i < this->_space->dim; i++) {
+        for (size_t i = 0; i < this->_space->dim; i++) {
             if (this->_space->get_domain_size()[i] < 1) {
                 std::cout << "Received domain size: "
                           << this->_space->get_domain_size()

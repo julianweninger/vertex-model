@@ -37,15 +37,15 @@ auto cell_neighbourhood_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Cell_neighbourhood", {H5S_UNLIMITED, 7});
     },
 
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -94,15 +94,15 @@ auto cell_area_histogram_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Cell_area_histogram", {H5S_UNLIMITED, 8});
     },
 
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");

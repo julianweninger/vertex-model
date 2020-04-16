@@ -124,17 +124,17 @@ private:
     double _equilibration_tolerance;
 
     /// Number of steps performed in VertexModel per iteration
-    int _num_equilibration_steps;
+    unsigned int _num_equilibration_steps;
 
     /// Number of max iterations performed in VertexModel before aborting
-    int _max_equilibration_iterations;
+    unsigned int _max_equilibration_iterations;
 
     /// How often to shake the system during equilibration
     /** Equilibration processes might get stuck in local minima, hence the 
      *  equilibrated cellular arrangement is perturbed and equilibration is
      *  repeated.
      */
-    int _num_jiggle_per_equilibration;
+    unsigned int _num_jiggle_per_equilibration;
     
     /// The intensity of jiggle perturbation
     /** Use a fraction of the typical length scale of juncitons 
@@ -218,11 +218,11 @@ public:
         }
         _equilibration_tolerance = get_as<double>("tolerance",
                 this->_cfg["equilibration"]);
-        _num_equilibration_steps = get_as<int>("num_steps",
+        _num_equilibration_steps = get_as<unsigned int>("num_steps",
                 this->_cfg["equilibration"]);
-        _max_equilibration_iterations = get_as<int>("num_iterations",
+        _max_equilibration_iterations = get_as<unsigned int>("num_iterations",
                 this->_cfg["equilibration"]);
-        _num_jiggle_per_equilibration = get_as<int>("num_jiggle",
+        _num_jiggle_per_equilibration = get_as<unsigned int>("num_jiggle",
                 this->_cfg["equilibration"]);
         _jiggle_intensity = get_as<double>("jiggle_intensity",
                 this->_cfg["equilibration"], 0.);
@@ -284,10 +284,10 @@ private:
      */
     void equilibrate_vertex_model() {
         double tolerance = _jiggle_equilibration_tolerance;
-        int time_0 = _vertex_model.get_time();
+        auto time_0 = _vertex_model.get_time();
         bool repeat = false;
-        for (int it_jiggle = 0; it_jiggle <= _num_jiggle_per_equilibration;
-             it_jiggle++)
+        for (unsigned int it_jiggle = 0;
+             it_jiggle <= _num_jiggle_per_equilibration; it_jiggle++)
         {
             if (it_jiggle == _num_jiggle_per_equilibration) {
                 tolerance = _equilibration_tolerance;
@@ -565,7 +565,7 @@ private:
         double dA = new_value - _area_preferential(CellType::hair);
         
         const auto& cells = _vertex_model.get_am().cells();
-        int num_hcs = 0;
+        unsigned int num_hcs = 0;
         for (const auto& c : cells) {
             num_hcs += (c->state.type == CellType::hair);
         }
@@ -672,8 +672,9 @@ public:
         }
         else {
             auto time = this->get_time();
-            if (get_as<int>("begin", cfg["times"], 0) > time or 
-                get_as<int>("end", cfg["times"], this->get_time_max()) < time)
+            if (get_as<unsigned int>("begin", cfg["times"], 0) > time or 
+                get_as<unsigned int>("end", cfg["times"],
+                                     this->get_time_max()) < time)
             {
                 return false;
             }
@@ -686,7 +687,6 @@ public:
         }
 
         int emit_interval = get_as<int>("emit_interval", cfg, 0);
-        bool info = get_as<bool>("print_info", cfg, emit_interval > 0);
         
         return perform_operation(operation, name, num_steps, emit_interval);
     }
@@ -770,9 +770,7 @@ public:
 
         auto epilog_cfg = this->_cfg["epilog"];
 
-        int time_start = _vertex_model.get_time();
-        int num_steps = get_as<int>("num_epilog_steps", epilog_cfg);
-
+        auto num_steps = get_as<int>("num_equilibrations", epilog_cfg);
         this->_log->info("Equilibrating vertex model another {} times ..", 
                          num_steps);
 

@@ -46,9 +46,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
     // TODO remove this part if not causing abortions 
 
     double pos_1 = 0.; // left boundary
-    bool calculate_energy_min = true;
     double energy_1 = energy_0;
-    bool calculate_energy_2 = true;
     double pos_2 = dt; // right boundary
     double energy_2 = this->get_energy(pos_2);
     double pos_min = dt/2.;
@@ -224,8 +222,6 @@ double PCPVertex::steepest_gradient_step (
  */
 double PCPVertex::conjugate_gradient_step ()
 {
-    const double prev_dt = _dt;
-
     // line minimisation along direction of update h
     double new_energy;
     std::tie(_dt, new_energy) = determine_timestep(_dt, _energy);

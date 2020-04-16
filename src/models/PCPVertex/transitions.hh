@@ -191,7 +191,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         * 5. finish iteration from second half of this divided edge, but again 
         *    add to 1st cell.
         */
-    int it_edges;
+    unsigned int it_edges;
     const auto& edges = cell->custom_links().edges;
     // 1. start iteration
     for (it_edges = 0; it_edges < edges.size(); it_edges++) {
@@ -634,7 +634,7 @@ bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
     // update the custom_links to objects that will be removed
     for (auto& c : cells()) {
         auto& vertices = c->custom_links().vertices;
-        int num_vertices = vertices.size();
+        unsigned int num_vertices = vertices.size();
         vertices.erase(std::remove_if(vertices.begin(), vertices.end(),
                                       [](auto& v) { return v->state.remove; }),
                        vertices.end());

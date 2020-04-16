@@ -14,10 +14,10 @@ auto density_time = std::make_tuple(
         return grp->open_group("Densities"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_time()); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Time"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time"); }
 ); // end time_adaptor
 
@@ -27,10 +27,10 @@ auto density_progenitor = std::make_tuple(
         return grp->open_group("Densities"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_densities()[0]); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Progenitor"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time"); }
@@ -42,10 +42,10 @@ auto density_hair = std::make_tuple(
         return grp->open_group("Densities"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_densities()[1]); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Hair"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time"); }
@@ -57,10 +57,10 @@ auto density_support = std::make_tuple(
         return grp->open_group("Densities"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_densities()[2]); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Support"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time"); }
@@ -72,10 +72,10 @@ auto density_ratio_hair_support = std::make_tuple(
         return grp->open_group("Densities"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_densities()[1]/model.get_densities()[2]); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Ratio_hair_support"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time"); }
@@ -87,10 +87,10 @@ auto number_hair_hair_contacts = std::make_tuple(
         return grp->open_group("Densities"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_hh_contacts()); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Number_hair_hair_contacts"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time"); }
@@ -103,10 +103,10 @@ auto CM_time = std::make_tuple(
         return grp->open_group("CM"); },
     [](auto& dataset, auto& model) {
         dataset->write(model.get_time()); },
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Time"); },
-    [](auto& grp, auto& m) {},
-    [](auto& hdfdataset, auto& model) {
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time"); }
 ); // end time_adaptor
 
@@ -122,7 +122,7 @@ auto cell_type = std::make_tuple(
     [](auto& group, auto& model) -> decltype(auto) {
         return group->open_dataset("Cell_type",
                                    {H5S_UNLIMITED, model.get_cm()->cells().size()}); },
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
@@ -148,7 +148,7 @@ auto cell_atoh1 = std::make_tuple(
     [](auto& group, auto& model) -> decltype(auto) {
         return group->open_dataset("Atoh1",
                                    {H5S_UNLIMITED, model.get_cm()->cells().size()}); },
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");

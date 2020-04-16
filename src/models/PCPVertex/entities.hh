@@ -32,12 +32,6 @@ struct VertexState {
         g.zeros();
         h.zeros();
     }
-
-    /// Constructor
-    VertexState (const Utopia::DataIO::Config& cfg)
-    :  
-        VertexState()
-    { }
 };
 
 

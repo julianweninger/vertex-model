@@ -187,10 +187,8 @@ equilibration:
   jiggle_intensity: 0.01
   jiggle_tolerance: 1.e-6
 
-# epilog:
-#   set_noise_const: 0.1
-#   # set_noise_linear: 0.01
-#   num_epilog_steps: 150000
+epilog:
+  num_equilibration: 5
 
 # The model for energy minimization
 PCPVertex:

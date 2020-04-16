@@ -32,7 +32,7 @@ struct CellState {
     bool has_hair_neighbor;
 
     /// Construct the cell state from a configuration
-    CellState(const DataIO::Config& cfg)
+    CellState()
     :
         cell_type(progenitor),
         has_hair_neighbor(false)
@@ -96,7 +96,7 @@ struct EnvLinks {
 
 
 /// Specialize the CellTraits type helper for this model
-using CellTraits = Utopia::CellTraits<CellState, Update::manual, false,
+using CellTraits = Utopia::CellTraits<CellState, Update::manual, true,
                                       EmptyTag, EnvLinks>;
 
 
@@ -453,7 +453,6 @@ public:
     std::vector<double> get_densities () const {
         std::vector<int> count(3, 0.);
         for (auto c : _cm.cells()) {
-            int type = c->state.cell_type;
             count[int(c->state.cell_type)]++;
         }
         double num_cells = _cm.cells().size();

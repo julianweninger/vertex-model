@@ -188,7 +188,7 @@ void PCPVertex::differentiate_hair_cells_NotchDelta(
         throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
             "models. More cells in Vertex than in NotchDelta model!");
     }
-    int iterator;
+    unsigned int iterator;
     const auto& cells = _am.cells();
     for (iterator = 0; iterator < cells.size(); iterator++) {
         cell_map.insert(std::make_pair(cells[iterator], nd_cells[iterator]));

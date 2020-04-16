@@ -338,10 +338,7 @@ private:
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
-        auto displ = this->_am.displacement(a, b);
-        auto length = arma::norm(displ);
-
-        auto force = edge->state.contractility * displ;
+        auto force = edge->state.contractility * this->_am.displacement(a, b);
 
         a->state.f += force;
         b->state.f -= force;
@@ -366,7 +363,7 @@ private:
         const auto cell_center = this->_am.barycenter_of(cell);
         
         const auto& edges = cell->custom_links().edges;
-        for (int edges_it = 0; edges_it < edges.size(); edges_it++) {
+        for (unsigned int edges_it = 0; edges_it < edges.size(); edges_it++) {
             std::shared_ptr<Edge> e0; bool e0_flip;
             if (edges_it > 0) { 
                 std::tie(e0, e0_flip) = edges[edges_it - 1];

@@ -24,15 +24,15 @@ auto energy_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Total");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -56,15 +56,15 @@ auto time_energy_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Time");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
     }
 ); // end time_energy_adaptor
@@ -87,16 +87,16 @@ auto linetension_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Linetension");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -121,16 +121,16 @@ auto areaelasticity_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Areaelasticity");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -157,16 +157,16 @@ auto contractility_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Contractility");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -185,22 +185,22 @@ auto cell_cell_polarity_adaptor = std::make_tuple(
     },
 
     // writer function
-    [](auto& dataset, auto& model) {
+    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
         // dataset->write(model.get_energy_cell_cell_polarity() / 
         //                model.get_am().cells().size());
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Cell_cell_polarity");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -219,22 +219,22 @@ auto polarity_exclusion_adaptor = std::make_tuple(
     },
 
     // writer function
-    [](auto& dataset, auto& model) {
+    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
         // dataset->write(model.get_energy_polarity_exclusion() / 
         //                model.get_am().cells().size());
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Polarity_exclusion");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -253,22 +253,22 @@ auto lagrange_net_polarisation_adaptor = std::make_tuple(
     },
 
     // writer function
-    [](auto& dataset, auto& model) {
+    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
         // dataset->write(model.get_energy_lagrange_net_polarisation() / 
         //                model.get_am().cells().size());
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Lagrange_net_polarisation");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -287,22 +287,22 @@ auto lagrange_const_concentration_adaptor = std::make_tuple(
     },
 
     // writer function
-    [](auto& dataset, auto& model) {
+    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
         // dataset->write(model.get_energy_lagrange_const_concentration() / 
         //                model.get_am().cells().size());
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Lagrange_const_concentration");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {}
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
     ,
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -339,8 +339,8 @@ auto vertex_position_adaptor = std::make_tuple(
     },
 
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {
-        grp->add_attribute("content", "time_series");},
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series"); },
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
@@ -416,7 +416,7 @@ auto cell_position_adaptor = std::make_tuple(
     },
 
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {
+    [](auto& grp, [[maybe_unused]] auto& m) {
         grp->add_attribute("content", "time_series");},
 
     // attribute writer for dataset
@@ -473,7 +473,7 @@ auto edge_link_adaptor = std::make_tuple(
     },
 
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {
+    [](auto& grp, [[maybe_unused]] auto& m) {
         grp->add_attribute("content", "time_series");},
 
     // attribute writer for dataset
@@ -525,15 +525,15 @@ auto cell_area_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Cell_area", {H5S_UNLIMITED, 3});
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
@@ -562,15 +562,15 @@ auto statistics_time_adaptor = std::make_tuple(
     },
 
     // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
         return group->open_dataset("Time");
     },
     
     // attribute writer for basegroup
-    [](auto& grp, auto& m) {},
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
     }
 ); // end statistics_time_adaptor
