@@ -14,11 +14,8 @@
 #include "../PCPVertex_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;
-using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
 PCPVertex model_factory(bool periodic) {
-    using namespace Utopia::Models::PCPVertex::DataIO;
-
     if (periodic) {
         Utopia::PseudoParent pp("test_periodic.yml");
         return PCPVertex("PCPVertex", pp);
@@ -28,7 +25,6 @@ PCPVertex model_factory(bool periodic) {
         return PCPVertex("PCPVertex", pp);
     }
 }
-
 
 /// A fixture used in the test_PCPVertex test suite
 /** Besides destructing the model it is also necessary to destruct the logger
@@ -70,6 +66,12 @@ struct ModelFixture {
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
+    /// This tests the custom_links of all agents living in the model
+    /** \details Tested are the neighborhood information stored in custom_links.
+     *           These must be correct at all times.
+     *  \note    Not tested is currently the order of vertices associated to a cell.
+     *           This order is not maintained through some transitions.
+     */
     void test_custom_links(PCPVertex model) {
         const auto& am = model.get_am();
 

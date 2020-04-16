@@ -477,11 +477,13 @@ auto edge_link_adaptor = std::make_tuple(
         grp->add_attribute("content", "time_series");},
 
     // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "vertex");
         hdfdataset->add_attribute("coords__vertex", 
                                   std::vector<std::string>({"a", "b"}));
         hdfdataset->add_attribute("dim_name__1", "id");
+
+        
     }    
 ); // end edge link adaptor
 
