@@ -26,7 +26,7 @@ space: &SPACE
 proliferation:
   active: True
   times:
-    prolog: 8
+    prolog: 4
     begin: -1
     end: -1
     iterates: 0
@@ -247,8 +247,8 @@ PCPVertex:
         type: slice
         args:
           start: 0
-          stop: 1
-          step: 1
+          stop: 500
+          step: 50
 
       write_at_last:
         type: once
@@ -307,7 +307,7 @@ PCPVertex:
         active: false
 
       Vertex_position: &position
-        active: false
+        active: true
         trigger: build_slice
         decider: write_slice
       Cell_position: *position
@@ -335,7 +335,7 @@ data_manager:
             - [0, 2]
         slice:
           start: 0
-          stop: 500
+          stop: 10000
           step: 5
 
     write_at_last:
