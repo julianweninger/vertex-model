@@ -122,7 +122,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                 std::swap(first, iterator);
             }
 
-            for (int i = 1; i < edges.size(); i++) {
+            for (unsigned int i = 1; i < edges.size(); i++) {
                 auto [e, flip] = edges[i];
                 BOOST_TEST(e);
 
@@ -137,10 +137,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             }
             BOOST_TEST(iterator == first);
         }
-
-        const auto& cells = am.cells();
-        const auto& edges = am.edges();
-        const auto& vertices = am.vertices();
     }
 
     void test_divide_cell(bool periodic) {
@@ -186,12 +182,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         const auto& edges = am.edges();
         const auto& vertices = am.vertices();
 
-        int num_cells = cells.size();
-        int num_edges = edges.size();
-        int num_vertices = vertices.size();
+        auto num_cells = cells.size();
+        auto num_edges = edges.size();
+        auto num_vertices = vertices.size();
 
         auto edge = edges[edges.size() / 3];
-        int use_cnt = edge.use_count();
         edge->state.linetension = 200.;
 
         auto a = edge->custom_links().a;
@@ -230,12 +225,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         const auto& edges = am.edges();
         const auto& vertices = am.vertices();
 
-        int num_cells = cells.size();
-        int num_edges = edges.size();
-        int num_vertices = vertices.size();
+        auto num_cells = cells.size();
+        auto num_edges = edges.size();
+        auto num_vertices = vertices.size();
 
         auto cell = cells[cells.size() / 2];
-        int use_cnt = cell.use_count();
 
         cell->state.area_preferential = 0.;
         for (int i = 0; i < 1000; i++) {
