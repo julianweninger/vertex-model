@@ -150,10 +150,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 plot_arrow(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
                 if (cell_type.data == 1):
                     color = 'red'
-                    hlpr.ax.scatter(Lx*x, Ly*y, c=color, s=15, alpha=0.5)
+                    hlpr.ax.scatter(x, y, c=color, s=15, alpha=0.5)
                 elif (cell_type.data == 2):
                     color = 'gray'
-                    hlpr.ax.scatter(Lx*x, Ly*y, c=color, s=15, alpha=0.5)
+                    hlpr.ax.scatter(x, y, c=color, s=15, alpha=0.5)
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
 
