@@ -178,20 +178,21 @@ void PCPVertex::differentiate_hair_cells_NotchDelta(
     this->_log->debug("Differentiating progenitor cells to hair "
         "and support cells using the NotchDelta model ...");
 
-    auto nd_cells = notch_delta->get_cm()->cells();
+    const auto nd_cells = notch_delta->get_cm()->cells();
+    const auto cells = _am.cells();
 
     std::unordered_map<std::shared_ptr<Cell>,
-                       typeof(nd_cells.back())> cell_map;
-    if (_am.cells().size() > nd_cells.size()) {
+                       std::shared_ptr<typename NotchDelta::Cell>> cell_map;
+    if (cells.size() > nd_cells.size()) {
         this->_log->warn("Cells in NotchDelta: {}. Cells in Vertex: {}",
-            nd_cells.size(), _am.cells().size());
+            nd_cells.size(), cells.size());
         throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
             "models. More cells in Vertex than in NotchDelta model!");
     }
     unsigned int iterator;
-    const auto& cells = _am.cells();
+    cell_map.reserve(cells.size());
     for (iterator = 0; iterator < cells.size(); iterator++) {
-        cell_map.insert(std::make_pair(cells[iterator], nd_cells[iterator]));
+        cell_map.insert({cells[iterator], nd_cells[iterator]});
     }
     for (void(); iterator < nd_cells.size(); iterator++) {
         nd_cells[iterator]->state.cell_type = NotchDelta::CellType::inactive;
