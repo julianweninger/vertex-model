@@ -14,6 +14,7 @@ The energy function currently includes the following terms
 
 The energy relaxation is performed in one of the following ways
     * along steepest descent with fixed step size
+    * using conjugate gradient
 
 The model accounts for the following topological changes
     * T1 transition: cell intercalation changes neighbourhood of cells

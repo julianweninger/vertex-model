@@ -6,212 +6,43 @@
 
 #include "utils.hh"
 
-bool test_equal (double a, double b, double precision = 1e-14) {
-    return std::abs(a - b) < precision;
-}
+#include "../PCPVertex.hh"
+#include "../energy.hh"
+#include "../algorithm.hh"
+#include "../operations.hh"
+#include "../PCPVertex_write_tasks.hh"
 
-template<bool periodic_bc>
-void test_initialisation_hexagon (std::string cfg)
-{
-    auto model = model_factory<periodic_bc>(cfg);
-    auto model_cfg = model.get_cfg();
+using namespace Utopia::Models::PCPVertex;
 
-    auto vertices = model.get_vertices();
-    auto edges = model.get_edges();
-    auto cells = model.get_cells();
+PCPVertex model_factory(bool periodic) {
+    using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
-    int num_rows = get_as<int>("lattice_rows", model_cfg);
-    int num_columns = get_as<int>("lattice_columns", model_cfg);
-    BOOST_TEST (cells.size() == num_rows * num_columns);
-
-    if constexpr (periodic_bc) {
-        for (auto v : vertices) {
-            BOOST_TEST (v.lock()->adj_edges.size() == 3);
-            BOOST_TEST (v.lock()->adj_cells.size() == 3);
-        }
-        for (auto e : edges) {
-            BOOST_TEST (not e.lock()->adj_cell_a.expired());
-            BOOST_TEST (not e.lock()->adj_cell_b.expired());
-        }
-        for (auto c : cells) {
-            BOOST_TEST (c.lock()->vertices.size() == 6);
-            BOOST_TEST (c.lock()->edges_ordered.size() == 6);
-        }
+    if (periodic) {
+        Utopia::PseudoParent pp("test_periodic.yml");
+        return PCPVertex("PCPVertex", pp, time_energy_adaptor);
     }
     else {
-        for (auto v : vertices) {
-            BOOST_TEST (v.lock()->adj_edges.size() <= 3);
-            BOOST_TEST (v.lock()->adj_cells.size() <= 3);
-        }
-        for (auto e : edges) {
-            BOOST_TEST ((not e.lock()->adj_cell_a.expired() or 
-                         not e.lock()->adj_cell_b.expired()) == true);
-        }
-        for (auto c : cells) {
-            BOOST_TEST (c.lock()->vertices.size() == 6);
-            BOOST_TEST (c.lock()->edges_ordered.size() == 6);
-        }
+        Utopia::PseudoParent pp("test.yml");
+        return PCPVertex("PCPVertex", pp, time_energy_adaptor);
+    }
+}
+
+BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
+
+    void test_model_initialisation (PCPVertex& model) {
+        test_custom_links(model);
     }
 
-    test_weak_links(model);
+    // BOOST_AUTO_TEST_CASE(test_initialization_non_periodic) {
+    //     auto model = model_factory(false);
+    //     test_model_initialisation(model);
+    // }
+    // FIXME requires activation
 
-    destruct_model_factory(model);
-}
-
-BOOST_AUTO_TEST_CASE(Initialisation_hexagon_periodic)
-{
-    test_initialisation_hexagon<true>("test_periodic.yml");
-}
-
-BOOST_AUTO_TEST_CASE(Initialisation_hexagon_non_periodic)
-{
-    test_initialisation_hexagon<false>("test_non_periodic.yml");
-}
-
-void test_differentiate_cells (std::string cfg, double fraction)
-{
-    auto model = model_factory<false>(cfg);
-    // NOTE Periodic includes only situations covered by non-periodic bc
-    arma::Mat<double>::fixed<Cell::CellType::num_cell_types,
-                             Cell::CellType::num_cell_types> linetension;
-    linetension.fill(0.1);
-    linetension(1, 2) = 0.12;
-    linetension(2, 1) = linetension(1,2);
-    arma::Col<double>::fixed<Cell::CellType::num_cell_types> area_preferential = {1., 1.2, 1.};
-
-    model.differentiate_hair_cells(fraction, linetension, area_preferential);
-
-    auto cells = model.get_cells();
-
-    std::vector<int> num_types(3, 0);
-    for (auto c : cells) {
-        num_types[c.lock()->type]++;
-    }
-
-    BOOST_TEST(num_types[0]==0);
-    double hair_fraction = num_types[1]/double(cells.size());
-    BOOST_TEST(test_equal(hair_fraction, fraction, 2./cells.size()));
-
-    for (auto c : cells) {
-        BOOST_TEST(c.lock()->area_preferential == area_preferential(c.lock()->type));
+    BOOST_AUTO_TEST_CASE(test_initialization_periodic) {
+        auto model = model_factory(true);
+        test_model_initialisation(model);
     }
 
 
-    test_weak_links(model);
-
-    destruct_model_factory(model);
-}
-
-BOOST_AUTO_TEST_CASE(Differentiate_hair_cells)
-{
-    test_differentiate_cells("test_non_periodic.yml", 0.12);
-    test_differentiate_cells("test_non_periodic.yml", 0.25);
-    test_differentiate_cells("test_non_periodic.yml", 0.5);
-    test_differentiate_cells("test_non_periodic.yml", 0.88);
-}
-
-
-template<bool periodic_bc>
-void test_topological_increase_domain (std::string cfg) {
-    auto model = model_factory<periodic_bc>(cfg);
-    auto [Lx, Ly] = model.get_domain_size();
-
-    double dA = 0.1;
-
-    model.increase_domain_size(dA);
-    auto [Lx_prime, Ly_prime] = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx_prime * Ly_prime, Lx * Ly + dA));
-    BOOST_TEST (test_equal(Lx_prime / Ly_prime, Lx / Ly));
-
-    model.increase_domain_size(-dA);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx_prime * Ly_prime, Lx * Ly));
-    BOOST_TEST (test_equal(Lx_prime / Ly_prime, Lx / Ly));
-
-    test_weak_links(model);
-
-    destruct_model_factory(model);
-}
-
-BOOST_AUTO_TEST_CASE(Topological_increase_domain_periodic)
-{
-    test_topological_increase_domain<true>("test_periodic.yml");
-}
-
-BOOST_AUTO_TEST_CASE(Topological_increase_domain_non_periodic)
-{
-    test_topological_increase_domain<false>("test_non_periodic.yml");
-}
-
-template<bool periodic_bc>
-void test_topological_stretch (std::string cfg) {
-    auto model = model_factory<periodic_bc>(cfg);
-    auto model_cfg = model.get_cfg();
-    auto cells = model.get_cells();
-
-    auto [Lx, Ly] = model.get_domain_size();
-    double Lx_prime, Ly_prime;
-
-    double dx = 0.1;
-    double dy = 0.2;
-
-    double area_preferential = cells[0].lock()->area_preferential;
-
-    // without compensation
-    model.stretch_domain(dx, 0., false);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx + dx, Lx_prime));
-    BOOST_TEST (test_equal(Ly, Ly_prime));
-    model.stretch_domain(-dx, 0., false);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx, Lx_prime));
-    BOOST_TEST (test_equal(Ly, Ly_prime));
-    BOOST_TEST (test_equal(area_preferential, cells[0].lock()->area_preferential));
-
-    model.stretch_domain(0., dy, false);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx, Lx_prime));
-    BOOST_TEST (test_equal(Ly + dy, Ly_prime));
-    model.stretch_domain(0., -dy, false);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx, Lx_prime));
-    BOOST_TEST (test_equal(Ly, Ly_prime));
-    BOOST_TEST (test_equal(area_preferential, cells[0].lock()->area_preferential));
-
-    // with compensation
-    model.stretch_domain(dx, 0., true);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx + dx, Lx_prime));
-    BOOST_TEST (test_equal(Ly, Ly_prime));
-    BOOST_TEST (area_preferential < cells[0].lock()->area_preferential);
-    model.stretch_domain(-dx, 0., true);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx, Lx_prime));
-    BOOST_TEST (test_equal(Ly, Ly_prime));
-    BOOST_TEST (test_equal(area_preferential, cells[0].lock()->area_preferential));
-
-    model.stretch_domain(0., dy, true);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx, Lx_prime));
-    BOOST_TEST (test_equal(Ly + dy, Ly_prime));
-    BOOST_TEST (area_preferential < cells[0].lock()->area_preferential);
-    model.stretch_domain(0., -dy, true);
-    std::tie(Lx_prime, Ly_prime) = model.get_domain_size();
-    BOOST_TEST (test_equal(Lx, Lx_prime));
-    BOOST_TEST (test_equal(Ly, Ly_prime));
-    BOOST_TEST (test_equal(area_preferential, cells[0].lock()->area_preferential));
-
-    test_weak_links(model);
-
-    destruct_model_factory(model);
-}
-
-BOOST_AUTO_TEST_CASE(Topological_stretch_periodic)
-{
-    test_topological_stretch<true>("test_periodic.yml");
-}
-
-BOOST_AUTO_TEST_CASE(Topological_stretch_non_periodic)
-{
-    test_topological_stretch<false>("test_non_periodic.yml");
-}
+BOOST_AUTO_TEST_SUITE_END()
