@@ -316,7 +316,7 @@ private:
         SpaceVec displ = this->_am.displacement(a, b);
         auto length = arma::norm(displ);
 
-        SpaceVec force = edge->state.linetension * displ / length;
+        auto force = (edge->state.linetension * displ / length).eval();
 
         a->state.f += force;
         b->state.f -= force;
@@ -338,7 +338,8 @@ private:
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
-        auto force = edge->state.contractility * this->_am.displacement(a, b);
+        auto force = (edge->state.contractility *
+                      this->_am.displacement(a, b)).eval();
 
         a->state.f += force;
         b->state.f -= force;
@@ -402,9 +403,9 @@ private:
             double dA_dx = 0.5 * displ[1];
             double dA_dy = -0.5 * displ[0];
 
-            v_center->state.f -= this->_area_elasticity * 
+            v_center->state.f -= (this->_area_elasticity * 
                                  (cell_area - state.area_preferential) * 
-                                 SpaceVec({dA_dx, dA_dy});
+                                 SpaceVec({dA_dx, dA_dy})).eval();
         }
         
         return state;
@@ -427,8 +428,8 @@ private:
             SpaceVec displ = this->_am.displacement(a, b);
             double length = arma::norm(displ);
 
-            SpaceVec force = state.contractility * perimeter * displ /
-                                   length;
+            auto force = (state.contractility * perimeter * displ /
+                          length).eval();
 
             a->state.f += force;
             b->state.f -= force;
