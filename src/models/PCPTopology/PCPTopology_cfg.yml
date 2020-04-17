@@ -188,7 +188,7 @@ equilibration:
   jiggle_tolerance: 1.e-6
 
 epilog:
-  num_equilibration: 5
+  num_equilibrations: 5
 
 # The model for energy minimization
 PCPVertex:
