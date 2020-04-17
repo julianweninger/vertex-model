@@ -13,7 +13,9 @@ PCPVertex:
     setup_params:
       hexagonal: {hexagon_size: 0.62, lattice_columns: 8, lattice_rows: 8}
       single: {size: 0.62}
-    vertex_manager: null
+    vertex_manager:
+      non_periodic_offset: [1, 1]
+
   area_elasticity: 10.0
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0
@@ -21,38 +23,12 @@ PCPVertex:
   data_manager:
     deciders:
       write_always: {type: always}
-      write_at_last:
-        args: {time: 3000}
-        type: once
-      write_slice: &id003
-        args: {start: 0, step: 1, stop: 1000000}
-        type: slice
     tasks:
-      Cell_position: &id001 {active: true, decider: write_slice, trigger: build_slice}
-      Edge_link: *id001
-      Energy_areaelasticity: &id002 {active: true, decider: write_always, trigger: build_once}
-      Energy_cell_cell_polarity: {active: false, decider: write_always, trigger: build_once}
-      Energy_contractility: *id002
-      Energy_lagrange_const_concentration: {active: false, decider: write_always,
-        trigger: build_once}
-      Energy_lagrange_net_polarisation: {active: false, decider: write_always, trigger: build_once}
-      Energy_linetension: *id002
-      Energy_polarity_exclusion: {active: false, decider: write_always, trigger: build_once}
-      Energy_time: *id002
-      Energy_total: *id002
-      Vertex_position: *id001
+      Energy_time: {active: false, decider: write_always, trigger: build_once}
     triggers:
-      build_always: {type: always}
-      build_at_last:
-        args: {time: 1000000}
-        type: once
       build_once:
         args: {time: 0}
         type: once
-      build_once_at_1:
-        args: {time: 1}
-        type: once
-      build_slice: *id003
   dt: 0.01
   gamma: 0.0
   initial_jiggle: 0.05
