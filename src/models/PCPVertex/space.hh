@@ -126,14 +126,11 @@ public:
      *                                  and whether the lines have an
      *                                  intersection
      */
+    template <typename std::enable_if_t<num_dims == 2, int> = 0>
     std::pair<SpaceVec, bool> intersection(SpaceVec pos_0, SpaceVec vec_0,
             SpaceVec pos_1, SpaceVec vec_1,
             bool finite_0=true, bool finite_1=true) const
     {
-        static_assert(this->dim == 2, "Intersection of lines not implemented " 
-                      "in other than in 2 dimensional space! ");
-                      // Space dimension was "+ std::to_string(this->dim)+ ".");
-        
         // work with a copy of pos_1 relative to pos_0
         pos_1 = pos_0 + displacement(pos_0, pos_1);
 
