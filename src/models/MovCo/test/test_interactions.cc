@@ -35,10 +35,6 @@ struct MovCoFixture {
 
 BOOST_FIXTURE_TEST_SUITE(all_units, MovCoFixture)
 
-    BOOST_AUTO_TEST_CASE(model_) {
-        model.run();
-    }
-
     BOOST_AUTO_TEST_CASE(clean_up)
     {
         // Get the first agent
