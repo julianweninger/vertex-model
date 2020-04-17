@@ -26,7 +26,8 @@ struct CellState {
         progenitor,
         hair,
         support,
-        inactive
+        inactive,
+        num_states
     } cell_type;
 
     bool has_hair_neighbor;
@@ -451,11 +452,11 @@ public:
     // Add getters and setters here to interface with other models
     /// Getter for density of different cell types
     std::vector<double> get_densities () const {
-        std::vector<int> count(3, 0.);
+        std::vector<int> count(CellType::num_states, 0.);
         for (auto c : _cm.cells()) {
             count[int(c->state.cell_type)]++;
         }
-        double num_cells = _cm.cells().size();
+        double num_cells = _cm.cells().size() - count[int(CellType::inactive)];
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
     }
 
