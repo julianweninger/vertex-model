@@ -316,7 +316,7 @@ private:
         SpaceVec displ = this->_am.displacement(a, b);
         auto length = arma::norm(displ);
 
-        auto force = edge->state.linetension * displ / length;
+        SpaceVec force = edge->state.linetension * displ / length;
 
         a->state.f += force;
         b->state.f -= force;
