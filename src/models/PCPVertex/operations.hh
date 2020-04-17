@@ -245,7 +245,7 @@ void PCPVertex::increase_domain_size(double area)
                 std::to_string(domain[0] * domain[1]));
     }
     double ratio = domain[0] / domain[1];
-    double ly = std::sqrt(domain[0] * domain[1] + area / ratio);
+    double ly = std::sqrt(domain[1] * domain[1] + area / ratio);
     double lx = ratio * ly;
 
     this->_space->set_domain_size({lx, ly});
