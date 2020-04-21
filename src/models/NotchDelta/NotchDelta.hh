@@ -381,8 +381,7 @@ private:
         auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                 [](auto n) {
-                    return (n->state.cell_type == CellType::hair or
-                            n->state.cell_type == CellType::inactive);
+                    return (n->state.cell_type == CellType::hair);
                 }),
             neighbors.end());
         std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
