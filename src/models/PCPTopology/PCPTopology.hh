@@ -316,7 +316,7 @@ private:
                     and _vertex_model.get_time() - time_start >= 
                             _num_equilibration_steps)
                 {
-                    this->_log->warn("ERROR Equilibrium not reached within {} "
+                    this->_log->error("ERROR Equilibrium not reached within {} "
                         "steps at a tolerance of {}! Energy change in last "
                         "step was {}.", 
                         _num_equilibration_steps,  _equilibration_tolerance,
@@ -327,7 +327,7 @@ private:
                         break;
                     }
                     #ifdef NDEBUG
-                    this->_log->warn("Running model in release mode. Some known "
+                    this->_log->error("Running model in release mode. Some known "
                         "exceptions are only evaluated in debug mode, the author "
                         "recommends to build the model in debug mode!");
                     #endif
@@ -374,7 +374,7 @@ private:
             for (auto [e, flip] : c->custom_links().edges) {
                 const auto [adj_cell_a, adj_cell_b] = am.adjoints_of(e);
                 if (not adj_cell_a or not adj_cell_b) {
-                    this->_log->warn("Cannot divide randomly chosen cell, "
+                    this->_log->error("Cannot divide randomly chosen cell, "
                                       "because it is a boundary cell. Division "
                                       "od boundary cells in non-periodic "
                                       "boundary conditions is not implemented."
@@ -390,7 +390,7 @@ private:
         equilibrate_vertex_model();
 
         if (am.area_of(c) < threshold * c->state.area_preferential) {
-            this->_log->warn("Could not divide cell, because it would "
+            this->_log->error("Could not divide cell, because it would "
                 "not grow to sufficient area. For division requested area: "
                 "75\% of {}. Area reached: {}. !!ABORTING!!",
                 c->state.area_preferential, am.area_of(c));

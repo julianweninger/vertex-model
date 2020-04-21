@@ -54,7 +54,7 @@ void PCPVertex::differentiate_hair_cells_hlpr(
                 continue;
             }
             
-            this->_log->warn("Invalid argument in differentiate_hair_cells."
+            this->_log->error("Invalid argument in differentiate_hair_cells."
                 "Got non symmetric 'linetension' matrix!");
             throw std::invalid_argument("Non symmetric 'linetension'"
                 "matrix");
@@ -66,7 +66,7 @@ void PCPVertex::differentiate_hair_cells_hlpr(
                 continue;
             }
             
-            this->_log->warn("Invalid argument in differentiate_hair_cells."
+            this->_log->error("Invalid argument in differentiate_hair_cells."
                 "Got non symmetric 'edge_contractility' matrix!");
             throw std::invalid_argument("Non symmetric 'edge_contractility'"
                 "matrix");
@@ -135,10 +135,7 @@ void PCPVertex::differentiate_hair_cells_random(
         "and {}% support cells with uniform spatial distribution ...",
         fraction, 1-fraction);
 
-    
-
-    const RuleFuncCell set_type_rand = [this, fraction] (
-            const auto& cell)
+    const RuleFuncCell set_type_rand = [this, fraction] (const auto& cell)
     {
         auto state = cell->state;
         if (this->_prob_distr(*this->_rng) < fraction) {
@@ -184,7 +181,7 @@ void PCPVertex::differentiate_hair_cells_NotchDelta(
     std::unordered_map<std::shared_ptr<Cell>,
                        std::shared_ptr<typename NotchDelta::Cell>> cell_map;
     if (cells.size() > nd_cells.size()) {
-        this->_log->warn("Cells in NotchDelta: {}. Cells in Vertex: {}",
+        this->_log->error("Cells in NotchDelta: {}. Cells in Vertex: {}",
             nd_cells.size(), cells.size());
         throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
             "models. More cells in Vertex than in NotchDelta model!");
@@ -196,6 +193,7 @@ void PCPVertex::differentiate_hair_cells_NotchDelta(
     }
     for (void(); iterator < nd_cells.size(); iterator++) {
         nd_cells[iterator]->state.cell_type = NotchDelta::CellType::inactive;
+        nd_cells[iterator]->custom_links().neighbors.clear();
     }
 
     for (const auto& c : cells) {

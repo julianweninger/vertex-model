@@ -77,23 +77,23 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     }
     // check for valid setting
     if (new_vertices.size() != 2) {
-        this->_log->warn("Cannot perform cell division on cell at ({}, {}), "
+        this->_log->error("Cannot perform cell division on cell at ({}, {}), "
             "with a division angle of {}.", cell_center[0], cell_center[1],
             division_angle / 2 / PI * 360);
-        this->_log->warn("division axis is {}, {} -> {}, {}",
+        this->_log->error("division axis is {}, {} -> {}, {}",
             cell_center[0], cell_center[1],
             (axis + cell_center)[0], (axis + cell_center)[1]);
-        this->_log->warn("Edges of cell are:");
+        this->_log->error("Edges of cell are:");
         for (const auto& [e, flip] : cell->custom_links().edges) {
             auto a = this->position_of(e->custom_links().a);
             auto b = this->position_of(e->custom_links().b);
             if (flip) { std::swap(a, b); }
-            this->_log->warn("   {}, {} -> {}, {}",a[0], a[1], b[0], b[1]);
+            this->_log->error("   {}, {} -> {}, {}",a[0], a[1], b[0], b[1]);
         }
-        this->_log->warn("Intersections are:");
+        this->_log->error("Intersections are:");
         for (const auto& v : new_vertices) {
             auto pos = this->position_of(v);
-            this->_log->warn("   {}, {}", pos[0], pos[1]);
+            this->_log->error("   {}, {}", pos[0], pos[1]);
         }
         throw std::runtime_error("During cell division, expected 2 new "
             "vertices, but got " + std::to_string(new_vertices.size()) + "!");

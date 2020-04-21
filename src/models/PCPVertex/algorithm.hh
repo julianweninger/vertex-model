@@ -57,11 +57,11 @@ std::pair<double, double> PCPVertex::determine_timestep (
                 // the energy function is flat
                 return std::make_pair(0., energy_0);
             }
-            this->_log->warn("At step of {} along direction of "
+            this->_log->error("At step of {} along direction of "
                 "update the energy is still decreasing by {}", dt/2, 
                 energy_2 - energy_1);
             for (double dt = 1e-11; dt < 100.; dt *= 2) {
-                this->_log->warn("DEBUG At step of {} along direction of "
+                this->_log->error("DEBUG At step of {} along direction of "
                     "update the energy is changing by {}", dt, 
                     (this->get_energy(dt) - energy_0)/dt);
             }
@@ -111,13 +111,13 @@ std::pair<double, double> PCPVertex::determine_timestep (
         // the minimum of parabola through 1, 2, min
         double pos_4 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
         if (pos_4 < pos_1 or pos_4 > pos_2) {
-            this->_log->warn("pos_1={}, pos_min={}, pos_2={}",
+            this->_log->error("pos_1={}, pos_min={}, pos_2={}",
                                 pos_1, pos_min, pos_2);
-            this->_log->warn("D_energy_1={}, D_energy_min={}, "
+            this->_log->error("D_energy_1={}, D_energy_min={}, "
                                 "D_energy_2={}. wrt energy_0",
                                 energy_0-energy_1, energy_0-energy_min,
                                 energy_0-energy_2);
-            this->_log->warn("Fitted minimum: x={}", pos_4);
+            this->_log->error("Fitted minimum: x={}", pos_4);
             throw std::runtime_error("Energy minimisation failed! "
                                         "Parabola fit outside brackets");
         }
