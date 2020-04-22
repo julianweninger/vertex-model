@@ -255,7 +255,7 @@ test:model_defaults:
     - utopia run MovCoAktipis --debug
     - utopia run NotchDelta --debug
     - utopia run PCPVertex --debug
-    - utopia run PCPTopology --debug
+    - utopia run PCPTopology --debug --num-steps 5
     - utopia run SavannaHeterogeneous --debug
     - utopia run SavannaHomogeneous --debug
 

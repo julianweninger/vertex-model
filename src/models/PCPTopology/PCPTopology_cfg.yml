@@ -18,20 +18,32 @@
 # --- Space
 # The physical space this model is embedded in
 
-
-
-# --- Initialization parameters
+# --- Operations
+# Proliferation -- cell division
 proliferation:
   active: True
-  num_cell_divisions: 4
-  emit_interval: 1
+  times:
+    prolog: 8
+    begin: -1
+    end: -1
+    iterates: 0
+    emit_interval: 4
 
+# Differentiation of progenitor to hair and support cells
 differentiation:
   active: True
-  hair_cell_fraction: 0.25
+  times:
+    prolog: 0
+    begin: 0
+    end: 0
+    iterates: 1
+    emit_interval: 0
+
+  hair_cell_fraction: 0.25  # only used if method='random'
   notch_delta_steps: 1000
   method: NotchDelta    # can be: NotchDelta, random
-
+  
+  # the matrices defining the interaction for the additional cell types
   linetension:
     progenitor_progenitor: &Linetension 0.1
     progenitor_hair: *Linetension
@@ -51,8 +63,40 @@ differentiation:
     progenitor_support: *Contractility
     hair_hair: *Contractility
     hair_support:  *Contractility
-    support_support: 0.02
+    support_support: *Contractility
 
+# stretch the domain
+stretch_domain:
+  active: true
+  times:
+    begin: 1
+    # no end
+
+  stretch_speed: [0.01, 0.0]
+  fix_hair_cell_volume: True
+
+# for the growth of hair cells at the expense of the support cells
+Environment:
+  cell_manager:
+    cell_params: ~
+    grid:
+      structure: square
+      resolution: 1
+  
+  area_preferential_hair: *Area_preferential
+  area_preferential_support: *Area_preferential
+  
+  env_param_funcs:
+    - increment:
+        area_preferential_hair:
+          value: 0.05
+          times: !listgen [1, 10000]
+          invoke_at_initialization: False
+          # increase is compensated by support cells
+  init_env_state_funcs: ~
+  env_state_funcs: ~
+
+# A model used in differentiation
 NotchDelta:
   space: &NOTCHSPACE
     periodic: false
@@ -88,11 +132,14 @@ NotchDelta:
     #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
     #   last entry for n or more HC neighbors 
     rate_1: 1.
-
+  
+  # HC differentiate if atoh1 accumulated above threshold
   atoh1_threshold: 1.
+  
+  # Swap state with a neighbor with this probability if HC-HC contact
+  rate_swap: 1.
 
-  rate_swap: 0.
-
+  # for the accumulation of atoh1
   Environment:
     space: *NOTCHSPACE
 
@@ -138,37 +185,12 @@ equilibration:
   jiggle_intensity: 0.01
   jiggle_tolerance: 1.e-6
 
-cell_divisions_per_step: 0
-tissue_stretch_speed: [0.01, 0.0]
-fix_hair_cell_volume: True
-
-Environment:
-  cell_manager:
-    cell_params: ~
-    grid:
-      structure: square
-      resolution: 1
-  
-  area_preferential_hair: *Area_preferential
-  area_preferential_support: *Area_preferential
-  
-  env_param_funcs:
-    - increment:
-        area_preferential_hair:
-          value: 0.05
-          invoke_always: True
-          invoke_at_initialization: False
-          # increase is compensated by support cells
-  init_env_state_funcs: ~
-  env_state_funcs: ~
-
-
-
 # epilog:
 #   set_noise_const: 0.1
 #   # set_noise_linear: 0.01
 #   num_epilog_steps: 150000
 
+# The model for energy minimization
 PCPVertex:
   # space periodicity
   periodic_bc: true
@@ -185,9 +207,8 @@ PCPVertex:
   area_preferential: *Area_preferential
 
   # Contractility of perimeter
-  contractility: 0.02
+  contractility: *Contractility
   edge_contractility: *Contractility
-
 
   # Polarity interaction
   gamma: 0.
@@ -195,12 +216,13 @@ PCPVertex:
   cell_polarity_exclusion: 0.
   cell_initialisation_protein_level: 0.
 
+  # topological transition properties
   T1_threshold: 0.01
   T1_probability: 1.
   T1_barrier: 0.001
   T2_threshold: 0.0075
 
-  # Topology parameter
+  # Initialization parameter
   hexagon_size: 0.62
   lattice_rows: 8
   lattice_columns: 8
@@ -284,13 +306,10 @@ PCPVertex:
         active: false
         trigger: build_slice
         decider: write_slice
+      Cell_position: *position
+      Edge_link: *position
 
-      Cell_position:
-        <<: *position
-
-      Edge_link:
-        <<: *position
-
+# plotting
 data_manager:
   # this builds the deciders
   deciders:
@@ -303,6 +322,17 @@ data_manager:
         start: 0
         stop: 10000
         step: 5
+
+    write_composite: &slicer_comp
+      type: simple_composite
+      args:
+        interval:
+          intervals:
+            - [0, 2]
+        slice:
+          start: 0
+          stop: 500
+          step: 5
 
     write_at_last:
       type: once
@@ -326,6 +356,8 @@ data_manager:
     build_always:
       type: always
 
+    build_composite: *slicer_comp
+
     build_at_last:
       type: once
       args: 
@@ -343,8 +375,8 @@ data_manager:
 
     Vertex_position: &Position_topology
         active: true
-        trigger: build_slice
-        decider: write_slice
+        trigger: build_composite
+        decider: write_composite
 
     Cell_position: *Position_topology
 

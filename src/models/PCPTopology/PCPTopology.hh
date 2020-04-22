@@ -107,9 +107,13 @@ public:
     using Base = Model<PCPTopology<periodic_bc, polarity_proteins>,
                                    PCPTopologyModelTypes>;
 
+    /// Type of the config
+    using typename Base::Config;
+
     /// The types of a cell
     using CellType = typename PCPVertex<periodic_bc,
                                         polarity_proteins>::CellType;
+                                    
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
@@ -147,11 +151,6 @@ private:
      */
     double _jiggle_equilibration_tolerance;
 
-    /// The frequency of cell divisions
-    double _cell_divisions_per_step;
-
-    std::pair<double, double> _tissue_stretch_speed;
-
     /// A model where the parameters are changed over time
     /** See PCPTopology::EnvParam for available parameter
      */
@@ -161,18 +160,20 @@ private:
     /** This parameter is updated in PCPTopology::_envm
      */
     arma::Col<double>::fixed<CellType::num_cell_types> _area_preferential;
+    
+    /// Config of operation proliferation
+    Config _cfg_proliferation;
 
-    /// Whether to fix hair cell volume
-    /** \note Hair cell volume and hair cell apical area not necessarily 
-     *        behave the same way. Here volume is kept const.
-     */
-    bool _fix_hair_cell_volume;
+    /// Config of operation differentaition
+    Config _cfg_differentiation;
+
+    /// Config of operation stretch domain
+    Config _cfg_stretch_domain;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
-    bool _equilibrated;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -208,15 +209,9 @@ public:
         _num_jiggle_per_equilibration(0),
         _jiggle_intensity(0.),
         _jiggle_equilibration_tolerance(0.),
-        _cell_divisions_per_step(get_as<double>("cell_divisions_per_step",
-                                                this->_cfg)),
-        _tissue_stretch_speed(get_as<std::pair<double, double>>(
-                                    "tissue_stretch_speed", this->_cfg)),
         _envm("Environment", *this),
         _area_preferential(),
-        _fix_hair_cell_volume(get_as<bool>("fix_hair_cell_volume", this->_cfg)),
-        _prob_distr(0.,1.),
-        _equilibrated(false)
+        _prob_distr(0.,1.)
     {
         if (not this->_cfg["equilibration"]) {
             throw std::invalid_argument("No cfg entry 'equilibration' "
@@ -242,9 +237,29 @@ public:
                 std::to_string(_jiggle_equilibration_tolerance) + " < " +
                 std::to_string(_equilibration_tolerance) + "!");
         }
+                                
+        double area_preferential = get_as<double>("area_preferential",
+                    this->_cfg["PCPVertex"]);            
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            _area_preferential(i) = area_preferential;
+        }
 
-        _envm.track_parameters({"area_preferential_hair",
-                                "area_preferential_support"});
+        // copy operation configs
+        if (not this->_cfg["proliferation"]) {
+            throw KeyError("proliferation", this->_cfg);
+        }
+        _cfg_proliferation = this->_cfg["proliferation"];
+
+        if (not this->_cfg["differentiation"]) {
+            throw KeyError("differentiation", this->_cfg);
+        }
+        _cfg_differentiation = this->_cfg["differentiation"];
+                
+        if (not this->_cfg["stretch_domain"]) {
+            throw KeyError("stretch_domain", this->_cfg);
+        }
+        _cfg_stretch_domain = this->_cfg["stretch_domain"];
+
         this->_log->info("Model set up.");
     }
 
@@ -268,10 +283,6 @@ private:
      *          this is repeated for a maximum of _max_equilibration_iterations
      */
     void equilibrate_vertex_model() {
-        if (_equilibrated) {
-            return;
-        }
-
         double tolerance = _jiggle_equilibration_tolerance;
         int time_0 = _vertex_model.get_time();
         bool repeat = false;
@@ -294,15 +305,15 @@ private:
             
             _vertex_model.jiggle_vertices(intensity);
             _vertex_model.set_minimisation_precision(tolerance);
-            _equilibrated = false;
-            while (not _equilibrated) {
+            bool equilibrated = false;
+            while (not equilibrated) {
                 _vertex_model.iterate();
 
                 double energy_change;
-                std::tie(_equilibrated,
+                std::tie(equilibrated,
                     energy_change) = _vertex_model.equilibrium_state_reached();
                 
-                if (not _equilibrated
+                if (not equilibrated
                     and _vertex_model.get_time() - time_start >= _num_equilibration_steps)
                 {
                     this->_log->warn("ERROR Equilibrium not reached within {} "
@@ -322,7 +333,7 @@ private:
                     #endif
                     throw std::runtime_error("Equilibrium not reached!");
                 }
-                if (not _equilibrated
+                if (not equilibrated
                     and (_vertex_model.get_time() - time_start) % 10 == 0)
                 {
                     _vertex_model.init_minimisation();
@@ -334,7 +345,7 @@ private:
                     throw GotSignal(received_signum.load());
                 }
             }
-            if (_equilibrated) { repeat = false; }
+            if (equilibrated) { repeat = false; }
         }
 
         this->_log->debug("Vertex model equilibrated within {} steps", 
@@ -373,7 +384,6 @@ private:
 
         _vertex_model.increase_domain_size(c->area_preferential);
         c->area_preferential *= 2;
-        _equilibrated = false;
 
         equilibrate_vertex_model();
 
@@ -387,43 +397,27 @@ private:
 
         c->area_preferential /= 2;
         _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
-        _equilibrated = false;
 
-        equilibrate_vertex_model();
         return;
     }
-
-    /// Perform N cell divisions
-    /** \param num_cell_divisions number of cell divisions to be performed
-     * 
-     */
-   void perform_cell_divisions(double num_cell_divisions) {
-        int i;
-        for (i = 1; i <= num_cell_divisions; ++i) {
-            divide_random_cell();
-        }
-        i -= 1;
-        if (num_cell_divisions - i > 0 and 
-                _prob_distr(*this->_rng) < num_cell_divisions - i)
-        {
-            divide_random_cell();
-        }
-    }
-    /// Perform stretch tissue
-    /** \param num_cell_divisions number of cell divisions to be performed
-     * 
-     */
-   void stretch_domain (std::pair<double, double> stretch_speed) {
+    
+    /// Perform stretch domain
+    void stretch_domain () {
+        auto stretch_speed = get_as<std::pair<double, double>>(
+                "stretch_speed", this->_cfg["stretch_domain"]);
+        
         if (std::get<0>(stretch_speed) == 0 and
             std::get<1>(stretch_speed) == 0)
         {
             return;
         }
+        auto fix_hair_cell_volume = get_as<bool>("fix_hair_cell_volume",
+            this->_cfg["stretch_domain"], false);
         double dA = _vertex_model.stretch_domain(
                             std::get<0>(stretch_speed),
                             std::get<1>(stretch_speed),
-                            true, _fix_hair_cell_volume);
-        if (_fix_hair_cell_volume) {
+                            true, fix_hair_cell_volume);
+        if (fix_hair_cell_volume) {
             int num_cells = _vertex_model.get_cells().size();
             for (auto c : _vertex_model.get_cells()) {
                 num_cells -= c.lock()->type == CellType::hair;
@@ -443,27 +437,11 @@ private:
                             _area_preferential(CellType::hair));
         _envm.set_parameter("area_preferential_support",
                             _area_preferential(CellType::support));
-
-        _equilibrated = false;
         return;
    }
 
+    /// Differentiate cells
     void differentiate_cells () {
-        if (not this->_cfg["differentiation"]
-            or not get_as<bool>("active", this->_cfg["differentiation"],
-                                     true))
-        {
-
-            this->_log->debug("No differentiation requested. Continuing.");
-
-            double area_preferential = get_as<double>("area_preferential",
-                        this->_cfg["PCPVertex"]);            
-            for (int i = 0; i < CellType::num_cell_types; i++) {
-                _area_preferential(i) = area_preferential;
-            }
-
-            return;
-        }
         this->_log->debug("Preparing differentiating progenitor cells to hair- "
             "and support-cells ...");
 
@@ -478,12 +456,12 @@ private:
                 "not available in proliferation!");
         }
 
-        _area_preferential(CellType::progenitor) = get_as<double>(
-            "progenitor", this->_cfg["differentiation"]["area_preferential"]);
-        _area_preferential(CellType::hair) = get_as<double>(
-            "hair", this->_cfg["differentiation"]["area_preferential"]);
-        _area_preferential(CellType::support) = get_as<double>(
-            "support", this->_cfg["differentiation"]["area_preferential"]);
+        // initialise area preferential from Vertex model
+        double area_preferential = get_as<double>("area_preferential",
+                                                  this->_cfg["PCPVertex"]);            
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            _area_preferential(i) = area_preferential;
+        }
 
         this->_log->debug("Extracting linetension (expecting {}! entries, "
                           "i.e. the upper diagonal matrix of a {}x{} matrix) ..",
@@ -530,8 +508,7 @@ private:
             for (int j = i+1; j < CellType::num_cell_types; j++) {
                 contractility(j, i) = contractility(i, j);
             }
-        }
-        
+        }        
 
         auto method = get_as<std::string>("method",
                                           this->_cfg["differentiation"]);
@@ -569,7 +546,6 @@ private:
             }
         }
         
-        _equilibrated = false;
         this->_log->info("Differentiated progenitor cells; "
             "there are {} hair cells out of {} cells ({}%)", num_hc,
             cells.size(), double(num_hc)/_vertex_model.get_cells().size());
@@ -577,6 +553,7 @@ private:
         return;
     }
 
+    /// Update the parameters for area preferential from environment model
     void update_area_preferential () {
         double new_value = _envm.get_parameter("area_preferential_hair");
         if (_area_preferential(CellType::hair) == new_value) {
@@ -618,23 +595,123 @@ private:
         _envm.set_parameter("area_preferential_support",
                             _area_preferential(CellType::support));
         
-        _equilibrated = false;
         return;
     }
 
 public:
     // -- Public Interface ----------------------------------------------------
+    /// Perform an operation
+    /** \param operation    The operation to perform
+     *  \param name         The name of the operation
+     *  \param iterates     How often to apply the operation
+     *  \param emit_interval    How often to emit information on the progress
+     *                          If 0, no emit
+     * 
+     *  After every iteration the vertex model is equilibrated
+     */
+    bool perform_operation(std::function<void()> operation, std::string name,
+                           int iterates, int emit_interval)
+    {
+        if (iterates == 0) {
+            return false;
+        }
+
+        if (emit_interval > 0) {
+            this->_log->info("Performing operation '{}' with {} iterates ..",
+                             name, iterates);
+        }
+        else {
+            this->_log->debug("Performing operation '{}' with {} iterates ..",
+                              name, iterates);
+        }
+
+        if (emit_interval == 0) { emit_interval = iterates + 1; }
+
+        for (int i = 0; i < iterates; i++) {
+            operation();            
+            this->equilibrate_vertex_model();
+
+            if ((i+1) % emit_interval == 0) {
+                this->_log->info("   Performed iterate {} of {} on operation "
+                                 "'{}'.", i+1, iterates, name);
+            }
+            else {
+                this->_log->debug("   Performed iterate {} of {} on operation "
+                                  "'{}'.", i+1, iterates, name);
+            }
+        }
+        return true;
+    }
+
+    /// Decider whether to perform an operation given a config
+    /** Decides whether to perform the information dependent on the config at 
+     *  this->_cfg[name].
+     * 
+     *  \param operation    The operation to perform
+     *  \param name         (optional) The name of the operation
+     *  \param prolog       (optional) Whether called during prolog
+     *  \param epilog       (optional) Whether called during epilog
+     * 
+     *  \return whether operation performed
+     */
+    bool perform_operation(std::function<void()> operation, std::string name,
+                           Utopia::DataIO::Config cfg, 
+                           bool prolog=false, bool epilog=false)
+    {
+        int num_steps;
+        if (not get_as<bool>("active", cfg, true)) {
+           return false;
+        }
+        else if (not cfg["times"] and not prolog and not epilog) { 
+            num_steps = 1;
+        }
+        else if (prolog) {
+            num_steps = get_as<int>("prolog", cfg["times"], 0);
+        }
+        else if (epilog) {
+            num_steps = get_as<int>("epilog", cfg["times"], 0);
+        }
+        else {
+            auto time = this->get_time();
+            if (get_as<int>("begin", cfg["times"], 0) > time or 
+                get_as<int>("end", cfg["times"], this->get_time_max()) < time)
+            {
+                return false;
+            }
+            double probability = get_as<double>("probability", cfg["times"], 1);
+            if (probability != 1 and _prob_distr(*this->_rng) > probability) {
+                return false;
+            }
+            
+            num_steps = get_as<int>("iterates", cfg["times"], 1);
+        }
+
+        int emit_interval = get_as<int>("emit_interval", cfg, 0);
+        bool info = get_as<bool>("print_info", cfg, emit_interval > 0);
+        
+        return perform_operation(operation, name, num_steps, emit_interval);
+    }
+
     // .. Simulation Control ..................................................
     /// Iterate a single step
     void perform_step () {
-        _envm.iterate();
+        perform_operation(
+            [this] () {
+                this->_envm.iterate();
+                return this->update_area_preferential(); },
+            "hair cell growth", 1, 0);
 
         // deformations
-        this->update_area_preferential();
-        this->stretch_domain(_tissue_stretch_speed);
-        this->equilibrate_vertex_model();
+        perform_operation(
+            [this] () { return this->divide_random_cell(); },
+            "proliferation", _cfg_proliferation);
+        perform_operation(
+            [this] () { return this->differentiate_cells(); },
+            "differentiation", _cfg_differentiation);
 
-        this->perform_cell_divisions(_cell_divisions_per_step);
+        perform_operation(
+            [this] () { return this->stretch_domain(); },
+            "stretch domain", _cfg_stretch_domain);
     }
 
     /// Monitor model information
@@ -649,44 +726,29 @@ public:
      *      3. default prolog tasks
      */
     void prolog () {
-        _vertex_model.prolog();
+        perform_operation(
+            [this] () { return _vertex_model.prolog(); },
+            "initialise cells", 1, 0);
 
-        if (this->_cfg["proliferation"]
-            and get_as<bool>("active", this->_cfg["proliferation"], true))
-        {
-            auto num_divisions = get_as<int>("num_cell_divisions",
-                                             this->_cfg["proliferation"]);
-            int emit_interval = get_as<int>("emit_interval",
-                                            this->_cfg["proliferation"], 1);
-                                            
-            this->_log->info("Performing {} consecutive cell divisions ...",
-                             num_divisions);
-
-            this->equilibrate_vertex_model();
-            for (int i = 0; i < num_divisions; i++) {
-                if (i % emit_interval == 0) {
-                    this->_log->info("   Performing cell division {} of {} "
-                                      "...", i + 1, num_divisions);
-                }
-                else {
-                    this->_log->debug("   Performing cell division {} of {} "
-                                      "...", i + 1, num_divisions);
-                }
-                this->perform_cell_divisions(1.0);
-            }
-
-            this->_log->info("Model initialised with proliferated vertex model. "
-                             "There are {} cells on equilibrated tissue.",
-                             _vertex_model.get_cells().size());
-        }
+        perform_operation(
+            [this] () { return this->divide_random_cell(); },
+            "proliferation", _cfg_proliferation, true);
+        this->_log->debug("Model initialised with proliferated vertex model. "
+                          "There are {} cells on equilibrated tissue.",
+                          _vertex_model.get_cells().size());
         
-        differentiate_cells();
+        perform_operation(
+            [this] () { return this->differentiate_cells(); },
+            "differentiation", _cfg_differentiation, true);            
+            
+        perform_operation(
+            [this] () {
+                _envm.track_parameters({"area_preferential_hair",
+                                        "area_preferential_support"});
+                this->_envm.prolog();
+                return this->update_area_preferential(); },
+            "hair cell growth", 1, 0);
         
-        _envm.prolog();
-        update_area_preferential();
-
-        this->equilibrate_vertex_model();
-
         return this->__prolog();
     }
 

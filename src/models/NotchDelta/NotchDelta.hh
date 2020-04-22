@@ -25,7 +25,8 @@ struct CellState {
     enum StateType {
         progenitor,
         hair,
-        support
+        support,
+        inactive
     } cell_type;
 
     bool has_hair_neighbor;
@@ -85,12 +86,12 @@ using EnvModel = Environment::Environment<Environment::DummyEnvParam,
 using EnvCell = EnvModel::CellManager::Cell;
 
 /// The type of the link container of cells in the Environment model
-template<class EntityContainerType>
+template<class CellContainer>
 struct EnvLinks {
     /// Link to the associated cell in Environment model
     std::shared_ptr<EnvCell> env;
 
-    EntityContainerType neighbors;
+    CellContainer neighbors;
 };
 
 
@@ -127,7 +128,11 @@ public:
     /// Type of the CellManager to use
     using CellManager = Utopia::CellManager<CellTraits, NotchDelta>;
 
+    /// Type of a cell
     using Cell = CellManager::Cell;
+
+    /// The state type of a cell
+    using CellType = CellState::StateType;
 
     /// Extract the type of the rule function from the CellManager
     /** This is a function that receives a reference to a cell and returns the 
@@ -139,7 +144,10 @@ public:
       */
     using RuleFunc = typename CellManager::RuleFunc;
 
-    using CellType = CellState::StateType;
+    /// The type of a function returning the neighborhood of a cell
+    using NBFuncCell = std::function<CellContainer<Cell>(
+                                const std::shared_ptr<Cell>&)>;
+
 
 
 private:
@@ -219,20 +227,11 @@ public:
         _progenitors_depleted(false),
         _end_simulation(false)
     {
+        // copy the cm neighborhood to custom links
         if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
-            this->_log->info("Setting up costum neighborhood from cell "
-                "manager ..");
             for (auto c : _cm.cells()) {
-                auto neighbors = this->get_cm()->neighbors_of(c);
-                c->custom_links().neighbors.insert(
-                    c->custom_links().neighbors.begin(),
-                    neighbors.begin(),
-                    neighbors.end());
+                c->custom_links().neighbors = _cm.neighbors_of(c);
             }
-        }
-        else {
-            this->_log->info("No neighborhood set up from cell manager. "
-                "Remember to define costum neighborhood for cells");
         }
 
         if (not this->_cfg["rate_ph"]) {
@@ -310,9 +309,13 @@ private:
     };
 
     /// The suppression of atoh1 rule
-    const RuleFunc suppress_atoh1 = [this](const auto& cell) {
+    const RuleFunc suppress_atoh1 = [this](
+            const auto& cell)
+    {
         auto state = cell->state;
         auto env_state = cell->custom_links().env->state;
+
+        if (state.cell_type == CellType::inactive) { return state; }
 
         // number of neighboring hair cells
         int ns_hair = 0;
@@ -336,7 +339,8 @@ private:
     /// The preparation stage for T1_transitions
     /** Tagges all hair cells, that have at least one hair cell neighbor
      */
-    const RuleFunc T1_transition_tag = [this](const auto& cell){
+    const RuleFunc T1_transition_tag = [this](const auto& cell)
+    {
         auto state = cell->state;
 
         if (state.cell_type != CellType::hair) {
@@ -361,8 +365,11 @@ private:
      * 
      *  \note This is an asynchronous rule! It cannot be applied synchronously.
      */
-    const RuleFunc T1_transition = [this](auto& cell){
+    const RuleFunc T1_transition = [this](
+            auto& cell){
         auto state = cell->state;
+
+        if (state.cell_type == CellType::inactive) { return state; }
 
         if (not state.has_hair_neighbor or 
                 _prob_distr(*this->_rng) > _rate_swap)
@@ -372,10 +379,11 @@ private:
 
         auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
-                            [](auto n) { 
-                                return n->state.cell_type == CellType::hair;
-                            }),
-                        neighbors.end());
+                [](auto n) {
+                    return (n->state.cell_type == CellType::hair or
+                            n->state.cell_type == CellType::inactive);
+                }),
+            neighbors.end());
         std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
 
         if (not neighbors.empty()) {
@@ -452,6 +460,7 @@ public:
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
     }
 
+    /// Get the number of hair-hair contacts
     int get_hh_contacts() const {
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
 
@@ -463,6 +472,7 @@ public:
         return cnt / 2;
     }
 
+    /// Getter for the cell manager
     auto get_cm () const {
         return std::make_shared<CellManager>(this->_cm);
     }
