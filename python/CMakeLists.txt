@@ -4,14 +4,14 @@
 message(STATUS "")
 message(STATUS "Providing model information to Utopia frontend ...")
 
-# Register the existing models
-register_models_with_frontend()
+# Declare the directories containing the models tests and plots
+set(UTOPIA_PYTHON_MODEL_TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/model_tests
+    CACHE STRING "the directory containing all python-based model tests" FORCE)
+set(UTOPIA_PYTHON_MODEL_PLOTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/model_plots
+    CACHE STRING "the directory containing all python-based model plots" FORCE)
 
-# Register paths of the additional python plot modules with the frontend.
-# The modules given here are then available as imports under module strings
-# starting with `model_plots.<model_name>`.
-register_plot_module(NAME ccees_group_models
-                     MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/model_plots")
+# Register the existing models and associated frontend-related information
+register_models_with_frontend()
 
 
 # Tests .......................................................................
@@ -41,9 +41,10 @@ execute_process(COMMAND
                 ERROR_VARIABLE output
                 )
 if (NOT ${exit_code} STREQUAL "0")
-    message(SEND_ERROR "Error ${exit_code} in installing additional "
-                       "python requirements!\n"
-                       "Output of pip install was:\n${output}")
+    message(WARNING "Error ${exit_code} in installing additional python "
+                    "requirements! Install the packages defined in the "
+                    "python/requirements.txt file manually to remove this "
+                    "warning.\nOutput of pip install was:\n${output}")
 endif()
 
 

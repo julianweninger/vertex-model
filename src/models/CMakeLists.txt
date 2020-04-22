@@ -10,17 +10,9 @@
 message(STATUS "Starting Utopia model registration ...")
 
 # Register the model directories
-add_subdirectory(Amee)
-add_subdirectory(Hierargrid)
-add_subdirectory(Hierarnet)
-add_subdirectory(mesonet)
-add_subdirectory(MovCo)
-add_subdirectory(MovCoAktipis)
 add_subdirectory(NotchDelta)
 add_subdirectory(PCPTopology)
 add_subdirectory(PCPVertex)
-add_subdirectory(SavannaHeterogeneous)
-add_subdirectory(SavannaHomogeneous)
 # ...
 # NOTE Add your subdirectory above (alphabetically sorted)
 

@@ -3,10 +3,10 @@
 # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
   # Which Utopia base image to use
-  UTOPIA_BASE_IMAGE: ccees/utopia-base:v2.1
+  UTOPIA_BASE_IMAGE: ccees/utopia-base:eoan-v1
 
   # Which repo to use for the framework and which branch to clone from
-  UTOPIA_CLONE_URL: ssh://git@ts-gitlab.iup.uni-heidelberg.de:10022/utopia/utopia.git
+  UTOPIA_CLONE_URL: https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia.git
   # NOTE This should always be the master; change this only for testing!
   UTOPIA_BRANCH: master
 
@@ -14,10 +14,10 @@ variables:
   UTOPIA_DIR: _framework
 
   # Variables for Models Docker image deployment
-  MODELS_BASE_IMAGE_NAME: ccees/models-base
-  MODELS_BASE_IMAGE_VERSION: "1.1"
-  MODELS_BASE_IMAGE: "${MODELS_BASE_IMAGE_NAME}:v${MODELS_BASE_IMAGE_VERSION}"
-  # NOTE Do not forget to increment the MODELS_BASE_IMAGE_VERSION when changes
+  VERTEX_MODEL_BASE_IMAGE_NAME: ccees/vertex-model-base
+  VERTEX_MODEL_BASE_IMAGE_TAG: "1.0"
+  VERTEX_MODEL_BASE_IMAGE: "${VERTEX_MODEL_BASE_IMAGE_NAME}:v${VERTEX_MODEL_BASE_IMAGE_TAG}"
+  # NOTE Do not forget to increment the VERTEX_MODEL_BASE_IMAGE_TAG when changes
   #      to the docker file are introduced.
 
   # Docker Hub login command
@@ -30,6 +30,12 @@ variables:
   CPUS_BUILD: 4
   CPUS_TEST: 4
 
+  # Global compiler flags
+  # NOTE: This should improve the test runtime but might lead to erroneous
+  #       coverage reports.
+  # NOTE: This will also be applied to the debug build.
+  CXXFLAGS: -Og
+
   # Build flags
   MAKE_FLAGS_BUILD: -j$CPUS_BUILD
   MAKE_FLAGS_TEST: -j$CPUS_TEST
@@ -40,44 +46,18 @@ variables:
 
 
 # Define the image to use for all stages
-image: ${MODELS_BASE_IMAGE}
+image: ${VERTEX_MODEL_BASE_IMAGE}
 
 stages:
   - setup     # set up the Docker base image for testing
   - prep      # prepare the utopia framework repo and configure utopia
   - build     # build models and tests
   - test      # carry out tests
+  - report    # Compile reports on testing
 
 
 # .. YAML Templates ...........................................................
 # This makes includes below easier using the `<<: *anchor_name` syntax
-
-# To install the python environment, the configuration needs access to
-# external but private repositories; by adding a deploy key to selected jobs,
-# the pull from these repositories becomes possible. The key is available under
-# the SSH_PRIVATE_KEY variable.
-.ssh-access: &ssh_access
-  before_script:
-    # For outside dependencies, use the "Utopia CI" deploy key
-    # Instructions:
-    #   https://docs.gitlab.com/ce/ci/ssh_keys/
-    # Run ssh-agent (inside the build environment)
-    - eval $(ssh-agent -s)
-
-    # Add the SSH key stored in SSH_PRIVATE_KEY variable to the agent store
-    # We're using tr to fix line endings which makes ed25519 keys work
-    # without extra base64 encoding.
-    # https://gitlab.com/gitlab-examples/ssh-private-key/issues/1#note_48526556
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
-    
-    # Create the SSH directory and give it the right permissions
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    
-    # Add the known hosts lists to ensure this ssh connection is the right one
-    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-    - chmod 644 ~/.ssh/known_hosts
-
 
 # Create artifacts of the build directory
 .artifacts: &artifacts
@@ -109,44 +89,42 @@ stages:
 # -- Setup stage --------------------------------------------------------------
 # This stage takes care to build the Models base testing image
 
-setup:models-base:
+setup:vertex-model-base:
   <<: *dind
   stage: setup
   only:
     - master
     - web
   script:
-    - docker build -f docker/models-base.dockerfile
+    - docker build -f docker/vertex-model-base.dockerfile
                    --build-arg UTOPIA_BASE_IMAGE=$UTOPIA_BASE_IMAGE
-                   -t $MODELS_BASE_IMAGE
+                   -t $VERTEX_MODEL_BASE_IMAGE
                    ./
-    - docker push $MODELS_BASE_IMAGE
+    - docker push $VERTEX_MODEL_BASE_IMAGE
 
 # -- Preparation stage --------------------------------------------------------
 # This stage sets up the Utopa framework, the main dependency of this repo
 
 prep:framework:
-  <<: [*ssh_access, *artifacts]
+  <<: [*artifacts]
   stage: prep
   script:
     # Clone the framework repo to a specific directory and check out the
     # desired branch. By cloning into a subdirectory inside the project
     # directory, artifacts can be used.
-    - git clone --recurse-submodules -b $UTOPIA_BRANCH $UTOPIA_CLONE_URL $UTOPIA_DIR 
+    - git clone --recurse-submodules -b $UTOPIA_BRANCH $UTOPIA_CLONE_URL $UTOPIA_DIR
 
     # Create build directory and configure
     - cd $UTOPIA_DIR && mkdir build && cd build
     - cmake -DCMAKE_BUILD_TYPE=Release ..
-    # NOTE: Would actually have something like `make utopia`, but the current
-    #       INTERFACE library is no build target. Thus, build all its
-    #       dependencies here explicitly.
-    - make $MAKE_FLAGS_BUILD yaml-cpp
-    # ... no need to install.
 
     # Now, move back to the project directory and configure, specifying the
     # Utopia directory.
     - cd $CI_PROJECT_DIR && mkdir build && cd build
-    - cmake -DUtopia_DIR=$CI_PROJECT_DIR/$UTOPIA_DIR/build ..
+    - cmake
+      -DUtopia_DIR=$CI_PROJECT_DIR/$UTOPIA_DIR/build
+      -DCPP_COVERAGE=On
+      ..
 
     # Show available models
     - $RUN_IN_UTOPIA_ENV utopia models ls
@@ -162,7 +140,7 @@ prep:framework:
 # The artifacts of the tests and models jobs are needed in the test stage
 
 # Build the models and their tests; artifacts used in test stage
-build:models: &build
+build:all: &build
   <<: *artifacts
   stage: build
   dependencies:
@@ -174,7 +152,8 @@ build:models: &build
     - &copy_config_to_home cp -r $CI_PROJECT_DIR/.config ~/
     - &copy_cmake_reg_to_home cp -r $CI_PROJECT_DIR/.cmake ~/
   script:
-    - cd build
+    - cd $CI_PROJECT_DIR/build
+    - make $MAKE_FLAGS_BUILD build_tests_models
     - make $MAKE_FLAGS_BUILD all
 
 # Build in debug mode, once with gcc and once with clang
@@ -184,37 +163,34 @@ build:debug: &build_debug
   before_script:
     - *copy_config_to_home
     - *copy_cmake_reg_to_home
-  script:
-    - cd build
+    - cd $CI_PROJECT_DIR/build
     - cmake
         -DCMAKE_BUILD_TYPE=Debug
-        -DCMAKE_CXX_FLAGS_DEBUG='-Werror'
+        -DCMAKE_CXX_FLAGS_DEBUG='-Werror -Wall -Wextra'
       ..
-    - make $MAKE_FLAGS_BUILD build_tests_models
-    - make $MAKE_FLAGS_BUILD all
 
 build:debug-clang:
   <<: *build_debug
-  script:
-    - cd build
+  before_script:
+    - *copy_config_to_home
+    - *copy_cmake_reg_to_home
+    - cd $CI_PROJECT_DIR/build
     - cmake
         -DCMAKE_BUILD_TYPE=Debug
         -DCMAKE_C_COMPILER=clang
         -DCMAKE_CXX_COMPILER=clang++
-        -DCMAKE_CXX_FLAGS_DEBUG='-Werror'
+        -DCMAKE_CXX_FLAGS_DEBUG='-Werror -Wall -Wextra'
       ..
-    - make $MAKE_FLAGS_BUILD build_tests_models
-    - make $MAKE_FLAGS_BUILD all
 
 # Build the documentation; artifacts retained for verification
 build:docs:
   stage: build
-  <<: *ssh_access
   artifacts:
     name: "$CI_JOB_NAME"
     paths:
       - $CI_PROJECT_DIR/build/doc
-    expire_in: 1 day
+    expire_in: 1 week
+    expose_as: Documentation
   script:
     - cd build
     - make doc
@@ -228,8 +204,9 @@ test:models: &model_defaults
   <<: *artifacts
   stage: test
   dependencies:
-    # Use the debug build as dependency; needed for assert-based tests
-    - build:debug
+    - build:all
+  needs:
+    - build:all
   before_script:
     - *copy_config_to_home
     - *copy_cmake_reg_to_home
@@ -243,20 +220,44 @@ test:models: &model_defaults
 test:model_defaults:
   <<: *model_defaults
   dependencies:
-    - build:models
+    - build:all
+  needs:
+    - build:all
   script:
     - $ENTER_UTOPIA_ENV
 
-    - utopia run Amee --debug --sweep --no-plot
-    - utopia run Hierargrid --debug
-    - utopia run Hierarnet --debug
-    - utopia run mesonet --debug
-    - utopia run MovCo --debug
-    - utopia run MovCoAktipis --debug
     - utopia run NotchDelta --debug
     - utopia run PCPVertex --debug
     - utopia run PCPTopology --debug --num-steps 5
-    - utopia run SavannaHeterogeneous --debug
-    - utopia run SavannaHomogeneous --debug
 
     # NOTE Add your newly implemented model here (in alphabetical order)
+
+
+# -- Report stage ---------------------------------------------------------------
+# Using the artifacts of the test stage, compile reports on the tests
+
+# Install gcovr and extract coverage reports
+report:coverage:
+  stage: report
+  variables:
+    # Limit report to models repo, exclude any paths containing 'test'
+    GCOVR_PATHS:
+      --root $CI_PROJECT_DIR
+      --filter $CI_PROJECT_DIR/src/models
+      --exclude '.*[Tt]est.*'
+  script:
+    - source $CI_PROJECT_DIR/build/activate
+    - pip3 install gcovr
+    - cd $CI_PROJECT_DIR/build
+    - mkdir coverage
+    # Run once for report in HTML format
+    - gcovr $GCOVR_PATHS --html --html-details -o coverage/report.html
+    # Run again for coverage report in GitLab
+    - gcovr $GCOVR_PATHS
+  coverage: '/^TOTAL.*\s+(\d+\%)$/'
+  artifacts:
+    name: "$CI_JOB_NAME"
+    expose_as: Coverage report
+    paths:
+      - $CI_PROJECT_DIR/build/coverage/
+    expire_in: 1 week

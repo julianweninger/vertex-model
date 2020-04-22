@@ -1,12 +1,19 @@
 # Set minimum CMake version to the one supplied with Ubuntu 18.04
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13)
 
 # Start the project
-project(UtopiaModels
-    DESCRIPTION "Additional models for the Utopia framework"
+project(UtopiaVertexModel
+    DESCRIPTION "The vertex model and associated models within the Utopia framework"
     LANGUAGES C CXX
     VERSION 0.1
 )
+
+# Parse CMake options
+include(CMakeDependentOption)
+# Option is only presented if CMAKE_BUILD_TYPE is not set to 'Release'.
+# It always defaults to OFF and will always be OFF for 'Release' builds.
+cmake_dependent_option(CPP_COVERAGE "Compile C++ code with coverage flags" OFF
+                       "NOT CMAKE_BUILD_TYPE STREQUAL Release" OFF)
 
 # --- CMake Modules ---
 
@@ -17,6 +24,12 @@ list(INSERT CMAKE_MODULE_PATH 0 ${module_path})
 # Load the Utopia macros and execute them here
 # (This checks dependencies, enables CMake functions, etc.)
 include(UtopiaModelsMacros)
+
+# add extra flags to debug compiler flags
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra")
+# NOTE The ${CMAKE_CXX_FLAGS_DEBUG} variable can be set in the cache. This is,
+#      for example, used in the CI/CD pipeline to add additional flags to DEBUG
+
 
 # Create symlinks to the Utopia Python virtual environment
 include(CreateSymlink)

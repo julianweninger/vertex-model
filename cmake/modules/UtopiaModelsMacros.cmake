@@ -9,9 +9,6 @@ endif ()
 # Utopia, for sure!
 find_package(Utopia REQUIRED)
 
-# FFTW3 for SavannaHeterogeneous model
-find_package(FFTW3 3.3 REQUIRED)
-
 # Doxygen for the C++ documentation
 find_package(Doxygen
              OPTIONAL_COMPONENTS dot)

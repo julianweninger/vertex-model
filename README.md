@@ -1,6 +1,8 @@
 # Utopia Model Repository
 
-This private repository contains [Utopia] models developed in the TS-CCEES group.
+This private repository contains the vertex models within [Utopia] developed in
+Karsten Kruse's group at University of Geneva and Madan Rao's group at Simon
+Centre, National Centre for Biological Sciences, Bangalore.
 
 If not mentioned explicitly, all instructions and considerations from the
 main repository still apply here.
@@ -20,8 +22,8 @@ development environment, as indicated in the framework repository's
 [`README.md`](https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia/blob/master/README.md)
 
 ### Step-by-step Instructions
-These instructions are intended for 'clean' __Ubuntu__ (18.04) or __macOS__
-setups with Utopia _built_ by your user.
+These instructions are intended for 'clean' __Ubuntu__ or __macOS__ setups
+with Utopia already _built_ by your user.
 
 #### 0 — Setup Utopia
 Make sure to `git checkout` your desired branch of the main Utopia repository,
@@ -35,29 +37,20 @@ With access to the Utopia GitLab group, you can clone the repository to that
 directory using the following command:
 
 ```bash
-git clone https://ts-gitlab.iup.uni-heidelberg.de/utopia/models.git
+git clone https://ts-gitlab.iup.uni-heidelberg.de/utopia/vertex-model.git
 ```
 
 Inside your top level `Utopia` directory, there should now be two repositories:
 * `utopia`: the framework code
-* `models`: *this* repository, with CCEES group-internal models
+* `vertex-model`: *this* repository, with the vertex model's code and associated
+                  model's code
 
 #### 2 — Install dependencies
 Install the third-party dependencies using a package manager. We recommend
 APT on Ubuntu and Homebrew on macOS. Please consider the notes given in the
 section on installing dependencies in the Utopia framework repository.
 
-##### On Ubuntu 18.04
-```bash
-apt update
-apt install libfftw3-dev graphviz libgraphviz-dev
-```
-
-##### On macOS
-```bash
-brew update
-brew install fftw graphviz
-```
+No additional dependencies required.
 
 #### 3 — Configure and build
 Enter the repository and create your desired build directory:
@@ -78,10 +71,10 @@ The terminal output will show the configuration steps, which includes the
 installation of further Python dependencies and the creation of a virtual
 environment.
 
-After this, you can build a specific or all Utopia models using:
+After this, you can build a specific or all vertex-models using:
 
 ```bash
-make mesonet   # builds only the mesonet model
+make PCPVertex   # builds only the PCPVertex model
 make -j4 all   # builds all models, using 4 CPUs
 ```
 
@@ -102,7 +95,7 @@ models of this repository should be available. List all available models
 with
 
 ```bash
-utopia model ls
+utopia models ls
 ```
 
 and perform a simulation run for `MyModel` with
@@ -110,6 +103,11 @@ and perform a simulation run for `MyModel` with
 ```bash
 utopia run MyModel
 ```
+
+#### 5 — Stay up-to-date
+This last step remains relevant even after you finished your installation.
+Have a look at the [contribution guide](CONTRIBUTING.md) to see the tasks that you should carry out periodically in order to stay up-to-date with both your installation and your model implementation.
+
 
 ### Troubleshooting
 * If the `cmake ..` command fails because it cannot locate the Utopia main
@@ -155,7 +153,7 @@ dependencies are installed. This virtual environment is located in the
 directory of this project. You can enter it by specifying the correct path:
 
 ```bash
-source <path/to/{utopia,models}>/build/activate
+source <path/to/{utopia,vertex-model}>/build/activate
 ```
 
 Now, your shell should be prefixed with `(utopia-env)`. All the following
@@ -183,6 +181,9 @@ Please refer to the [documentation of the main repository](https://hermes.iup.un
 Note that your *personal* model should be implemented in *this* repository.
 Any code that you would like to implement in a more general fashion should go into the framework repository.
 
+**Important:** Have a look at the [contribution guide](CONTRIBUTING.md) which provides guidelines on how to properly work with Utopia.
+
+
 ### Testing
 Not all test groups of the main project are available in this repository.
 
@@ -201,13 +202,19 @@ _Note:_
 * Notice that you cannot execute tests for models of the main project in this
   repository.
 
+#### Evaluating Test Code Coverage
+Code coverage is useful information when writing and evaluating tests.
+The coverage percentage of the C++ code is reported via the GitLab CI pipeline.
+Check the
+[`README.md` in the main repository](https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia#c-code-coverage)
+for information on how to compile your code with coverage report flags and how
+to retrieve the coverage information.
 
 
 ## Dependencies
-| Software  | Version | Comments |
-| --------- | ------- | -------- |
-| [FFTW](http://www.fftw.org/) | >=3.3 | |
-| [graphviz](https://www.graphviz.org) | >=2.42 | required for `pygraphviz` |
+
+The version numbers given here are those available in the testing image, based on Ubuntu 19.10.
+These version numbers are _not_ enforced.
 
 
 ### Additional Python Dependencies
