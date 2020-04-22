@@ -270,6 +270,7 @@ public:
                 "2 entries in dict 'rate_atoh1'!");
         }
 
+
         if (_atoh1_threshold <= 0.) {
             _atoh1_threshold = 1e-10;
         }

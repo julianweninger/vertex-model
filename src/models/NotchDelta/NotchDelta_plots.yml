@@ -54,7 +54,7 @@ state_anim:
   file_ext: png
 
   enabled: true
-  
+
   to_plot:
     CM/Cell_type:
       title: Cell Type
