@@ -222,7 +222,7 @@ PCPVertex:
   # --- Dynamics
   # damping factor
   dt: 0.01
-  update_scheme: conjugate_gradient
+  update_scheme: steepest_gradient_adaptive
 
   area_elasticity: 1.
 
