@@ -1,0 +1,92 @@
+# A minimal configuration to do cell proliferation
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/minimal_run_cfg.yml \
+#                      --plots-cfg src/models/PCPTopology/cfgs/minimal_plots.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+perform_sweep: false
+
+paths:
+  model_note: default_proliferation
+
+parameter_space:
+  num_steps: 10
+
+  PCPTopology:  
+    space: &SPACE
+      periodic: true
+      # NOTE currently only periodic boundary working
+
+    proliferation:
+      active: True
+      times:
+        # define here the how many proliferations to do before t = 0
+        prolog: 4
+        # define here when to perform this operation for t >= 0
+        begin: 0
+        end: 100000     # Stop here or after `num_steps` defined above
+        iterates: 1     # does one cell division every step
+
+    differentiation:
+      active: False
+
+    stretch_domain:
+      active: False
+
+    # for the growth of hair cells at the expense of the support cells
+    Environment:      
+      env_param_funcs: ~
+
+    # --- Dynamics
+    # Equilibration parameter
+    equilibration:
+      tolerance: 1.e-8
+      num_jiggle: 5
+      jiggle_intensity: 0.04
+      jiggle_tolerance: 1.e-6
+
+    # The model for energy minimization
+    PCPVertex:
+      agent_manager:
+        edge_manager:
+          agent_params:
+            linetension: 0.1
+            contractility: 0.5
+        cell_manager:
+          agent_params:
+            contractility: 0.
+      data_manager: &data_manager # plotting of PCPVertex
+        deciders:
+          write_slice: &slicer
+            args:
+              start: 0
+              stop: 500
+              step: 50
+        triggers:
+          build_slice: *slicer  
+        tasks:
+          Vertex_position: &position
+            active: true
+          Cell_position: *position
+          Edge_link: *position
+
+    # plotting of PCPTopology
+    data_manager:
+      deciders:
+        write_composite: &slicer_comp
+          type: simple_composite
+          args:
+            # interval:
+            #   intervals:
+            #     - [0, 2]
+            slice:
+              start: 0
+              stop: 50
+              step: 5
+      triggers:
+        build_composite: *slicer_comp
+    

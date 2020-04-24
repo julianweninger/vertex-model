@@ -188,7 +188,8 @@ equilibration:
   jiggle_tolerance: 1.e-6
 
 epilog:
-  num_equilibrations: 5
+  num_equilibrations: 0
+  # NOTE there is no data produced during epilog :/
 
 # The model for energy minimization
 PCPVertex:
