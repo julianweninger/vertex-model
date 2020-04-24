@@ -2,13 +2,13 @@
 ``NotchDelta`` - A model for the NotchDelta pathway of cell differentiation
 ===========================================================================
 
-This is a model for the differentiation of `progenitor` cells to the cell types `hair` and `support` in the NotchDelta pathway.
+This is a model for the differentiation of `progenitor` cells to the terminal cell types `hair` and `support` in the NotchDelta pathway.
 
 
 Model Fundamentals
 ------------------
 
-In the NotchDelta pathway the `progenitor` cells differentiates to `support` cells at a constant rate and to `hair` cells if the concentration of atoh1 exceeds a threshold value.
+In the NotchDelta pathway the `progenitor` cells differentiate to `support` cells at a constant rate and to `hair` cells if the concentration of atoh1 exceeds a threshold value.
 Furthermore, `hair` cells suppress the accumulation of atoh1 in neighboring cells.
 Eventually, the two terminally differentiated cells interact at their cellular junctions in a way that `support`-`hair` and `support`-`support` contacts are energetically favored over `hair`-`hair` contacts.
 Thinking of a real tissue of cells as a liquid on long time-scales, this disfavored `hair`-`hair` junctions lead to what is called T1 transitions -- the exchange of neighborhood, i.e. the elimination of a `hair`-`hair` contact.
@@ -17,10 +17,11 @@ In this model, we include these T1 transitions as swapping of states: Whenever a
 This leads to the following set of rules
 
 #. atoh1 increases with exponential random distribution ($\lambda$)
-#. HCs suppress atoh1 accumulation in neighbouring cells
+#. HCs suppress atoh1 in neighbouring cells
 #. Progenitors differentiate to SCs at constant rate
 #. Progenitors differentiate to HCs if atoh1 accumulated to threshold value
-#. On regular lattice only: if HC-HC contacts, T1 transitions possible
+#. Tag hair cells that have at least one hair cell neighbor.
+#. if HC-HC contact tagged, T1 transitions possible, i.e. swap state with one random non HC neighbor
 
 
 Implementation Details

@@ -9,8 +9,6 @@ hair_hair_contacts:
   model_name: NotchDelta
   file_ext: png
 
-  enabled: true
-
   path_to_data: Densities/Number_hair_hair_contacts
   label: Hair-hair contacts
 
@@ -23,8 +21,6 @@ densities:
   based_on: .basic_uni.lineplots
   model_name: NotchDelta
   file_ext: png
-
-  enabled: true
 
   to_plot: 
     Densities/Hair:

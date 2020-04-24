@@ -21,7 +21,7 @@ namespace Utopia::Models::NotchDelta {
 
 /// The type of a cell's state
 struct CellState {
-    /// The state
+    /// The type of a cell
     enum StateType {
         progenitor,
         hair,
@@ -30,6 +30,7 @@ struct CellState {
         num_states
     } cell_type;
 
+    /// Whether has neighbor of type hair
     bool has_hair_neighbor;
 
     /// Construct the cell state from a configuration
@@ -92,6 +93,7 @@ struct EnvLinks {
     /// Link to the associated cell in Environment model
     std::shared_ptr<EnvCell> env;
 
+    /// The custom neighborhood
     CellContainer neighbors;
 };
 
@@ -157,6 +159,10 @@ private:
 
     // -- Members -------------------------------------------------------------
     /// The cell manager
+    /** \note the neighborhood defined in the cell manager is copied to the 
+     *        custom neighborhood in `custom_links` and should not be accessed
+     *        in the cell manager!
+     */
     CellManager _cm;
 
     /// The Environment model
@@ -197,6 +203,7 @@ private:
     // .. Temporary objects ...................................................
     bool _progenitors_depleted;
 
+    /// Whether to end the simulation after all cell have differentiated
     bool _end_simulation;
 
 
@@ -436,11 +443,13 @@ public:
                                  densities[CellType::support]);
     }
 
+    /// The custom prolog
     void prolog () {
         _envm.prolog();
         return this->__prolog();
     }
 
+    //// The custom epilog
     void epilog () {
         _envm.epilog();
         return this->__epilog();
@@ -476,6 +485,7 @@ public:
         return std::make_shared<CellManager>(this->_cm);
     }
 
+    /// Whether the simulation is finished because all cells have differentiated
     bool simulation_ended () const {
         return _end_simulation;
     }

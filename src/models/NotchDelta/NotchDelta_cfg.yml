@@ -24,7 +24,7 @@ space: &SPACE
 cell_manager:
   grid:
     structure: square
-    resolution: 64
+    resolution: 16
 
   neighborhood:
     mode: Moore
