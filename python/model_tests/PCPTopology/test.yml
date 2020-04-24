@@ -56,8 +56,8 @@ parameter_space:
             contractility: 0.02      
       gamma: 0.0
       update_scheme: !sweep
-        default: conjugate_gradient
-        values: [conjugate_gradient, steepest_gradient]
+        default: steepest_gradient_adaptive
+        values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
 
     equilibration:
       tolerance: 1.e-5
