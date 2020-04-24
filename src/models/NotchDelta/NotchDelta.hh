@@ -469,10 +469,10 @@ public:
     }
 
     /// Get the number of hair-hair contacts
-    int get_hh_contacts() const {
+    unsigned int get_hh_contacts() const {
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
 
-        int cnt = 0;
+        unsigned int cnt = 0;
         for (auto c : _cm.cells()) {
             cnt += c->state.has_hair_neighbor;
         }
@@ -481,8 +481,8 @@ public:
     }
 
     /// Getter for the cell manager
-    auto get_cm () const {
-        return std::make_shared<CellManager>(this->_cm);
+    const auto& get_cm () const {
+        return this->_cm;
     }
 
     /// Whether the simulation is finished because all cells have differentiated
