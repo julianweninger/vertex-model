@@ -350,6 +350,7 @@ private:
     const RuleFunc T1_transition_tag = [this](const auto& cell)
     {
         auto state = cell->state;
+        state.has_hair_neighbor = false;
 
         if (state.cell_type != CellType::hair) {
             return state;
@@ -358,11 +359,10 @@ private:
         for (auto&& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
-                return state;
+                break;
             }
         }
-        state.has_hair_neighbor = false;
-        
+
         return state;
     };
 
@@ -385,19 +385,24 @@ private:
             return state;
         }
 
+        // remove the hair cells from neighbors
         auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                 [](auto n) {
                     return (n->state.cell_type == CellType::hair);
                 }),
             neighbors.end());
-        std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
 
         if (not neighbors.empty()) {
-            auto n = neighbors.back();
+            // select a random neighbor
+            std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
+            auto n = neighbors.back(); 
+
+            // swap the state and the env->state (atoh1, etc.)
             std::swap(state, n->state);
             std::swap(cell->custom_links().env->state,
                       n->custom_links().env->state);
+            // NOTE keep the geometric properties like neighbors
         }
         
         return state;
