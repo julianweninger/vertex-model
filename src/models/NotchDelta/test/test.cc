@@ -129,7 +129,7 @@ BOOST_AUTO_TEST_CASE(test_custom_neighborhood)
             num_hh_contacts++;
         }
     }
-    BOOST_TEST(num_hh_contacts / 2 == model.get_hh_contacts());
+    BOOST_TEST(num_hh_contacts == model.get_hh_contacts());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
