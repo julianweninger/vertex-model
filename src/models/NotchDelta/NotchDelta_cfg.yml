@@ -56,7 +56,7 @@ atoh1_suppression:
 
 atoh1_threshold: 1.
 
-rate_swap: 0.
+rate_swap: 0.1
 
 Environment:
   space:

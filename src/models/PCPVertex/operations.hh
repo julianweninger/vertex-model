@@ -175,8 +175,8 @@ void PCPVertex::differentiate_hair_cells_NotchDelta(
     this->_log->debug("Differentiating progenitor cells to hair "
         "and support cells using the NotchDelta model ...");
 
-    const auto nd_cells = notch_delta->get_cm().cells();
-    const auto cells = _am.cells();
+    const auto& nd_cells = notch_delta->get_cm().cells();
+    const auto& cells = _am.cells();
 
     std::unordered_map<std::shared_ptr<Cell>,
                        std::shared_ptr<typename NotchDelta::Cell>> cell_map;
@@ -210,16 +210,16 @@ void PCPVertex::differentiate_hair_cells_NotchDelta(
     }
     notch_delta->epilog();
 
-    for (auto pair = cell_map.begin(); pair != cell_map.end(); pair++) {
-        auto type = pair->second->state.cell_type;
+    for (const auto [cell, nd_cell] : cell_map) {
+        auto type = nd_cell->state.cell_type;
         if (type == NotchDelta::CellType::hair) {
-            pair->first->state.type = CellType::hair;
+            cell->state.type = CellType::hair;
         }
         else if (type == NotchDelta::CellType::support) {
-            pair->first->state.type = CellType::support;
+            cell->state.type = CellType::support;
         }
         else {
-            pair->first->state.type = CellType::progenitor;
+            cell->state.type = CellType::progenitor;
         }
     }
 

@@ -10,6 +10,7 @@
 #include <utopia/core/model.hh>
 #include <utopia/core/cell_manager.hh>
 #include <utopia/core/apply.hh>
+#include <utopia/core/select.hh>
 
 #include <utopia/models/Environment/Environment.hh>
 
@@ -345,7 +346,7 @@ private:
     };
     
     /// The preparation stage for T1_transitions
-    /** Tagges all hair cells, that have at least one hair cell neighbor
+    /** Tagges a hair cell, if has at least one hair cell neighbor
      */
     const RuleFunc T1_transition_tag = [this](const auto& cell)
     {
@@ -366,21 +367,20 @@ private:
         return state;
     };
 
-    /// The T1 intercalation rule
-    /** If cell is tagged from NotchDelta::T1_transition_tag, then it swaps
-     *  state with a non-hair cell typed neighbor with probability
-     *  NotchDelta::_rate_swap 
+    /// The T1 transition rule
+    /** Tag cells using NotchDelta::T1_transition_tag.
+     *  If tagges, it swaps state with a random non-hair cell typed neighbor
      * 
      *  \note This is an asynchronous rule! It cannot be applied synchronously.
+     *  \note This rule is deterministic
      */
     const RuleFunc T1_transition = [this](
             auto& cell){
         auto state = cell->state;
 
-        if (state.cell_type == CellType::inactive) { return state; }
+        state = T1_transition_tag(cell);
 
-        if (not state.has_hair_neighbor or 
-                _prob_distr(*this->_rng) > _rate_swap)
+        if (not state.has_hair_neighbor)
         {
             return state;
         }
@@ -414,6 +414,12 @@ public:
     // .. Simulation Control ..................................................
 
     /// Iterate a single step
+    /** \details Performs the following rules
+     *      -# Stop simulation, if no progenitor cells left
+     *      -# NotchDelta::suppress_atoh1
+     *      -# NotchDelta::transition
+     *      -# NotchDelta::T1_transition
+     */
     void perform_step () {
         if (_progenitors_depleted) {
             if (not _end_simulation) {
@@ -429,8 +435,10 @@ public:
         apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
         apply_rule<Update::sync>(transition, _cm.cells());
 
-        apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
-        apply_rule<Update::async>(T1_transition, _cm.cells(), *this->_rng);
+        apply_rule<Update::async>(
+            T1_transition,
+            select_entities<SelectionMode::probability>(_cm, _rate_swap),
+            *this->_rng);
     }
 
     /// Monitor model information
@@ -473,7 +481,7 @@ public:
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
     }
 
-    /// Get the number of hair-hair contacts
+    /// Get the number of hair cells that have at least one hair cell neighbor
     unsigned int get_hh_contacts() const {
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
 
@@ -482,7 +490,7 @@ public:
             cnt += c->state.has_hair_neighbor;
         }
 
-        return cnt / 2;
+        return cnt;
     }
 
     /// Getter for the cell manager
