@@ -109,10 +109,15 @@ private:
     /// timestep scaling
     double _dt;
 
-    /// The update scheme to choose
-    /** See PCPVertex::perform_update_step .
+    /// The update scheme for energy minimisation
+    /** Currently implemented update schemes:
+     *      -# steepest_gradient : Steepest gradient update at fixed step size
+     *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
+     *              step size. Step size is to next minimum of energy in the 
+     *              direction of steepest gradient
+     *      -# conjugate_gradient : Conjugate gradient update method
      */
-    enum UpdateScheme {
+    const enum UpdateScheme {
         SteepestGradient,
         SteepestGradientAdaptive,
         ConjugateGradient
@@ -196,10 +201,11 @@ public:
         
         // Get member paramters from cfg
         _dt(get_as<double>("dt", this->_cfg)),
+        _update_scheme(this->setup_update_scheme(this->_cfg)),
         _minimisation_precision(1e-8),
         _gamma(get_as<double>("gamma", this->_cfg)),
-        _linetension(),
-        _edge_contractility(),
+        _linetension(this->setup_linetension(this->_cfg)),
+        _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _T1_threshold(get_as<double>("T1_threshold", this->_cfg)),
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
@@ -213,36 +219,6 @@ public:
         _energy_previous_step(0.),
         _energy(0.)
     {
-        const auto edge_cfg = this->_cfg["agent_manager"]["edge_manager"];
-        _linetension.fill(get_as<double>("linetension",
-                                         edge_cfg["agent_params"]));
-        _edge_contractility.fill(get_as<double>("contractility",
-                                                edge_cfg["agent_params"]));
-
-        if (get_as<std::string>("update_scheme",
-                                this->_cfg) == "steepest_gradient") {
-            _update_scheme = SteepestGradient;
-            this->_log->info("Steepest gradient chosen as update scheme.");
-        }
-        else if (get_as<std::string>("update_scheme",
-                                this->_cfg) == "steepest_gradient_adaptive") {
-            _update_scheme = SteepestGradientAdaptive;
-            this->_log->info("Steepest gradient with adaptive step size "
-                             "chosen as update scheme.");
-        }
-        else if (get_as<std::string>("update_scheme",
-                                this->_cfg) == "conjugate_gradient") {
-            _update_scheme = ConjugateGradient;
-            this->_log->info("Conjugate gradient chosen as update scheme.");
-        }
-        else {
-            throw KeyError("update_scheme", this->_cfg, "Update scheme must "
-                "be one of the following: "
-                "'steepest_gradient', "
-                "'steepest_gradient_adaptive', "
-                "'conjugate_gradient'.");
-        }
-
         // this->initialise_polarity_random(get_as<double>(
         //         "cell_initialisation_protein_level", this->_cfg));
 
@@ -254,6 +230,67 @@ public:
 
 private:
     // .. Setup functions .....................................................
+    /// Setup function for the update scheme
+    /** Currently implemented update schemes:
+     *      -# steepest_gradient : Steepest gradient update at fixed step size
+     *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
+     *              step size. Step size is to next minimum of energy in the 
+     *              direction of steepest gradient
+     *      -# conjugate_gradient : Conjugate gradient update method
+     */
+    UpdateScheme setup_update_scheme(const Config& cfg) {
+        const auto update_scheme = get_as<std::string>("update_scheme", cfg);
+
+        if (update_scheme == "steepest_gradient") {
+            this->_log->info("Steepest gradient chosen as update scheme.");
+            return SteepestGradient;
+        }
+        if (update_scheme == "steepest_gradient_adaptive") {
+            this->_log->info("Steepest gradient with adaptive step size "
+                             "chosen as update scheme.");
+            return SteepestGradientAdaptive;
+        }
+        if (update_scheme == "conjugate_gradient") {
+            this->_log->info("Conjugate gradient chosen as update scheme.");
+            return ConjugateGradient;
+        }
+
+        throw KeyError("update_scheme", cfg, 
+            "Update scheme must be one of the following: "
+                "'steepest_gradient', "
+                "'steepest_gradient_adaptive', "
+                "'conjugate_gradient'.");
+    }
+
+    /// Setup up the linetension from config
+    arma::Mat<double>::fixed<CellType::num_cell_types,
+                             CellType::num_cell_types> setup_linetension(
+            const Config& cfg)
+    {
+        const auto edge_cfg = cfg["agent_manager"]["edge_manager"];
+        const double linetension = get_as<double>("linetension",
+                                                  edge_cfg["agent_params"]);
+        // NOTE not checking paths, because happened in constructor of _am
+        
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> matrix;
+        return matrix.fill(linetension);
+    }
+
+    /// Setup up the edge contractility from config
+    arma::Mat<double>::fixed<CellType::num_cell_types,
+                             CellType::num_cell_types> setup_edge_contractility(
+            const Config& cfg)
+    {
+        const auto edge_cfg = cfg["agent_manager"]["edge_manager"];
+        const double contractility = get_as<double>("contractility",
+                                                    edge_cfg["agent_params"]);
+        // NOTE not checking paths, because happened in constructor of _am
+        
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> matrix;
+        return matrix.fill(contractility);
+    }
 
     // /// Initialise the polarity proteins with random levels
     // /** This initialisation fulfills the polarity constrains of zero net

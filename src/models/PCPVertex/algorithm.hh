@@ -17,33 +17,16 @@ std::pair<double, double> PCPVertex::determine_timestep (
         double dt, const double energy_0) const
 {
     // Bracket the minimum
-    dt = std::min(2*dt, 2.);
+    dt = std::max(std::min(2*dt, 2.), 1e-8);
 
     // check that actually moving towards a minimum
     if (this->get_energy(1e-8) >= energy_0) {
-        this->_log->debug("Already in minimum. At step size of 1e-10 the energy "
+        this->_log->debug("Already in minimum. At step size of 1e-8 the energy "
             "along direction of update increased by {}.",
             this->get_energy(1e-8)-energy_0);
 
         return std::make_pair(0., energy_0);
     }
-    
-    // check that direction of update actually is non-zero
-    double f_squared = 0.;
-    const auto& vertices = _am.vertices();
-    for (const auto& v : vertices) {
-        f_squared += arma::norm(v->state.f);
-    }
-    if (f_squared/vertices.size() < _minimisation_precision/100.) {
-        this->_log->debug("Linear extrapolation: {}", f_squared);
-        for (double dt = 1e-11; dt < 100.; dt *= 2) {
-            this->_log->debug("DEBUG At step of {} along direction of "
-                "update the energy is changing by {}", dt, 
-                (this->get_energy(dt) - energy_0)/dt);
-        }
-        throw;
-    }
-    // TODO remove this part if not causing abortions 
 
     double pos_1 = 0.; // left boundary
     double energy_1 = energy_0;
@@ -187,8 +170,7 @@ void PCPVertex::init_minimisation ()
  *                          is performed. Else, update with fixed stepsize.
  *  \return the energy after upate
  */
-double PCPVertex::steepest_gradient_step (
-        bool adaptive_step)
+double PCPVertex::steepest_gradient_step (bool adaptive_step)
 {
     set_gradient();
 
