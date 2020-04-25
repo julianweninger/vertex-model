@@ -1,0 +1,34 @@
+---
+NotchDelta:
+  Environment:
+    env_state_funcs:
+    - noise:
+        atoh1: {distribution: exponential, lambda: 100, mode: add}
+    space: {periodic: true}
+  atoh1_suppression: {rate_0: 2.0, rate_1: 1.0}
+  atoh1_threshold: 1.0
+  cell_manager:
+    cell_params: null
+    grid: {resolution: 10, structure: square}
+    neighborhood: {mode: Moore}
+  data_manager:
+    deciders:
+      write_always: {type: always}
+    tasks:
+      Density_time: &id002 {active: false, decider: write_always, trigger: build_once}
+    triggers:
+      build_once:
+        args: {time: 0}
+        type: once
+  rate_ph: {rate_0: 0.005, rate_1: 0.0}
+  rate_ps: 0.01
+  rate_swap: 0.
+  space: {periodic: true}
+log_levels: {core: warning, data_io: warning, data_mngr: warning, model: info}
+monitor_emit_interval: 2.0
+num_steps: 1000
+output_path: test_data.h5
+seed: 42
+write_every: 1
+write_start: 0
+

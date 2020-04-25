@@ -21,7 +21,7 @@ namespace Utopia::Models::NotchDelta {
 
 /// The type of a cell's state
 struct CellState {
-    /// The state
+    /// The type of a cell
     enum StateType {
         progenitor,
         hair,
@@ -30,6 +30,7 @@ struct CellState {
         num_states
     } cell_type;
 
+    /// Whether has neighbor of type hair
     bool has_hair_neighbor;
 
     /// Construct the cell state from a configuration
@@ -92,6 +93,7 @@ struct EnvLinks {
     /// Link to the associated cell in Environment model
     std::shared_ptr<EnvCell> env;
 
+    /// The custom neighborhood
     CellContainer neighbors;
 };
 
@@ -157,6 +159,10 @@ private:
 
     // -- Members -------------------------------------------------------------
     /// The cell manager
+    /** \note the neighborhood defined in the cell manager is copied to the 
+     *        custom neighborhood in `custom_links` and should not be accessed
+     *        in the cell manager!
+     */
     CellManager _cm;
 
     /// The Environment model
@@ -197,6 +203,7 @@ private:
     // .. Temporary objects ...................................................
     bool _progenitors_depleted;
 
+    /// Whether to end the simulation after all cell have differentiated
     bool _end_simulation;
 
 
@@ -343,6 +350,7 @@ private:
     const RuleFunc T1_transition_tag = [this](const auto& cell)
     {
         auto state = cell->state;
+        state.has_hair_neighbor = false;
 
         if (state.cell_type != CellType::hair) {
             return state;
@@ -351,11 +359,10 @@ private:
         for (auto&& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) {
                 state.has_hair_neighbor = true;
-                return state;
+                break;
             }
         }
-        state.has_hair_neighbor = false;
-        
+
         return state;
     };
 
@@ -378,19 +385,24 @@ private:
             return state;
         }
 
+        // remove the hair cells from neighbors
         auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                 [](auto n) {
                     return (n->state.cell_type == CellType::hair);
                 }),
             neighbors.end());
-        std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
 
         if (not neighbors.empty()) {
-            auto n = neighbors.back();
+            // select a random neighbor
+            std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
+            auto n = neighbors.back(); 
+
+            // swap the state and the env->state (atoh1, etc.)
             std::swap(state, n->state);
             std::swap(cell->custom_links().env->state,
                       n->custom_links().env->state);
+            // NOTE keep the geometric properties like neighbors
         }
         
         return state;
@@ -436,11 +448,13 @@ public:
                                  densities[CellType::support]);
     }
 
+    /// The custom prolog
     void prolog () {
         _envm.prolog();
         return this->__prolog();
     }
 
+    //// The custom epilog
     void epilog () {
         _envm.epilog();
         return this->__epilog();
@@ -460,10 +474,10 @@ public:
     }
 
     /// Get the number of hair-hair contacts
-    int get_hh_contacts() const {
+    unsigned int get_hh_contacts() const {
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
 
-        int cnt = 0;
+        unsigned int cnt = 0;
         for (auto c : _cm.cells()) {
             cnt += c->state.has_hair_neighbor;
         }
@@ -472,10 +486,11 @@ public:
     }
 
     /// Getter for the cell manager
-    auto get_cm () const {
-        return std::make_shared<CellManager>(this->_cm);
+    const auto& get_cm () const {
+        return this->_cm;
     }
 
+    /// Whether the simulation is finished because all cells have differentiated
     bool simulation_ended () const {
         return _end_simulation;
     }

@@ -519,18 +519,20 @@ private:
                 linetension, contractility, _area_preferential);
         }
         else if (method == "NotchDelta") {
-            auto notch_delta = NotchDelta::NotchDelta("NotchDelta", *this,
+            auto notch_delta = std::make_shared<NotchDelta::NotchDelta>(
+                    "NotchDelta", *this,
                     NotchDelta::DataIO::density_time,
                     NotchDelta::DataIO::density_progenitor,
                     NotchDelta::DataIO::density_hair,
                     NotchDelta::DataIO::density_support,
                     NotchDelta::DataIO::density_ratio_hair_support,
                     NotchDelta::DataIO::number_hair_hair_contacts);
+            
             auto steps = get_as<int>("notch_delta_steps",
                                      this->_cfg["differentiation"]);
             _vertex_model.differentiate_hair_cells_NotchDelta(
-                std::make_shared<NotchDelta::NotchDelta>(notch_delta), steps,
-                linetension, contractility, _area_preferential);
+                notch_delta, steps, linetension, contractility,
+                _area_preferential);
         }
         else {
             throw KeyError("method", this->_cfg["differentiation"], "Method "

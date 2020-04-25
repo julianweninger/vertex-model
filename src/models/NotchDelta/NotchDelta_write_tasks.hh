@@ -115,13 +115,13 @@ auto cell_type = std::make_tuple(
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
         return grp->open_group("CM"); },
     [](auto& dataset, auto& model) {
-        auto cells = model.get_cm()->cells();
+        auto cells = model.get_cm().cells();
         dataset->write(cells.begin(), cells.end(),
             [](const auto& cell) {
                 return int(cell->state.cell_type); }); },
     [](auto& group, auto& model) -> decltype(auto) {
         return group->open_dataset("Cell_type",
-                                   {H5S_UNLIMITED, model.get_cm()->cells().size()}); },
+                    {H5S_UNLIMITED, model.get_cm().cells().size()}); },
     []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
@@ -130,9 +130,9 @@ auto cell_type = std::make_tuple(
         hdfdataset->add_attribute("dim_name__1", "cell_id");
         hdfdataset->add_attribute("content", "grid");
         hdfdataset->add_attribute("grid_shape",
-                                  model.get_cm()->grid()->shape());
+                                  model.get_cm().grid()->shape());
         hdfdataset->add_attribute("space_extent",
-                                  model.get_cm()->grid()->space()->extent);
+                                  model.get_cm().grid()->space()->extent);
         hdfdataset->add_attribute("index_order", "F");}
 ); // end density_support
 
@@ -141,13 +141,13 @@ auto cell_atoh1 = std::make_tuple(
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
         return grp->open_group("CM"); },
     [](auto& dataset, auto& model) {
-        auto cells = model.get_cm()->cells();
+        auto cells = model.get_cm().cells();
         dataset->write(cells.begin(), cells.end(),
             [](const auto& cell) {
                 return cell->custom_links().env->state.atoh1; }); },
     [](auto& group, auto& model) -> decltype(auto) {
         return group->open_dataset("Atoh1",
-                                   {H5S_UNLIMITED, model.get_cm()->cells().size()}); },
+                    {H5S_UNLIMITED, model.get_cm().cells().size()}); },
     []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time");
@@ -156,9 +156,9 @@ auto cell_atoh1 = std::make_tuple(
         hdfdataset->add_attribute("dim_name__1", "cell_id");
         hdfdataset->add_attribute("content", "grid");
         hdfdataset->add_attribute("grid_shape", 
-                                  model.get_cm()->grid()->shape());
+                                  model.get_cm().grid()->shape());
         hdfdataset->add_attribute("space_extent",
-                                  model.get_cm()->grid()->space()->extent);
+                                  model.get_cm().grid()->space()->extent);
         hdfdataset->add_attribute("index_order", "F");}
 ); // end density_support
 
