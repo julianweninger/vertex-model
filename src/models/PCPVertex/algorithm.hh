@@ -35,7 +35,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
     double pos_min = dt/2.;
     double energy_min = this->get_energy(pos_min);
     while (true) {
-        if (dt/2 > 100.) {
+        if (dt/2 > 3000.) {
             if (fabs(energy_2 - energy_1) < _minimisation_precision) {
                 // the energy function is flat
                 return std::make_pair(0., energy_0);
@@ -43,10 +43,15 @@ std::pair<double, double> PCPVertex::determine_timestep (
             this->_log->error("At step of {} along direction of "
                 "update the energy is still decreasing by {}", dt/2, 
                 energy_2 - energy_1);
-            for (double dt = 1e-11; dt < 100.; dt *= 2) {
+            for (double dt = 1e-11; dt < 1000.; dt *= 2) {
+                double max_displ = 0;
+                for (auto v : _am.vertices()) {
+                    max_displ = std::max(max_displ,
+                                         arma::norm(v->state.f) * dt);
+                }
                 this->_log->error("DEBUG At step of {} along direction of "
-                    "update the energy is changing by {}", dt, 
-                    (this->get_energy(dt) - energy_0)/dt);
+                    "update the energy is changing by {} at max displacement of {}", dt, 
+                    this->get_energy(dt) - energy_0, max_displ);
             }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
             throw std::runtime_error("Unable to find bracket to "
