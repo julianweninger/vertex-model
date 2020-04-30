@@ -24,16 +24,15 @@ The topological changes
 from Farhadifar et al [2007] and Aigouy et al. [2010]
 
 **Cell division**
-    A cell division begins with selecting a random cell. This cell is told to 
-    grow to the double of its usual size by setting the cell's parameter 
-    area_preferential accordingly.
-    Simultaneously the domain size is increased to fit the new cell.
-    The PCPVertex model is iterated to an equilibrium.
+    A cell division begins with selecting a random cell from the oldest generation:
+    Cells from initialization are called generation 0, upon cell division the parent cell of generation i is divided into 2 daughter cells that are called generation i+1.
+    This random cell is told to grow to the double of its usual size by setting the cell's parameter area_preferential accordingly.
+    This process of area increase is done incrementally, i.e. the preferential area is increased a bit and the PCPVertex model is iterated to an equilibrium in successive steps until the target area 2 A0 is reached.
+    Simultaneously to the increase of area the domain size is increased to eventually fit the new cell.
     
-    At this point, the cell is divided along an axis of division through the 
-    cell's center at a random angle. 
-    Both cells have the same properties with area_preferential reset to the
-    original value.
+    At the point the cell reached the target area in an equilibrated tissue,
+    the cell is divided along an axis of division through the cell's center at a random angle. 
+    Both cells have the same properties with area_preferential reset to the original value.
     Thereafter, the PCPVertex model is again equilibrated.
 
     Cell divisions occur at a prescribed probability.
