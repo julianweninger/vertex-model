@@ -195,9 +195,9 @@ public:
                     DataIO::polarity_exclusion_adaptor,
                     DataIO::lagrange_net_polarisation_adaptor,
                     DataIO::lagrange_const_concentration_adaptor,
-                    DataIO::vertex_position_adaptor,  
-                    DataIO::cell_position_adaptor<SpaceVec>,
-                    DataIO::edge_link_adaptor),
+                    DataIO::vertices_adaptor,  
+                    DataIO::cells_adaptor<SpaceVec, CellType>,
+                    DataIO::edges_adaptor),
         
         // the parameter
         _equilibration_tolerance(0.),

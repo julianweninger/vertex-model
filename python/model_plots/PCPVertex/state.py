@@ -76,32 +76,32 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.setup_figure()
 
     def update():
-        for time in grp['Vertex_position']:
+        for time in grp['Vertices']:
             hlpr.ax.clear()
             hlpr.ax.set_aspect('auto')
 
-            v_data = grp['Vertex_position'][time]
-            e_data = grp['Edge_link'][time]
-            c_data = grp['Cell_position'][time]
+            v_data = grp['Vertices'][time]
+            e_data = grp['Edges'][time]
+            c_data = grp['Cells'][time]
             
             Lx = v_data.attrs["Lx"][0]
             Ly = v_data.attrs["Ly"][0]
 
             for v_id in v_data.id:
                 v = v_data.sel(id=v_id)
-                x = v.sel(coordinate="x")
-                y = v.sel(coordinate="y")
+                x = v.sel(property="x")
+                y = v.sel(property="y")
                 scatter_vertex(x, y, hlpr.ax)
 
             for e_id in e_data.id:
                 e = e_data.sel(id=e_id)
-                vertex_a = e.sel(vertex="a")
-                vertex_b = e.sel(vertex="b")
+                vertex_a = e.sel(property="vertex_a")
+                vertex_b = e.sel(property="vertex_b")
 
-                ax = v_data.sel(id=vertex_a, coordinate='x')
-                ay = v_data.sel(id=vertex_a, coordinate='y')
-                bx = v_data.sel(id=vertex_b, coordinate='x')
-                by = v_data.sel(id=vertex_b, coordinate='y')
+                ax = v_data.sel(id=vertex_a, property='x')
+                ay = v_data.sel(id=vertex_a, property='y')
+                bx = v_data.sel(id=vertex_b, property='x')
+                by = v_data.sel(id=vertex_b, property='y')
 
                 if (vertex_cfg['space']['periodic']):
                     dx = bx - ax
@@ -140,11 +140,11 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             for c_id in c_data.id:
                 c = c_data.sel(id=c_id)
-                cell_type = c.sel(coordinate="cell_type")
-                x = c.sel(coordinate="x")
-                y = c.sel(coordinate="y")
-                pol_x = 0 # c.sel(coordinate="polarity_x")
-                pol_y = 0 # c.sel(coordinate="polarity_y")
+                cell_type = c.sel(property="cell_type")
+                x = c.sel(property="x")
+                y = c.sel(property="y")
+                pol_x = 0 # c.sel(property="polarity_x")
+                pol_y = 0 # c.sel(property="polarity_y")
                 dx = pol_x / 5.
                 dy = pol_y / 5.
                 plot_arrow(x - dx/2, y - dy/2., dx, dy, hlpr.ax)

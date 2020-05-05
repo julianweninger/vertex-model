@@ -106,13 +106,13 @@ def test_output():
     # assert that initial state was written
     assert len(data['Energy']['Time'].data) == 4
 
-    assert 'Vertex_position' in data
-    assert 'Edge_link' in data
-    assert 'Cell_position' in data
+    assert 'Vertices' in data
+    assert 'Edges' in data
+    assert 'Cells' in data
 
-    assert len(data['Vertex_position']) == 4
-    assert len(data['Edge_link']) == 4
-    assert len(data['Cell_position']) == 4
+    assert len(data['Vertices']) == 4
+    assert len(data['Edges']) == 4
+    assert len(data['Cells']) == 4
 
     
     # Create a Multiverse using the configuration for the original equations
@@ -135,10 +135,10 @@ def test_output():
     # # assert that initial state was written
     # assert len(data['Energy']['Time'].data) == 4
 
-    # assert 'Vertex_position' in data
-    # assert 'Edge_link' in data
-    # assert 'Cell_position' in data
+    # assert 'Vertices' in data
+    # assert 'Edges' in data
+    # assert 'Cells' in data
 
-    # assert len(data['Vertex_position']) == 4
-    # assert len(data['Edge_link']) == 4
-    # assert len(data['Cell_position']) == 4
+    # assert len(data['Vertices']) == 4
+    # assert len(data['Edges']) == 4
+    # assert len(data['Cells']) == 4

@@ -307,12 +307,12 @@ PCPVertex:
         <<: *energy
         active: false
 
-      Vertex_position: &position
+      Vertices: &agents_continuous
         active: true
         trigger: build_slice
         decider: write_slice
-      Cell_position: *position
-      Edge_link: *position
+      Cells: *agents_continuous
+      Edges: *agents_continuous
 
 # plotting
 data_manager:
@@ -378,12 +378,12 @@ data_manager:
     Cell_neighbourhood: *Statistics    
     Cell_area_histogram: *Statistics
 
-    Vertex_position: &Position_topology
+    Vertices: &agents_equilibrium
         active: true
         trigger: build_composite
         decider: write_composite
 
-    Cell_position: *Position_topology
+    Cells: *agents_equilibrium
 
-    Edge_link: *Position_topology
+    Edges: *agents_equilibrium
 

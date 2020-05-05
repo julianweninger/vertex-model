@@ -2,3 +2,56 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
+energy:
+  based_on: .basic_uni.lineplots
+  model_name: PCPTopology/PCPVertex
+  file_ext: png
+
+  helpers:
+    set_labels:
+      x: time
+      y: energy [a.u.]
+
+cellular_structure:
+  creator: universe
+  universes: all
+  module: model_plots.PCPVertex
+  plot_func: cellular_structure
+  file_ext: png
+
+  helpers:
+    set_labels:
+      x: x [a.u.]
+      y: y [a.u.]
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs:  {}
+
+# -- Multiverse plots
+cell_property_multiverse:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  file_ext: png
+  
+  select_and_combine: 
+    fields:
+      data:
+        path: Cells
+        with_previous_result: true
+        transform:
+        - .sel:
+            time: 6
+        - .mean: {dim: id}
+    base_path: data/PCPTopology

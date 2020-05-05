@@ -310,14 +310,22 @@ auto lagrange_const_concentration_adaptor = std::make_tuple(
 ); // end lagrange_const_concentration_adaptor
 
 
-/// Datamanager adaptor for vertex-position
-auto vertex_position_adaptor = std::make_tuple(
+/// Datamanager adaptor for vertex properties
+/** \details Properties are
+ *      -# absolute x coordinate
+ *      -# absolute y coordinate
+ * 
+ *  Attributes are:
+ *      -# Lx: Domain size in x coordinate
+ *      -# Ly: Domain size in y coordinate
+ */
+auto vertices_adaptor = std::make_tuple(
     // name of the task
-    "Vertex_position",
+    "Vertices",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Vertex_position");
+        return grp->open_group("Vertices");
     },
 
     // writer function
@@ -344,8 +352,8 @@ auto vertex_position_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "coordinate");
-        hdfdataset->add_attribute("coords__coordinate", 
+        hdfdataset->add_attribute("dim_name__0", "property");
+        hdfdataset->add_attribute("coords__property", 
                                   std::vector<std::string>({"x", "y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         const auto domain = model.get_space()->get_domain_size();
@@ -357,15 +365,28 @@ auto vertex_position_adaptor = std::make_tuple(
     
 ); // end vertex position adaptor
 
-/// Datamanager adaptor for cell position
-template <typename SpaceVec>
-auto cell_position_adaptor = std::make_tuple(
+/// Datamanager adaptor for cell properties
+/** \details Properties are
+ *      -# absolute position cell_type
+ *      -# absolute position x coordinate of cell center
+ *      -# absolute position y coordinate of cell center
+ *      -# absolute position area
+ *      -# absolute position perimeter
+ *      -# absolute position shape_index: p = perimeter / sqrt(area)
+ *      -# absolute position number of neighbors
+ * 
+ *  Attributes are:
+ *      -# Lx: Domain size in x coordinate
+ *      -# Ly: Domain size in y coordinate
+ */
+template <typename SpaceVec, typename CellType>
+auto cells_adaptor = std::make_tuple(
     // name of the task
-    "Cell_position",
+    "Cells",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Cell_position");
+        return grp->open_group("Cells");
     },
 
     // writer function
@@ -378,6 +399,7 @@ auto cell_position_adaptor = std::make_tuple(
                        });
         
         std::vector<SpaceVec> centers;
+        centers.reserve(cells.size());
         for (const auto& c : cells) {
             centers.push_back(am.barycenter_of(c));
         }
@@ -385,6 +407,42 @@ auto cell_position_adaptor = std::make_tuple(
                        [](auto&& pos) { return pos[0]; });
         dataset->write(centers.begin(), centers.end(),
                        [](auto&& pos) { return pos[1]; });
+
+        std::vector<double> areas;
+        areas.reserve(cells.size());
+        for (const auto& c : cells) { 
+            areas.push_back(am.area_of(c)); 
+        }
+        dataset->write(areas);
+        
+        std::vector<double> perimeters;
+        perimeters.reserve(cells.size());
+        for (const auto& c : cells) {
+            perimeters.push_back(am.perimeter_of(c));
+        }
+        dataset->write(perimeters);
+        
+        std::vector<double> shape_indices;
+        shape_indices.reserve(cells.size());
+        for (unsigned int i = 0; i < cells.size(); i++) {
+            shape_indices.push_back(perimeters[i]/sqrt(areas[i]));
+        }
+        dataset->write(shape_indices);
+
+        dataset->write(cells.begin(), cells.end(),
+                       [am](const auto& cell) {
+                            return static_cast<double>(
+                                   am.neighbors_of(cell).size());
+                       });
+        dataset->write(cells.begin(), cells.end(),
+                       [am](const auto& cell) {
+                            unsigned int num_hair_neighbors = 0;
+                            for (const auto n : am.neighbors_of(cell)) {
+                                num_hair_neighbors += 
+                                    (n->state.type == CellType::hair);
+                            }
+                            return static_cast<double>(num_hair_neighbors);
+                       });
 
         // the polarity
         // std::vector<SpaceVec> polarities;
@@ -412,7 +470,7 @@ auto cell_position_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {3, m.get_am().cells().size()});
+            {8, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -421,12 +479,20 @@ auto cell_position_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "coordinate");
-        hdfdataset->add_attribute("coords__coordinate", 
-                                  std::vector<std::string>({"cell_type",
-                                                            "x", "y"}));
-                                                            // "polarity_x",
-                                                            // "polarity_y"}));
+        hdfdataset->add_attribute("dim_name__0", "property");
+        hdfdataset->add_attribute("coords__property", 
+                std::vector<std::string>({
+                    "cell_type",
+                    "x",
+                    "y",
+                    "area",
+                    "perimeter",
+                    "shape_index",
+                    "num_neighbors",
+                    "num_hair_neighbors"
+                }));
+                    // "polarity_x",
+                    // "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         const auto domain = model.get_space()->get_domain_size();
         hdfdataset->add_attribute("Lx", domain[0]);
@@ -434,15 +500,15 @@ auto cell_position_adaptor = std::make_tuple(
     }    
 ); // end cell position adaptor
 
-/// Datamanager adaptor for position
-auto edge_link_adaptor = std::make_tuple(
+/// Datamanager adaptor for edges properties
+auto edges_adaptor = std::make_tuple(
 
     // name of the task
-    "Edge_link",
+    "Edges",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Edge_link");
+        return grp->open_group("Edges");
     },
 
     // writer function
@@ -478,9 +544,10 @@ auto edge_link_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "vertex");
-        hdfdataset->add_attribute("coords__vertex", 
-                                  std::vector<std::string>({"a", "b"}));
+        hdfdataset->add_attribute("dim_name__0", "property");
+        hdfdataset->add_attribute("coords__property", 
+                                  std::vector<std::string>({"vertex_a",
+                                                            "vertex_b"}));
         hdfdataset->add_attribute("dim_name__1", "id");
 
         
@@ -537,8 +604,8 @@ auto cell_area_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
-        hdfdataset->add_attribute("dim_name__1", "properties");
-        hdfdataset->add_attribute("coords__properties", 
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
             std::vector<std::string>({"area_average", "area_hair_average",
                                       "area_support_average"}));
 

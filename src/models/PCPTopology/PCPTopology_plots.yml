@@ -4,9 +4,7 @@
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
 ---
 energy:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology/PCPVertex
-  file_ext: png
+  based_on: energy
 
   to_plot:
     Energy/Total:
@@ -17,45 +15,9 @@ energy:
       label: area-elasticity
     Energy/Contractility:
       label: contractility
-    # Energy/Cell_cell_polarity: 
-    #   label: cell-cell-polarity
-    # Energy/Polarity_exclusion: 
-    #   label: polarity-exclusion
-    # Energy/Lagrange_net_polarisation: 
-    #   label: lagrange-net-polarisation
-    # Energy/Lagrange_const_concentration: 
-    #   label: lagrange-const-concentration
-
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
-
-energy_mechanics:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology/PCPVertex
-  file_ext: png
-
-  enabled: false
-  
-  to_plot:
-    Energy/Linetension:
-      label: line-tension
-    Energy/Areaelasticity:
-      label: area-elasticity
-    Energy/Contractility:
-      label: contractility
-
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
 
 energy_polarity:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology/PCPVertex
-  file_ext: png
-
+  based_on: energy
   enabled: false
 
   to_plot:
@@ -67,11 +29,6 @@ energy_polarity:
       label: lagrange-net-polarisation
     Energy/Lagrange_const_concentration: 
       label: lagrange-const-concentration
-
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
 
 area_preferential:
   based_on: .basic_uni.lineplots
@@ -88,26 +45,35 @@ cell_area:
   model_name: PCPTopology
   file_ext: png
 
-
   to_plot:
     area_average:
       path_to_data: Statistics/Cell_area
       transform_data:
         - sel:
-            properties: area_average
+            property: area_average
       label: average cell area
     area_hair_average:
       path_to_data: Statistics/Cell_area
       transform_data:
         - sel:
-            properties: area_hair_average
+            property: area_hair_average
       label: average area for HCs
     area_support_average:
       path_to_data: Statistics/Cell_area
       transform_data:
         - sel:
-            properties: area_support_average
+            property: area_support_average
       label: average area for SCs
+
+equilibrium_cellular_structure:
+  based_on: cellular_structure
+  datapath: PCPTopology
+  cfgpath: PCPTopology/PCPVertex
+
+cellular_structure:
+  based_on: cellular_structure
+  datapath: PCPTopology/PCPVertex
+  cfgpath: PCPTopology/PCPVertex
 
 cell_neighbourhood:
   creator: universe
@@ -125,72 +91,6 @@ cell_neighbourhood:
       y: counts [1]
     set_limits:
       x: [0, 9]
-
-  animation:
-    enabled: true
-    writer: frames
-    writer_kwargs:
-      ffmpeg:
-        init:
-          fps: 10
-        saving:
-          dpi: 300
-      frames:
-        saving:
-          dpi: 300
-
-    animation_update_kwargs:  {}
-
-equilibrium_cellular_structure:
-  creator: universe
-  universes: all
-  module: model_plots.PCPVertex
-  plot_func: cellular_structure
-  file_ext: png
-  datapath: PCPTopology
-  cfgpath: PCPTopology/PCPVertex
-
-  helpers:
-    set_labels:
-      x: x [a.u.]
-      y: y [a.u.]
-    set_limits:
-      x: [0, 500]
-      y: [0, 500]
-
-  animation:
-    enabled: true
-    writer: frames
-    writer_kwargs:
-      ffmpeg:
-        init:
-          fps: 10
-        saving:
-          dpi: 300
-      frames:
-        saving:
-          dpi: 300
-
-    animation_update_kwargs:  {}
-
-cellular_structure:
-  creator: universe
-  universes: all
-  module: model_plots.PCPVertex
-  plot_func: cellular_structure
-  file_ext: png
-  datapath: PCPTopology/PCPVertex
-  cfgpath: PCPTopology/PCPVertex
-
-  enabled: true
-  
-  helpers:
-    set_labels:
-      x: x [a.u.]
-      y: y [a.u.]
-    set_limits:
-      x: [0, 500]
-      y: [0, 500]
 
   animation:
     enabled: true
