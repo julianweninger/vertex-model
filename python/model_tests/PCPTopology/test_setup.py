@@ -29,6 +29,6 @@ def test_output():
         assert 'Areaelasticity' in data['PCPVertex']['Energy']
         assert 'Contractility' in data['PCPVertex']['Energy']
 
-        assert 'Vertex_position' in data
-        assert 'Edge_link' in data
-        assert 'Cell_position' in data
+        assert 'Vertices' in data
+        assert 'Edges' in data
+        assert 'Cells' in data

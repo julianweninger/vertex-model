@@ -15,9 +15,10 @@ auto model_factory(ParentType parent) {
         cell_area_adaptor<typename PCPTopology::CellType>,
         cell_area_histogram_adaptor,
         // the position adaptors
-        vertex_position_adaptor,
-        cell_position_adaptor<typename PCPVertex::Space::SpaceVec>,
-        edge_link_adaptor);
+        vertices_adaptor,
+        cells_adaptor<typename PCPVertex::Space::SpaceVec,
+                      typename PCPTopology::CellType>,
+        edges_adaptor);
 }
 
 int main (int, char** argv) {

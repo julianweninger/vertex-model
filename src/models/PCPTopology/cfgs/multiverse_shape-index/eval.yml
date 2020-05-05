@@ -16,14 +16,23 @@ energy:
     Energy/Contractility:
       label: contractility
 
+cell_area:
+  based_on: .basic_uni.lineplots
+  model_name: PCPTopology
+  file_ext: png
+
+
+  to_plot:
+    area_average:
+      path_to_data: Statistics/Cell_area
+      transform_data:
+        - sel:
+            property: area_average
+      label: average cell area
+
 equilibrium_cellular_structure:
   based_on: cellular_structure
   datapath: PCPTopology
-  cfgpath: PCPTopology/PCPVertex
-
-cellular_structure:
-  based_on: cellular_structure
-  datapath: PCPTopology/PCPVertex
   cfgpath: PCPTopology/PCPVertex
 
 cell_neighbourhood:
@@ -57,3 +66,39 @@ cell_neighbourhood:
           dpi: 300
 
     animation_update_kwargs:  {}
+
+shape_index:
+  based_on: cell_property_multiverse
+  
+  select_and_combine: 
+    fields:
+      data:
+        transform:
+        - .sel:
+            time: 5
+            property: shape_index
+        - .mean: {dim: id}
+
+area:
+  based_on: cell_property_multiverse
+  
+  select_and_combine: 
+    fields:
+      data:
+        transform:
+        - .sel:
+            time: 5
+            property: area
+        - .mean: {dim: id}
+
+perimeter:
+  based_on: cell_property_multiverse
+  
+  select_and_combine: 
+    fields:
+      data:
+        transform:
+        - .sel:
+            time: 5
+            property: perimeter
+        - .mean: {dim: id}

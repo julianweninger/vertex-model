@@ -132,12 +132,12 @@ data_manager:
       <<: *energy
       active: false
 
-    Vertex_position: &position
+    Vertices: &agents
       active: true
       trigger: build_slice
       decider: write_slice
-    Cell_position: *position
-    Edge_link: *position
+    Cells: *agents
+    Edges: *agents
 
     
     
