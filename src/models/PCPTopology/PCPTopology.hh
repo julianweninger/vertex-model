@@ -105,7 +105,10 @@ public:
     /// Type of the config
     using typename Base::Config;
 
-    /// The types of a cell (support, hair)
+    /// The type of a cell
+    using Cell = typename PCPVertex::Cell;
+
+    /// The types a cell can take (support, hair)
     using CellType = typename PCPVertex::CellType;
 
     /// The type of coordinates and vectors in space
@@ -147,6 +150,33 @@ private:
      *  might be performed at lower precision
      */
     double _jiggle_equilibration_tolerance;
+
+    /// The parameter for proliferation
+    struct ParamsProliferation {      
+        /// The number of steps to double the cell's area  
+        unsigned int num_increases;
+
+        /// The minimal area of a cell to divide
+        /** \details The fraction to which a cell has to reach the target area
+         *           so that it can be divided
+         */
+        double threshold;
+
+        Utopia::IndexType generation_max_id;
+
+        ParamsProliferation (const Config& cfg)
+        :
+            num_increases(get_as<unsigned int>("num_increases", cfg)),
+            threshold(get_as<double>("area_threshold", cfg, 0.5)),
+            generation_max_id(0) 
+        {
+            if (num_increases == 0) {
+                throw std::invalid_argument("Parameter 'num_increases' in "
+                    "proliferation must be larger than 0. It specifies in how "
+                    "many steps the area of the cell should be increased.");
+            }
+        }
+    } _params_proliferation;
 
     /// A model where the parameters are changed over time
     /** See PCPTopology::EnvParam for available parameter
@@ -206,6 +236,7 @@ public:
         _num_jiggle_per_equilibration(0),
         _jiggle_intensity(0.),
         _jiggle_equilibration_tolerance(0.),
+        _params_proliferation(this->_cfg["proliferation"]),
         _envm("Environment", *this),
         _area_preferential(),
         _prob_distr(0.,1.)
@@ -362,16 +393,33 @@ private:
      *  \param threshold    Fraction of the area_preferential at which cell
      *                      is not divided
      */
-    void divide_random_cell(double threshold = 0.5) {
+    void divide_random_cell() {
         const auto& am = _vertex_model.get_am();
         const auto& cells = am.cells();
-        std::uniform_int_distribution<> int_dist(0, cells.size() - 1);
-        
-        auto c = cells[int_dist(*this->_rng)];
-        const auto& domain = _vertex_model.get_space()->get_domain_size();
 
+        Utopia::IndexType generation_max_id = _params_proliferation.generation_max_id;
+        AgentContainer<Cell> cells_of_current_generation(cells.size());
+        auto it = std::copy_if (cells.begin(), cells.end(),
+                                cells_of_current_generation.begin(),
+                                [generation_max_id](const auto& cell){
+                                    return cell->id() <
+                                        generation_max_id; } );
+        cells_of_current_generation.resize(
+            std::distance(cells_of_current_generation.begin(), it));
+        if (cells_of_current_generation.size() == 0) {
+            for (const auto& c : cells) {
+                generation_max_id = std::max(generation_max_id, c->id());
+            }
+            _params_proliferation.generation_max_id = generation_max_id + 1;
+            cells_of_current_generation = cells;
+        }
+
+        std::uniform_int_distribution<> int_dist(
+            0, cells_of_current_generation.size() - 1);
+        
+        auto cell = cells_of_current_generation[int_dist(*this->_rng)];
         if (not this->_space->periodic) {
-            for (auto [e, flip] : c->custom_links().edges) {
+            for (auto [e, flip] : cell->custom_links().edges) {
                 const auto [adj_cell_a, adj_cell_b] = am.adjoints_of(e);
                 if (not adj_cell_a or not adj_cell_b) {
                     this->_log->error("Cannot divide randomly chosen cell, "
@@ -384,21 +432,28 @@ private:
             }
         }
 
-        _vertex_model.increase_domain_size(c->state.area_preferential);
-        c->state.area_preferential *= 2;
+        double area_preferential = cell->state.area_preferential;
+        double dA = cell->state.area_preferential /
+                    _params_proliferation.num_increases;
+        for (unsigned int i = 0; i < _params_proliferation.num_increases; i++) {            
+            _vertex_model.increase_domain_size(dA);
+            cell->state.area_preferential += dA;
+            equilibrate_vertex_model();
+        }
 
-        equilibrate_vertex_model();
-
-        if (am.area_of(c) < threshold * c->state.area_preferential) {
+        if (am.area_of(cell) < _params_proliferation.threshold *
+                            cell->state.area_preferential)
+        {
             this->_log->error("Could not divide cell, because it would "
                 "not grow to sufficient area. For division requested area: "
-                "75\% of {}. Area reached: {}. !!ABORTING!!",
-                c->state.area_preferential, am.area_of(c));
+                "{}\% of {}. Area reached: {}. !!ABORTING!!",
+                _params_proliferation.threshold * 100,
+                cell->state.area_preferential, am.area_of(cell));
             throw std::runtime_error("Cell division not possible!");
         }
 
-        c->state.area_preferential /= 2;
-        _vertex_model.divide_cell(c, _prob_distr(*this->_rng) * PI);
+        cell->state.area_preferential = area_preferential;
+        _vertex_model.divide_cell(cell, _prob_distr(*this->_rng) * PI);
 
         return;
     }

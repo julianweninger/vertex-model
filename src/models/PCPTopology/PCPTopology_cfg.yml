@@ -31,6 +31,8 @@ proliferation:
     end: -1
     iterates: 0
     emit_interval: 4
+  num_increases: 10
+  area_threshold: 0.
 
 # Differentiation of progenitor to hair and support cells
 differentiation:
