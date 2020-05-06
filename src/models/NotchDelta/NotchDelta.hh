@@ -202,10 +202,6 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
-    bool _progenitors_depleted;
-
-    /// Whether to end the simulation after all cell have differentiated
-    bool _end_simulation;
 
 
 public:
@@ -232,9 +228,7 @@ public:
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
-        _prob_distr(0., 1.),
-        _progenitors_depleted(false),
-        _end_simulation(false)
+        _prob_distr(0., 1.)
     {
         // copy the cm neighborhood to custom links
         if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
@@ -415,21 +409,11 @@ public:
 
     /// Iterate a single step
     /** \details Performs the following rules
-     *      -# Stop simulation, if no progenitor cells left
      *      -# NotchDelta::suppress_atoh1
      *      -# NotchDelta::transition
      *      -# NotchDelta::T1_transition
      */
     void perform_step () {
-        if (_progenitors_depleted) {
-            if (not _end_simulation) {
-                this->_log->warn("All progenitors differentiated. Ending "
-                        "simulation at time {}!", this->_time);
-                _end_simulation = true;
-            }
-            return;
-        }
-
         _envm.iterate();
 
         apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
@@ -444,9 +428,6 @@ public:
     /// Monitor model information
     void monitor () {
         auto densities = this->get_densities();
-        if (densities[CellType::progenitor] == 0.) {
-            _progenitors_depleted = true;
-        }
 
         this->_monitor.set_entry("density_progenitor",
                                  densities[CellType::progenitor]);
@@ -496,11 +477,6 @@ public:
     /// Getter for the cell manager
     const auto& get_cm () const {
         return this->_cm;
-    }
-
-    /// Whether the simulation is finished because all cells have differentiated
-    bool simulation_ended () const {
-        return _end_simulation;
     }
 };
 
