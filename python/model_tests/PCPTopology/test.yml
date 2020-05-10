@@ -8,61 +8,13 @@ parameter_space:
   PCPTopology: !model
     model_name: PCPTopology
 
-    # --- Operations
-    proliferation:
-      active: True
-      times:
-        prolog: 4
-        begin: 0
-        end: 4
-        iterates: 1
-        emit_interval: 2
-    
-    # Differentiation of progenitor to hair and support cells
-    differentiation:
-      active: True
-      times:
-        prolog: 0
-        begin: 5
-        end: 5
-        iterates: 1
-        emit_interval: 0
-      method: !sweep
-        default: NotchDelta    # can be: NotchDelta, random
-        values: [NotchDelta, random]
-
-    Environment:
-      env_param_funcs:
-      - increment:
-          area_preferential_hair:
-            value: 0.05
-            times: !listgen [6, 10]
-            invoke_at_initialization: False
-            # increase is compensated by support cells
-
-    # stretch the domain
-    stretch_domain:
-      active: True
-      times:
-        begin: 11
-        # no end
-      stretch_speed: [0.01, 0.0]
-      fix_hair_cell_volume: True
-
-    PCPVertex:
-      agent_manager:    
-        cell_manager:
-          agent_params:
-            contractility: 0.02      
+    PCPVertex:    
       gamma: 0.0
       update_scheme: !sweep
-        default: steepest_gradient_adaptive
+        default: steepest_gradient
         values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
 
     equilibration:
-      tolerance: 1.e-5
-      # NOTE after num_steps tolerance is checked, repeated for num_iterations
+      tolerance: 1.e-6
       num_jiggle: 1
-      jiggle_intensity: 0.01
-      jiggle_tolerance: 1.e-3
 

@@ -250,6 +250,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     // create 2 new cells
     DataIO::Config cell_cfg;
     cell_cfg["area_preferential"] = cell->state.area_preferential;
+    cell_cfg["shape_index_preferential"] = cell->state.shape_index_preferential;
     cell_cfg["contractility"] = cell->state.contractility;
     cell_cfg["protein_concentration"] = cell->state.protein_concentration;
     
