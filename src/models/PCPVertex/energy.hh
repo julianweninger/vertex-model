@@ -60,8 +60,10 @@ double PCPVertex::area_elasticity_energy (
 double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
+    const auto state = cell->state;
     double perimeter = _am.perimeter_of_virtual(cell, beta);
-    return 0.5 *cell->state.contractility * std::pow(perimeter, 2);
+    return 0.5 * state.contractility *
+           std::pow(perimeter - state.perimeter_preferential(), 2);
 };
 
 // /// The energy associated with cell-cell polarity

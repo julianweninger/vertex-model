@@ -42,7 +42,8 @@ agent_manager:
   cell_manager:
     agent_params:
       area_preferential: 1.
-      contractility: 0.02
+      shape_index_preferential: 3.6
+      contractility: 0.
       cell_type: progenitor
 
 initial_jiggle: 0.05

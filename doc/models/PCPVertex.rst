@@ -43,6 +43,18 @@ In the following i and j denote edges, :math:`\alpha` and :math:`\beta` denot ce
 
     where :math:`\mathrm{sgn}(A_\alpha)` is 1 if the vertices are ordered anti-clockwise and -1 if ordered clockwise.
 
+**Shape index term**
+    .. math::
+        E = \sum_\alpha \frac{\Gamma_\alpha}{2}(P_\alpha - P_\alpha^0)^2
+
+    summing over all cells, where :math:`P` is the cell's perimeter.
+
+    
+    .. math::
+        \Rightarrow F_i^{<ij>, \alpha} = - \nabla_i E = K_p \frac{(P - P_0)}{l_{<ij>}} (x_j - x_i) = - F_j^{<ij>, \alpha}
+
+    This term is associated with two disting energies, a surface energy (linear in P) and a contractility term (quadratic in P).
+
 
 **Linetension**
     .. math::    

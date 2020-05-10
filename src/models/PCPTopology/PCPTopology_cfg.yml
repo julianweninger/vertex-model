@@ -182,7 +182,7 @@ NotchDelta:
 # Equilibration parameter
 equilibration:
   tolerance: 1.e-8
-  num_steps: 1000
+  num_steps: 15000
   num_iterations: 1
   # NOTE after num_steps tolerance is checked, repeated for num_iterations
   num_jiggle: 5
@@ -212,13 +212,14 @@ PCPVertex:
 
     edge_manager:
       agent_params:
-        linetension: *Linetension
-        contractility: *Contractility
+        linetension: 0.
+        contractility: 0.
 
     cell_manager:
       agent_params:
         area_preferential: *Area_preferential
-        contractility: 0.
+        shape_index_preferential: 3.6
+        contractility: 1.
         cell_type: progenitor
 
 
@@ -236,8 +237,8 @@ PCPVertex:
   cell_initialisation_protein_level: 0.
 
   T1_threshold: 0.1
-  T1_probability: 0.05
-  T1_barrier: 0.02
+  T1_probability: 1.
+  T1_barrier: 0.001
   T2_threshold: 0.075
 
   data_manager: &data_manager
@@ -384,8 +385,6 @@ data_manager:
         active: true
         trigger: build_composite
         decider: write_composite
-
     Cells: *agents_equilibrium
-
     Edges: *agents_equilibrium
 

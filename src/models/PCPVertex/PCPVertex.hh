@@ -353,7 +353,7 @@ private:
         SpaceVec displ = this->_am.displacement(a, b);
         auto length = arma::norm(displ);
 
-        auto force = (edge->state.linetension * displ / length).eval();
+        SpaceVec force = edge->state.linetension * displ / length;
 
         a->state.f += force;
         b->state.f -= force;
@@ -375,8 +375,8 @@ private:
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
-        auto force = (edge->state.contractility *
-                      this->_am.displacement(a, b)).eval();
+        SpaceVec force = edge->state.contractility *
+                         this->_am.displacement(a, b);
 
         a->state.f += force;
         b->state.f -= force;
@@ -440,9 +440,11 @@ private:
             double dA_dx = 0.5 * displ[1];
             double dA_dy = -0.5 * displ[0];
 
-            v_center->state.f -= (this->_area_elasticity * 
-                                 (cell_area - state.area_preferential) * 
-                                 SpaceVec({dA_dx, dA_dy})).eval();
+            SpaceVec force = -1. * this->_area_elasticity * 
+                             (cell_area - state.area_preferential) * 
+                             SpaceVec({dA_dx, dA_dy});
+
+            v_center->state.f += force;
         }
         
         return state;
@@ -465,8 +467,8 @@ private:
             SpaceVec displ = this->_am.displacement(a, b);
             double length = arma::norm(displ);
 
-            auto force = (state.contractility * perimeter * displ /
-                          length).eval();
+            SpaceVec force = state.contractility * displ / length *
+                             (perimeter - state.perimeter_preferential());
 
             a->state.f += force;
             b->state.f -= force;
@@ -601,6 +603,13 @@ private:
      */
     const RuleFuncVertex update_position = [this](const auto& vertex) {
         const auto state = vertex->state;
+        // if (arma::norm(state.f) * this->_dt > 0.1) {
+        //     throw std::runtime_error(fmt::format("Timestep badly chosen. " 
+        //         "Vertex ({}, {}) would move by ({}, {}), i.e. by more than {}",
+        //         _am.position_of(vertex)[0], _am.position_of(vertex)[1], 
+        //         state.f[0], state.f[1],
+        //         arma::norm(state.f)));
+        // }
         _am.move_by(vertex, state.f * this->_dt);
         return state;
     };
