@@ -305,7 +305,9 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
  *  \param linetension  The linetension of the new edge
  *  \param contractility  The contractility of the new edge
  *  \param get_energy   Calculate the energy for container of edges and cells
+ *  \param separation   The separation of the new vertices 
  *  \param T1_barrier   The height of the energy barrier
+ *  \param random_number    A random number in [0, 1]
  * 
  *  \returns whether edge was removed.
  *           The edge is not removed if one of the adjoint cells is triangular.
@@ -317,7 +319,7 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         double linetension, double contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
-        double T1_threshold, double T1_barrier, double random_number)
+        double separation, double T1_barrier, double random_number)
 {
     if (not _space->periodic) {
         throw std::runtime_error("T1 transition not implemented in "
@@ -326,19 +328,23 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
     auto vertex_a = edge->custom_links().a;
     auto vertex_b = edge->custom_links().b;
+    SpaceVec displ = displacement(vertex_a, vertex_b);
+
+    // the vector separating the two new vertices
+    SpaceVec sep = SpaceVec({displ[1], -displ[0]})/arma::norm(displ)*separation;
 
     // create copies of the objects - T1 might be aborted
     const Edge edge_copy = *edge;
     const auto adjoint_edges_vertex_a = adjoint_edges_of(vertex_a);
     const auto adjoint_edges_vertex_b = adjoint_edges_of(vertex_b);
 
-    // tag objects to be removed
-    edge->state.remove = true;
-    vertex_a->state.remove = true;
-    vertex_b->state.remove = true;
-
+    // choose a the cell right of edge and b left
     auto [adj_cell_a, adj_cell_b] = adjoints_of(edge);
-    // NOTE a, b arbitrary
+    if (arma::dot(displacement(adj_cell_a, adj_cell_b), sep) < 0) {
+        // the vector A->B is anti-parallel to edge rotated by 90deg
+        // anti-clockwise, hence swap
+        std::swap(adj_cell_a, adj_cell_b);
+    }
     
     for (auto c : {adj_cell_a, adj_cell_b}) {
         if (c->custom_links().edges.size() <= 3) {
@@ -351,18 +357,25 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         }
     }
 
+    // tag objects to be removed
+    edge->state.remove = true;
+    vertex_a->state.remove = true;
+    vertex_b->state.remove = true;
+
     // the two cells that become neighbours in this T1 transition
-    // NOTE c is the cell adjoint to vertex edge->a (arbitrary)
+    // NOTE c is the cell adjoint to vertex edge->a
     //      d is the cell adjoint to vertex edge->b
     std::shared_ptr<Cell> adj_cell_c, adj_cell_d;
     for (const auto& c : adjoint_cells_of(vertex_a)) {
         if (c != adj_cell_a and c != adj_cell_b) {
             adj_cell_c = c;
+            break;
         }
     }
     for (const auto& c : adjoint_cells_of(vertex_b)) {
         if (c != adj_cell_a and c != adj_cell_b) {
             adj_cell_d = c;
+            break;
         }
     }
 
@@ -412,16 +425,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
                                              {adj_cell_a, adj_cell_b,
                                               adj_cell_c, adj_cell_d});
 
-    // create two new vertices that create an edge of threshold length 
-    // pointing from cell a to b
-    auto displ = _space->displacement(barycenter_of(adj_cell_a),
-                                      barycenter_of(adj_cell_b));
-    displ = displ / arma::norm(displ) * 2 * T1_threshold /
-            _space->get_domain_size();
-    
     auto center = position_of(vertex_a) + displacement(vertex_a, vertex_b) / 2;
-    auto new_v_a = add_vertex(SpaceVec(center - displ / 2.));
-    auto new_v_b = add_vertex(SpaceVec(center + displ / 2.));
+    auto new_v_a = add_vertex(SpaceVec(center - sep / 2.));
+    auto new_v_b = add_vertex(SpaceVec(center + sep / 2.));
 
     _vertices_adjoint_edges[new_v_a->id()] = {adj_edge_a, adj_edge_c};
     _vertices_adjoint_edges[new_v_b->id()] = {adj_edge_b, adj_edge_d};

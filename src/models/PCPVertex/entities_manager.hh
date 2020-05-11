@@ -192,8 +192,23 @@ public:
     /** \details see Utopia::Space::displacement
      */
     SpaceVec displacement (const std::shared_ptr<Vertex>& a,
-                       const std::shared_ptr<Vertex>& b) const {
+                           const std::shared_ptr<Vertex>& b) const {
         return _space->displacement(position_of(a), position_of(b));
+    }
+
+    /// The displacement between the barycenter of two cells
+    /** \details see Utopia::Space::displacement
+     */
+    SpaceVec displacement (const Cell& a, const Cell& b) const {
+        return _space->displacement(barycenter_of(a), barycenter_of(b));
+    }
+
+    /// The displacement between the barycenter of two cells
+    /** \details see Utopia::Space::displacement
+     */
+    SpaceVec displacement (const std::shared_ptr<Cell>& a,
+                           const std::shared_ptr<Cell>& b) const {
+        return _space->displacement(barycenter_of(a), barycenter_of(b));
     }
 
     /// The distance between two vertices
@@ -474,7 +489,7 @@ public:
         double linetension, double contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
-        double T1_threshold, double T1_barrier, double random_number);
+        double separation, double T1_barrier, double random_number);
 
         
     bool remove_cell_T2 (const std::shared_ptr<Cell> cell);

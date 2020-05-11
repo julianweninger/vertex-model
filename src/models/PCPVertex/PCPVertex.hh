@@ -148,19 +148,23 @@ private:
                              CellType::num_cell_types> _edge_contractility;
 
     /// Edges shorter than this value are replaced in a T1 transition
-    /** using absolute length
+    const double _T1_threshold;
+
+    /// The factor by which new edges are longer than threshold
+    /** \note Value from configuration is factor k_sep, but value stored is the
+     *        length of separation: \f$ d_{sep} = k_{sep} * d_{min} \f$
      */
-    double _T1_threshold;
+    const double _T1_separation;
 
     /// The probability, that a T1 transition occurs
-    double _T1_probability;
+    const double _T1_probability;
 
     /// The characteristic height of the energy barrier at T1 transitions
     /** The probability to perform a T1 transition is 
      *  \f$ p = \exp(-\Delta E / _T1_barrier) \f$, which is 1 for 
      *  \f$\Delta E < 0\f$.
      */
-    double _T1_barrier;
+    const double _T1_barrier;
     
     /// Area elasticity constant K
     double _area_elasticity;
@@ -207,6 +211,8 @@ public:
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _T1_threshold(get_as<double>("T1_threshold", this->_cfg)),
+        _T1_separation(_T1_threshold * get_as<double>("T1_separation_factor",
+                       this->_cfg)),
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -720,7 +726,7 @@ public:
                         [this](const AgentContainer<Edge>& es,
                                const AgentContainer<Cell>& cs) { 
                                     return this->get_energy(es, cs, 0.); },
-                        _T1_threshold, _T1_barrier, _prob_distr(*this->_rng));
+                        _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
                 transition_occurred = transition_occurred or T1;
             }
         }
