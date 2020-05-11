@@ -1,9 +1,10 @@
 ---
 PCPVertex:
-  T1_barrier: 0.2
+  T1_barrier: 1000.
   T1_probability: 1.
   T1_threshold: 0.2
-  T2_threshold: 0.075
+  T2_threshold: 0.0075
+  T1_separation_factor: 3
   agent_manager:
     cell_manager:
       agent_params: 
