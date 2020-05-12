@@ -711,7 +711,7 @@ public:
      *  \return whether operation performed
      */
     bool perform_operation(std::function<void()> operation, std::string name,
-                           Utopia::DataIO::Config cfg, 
+                           const Utopia::DataIO::Config& cfg, 
                            bool prolog=false, bool epilog=false)
     {
         int num_steps;
@@ -743,7 +743,7 @@ public:
             num_steps = get_as<int>("iterates", cfg["times"], 1);
         }
 
-        int emit_interval = get_as<int>("emit_interval", cfg, 0);
+        int emit_interval = get_as<int>("emit_interval", cfg["times"], 0);
         
         return perform_operation(operation, name, num_steps, emit_interval);
     }
