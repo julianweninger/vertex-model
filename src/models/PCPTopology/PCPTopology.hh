@@ -700,18 +700,29 @@ public:
     }
 
     /// Decider whether to perform an operation given a config
-    /** Decides whether to perform the information dependent on the config at 
-     *  this->_cfg[name].
-     * 
-     *  \param operation    The operation to perform
-     *  \param name         (optional) The name of the operation
+    /** \param operation    The operation to perform
+     *  \param name         The name of the operation
+     *  \param cfg          The config from which to extract the times of
+     *                      application.
      *  \param prolog       (optional) Whether called during prolog
      *  \param epilog       (optional) Whether called during epilog
      * 
-     *  \return whether operation performed
+     *  The cfg can have entry `active`: bool, and a `times`: dict:
+     *      * `begin` (uint, default: 0): the first step of application
+     *      * `end` (uint, default: max_steps): the last step of
+     *        application
+     *      * `iterates` (uint, default: 1): The number of applications per step
+     *      * `probability` (double, [0, 1], default: 1): The probability that 
+     *         the operations is performed in this step. If evaluated true, all
+     *         iterates are applied
+     *      * `emit_interval` (uint, default: 0): The interval to emit
+     *        information on progress in `info` level, otherwise progress in
+     *        `debug` level
+     * 
+     *  \return whether operation was performed
      */
     bool perform_operation(std::function<void()> operation, std::string name,
-                           Utopia::DataIO::Config cfg, 
+                           const Utopia::DataIO::Config& cfg, 
                            bool prolog=false, bool epilog=false)
     {
         int num_steps;
@@ -740,10 +751,11 @@ public:
                 return false;
             }
             
-            num_steps = get_as<int>("iterates", cfg["times"], 1);
+            num_steps = get_as<unsigned int>("iterates", cfg["times"], 1);
         }
 
-        int emit_interval = get_as<int>("emit_interval", cfg, 0);
+        int emit_interval = get_as<unsigned int>("emit_interval",
+                                                 cfg["times"], 0);
         
         return perform_operation(operation, name, num_steps, emit_interval);
     }
