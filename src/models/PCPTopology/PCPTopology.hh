@@ -837,14 +837,39 @@ public:
             return this->__epilog();
         }
 
+        this->_log->info("Run finished at time {}. Starting epilog ..", 
+                         this->get_time());
+
         auto epilog_cfg = this->_cfg["epilog"];
 
-        auto num_steps = get_as<int>("num_equilibrations", epilog_cfg);
-        this->_log->info("Equilibrating vertex model another {} times ..", 
-                         num_steps);
+        if (epilog_cfg["jiggle"]) {
+            const auto num_steps = get_as<unsigned int>("iterations",
+                                                epilog_cfg["jiggle"], 0);
+            const auto emit_interval = get_as<unsigned int>("emit_interval",
+                                                epilog_cfg["jiggle"], 0);
 
-        for (int i = 0; i < num_steps; ++i) {
-            this->equilibrate_vertex_model();
+            this->_log->info("Equilibrating vertex model another {} times ..", 
+                             num_steps);
+
+            const auto time0 = this->get_time();
+
+            for (unsigned int i = 0; i < num_steps; ++i) {
+                this->equilibrate_vertex_model();
+                
+                this->increment_time();
+                this->_datamanager(static_cast<PCPTopology&>(*this));
+
+                if (emit_interval > 0 and 
+                    (this->get_time() - time0) % emit_interval == 0)
+                {
+                    this->_log->info("Finished equilibration {} of {}", i+1, 
+                                     num_steps);
+                }
+                else {
+                    this->_log->debug("Finished equilibration {} of {}", i+1,
+                                      num_steps);
+                }
+            }
         }
 
         return this->__epilog();

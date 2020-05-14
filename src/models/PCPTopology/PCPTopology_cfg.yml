@@ -190,8 +190,9 @@ equilibration:
   jiggle_tolerance: 1.e-6
 
 epilog:
-  num_equilibrations: 0
-  # NOTE there is no data produced during epilog :/
+  jiggle:
+    iterations: 4
+    emit_interval: 5
 
 # The model for energy minimization
 PCPVertex:
@@ -338,6 +339,7 @@ data_manager:
         interval:
           intervals:
             - [0, 2]
+            - [5, 1000000]  # replace 5 with last step
         slice:
           start: 0
           stop: 10000
