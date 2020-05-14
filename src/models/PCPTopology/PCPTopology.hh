@@ -30,6 +30,65 @@ namespace Models {
 namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+/// Parameter of the Environment model
+struct EnvParam : Utopia::Models::Environment::BaseEnvParam
+{
+    /// The preferential area of hair cells
+    /** Since the volume is experimentally constant, this maps the detachment
+     *  of HCs from the base. Assuming uniform height of the HCs. The SCs 
+     *  automatically fill the volume.
+     */
+    double area_preferential_hair;
+    
+    /// The preferential area of support cells
+    /** Since the volume is experimentally constant, this maps the detachment
+     *  of HCs from the base. Assuming uniform height of the HCs. The SCs 
+     *  automatically fill the volume.
+     */
+    double area_preferential_support;
+
+    EnvParam(const Utopia::DataIO::Config& cfg)
+    :
+        area_preferential_hair(Utopia::get_as<double>("area_preferential_hair",
+                                                      cfg)),
+        area_preferential_support(Utopia::get_as<double>("area_preferential"
+                                                         "_support", cfg))
+    { }
+
+    ~EnvParam() = default;
+
+    /// Getter
+    double get_env(const std::string& key) const override {
+        if (key == "area_preferential_hair") {
+            return area_preferential_hair;
+        }
+        else if (key == "area_preferential_support") {
+            return area_preferential_support;
+        }
+        throw std::invalid_argument("No access method for key '" + key
+                                    + "' in EnvParam!");
+    }
+
+    /// Setter
+    void set_env(const std::string& key,
+                const double& value) override
+    {
+        if (key == "area_preferential_hair") {
+            area_preferential_hair = value;
+        }
+        else if (key == "area_preferential_support") {
+            area_preferential_support = value;
+        }
+        else {
+            throw std::invalid_argument("No setter method for key '" + key
+                                        + "' in EnvParam!");
+        }
+    }
+};
+
+using EnvCellState = Environment::DummyEnvCellState;
+using EnvModel = Environment::Environment<EnvParam, EnvCellState>;
+
 /// Type helper to define types used by the model
 using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
                                                  Space::CustomSpace<2>>;
@@ -51,15 +110,6 @@ public:
 
     /// The types a cell can take (support, hair)
     using CellType = typename PCPVertex::CellType;
-
-    /// The type of a rule function acting on vertices of the agent manager
-    using RuleFuncVertex = typename PCPVertex::RuleFuncVertex;
-    
-    /// The type of a rule function acting on edges of the agent manager
-    using RuleFuncEdge = typename PCPVertex::RuleFuncEdge;
-    
-    /// The type of a rule function acting on cells of the agent manager
-    using RuleFuncCell = typename PCPVertex::RuleFuncCell;
 
     /// The type of coordinates and vectors in space
     using SpaceVec = typename PCPVertex::SpaceVec;
@@ -102,7 +152,7 @@ private:
     double _jiggle_equilibration_tolerance;
 
     /// The parameter for proliferation
-    struct ParamsProliferation {
+    struct ParamsProliferation {      
         /// The number of steps to double the cell's area  
         unsigned int num_increases;
 
@@ -128,6 +178,16 @@ private:
         }
     } _params_proliferation;
 
+    /// A model where the parameters are changed over time
+    /** See PCPTopology::EnvParam for available parameter
+     */
+    EnvModel _envm;
+
+    /// The parameter of preferential area per cell type
+    /** This parameter is updated in PCPTopology::_envm
+     */
+    arma::Col<double>::fixed<CellType::num_cell_types> _area_preferential;
+    
     /// Config of operation proliferation
     Config _cfg_proliferation;
 
@@ -136,137 +196,6 @@ private:
 
     /// Config of operation stretch domain
     Config _cfg_stretch_domain;
-    
-    /// The parameters for increment of cell area
-    struct ParamsIncrementArea {
-        /// The value of increment for area of hair cells
-        double hair;
-
-        /// The value of increment for area of support cells
-        double support;
-        
-        /// The variance of increment for area of hair cells
-        /** \details using a normal distribution
-         */
-        double var_hair;
-
-        /// The variance of increment for area of support cells
-        /** \details using a normal distribution
-         */
-        double var_support;
-
-        /// Whether to compensate area change in support cells
-        /** \details If true N_hc * A^0_hc + N_sc * A^0_sc = const
-         */
-        bool adapt_support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementArea (const Config& cfg)
-        :
-            hair(get_as<double>("hair", cfg)),
-            support(get_as<double>("support", cfg)),
-            var_hair(get_as<double>("var_hair", cfg, 0.)),
-            var_support(get_as<double>("var_support", cfg, 0.)),
-            adapt_support(get_as<bool>("adapt_support", cfg)),
-            name("increment_area"),
-            cfg(cfg)
-        {
-            if (adapt_support and support != 0) {
-                throw std::invalid_argument(fmt::format(
-                    "In cfg {}: If `adapt_support = True`, "
-                    "then the increment value for the support cells "
-                    "`support` must be zero, but was {}!", name, support));
-            }
-        }
-    } _params_increment_area;
-    
-    /// The parameters for increment of cell shape-index
-    struct ParamsIncrementShapeindex {
-        /// The value of increment for shape-index of hair cells
-        double hair;
-
-        /// The value of increment for shape-index of support cells
-        double support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementShapeindex (const Config& cfg)
-        :
-            hair(get_as<double>("hair", cfg, 0.)),
-            support(get_as<double>("support", cfg, 0.)),
-            name("increment_shape_index"),
-            cfg(cfg)
-        {
-            
-        }
-    } _params_increment_shape_index;
-    
-    /// The parameters for increment of edge linetension
-    struct ParamsIncrementLinetension {
-        /// The value of increment for hair-hair junctions
-        double hair_hair;
-
-        /// The value of increment for hair-support junctions
-        double hair_support;
-
-        /// The value of increment for support-support junctions
-        double support_support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementLinetension (const Config& cfg)
-        :
-            hair_hair(get_as<double>("hair_hair", cfg, 0.)),
-            hair_support(get_as<double>("hair_support", cfg, 0.)),
-            support_support(get_as<double>("support_support", cfg, 0.)),
-            name("increment_linetension"),
-            cfg(cfg)
-        {
-
-        }
-    } _params_increment_linetension;
-    
-    /// The parameters for increment of edge contractility
-    struct ParamsIncrementContractility {
-        /// The value of increment for hair-hair junctions
-        double hair_hair;
-
-        /// The value of increment for hair-support junctions
-        double hair_support;
-
-        /// The value of increment for support-support junctions
-        double support_support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementContractility (const Config& cfg)
-        :
-            hair_hair(get_as<double>("hair_hair", cfg, 0.)),
-            hair_support(get_as<double>("hair_support", cfg, 0.)),
-            support_support(get_as<double>("support_support", cfg, 0.)),
-            name("increment_contractility"),
-            cfg(cfg)
-        {
-
-        }
-    } _params_increment_contractility;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -308,13 +237,8 @@ public:
         _jiggle_intensity(0.),
         _jiggle_equilibration_tolerance(0.),
         _params_proliferation(this->_cfg["proliferation"]),
-        _params_increment_area(extract_cfg("increment_area", this->_cfg)),
-        _params_increment_shape_index(extract_cfg("increment_shape_index",
-                                                  this->_cfg)),
-        _params_increment_linetension(extract_cfg("increment_linetension",
-                                                  this->_cfg)),
-        _params_increment_contractility(extract_cfg("increment_contractility",
-                                                    this->_cfg)),
+        _envm("Environment", *this),
+        _area_preferential(),
         _prob_distr(0.,1.)
     {
         this->_space = _vertex_model.get_space();
@@ -343,6 +267,13 @@ public:
                 std::to_string(_jiggle_equilibration_tolerance) + " < " +
                 std::to_string(_equilibration_tolerance) + "!");
         }
+                                
+        double area_preferential = get_as<double>("area_preferential",
+                                        this->_cfg["PCPVertex"]["agent_manager"]
+                                        ["cell_manager"]["agent_params"]);            
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            _area_preferential(i) = area_preferential;
+        }
 
         // copy operation configs
         if (not this->_cfg["proliferation"]) {
@@ -366,14 +297,6 @@ public:
 
 private:
     // .. Setup functions .....................................................
-    /// Extract the configuration of an operation
-    Config extract_cfg (std::string name, const Config& cfg) {
-        if (not cfg[name]) {
-            throw KeyError(name, cfg);
-        }
-
-        return cfg[name];
-    }
 
     // .. Helper functions ....................................................
     /// Equilibrates the vertex model
@@ -548,30 +471,27 @@ private:
         double dA = _vertex_model.stretch_domain(stretch_speed, true,
                                                  fix_hair_cell_volume);
         
-        arma::Col<double>::fixed<CellType::num_cell_types> area_change;
-        int num_cells = _vertex_model.get_am().cells().size();
         if (fix_hair_cell_volume) {
+            int num_cells = _vertex_model.get_am().cells().size();
             for (auto c : _vertex_model.get_am().cells()) {
                 num_cells -= (c->state.type == CellType::hair);
             }
-        }
-        
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            if (fix_hair_cell_volume and i == CellType::hair) {
-                area_change[i] = 0;
-            }
-            else {
-                area_change[i] = dA / num_cells;
+            for (int i = 0; i < CellType::num_cell_types; i++) {
+                if (i == CellType::hair) { continue; }                    
+                _area_preferential(i) += dA / num_cells;
             }
         }
-
-        PCPVertex::RuleFuncCell update = [this, area_change](const auto& cell) {
-            auto state = cell->state;
-            state.area_preferential -= area_change[state.type];
-            return state;
-        };
-
-        apply_rule<Update::sync>(update, _vertex_model.get_am().cells());
+        else {
+            int num_cells = _vertex_model.get_am().cells().size();
+            for (int i = 0; i < CellType::num_cell_types; i++) {                
+                _area_preferential(i) += dA / num_cells;
+            }                
+        }
+        _envm.set_parameter("area_preferential_hair",
+                            _area_preferential(CellType::hair));
+        _envm.set_parameter("area_preferential_support",
+                            _area_preferential(CellType::support));
+        return;
    }
 
     /// Differentiate cells
@@ -579,12 +499,79 @@ private:
         this->_log->debug("Preparing differentiating progenitor cells to hair- "
             "and support-cells ...");
 
+        static_assert(CellType::num_cell_types == 3, "Initialisation of "
+            "interaction matrices `linetension` and `area_preferential` only "
+            "defined for 3 cell types.");
+        
+        this->_log->debug("Extracting area-preferential (expecting {} "
+                          "entries) ..", CellType::num_cell_types);
+        if (not this->_cfg["differentiation"]["area_preferential"]) {
+            throw std::invalid_argument("Expected cfg dict 'area_preferential' "
+                "not available in proliferation!");
+        }
+
+        // initialise area preferential from Vertex model
+        double area_preferential = get_as<double>("area_preferential",
+                                    this->_cfg["PCPVertex"]["agent_manager"]
+                                            ["cell_manager"]["agent_params"]);          
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            _area_preferential(i) = area_preferential;
+        }
+
+        this->_log->debug("Extracting linetension (expecting {}! entries, "
+                          "i.e. the upper diagonal matrix of a {}x{} matrix) ..",
+                          CellType::num_cell_types, CellType::num_cell_types,
+                          CellType::num_cell_types);
+        if (not this->_cfg["differentiation"]["linetension"]) {
+            throw std::invalid_argument("Expected cfg dict 'linetension' "
+                "not available in proliferation!");
+        }
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension;
+        linetension(CellType::progenitor, CellType::progenitor) = get_as<double>(
+            "progenitor_progenitor", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::progenitor, CellType::hair) = get_as<double>(
+            "progenitor_hair", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::progenitor, CellType::support) = get_as<double>(
+            "progenitor_support", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::hair, CellType::hair) = get_as<double>(
+            "hair_hair", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::hair, CellType::support) = get_as<double>(
+            "hair_support", this->_cfg["differentiation"]["linetension"]);
+        linetension(CellType::support, CellType::support) = get_as<double>(
+            "support_support", this->_cfg["differentiation"]["linetension"]);
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                linetension(j, i) = linetension(i, j);
+            }
+        }
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> contractility;
+        contractility(CellType::progenitor, CellType::progenitor) = get_as<double>(
+            "progenitor_progenitor", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::progenitor, CellType::hair) = get_as<double>(
+            "progenitor_hair", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::progenitor, CellType::support) = get_as<double>(
+            "progenitor_support", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::hair, CellType::hair) = get_as<double>(
+            "hair_hair", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::hair, CellType::support) = get_as<double>(
+            "hair_support", this->_cfg["differentiation"]["contractility"]);
+        contractility(CellType::support, CellType::support) = get_as<double>(
+            "support_support", this->_cfg["differentiation"]["contractility"]);
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            for (int j = i+1; j < CellType::num_cell_types; j++) {
+                contractility(j, i) = contractility(i, j);
+            }
+        }        
+
         auto method = get_as<std::string>("method",
                                           this->_cfg["differentiation"]);
         if (method == "random") {
             double hair_cell_fraction = get_as<double>("hair_cell_fraction",
                                             this->_cfg["differentiation"]);
-            _vertex_model.differentiate_hair_cells_random(hair_cell_fraction);
+            _vertex_model.differentiate_hair_cells_random(hair_cell_fraction,
+                linetension, contractility, _area_preferential);
         }
         else if (method == "NotchDelta") {
             auto notch_delta = std::make_shared<NotchDelta::NotchDelta>(
@@ -598,8 +585,9 @@ private:
             
             auto steps = get_as<int>("notch_delta_steps",
                                      this->_cfg["differentiation"]);
-            _vertex_model.differentiate_hair_cells_NotchDelta(notch_delta,
-                                                              steps);
+            _vertex_model.differentiate_hair_cells_NotchDelta(
+                notch_delta, steps, linetension, contractility,
+                _area_preferential);
         }
         else {
             throw KeyError("method", this->_cfg["differentiation"], "Method "
@@ -622,103 +610,48 @@ private:
         return;
     }
 
-    void increment_area () {
-        const auto& am = _vertex_model.get_am();
-
-        double hair = _params_increment_area.hair;
-        
-        double support;
-        if (not _params_increment_area.adapt_support) {
-            support = _params_increment_area.support;
-        }
-        else {
-            unsigned int num_hcs = 0;
-            for (const auto& c : am.cells()) {
-                if (c->state.type == CellType::hair) { num_hcs++; }
-            }
-            if (num_hcs == am.cells().size()) {
-                support = 0;
-            }
-            else {
-                support = -1. * hair * num_hcs / (am.cells().size() - num_hcs);
-            }
+    /// Update the parameters for area preferential from environment model
+    bool update_area_preferential () {
+        double new_value = _envm.get_parameter("area_preferential_hair");
+        if (_area_preferential(CellType::hair) == new_value) {
+            return false;
         }
 
-        std::normal_distribution<> dist_hair{hair,
-                                             _params_increment_area.var_hair};
-        std::normal_distribution<> dist_support{support,
-                                            _params_increment_area.var_support};
-
-        RuleFuncCell update = [hair, support, this,
-                               dist_hair{std::move(dist_hair)},
-                               dist_support{std::move(dist_support)}]
-                (const auto& cell) mutable
-        {
-            auto state = cell->state;
-            if (state.type == CellType::support) {
-                state.area_preferential += dist_support(*this->_rng);
-            }
-            else if (state.type == CellType::hair) {
-                state.area_preferential += dist_hair(*this->_rng);
-            }
-            return state;
-        };
+        // area increase per hair cell
+        _area_preferential(CellType::hair) = new_value;
+        double dA = new_value - _area_preferential(CellType::hair);
         
-        apply_rule<Update::sync>(update, am.cells());
-    }
+        const auto& cells = _vertex_model.get_am().cells();
+        unsigned int num_hcs = 0;
+        for (const auto& c : cells) {
+            num_hcs += (c->state.type == CellType::hair);
+        }
 
-    void increment_shape_index () {
-        double hair = _params_increment_shape_index.hair;
-        double support = _params_increment_shape_index.support;
+        dA *= num_hcs; // the total increase of area by all hcs
+        if (num_hcs < cells.size()) {
+            // area change compensation per non-hair cell
+            dA /= cells.size() - num_hcs;
+        }
+        else { dA = 0.; }
 
-        RuleFuncCell update = [hair, support](const auto& cell) {
-            auto state = cell->state;
-            if (state.type == CellType::support) {
-                state.shape_index_preferential += support;
-            }
-            else if (state.type == CellType::hair) {
-                state.shape_index_preferential += hair;
-            }
-            return state;
-        };
+        // update the parameter
+        for (int i = 0; i < CellType::num_cell_types; i++) {
+            if (i == CellType::hair) { continue; }
+            _area_preferential(i) -= dA;
+        }
 
-        apply_rule<Update::sync>(update, _vertex_model.get_am().cells());
-    }
+        for (auto& c : cells) {
+            c->state.area_preferential = _area_preferential(c->state.type);
+        }
+        
+        this->_log->debug("Updated area preferential from Environment model "
+            "to ({}, {}, {}.", _area_preferential(0), _area_preferential(1),
+            _area_preferential(2));
 
-    void increment_linetension () {
-        auto linetension = _vertex_model.get_linetension();
-
-        double hair_hair = _params_increment_linetension.hair_hair;
-        double hair_support = _params_increment_linetension.hair_support;
-        double support_support = _params_increment_linetension.support_support;
-
-        linetension(CellType::hair, CellType::hair) += hair_hair;
-        linetension(CellType::support, CellType::support) += support_support;
-        linetension(CellType::hair, CellType::support) += hair_support;
-        linetension(CellType::support, CellType::hair) = linetension(
-                                                            CellType::hair,
-                                                            CellType::support);
-
-        // set the contractility and update the edge properties
-        _vertex_model.set_linetension(linetension, true);
-    }
-
-    void increment_contractility () {
-        auto contractility = _vertex_model.get_edge_contractility();
-
-        double hair_hair = _params_increment_contractility.hair_hair;
-        double hair_support = _params_increment_contractility.hair_support;
-        double support_support = _params_increment_contractility.support_support;
-
-        contractility(CellType::hair, CellType::hair) += hair_hair;
-        contractility(CellType::support, CellType::support) += support_support;
-        contractility(CellType::hair, CellType::support) += hair_support;
-        contractility(CellType::support, CellType::hair) = contractility(
-                                                            CellType::hair,
-                                                            CellType::support);
-
-        // set the contractility and update the edge properties
-        _vertex_model.set_edge_contractility(contractility, true);
+        _envm.set_parameter("area_preferential_support",
+                            _area_preferential(CellType::support));
+        
+        return true;
     }
 
 public:
@@ -830,19 +763,11 @@ public:
     // .. Simulation Control ..................................................
     /// Iterate a single step
     void perform_step () {
-        // increment entity parameter
-        perform_operation(
-            [this] () { return this->increment_area(); },
-            "increment_area", _params_increment_area.cfg);
-        perform_operation(
-            [this] () { return this->increment_shape_index(); },
-            "increment_shape_index", _params_increment_shape_index.cfg);
-        perform_operation(
-            [this] () { return this->increment_linetension(); },
-            "increment_linetension", _params_increment_linetension.cfg);
-        perform_operation(
-            [this] () { return this->increment_contractility(); },
-            "increment_contractility", _params_increment_contractility.cfg);
+        this->_envm.iterate();
+        bool update = this->update_area_preferential();
+        if (update) {
+            perform_operation([] () {}, "hair cell growth", 1, 0);
+        }
 
         // deformations
         perform_operation(
@@ -883,25 +808,15 @@ public:
         
         perform_operation(
             [this] () { return this->differentiate_cells(); },
-            "differentiation", _cfg_differentiation, true);
-
-        // increment entity parameter
-        perform_operation(
-            [this] () { return this->increment_area(); },
-            "increment_area", _params_increment_area.cfg,
-            true);
-        perform_operation(
-            [this] () { return this->increment_shape_index(); },
-            "increment_shape_index", _params_increment_shape_index.cfg,
-            true);
-        perform_operation(
-            [this] () { return this->increment_linetension(); },
-            "increment_linetension", _params_increment_linetension.cfg,
-            true);
-        perform_operation(
-            [this] () { return this->increment_contractility(); },
-            "increment_contractility", _params_increment_contractility.cfg,
-            true);
+            "differentiation", _cfg_differentiation, true);            
+        
+        _envm.track_parameters({"area_preferential_hair",
+                                "area_preferential_support"});
+        this->_envm.prolog();
+        bool update = this->update_area_preferential();
+        if (update) {
+            perform_operation([] () {}, "hair cell growth", 1, 0);
+        }
         
         return this->__prolog();
     }
@@ -913,6 +828,7 @@ public:
      */
     void epilog () {
         _vertex_model.epilog();
+        _envm.epilog();
         
         const auto domain = _vertex_model.get_space()->get_domain_size();
         this->_log->info("Domain size is {} x {}.", domain[0], domain[1]);

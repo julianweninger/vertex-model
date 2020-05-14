@@ -1,10 +1,6 @@
-# The test configuration for the PCPTopology model
-# testing the modes for the update scheme
+# The model configuration for the heterogeneous Savanna Model
 ---
 perform_sweep: True
-
-paths:
-  model_note: test_solvers
 
 parameter_space:
   num_steps: 14
@@ -17,3 +13,8 @@ parameter_space:
       update_scheme: !sweep
         default: steepest_gradient
         values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
+
+    equilibration:
+      tolerance: 1.e-6
+      num_jiggle: 1
+

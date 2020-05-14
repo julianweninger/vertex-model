@@ -26,11 +26,9 @@ namespace Utopia::Models::PCPVertex {
  *  
  *  \warning Does not conserve the ordering of vertices
  */
-template <class Model>
-template <typename EdgeParamMatrix>
+template<class Model>
 void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
-        double division_angle,
-        EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility)
+        double division_angle, double linetension, double edge_contractility)
 {
     if (not _space->periodic) {
         throw std::runtime_error("Cell division not implemented in "
@@ -113,11 +111,9 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
 
     // create the new edge dividing the cell
     DataIO::Config edge_cfg;
-    edge_cfg["linetension"] = linetension.at(cell->state.type,
-                                             cell->state.type);
-    edge_cfg["contractility"] = edge_contractility.at(cell->state.type,
-                                                      cell->state.type);
-    const auto new_edge = add_edge(new_vertices[0], new_vertices[1]);
+    edge_cfg["linetension"] = linetension;
+    edge_cfg["contractility"] = edge_contractility;
+    const auto new_edge = add_edge(new_vertices[0], new_vertices[1], edge_cfg);
 
     // this is how to divide an edge at a pivot vertex
     /* \param e     The Edge to divide
@@ -254,7 +250,6 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     // create 2 new cells
     DataIO::Config cell_cfg;
     cell_cfg["area_preferential"] = cell->state.area_preferential;
-    cell_cfg["area_preferential_var"] = cell->state.area_preferential_var;
     cell_cfg["shape_index_preferential"] = cell->state.shape_index_preferential;
     cell_cfg["contractility"] = cell->state.contractility;
     cell_cfg["protein_concentration"] = cell->state.protein_concentration;
@@ -319,10 +314,9 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
  *           Remove it rather in a T2 transition.
  *           The edge is also not removed if the transition increases energy.
  */
-template <class Model>
-template <typename EdgeParamMatrix>
+template<class Model>
 bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
-        EdgeParamMatrix linetension, EdgeParamMatrix contractility,
+        double linetension, double contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number)
@@ -445,10 +439,8 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
     // create a new edge
     DataIO::Config edge_cfg;
-    edge_cfg["linetension"] = linetension.at(adj_cell_c->state.type,
-                                             adj_cell_d->state.type);
-    edge_cfg["contractility"] = contractility.at(adj_cell_c->state.type,
-                                                 adj_cell_d->state.type);
+    edge_cfg["linetension"] = linetension;
+    edge_cfg["contractility"] = contractility;
     auto new_edge = add_edge(new_v_a, new_v_b, edge_cfg);
     _edges_adjoint_cells[new_edge->id()] = std::make_pair(adj_cell_c,
                                                           adj_cell_d);
