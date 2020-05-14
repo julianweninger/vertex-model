@@ -47,28 +47,6 @@ differentiation:
   hair_cell_fraction: 0.25  # only used if method='random'
   notch_delta_steps: 1000
   method: NotchDelta    # can be: NotchDelta, random
-  
-  # the matrices defining the interaction for the additional cell types
-  linetension:
-    progenitor_progenitor: &Linetension 0.1
-    progenitor_hair: *Linetension
-    progenitor_support: *Linetension
-    hair_hair: 0.12
-    hair_support: *Linetension
-    support_support: *Linetension
-
-  area_preferential:
-    progenitor: &Area_preferential 1.
-    hair: *Area_preferential
-    support: *Area_preferential
-
-  contractility:
-    progenitor_progenitor: &Contractility 0.02
-    progenitor_hair: *Contractility
-    progenitor_support: *Contractility
-    hair_hair: *Contractility
-    hair_support:  *Contractility
-    support_support: *Contractility
 
 # stretch the domain
 stretch_domain:
@@ -79,26 +57,35 @@ stretch_domain:
   stretch_speed: [0.01, 0.0]
   fix_hair_cell_volume: True
 
-# for the growth of hair cells at the expense of the support cells
-Environment:
-  cell_manager:
-    cell_params: ~
-    grid:
-      structure: square
-      resolution: 1
+increment_area:
+  active: False
+  times:
+    begin: 1
+    # no end
   
-  area_preferential_hair: *Area_preferential
-  area_preferential_support: *Area_preferential
+  hair: 0.05
+  support: 0.
+  adapt_support: true
+
+increment_shape_index:
+  active: False
+
+increment_linetension:
+  active: False
+  times:
+    begin: 0
+    end: 0
   
-  env_param_funcs:
-    - increment:
-        area_preferential_hair:
-          value: 0.05
-          times: !listgen [1, 10000]
-          invoke_at_initialization: False
-          # increase is compensated by support cells
-  init_env_state_funcs: ~
-  env_state_funcs: ~
+  hair_hair: 10.
+  support: 0.
+
+increment_contractility:
+  active: False
+  times:
+    begin: 1
+    # no end
+  
+  support_support: 0.01
 
 # A model used in differentiation
 NotchDelta:
@@ -185,7 +172,7 @@ equilibration:
   num_steps: 15000
   num_iterations: 1
   # NOTE after num_steps tolerance is checked, repeated for num_iterations
-  num_jiggle: 5
+  num_jiggle: 1
   jiggle_intensity: 0.01
   jiggle_tolerance: 1.e-6
 
@@ -217,7 +204,8 @@ PCPVertex:
 
     cell_manager:
       agent_params:
-        area_preferential: *Area_preferential
+        area_preferential: 1.
+        area_preferential_var: 0.
         shape_index_preferential: 3.6
         contractility: 1.
         cell_type: progenitor
