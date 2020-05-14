@@ -130,22 +130,18 @@ private:
     double _gamma;
 
     /// Linetension constant Lambda
-    /** The entries are linetensions at interfaces between two cells of types i 
-     *  and j.
-     *  \note The values of this matrix are used for new edges, e.g. in T1
-     *        transitions. There is no other generic way to determine the
-     *        surface tension between two cells from the previous edge.
+    /**  The entries are linetensions at interfaces between two cells of types i 
+     *  and j
+     * 
      *  \note This is a symmetric matrix
      */
     arma::Mat<double>::fixed<CellType::num_cell_types,
                              CellType::num_cell_types> _linetension;
 
     /// Linetension constant Lambda
-    /** The entries are contractility at interfaces between two cells of types
-     *  i and j
-     *  \note The values of this matrix are used for new edges, e.g. in T1
-     *        transitions. There is no other generic way to determine the
-     *        surface tension between two cells from the previous edge.
+    /**  The entries are linetensions at interfaces between two cells of types i 
+     *  and j
+     * 
      *  \note This is a symmetric matrix
      */
     arma::Mat<double>::fixed<CellType::num_cell_types,
@@ -356,7 +352,7 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
+    const RuleFuncEdge set_linetension = [this](const auto& edge) {
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
         
@@ -381,7 +377,7 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
+    const RuleFuncEdge set_edge_contractility = [this](const auto& edge) {
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
@@ -404,7 +400,7 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    const RuleFuncCell set_grad_area_elasticity = [this](const auto& cell) {
+    const RuleFuncCell set_area_elasticity = [this](const auto& cell) {
         const auto state = cell->state;
 
         const auto cell_area = this->_am.area_of(cell);
@@ -464,7 +460,7 @@ private:
     /** Associated energy per cell is 
      *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
      */
-    const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
+    const RuleFuncCell set_cell_contractility = [this](const auto& cell)
     {
         auto state = cell->state;
         double perimeter = this->_am.perimeter_of(cell);
@@ -596,13 +592,12 @@ private:
         apply_rule<Update::sync>(reset_forces, _am.vertices());
 
         // apply new forces
-        apply_rule<Update::async, Shuffle::off>(set_grad_linetension,
+        apply_rule<Update::async, Shuffle::off>(set_linetension, _am.edges());
+        apply_rule<Update::async, Shuffle::off>(set_edge_contractility,
                                                 _am.edges());
-        apply_rule<Update::async, Shuffle::off>(set_grad_edge_contractility,
-                                                _am.edges());
-        apply_rule<Update::async, Shuffle::off>(set_grad_area_elasticity,
+        apply_rule<Update::async, Shuffle::off>(set_area_elasticity,
                                                 _am.cells());
-        apply_rule<Update::async, Shuffle::off>(set_grad_cell_contractility,
+        apply_rule<Update::async, Shuffle::off>(set_cell_contractility,
                                                 _am.cells());
     }
 
@@ -645,15 +640,31 @@ private:
     double perform_update_step(UpdateScheme update_scheme);
 
     // -- Helper functions ----------------------------------------------------
+    void differentiate_hair_cells_hlpr(
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
 
 
 public:
     // -- Public Interface ----------------------------------------------------
     void jiggle_vertices(double intensity);
-    void differentiate_hair_cells_random(double fraction);
+    void differentiate_hair_cells_random(double fraction,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                    CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                    CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
     template <class NotchDelta>
     void differentiate_hair_cells_NotchDelta(
-        std::shared_ptr<NotchDelta> notch_delta, int steps);
+        std::shared_ptr<NotchDelta> notch_delta, int steps,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> linetension,
+        arma::Mat<double>::fixed<CellType::num_cell_types,
+                                 CellType::num_cell_types> edge_contractility,
+        arma::Col<double>::fixed<CellType::num_cell_types> area_preferential);
         
     /// Perform a cell division on specific cell
     /** Divides a specific cell into two identical cells with properties derived
@@ -667,8 +678,11 @@ public:
      */
     void divide_cell(std::shared_ptr<Cell> cell, double division_angle) {
         this->_log->info("Dividing cell..");
-        return _am.divide_cell(cell, division_angle, _linetension,
-                               _edge_contractility);
+        double linetension = _linetension(cell->state.type, cell->state.type);
+        double contractility = _edge_contractility(cell->state.type,
+                                                   cell->state.type);
+        return _am.divide_cell(cell, division_angle, linetension,
+                               contractility);
     }
 
     void increase_domain_size(double area);
@@ -708,7 +722,7 @@ public:
                 this->_log->info("Removing edge in T1 transition in step {}..",
                                  this->_time);
                 bool T1 = _am.remove_edge_T1(_am.edges()[i],
-                        _linetension, _edge_contractility,
+                        _linetension(0, 0), _edge_contractility(0,0),
                         [this](const AgentContainer<Edge>& es,
                                const AgentContainer<Cell>& cs) { 
                                     return this->get_energy(es, cs, 0.); },
@@ -810,73 +824,6 @@ public:
 
     const AgentManager& get_am () const {
         return _am;
-    }
-    
-    const auto get_linetension () const {
-        return _linetension;
-    }
-    
-    /// Set 
-    void set_linetension (
-            arma::Mat<double>::fixed<CellType::num_cell_types,
-                                     CellType::num_cell_types> linetension,
-            bool update_edges)
-    {
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i + 1; j < CellType::num_cell_types; j++) {
-                if (linetension(i, j) != linetension(j, i)) {
-                    throw std::invalid_argument(
-                            "Linetension matrix needs to be symmetric!");
-                }
-            }
-        }
-        _linetension = linetension;
-
-        if (update_edges) {
-            RuleFuncEdge update = [this] (const auto& edge)
-            {
-                auto state = edge->state;
-                const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.contractility = this->_linetension(a->state.type,
-                                                         b->state.type);
-                return state;
-            };
-
-            apply_rule<Update::sync>(update, this->_am.edges());
-        }
-    }
-
-    const auto get_edge_contractility () const {
-        return _edge_contractility;
-    }
-
-    void set_edge_contractility (
-            arma::Mat<double>::fixed<CellType::num_cell_types,
-                                     CellType::num_cell_types> contractility,
-            bool update_edges) 
-    {
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i + 1; j < CellType::num_cell_types; j++) {
-                if (contractility(i, j) != contractility(j, i)) {
-                    throw std::invalid_argument(
-                            "Contractility matrix needs to be symmetric!");
-                }
-            }
-        }
-        _edge_contractility = contractility;
-
-        if (update_edges) {
-            RuleFuncEdge update = [this] (const auto& edge)
-            {
-                auto state = edge->state;
-                const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.contractility = this->_edge_contractility(a->state.type,
-                                                                b->state.type);
-                return state;
-            };
-
-            apply_rule<Update::sync>(update, this->_am.edges());
-        }
     }
 
     /** Criterion for the equilibrium state

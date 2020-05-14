@@ -482,13 +482,11 @@ public:
         return displace_virtual(*edge, beta);
     }
 
-    template <typename EdgeParamMatrix>
     void divide_cell(const std::shared_ptr<Cell> cell, double division_angle,
-            EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility);
+            double linetension, double edge_contractility);
 
-    template <typename EdgeParamMatrix>
     bool remove_edge_T1 (const std::shared_ptr<Edge> edge,
-        EdgeParamMatrix linetension, EdgeParamMatrix contractility,
+        double linetension, double contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number);
