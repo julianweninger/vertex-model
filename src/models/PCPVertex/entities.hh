@@ -94,6 +94,9 @@ struct CellState {
      */
     double area_preferential;
 
+    /// The variance of the area preferential
+    double area_preferential_var;
+
     /// The reference shape index
     double shape_index_preferential;
 
@@ -129,10 +132,13 @@ struct CellState {
      *                              with contractility of the actin-myosin ring
      *  \param cell_type            The type of cell
      */
-    CellState (const Utopia::DataIO::Config& cfg)
+    template<class RNGType>
+    CellState (const Utopia::DataIO::Config& cfg,
+               const std::shared_ptr<RNGType>& rng)
     :
         type(setup_type(cfg)),
         area_preferential(get_as<double>("area_preferential", cfg)),
+        area_preferential_var(get_as<double>("area_preferential_var", cfg, 0.)),
         shape_index_preferential(get_as<double>("shape_index_preferential",
                                  cfg)),
         contractility(get_as<double>("contractility", cfg)),
@@ -140,7 +146,13 @@ struct CellState {
         lagrange_const_concentration(0.),
         protein_concentration(get_as<double>("protein_concentration", cfg, 0.)),
         remove(false)
-    { }
+    {
+        if (area_preferential_var > 0) {
+            std::normal_distribution<> dist{area_preferential,
+                                            area_preferential_var};
+            area_preferential = dist(*rng);
+        }
+    }
 
 private:
     /// Setup the type of the cell from config

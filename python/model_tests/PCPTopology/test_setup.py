@@ -15,9 +15,9 @@ mtc = ModelTest("PCPTopology", test_file=__file__)
 
 # Tests -----------------------------------------------------------------------
 
-def test_output():
+def test_solver():
     # Create a Multiverse using the configuration for the original equations
-    mv, dm = mtc.create_run_load(from_cfg="test.yml", perform_sweep=True)
+    mv, dm = mtc.create_run_load(from_cfg="test_solver.yml", perform_sweep=True)
 
     for uni in dm['multiverse']:
         data = dm['multiverse'][uni]['data']['PCPTopology']
