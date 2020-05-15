@@ -30,16 +30,6 @@ energy_polarity:
     Energy/Lagrange_const_concentration: 
       label: lagrange-const-concentration
 
-area_preferential:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology/Environment
-  file_ext: png
-  to_plot:
-    area_preferential_hair:
-      label: hair pref. area
-    area_preferential_support:
-      label: support pref. area
-
 cell_area:
   based_on: .basic_uni.lineplots
   model_name: PCPTopology
@@ -75,22 +65,35 @@ cellular_structure:
   datapath: PCPTopology/PCPVertex
   cfgpath: PCPTopology/PCPVertex
 
-cell_neighbourhood:
+cell_neighbourhood: !pspace
   creator: universe
   universes: all
   module: model_plots.PCPTopology
   plot_func: cell_neighbourhood
   file_ext: png
-  datapath: PCPTopology/Statistics
 
   enabled: true
+  only_type: !sweep
+    default: all
+    values:
+      - all
+      - hair
+      - support
 
-  helpers:
+  helpers_frame_hist:
     set_labels:
-      x: bins [1]
-      y: counts [1]
+      x: number of neighbours
+      y: frequency
     set_limits:
-      x: [0, 9]
+      x: [4, 10]
+      y: [0., 0.7]
+  helpers_frame_area:
+    set_labels:
+      x: number of neighbours
+      y: mean area
+    set_limits:
+      x: [4, 10]
+      # y: [0.6, 1.4]
 
   animation:
     enabled: true
@@ -104,8 +107,39 @@ cell_neighbourhood:
       frames:
         saving:
           dpi: 300
-
     animation_update_kwargs:  {}
+
+cell_neighborhood_seed: #!pspace
+  creator: multiverse
+  module: model_plots.PCPTopology
+  plot_func: cell_neighbourhood_mv
+
+  enabled: false
+  
+  select_and_combine: 
+    fields:
+      data:
+        path: Cells
+        with_previous_result: true
+        transform:
+        - .sel:
+            time: 120
+    # subspace:
+    #   shape_index_preferential: !sweep
+    #     default: 3.6
+    #     linspace: [3.4, 3.8, 11]
+    base_path: data/PCPTopology
+
+  transform:
+    - .sel:
+        shape_index_preferential: 3.6
+  
+  helpers:
+    set_labels:
+      x: bins [1]
+      y: counts [1]
+    set_limits:
+      x: [3, 9]
 
 NotchDelta_hair_hair_contacts:
   based_on: .basic_uni.lineplot
