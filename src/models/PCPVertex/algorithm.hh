@@ -11,10 +11,12 @@ namespace PCPVertex {
  *  
  *  \param dt           The step size of previous step
  *  \param energy_0     The energy at current position
+ *  \param tolerance    Tolerance to find the minimum
  *  \return {step size to reach line minimum, energy at line minimum}
  */
 std::pair<double, double> PCPVertex::determine_timestep (
-        double dt, const double energy_0) const
+        double dt, const double energy_0,
+        const double tolerance) const
 {
     // Bracket the minimum
     dt = std::max(std::min(2*dt, 2.), 1e-8);
@@ -36,7 +38,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
     double energy_min = this->get_energy(pos_min);
     while (true) {
         if (dt/2 > 3000.) {
-            if (fabs(energy_2 - energy_1) < _minimisation_precision) {
+            if (fabs(energy_2 - energy_1) < tolerance) {
                 // the energy function is flat
                 return std::make_pair(0., energy_0);
             }
@@ -84,7 +86,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
         break;
     }
 
-    if (fabs(energy_min - energy_0) < _minimisation_precision) {
+    if (fabs(energy_min - energy_0) < tolerance) {
         // the found minimum fulfills our condition 
         return std::make_pair(pos_min, energy_min);
     }
@@ -106,19 +108,19 @@ std::pair<double, double> PCPVertex::determine_timestep (
                                 energy_0-energy_1, energy_0-energy_min,
                                 energy_0-energy_2);
             this->_log->error("Fitted minimum: x={}", pos_4);
-            throw std::runtime_error("Energy minimisation failed! "
+            throw std::runtime_error("Energy minimization failed! "
                                         "Parabola fit outside brackets");
         }
 
         double energy_4 = this->get_energy(pos_4);
-        if (fabs(energy_4 - energy_min) < _minimisation_precision) {
+        if (fabs(energy_4 - energy_min) < tolerance) {
             dt = pos_4;
             break; // found the minimum with required precision
         }
         
         if (energy_4 - energy_0 > 0.) {
             // there is a closer maximum. Retry with smaller step size
-            return determine_timestep(pos_4 / 2., energy_0);
+            return determine_timestep(pos_4 / 2., energy_0, tolerance);
         }
 
         // ** choose new brackets
@@ -150,7 +152,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
 };
 
 /// Initialisation of the energy minisation process
-void PCPVertex::init_minimisation ()
+void PCPVertex::init_minimization ()
 {
     if (this->_update_scheme != ConjugateGradient) {
         return;
@@ -171,7 +173,7 @@ void PCPVertex::init_minimisation ()
 };
 
 /// Single step in direction of steepest gradient
-/** \param adative_step     If true, a line minimisation along steepest gradient
+/** \param adative_step     If true, a line minimization along steepest gradient
  *                          is performed. Else, update with fixed stepsize.
  *  \return the energy after upate
  */
@@ -181,7 +183,8 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
 
     double new_energy;
     if (adaptive_step) {
-        std::tie(_dt, new_energy) = determine_timestep(_dt, _energy);
+        std::tie(_dt, new_energy) = determine_timestep(
+            _dt, _energy, _minimization_tolerance);
         double energy_change = (new_energy - _energy) / new_energy;
 
         if (energy_change < -1e-14) {
@@ -209,9 +212,10 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
  */
 double PCPVertex::conjugate_gradient_step ()
 {
-    // line minimisation along direction of update h
+    // line minimization along direction of update h
     double new_energy;
-    std::tie(_dt, new_energy) = determine_timestep(_dt, _energy);
+    std::tie(_dt, new_energy) = determine_timestep(
+        _dt, _energy, _minimization_tolerance);
     double energy_change = (new_energy - _energy) / new_energy;
 
     if (energy_change < -1e-14) {

@@ -73,33 +73,8 @@ private:
     /// The Vertex model
     PCPVertex _vertex_model;
 
-    /// A tolerance value for equilibrium
-    double _equilibration_tolerance;
-
-    /// Number of steps performed in VertexModel per iteration
-    unsigned int _num_equilibration_steps;
-
-    /// Number of max iterations performed in VertexModel before aborting
-    unsigned int _max_equilibration_iterations;
-
-    /// How often to shake the system during equilibration
-    /** Equilibration processes might get stuck in local minima, hence the 
-     *  equilibrated cellular arrangement is perturbed and equilibration is
-     *  repeated.
-     */
-    unsigned int _num_jiggle_per_equilibration;
-    
-    /// The intensity of jiggle perturbation
-    /** Use a fraction of the typical length scale of juncitons 
-     */
-    double _jiggle_intensity;
-
-    /// The tolerance value for equilibrium at jiggling perturbations
-    /** After the last jiggling perturbation equilibration is performed with
-     *  PCPTopology::_equilibration_tolerance, but equilibrations after jiggling
-     *  might be performed at lower precision
-     */
-    double _jiggle_equilibration_tolerance;
+    /// The parameter for energy minimization
+    MinimizationParams _minimization_params;
 
     /// The parameter for proliferation
     struct ParamsProliferation {
@@ -301,166 +276,29 @@ public:
                     DataIO::edges_adaptor),
         
         // the parameter
-        _equilibration_tolerance(0.),
-        _num_equilibration_steps(0),
-        _max_equilibration_iterations(0),
-        _num_jiggle_per_equilibration(0),
-        _jiggle_intensity(0.),
-        _jiggle_equilibration_tolerance(0.),
-        _params_proliferation(this->_cfg["proliferation"]),
-        _params_increment_area(extract_cfg("increment_area", this->_cfg)),
-        _params_increment_shape_index(extract_cfg("increment_shape_index",
-                                                  this->_cfg)),
-        _params_increment_linetension(extract_cfg("increment_linetension",
-                                                  this->_cfg)),
-        _params_increment_contractility(extract_cfg("increment_contractility",
-                                                    this->_cfg)),
+        _minimization_params(get_as<Config>("minimization", this->_cfg)),
+        _params_proliferation(get_as<Config>("proliferation", this->_cfg)),
+        _cfg_proliferation(get_as<Config>("proliferation", this->_cfg)),
+        _cfg_differentiation(get_as<Config>("differentiation", this->_cfg)),
+        _cfg_stretch_domain(get_as<Config>("stretch_domain", this->_cfg)),
+        _params_increment_area(get_as<Config>("increment_area", this->_cfg)),
+        _params_increment_shape_index(get_as<Config>(
+            "increment_shape_index", this->_cfg)),
+        _params_increment_linetension(get_as<Config>(
+            "increment_linetension", this->_cfg)),
+        _params_increment_contractility(get_as<Config>(
+            "increment_contractility", this->_cfg)),
         _prob_distr(0.,1.)
     {
         this->_space = _vertex_model.get_space();
-
-        if (not this->_cfg["equilibration"]) {
-            throw std::invalid_argument("No cfg entry 'equilibration' "
-                "available for model " + this->_name + "!");
-        }
-        _equilibration_tolerance = get_as<double>("tolerance",
-                this->_cfg["equilibration"]);
-        _num_equilibration_steps = get_as<unsigned int>("num_steps",
-                this->_cfg["equilibration"]);
-        _max_equilibration_iterations = get_as<unsigned int>("num_iterations",
-                this->_cfg["equilibration"]);
-        _num_jiggle_per_equilibration = get_as<unsigned int>("num_jiggle",
-                this->_cfg["equilibration"]);
-        _jiggle_intensity = get_as<double>("jiggle_intensity",
-                this->_cfg["equilibration"], 0.);
-        _jiggle_equilibration_tolerance = get_as<double>("jiggle_tolerance",
-                this->_cfg["equilibration"], _equilibration_tolerance);
-        
-        if (_jiggle_equilibration_tolerance < _equilibration_tolerance) {
-            throw std::invalid_argument("In model " + this->_name + ": "
-                "'equilibration' expected jiggle_tolerance to be larger "
-                "than tolerance, but " + 
-                std::to_string(_jiggle_equilibration_tolerance) + " < " +
-                std::to_string(_equilibration_tolerance) + "!");
-        }
-
-        // copy operation configs
-        if (not this->_cfg["proliferation"]) {
-            throw KeyError("proliferation", this->_cfg);
-        }
-        _cfg_proliferation = this->_cfg["proliferation"];
-
-        if (not this->_cfg["differentiation"]) {
-            throw KeyError("differentiation", this->_cfg);
-        }
-        _cfg_differentiation = this->_cfg["differentiation"];
-                
-        if (not this->_cfg["stretch_domain"]) {
-            throw KeyError("stretch_domain", this->_cfg);
-        }
-        _cfg_stretch_domain = this->_cfg["stretch_domain"];
-
         this->_log->info("Model set up.");
     }
 
 
 private:
     // .. Setup functions .....................................................
-    /// Extract the configuration of an operation
-    Config extract_cfg (std::string name, const Config& cfg) {
-        if (not cfg[name]) {
-            throw KeyError(name, cfg);
-        }
-
-        return cfg[name];
-    }
 
     // .. Helper functions ....................................................
-    /// Equilibrates the vertex model
-    /** Iterate the vertex model until it reaches an equilibrium state
-     *  (see PCPVertex::equilibrium_state_reached(double tolerance) const)
-     *  with tolerance = _equilibrium_tolerance
-     * 
-     *  More precisely, the _vertex_model is iterated for 
-     *  _num_equilibration_steps, then the equilibrium condition (see above)
-     *  is checked:
-     * 
-     *      If true, iteration is stopped and update_object_containers() called
-     * 
-     *      If false, _vertex_model is iterated again for _num_equilibration_steps 
-     *          this is repeated for a maximum of _max_equilibration_iterations
-     */
-    void equilibrate_vertex_model() {
-        double tolerance = _jiggle_equilibration_tolerance;
-        auto time_0 = _vertex_model.get_time();
-        bool repeat = false;
-        for (unsigned int it_jiggle = 0;
-             it_jiggle <= _num_jiggle_per_equilibration; it_jiggle++)
-        {
-            if (it_jiggle == _num_jiggle_per_equilibration) {
-                tolerance = _equilibration_tolerance;
-            }
-            
-            auto num_cells = _vertex_model.get_am().cells().size();
-            const auto domain = _vertex_model.get_space()->get_domain_size();
-            double intensity = _jiggle_intensity * sqrt(domain[0]*domain[1] / 
-                                                        num_cells);
-            // NOTE the sqrt(x) defines a typical lengthscale under the 
-            //      assumption of isotropic cells
-            
-            int time_start = _vertex_model.get_time();
-            
-            _vertex_model.jiggle_vertices(intensity);
-            _vertex_model.set_minimisation_precision(tolerance);
-            bool equilibrated = false;
-            while (not equilibrated) {
-                _vertex_model.iterate();
-
-                double energy_change;
-                std::tie(equilibrated,
-                    energy_change) = _vertex_model.equilibrium_state_reached();
-                
-                if (not equilibrated
-                    and _vertex_model.get_time() - time_start >= 
-                            _num_equilibration_steps)
-                {
-                    this->_log->error("ERROR Equilibrium not reached within {} "
-                        "steps at a tolerance of {}! Energy change in last "
-                        "step was {}.", 
-                        _num_equilibration_steps,  _equilibration_tolerance,
-                        energy_change);
-                    if (not repeat) {
-                        it_jiggle--;
-                        repeat = true;
-                        break;
-                    }
-                    #ifdef NDEBUG
-                    this->_log->error("Running model in release mode. Some known "
-                        "exceptions are only evaluated in debug mode, the author "
-                        "recommends to build the model in debug mode!");
-                    #endif
-                    throw std::runtime_error("Equilibrium not reached!");
-                }
-                if (not equilibrated
-                    and (_vertex_model.get_time() - time_start) % 10 == 0)
-                {
-                    _vertex_model.init_minimisation();
-                }
-
-                if (stop_now.load()) {
-                    this->_log->warn("Was told to stop. Not iterating "
-                        "vertex model further ...");
-                    throw GotSignal(received_signum.load());
-                }
-            }
-            if (equilibrated) { repeat = false; }
-        }
-
-        this->_log->debug("Vertex model equilibrated within {} steps", 
-                        _vertex_model.get_time() - time_0);
-        return;
-    }
-
     /// Perform a cell division on a random cell
     /** Divides a random cell into two daughter cells.
      *  The cell is first expanded to the double of its preferential area.
@@ -515,7 +353,7 @@ private:
         for (unsigned int i = 0; i < _params_proliferation.num_increases; i++) {            
             _vertex_model.increase_domain_size(dA);
             cell->state.area_preferential += dA;
-            equilibrate_vertex_model();
+            _vertex_model.minimize_energy(_minimization_params);
         }
 
         if (am.area_of(cell) < _params_proliferation.threshold *
@@ -752,7 +590,7 @@ public:
 
         for (int i = 0; i < iterates; i++) {
             operation();            
-            this->equilibrate_vertex_model();
+            _vertex_model.minimize_energy(_minimization_params);
 
             if ((i+1) % emit_interval == 0) {
                 this->_log->info("   Performed iterate {} of {} on operation "
@@ -938,7 +776,7 @@ public:
             const auto time0 = this->get_time();
 
             for (unsigned int i = 0; i < num_steps; ++i) {
-                this->equilibrate_vertex_model();
+                _vertex_model.minimize_energy(_minimization_params);
                 
                 this->increment_time();
                 this->_datamanager(static_cast<PCPTopology&>(*this));
@@ -946,11 +784,11 @@ public:
                 if (emit_interval > 0 and 
                     (this->get_time() - time0) % emit_interval == 0)
                 {
-                    this->_log->info("Finished equilibration {} of {}", i+1, 
+                    this->_log->info("Finished minimization {} of {}", i+1, 
                                      num_steps);
                 }
                 else {
-                    this->_log->debug("Finished equilibration {} of {}", i+1,
+                    this->_log->debug("Finished minimization {} of {}", i+1,
                                       num_steps);
                 }
             }

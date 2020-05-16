@@ -42,10 +42,10 @@ parameter_space:
       env_param_funcs: ~
 
     # --- Dynamics
-    # Equilibration parameter
-    equilibration:
+    # Minimization parameter
+    minimization:
       tolerance: 1.e-8
-      num_jiggle: 5
+      num_repeat: 5
       jiggle_intensity: 0.04
       jiggle_tolerance: 1.e-6
 

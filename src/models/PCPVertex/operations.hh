@@ -8,15 +8,20 @@ namespace Models {
 namespace PCPVertex {
 
 /// Apply a perturbation to the position of vertices
-/** Move the x and y position by a random value in [-intensity, intensity]
- *  using a uniform distribution.
- * 
- * TODO write test
+/** \details Move every vertex randomly on a given lengthscale.
+ *           The length scale is \f$ l = I * \sqrt{A_{domain} / #cells} \f$,
+ *           with the intensity I.
+ *           The displacement is pulled from a uniform distribution form [-l, l]
+ *           for all coordinates.
  */
 void PCPVertex::jiggle_vertices(double intensity)
 {
+    auto num_cells = this->_am.cells().size();
+    const auto domain = this->_space->get_domain_size();    
+    intensity *= sqrt(domain[0]*domain[1] / num_cells);
+
     this->_log->debug("Jiggling the vertices on a length scale of "
-                        "{} ..", intensity);
+                      "{} ..", intensity);
     
     const RuleFuncVertex jiggle = [this, intensity] (const auto& vertex)
     {
@@ -29,7 +34,7 @@ void PCPVertex::jiggle_vertices(double intensity)
 
     apply_rule<Update::sync>(jiggle, _am.vertices());
 
-    this->init_minimisation();
+    this->init_minimization();
 };
 
 /// Differentiates progenitor cells with random hair cell distribution

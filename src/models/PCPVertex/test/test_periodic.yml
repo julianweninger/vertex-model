@@ -35,6 +35,7 @@ PCPVertex:
         args: {time: 0}
         type: once
   dt: 0.01
+  minimization_tolerance: 1e-8
   gamma: 0.0
   initial_jiggle: 0.05
   space:

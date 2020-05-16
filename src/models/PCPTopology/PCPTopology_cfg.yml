@@ -31,7 +31,7 @@ proliferation:
     end: -1
     iterates: 0
     emit_interval: 4
-  num_increases: 10   # in how many equilibrations the area is increased
+  num_increases: 10   # in how many minimization processes the area is increased
   area_threshold: 0.
 
 # Differentiation of progenitor to hair and support cells
@@ -173,15 +173,13 @@ NotchDelta:
 
 
 # --- Dynamics
-# Equilibration parameter
-equilibration:
-  tolerance: 1.e-8
-  num_steps: 15000
-  num_iterations: 1
-  # NOTE after num_steps tolerance is checked, repeated for num_iterations
-  num_jiggle: 1
-  jiggle_intensity: 0.01
+# Minimization parameter
+minimization:
+  tolerance: &Tolerance 1.e-8
+  max_steps: 15000
+  num_repeat: 1
   jiggle_tolerance: 1.e-6
+  jiggle_intensity: 0.01
 
 epilog:
   jiggle:
@@ -222,6 +220,7 @@ PCPVertex:
   # --- Dynamics
   # damping factor
   dt: 0.01
+  minimization_tolerance: *Tolerance
   update_scheme: steepest_gradient_adaptive
 
   area_elasticity: 1.
