@@ -37,90 +37,6 @@ void PCPVertex::jiggle_vertices(double intensity)
     this->init_minimization();
 };
 
-/// Differentiates progenitor cells with random hair cell distribution
-/** \param fraction     fraction of hair cells. Others are support cells
- */
-void PCPVertex::differentiate_hair_cells_random(double fraction)
-{
-    this->_log->info("Differentiating progenitor cells to {}% hair cells "
-        "and {}% support cells with uniform spatial distribution ...",
-        fraction, 1-fraction);
-
-    const RuleFuncCell set_type_rand = [this, fraction] (const auto& cell)
-    {
-        auto state = cell->state;
-        if (this->_prob_distr(*this->_rng) < fraction) {
-            state.type = CellType::hair;
-        }
-        else {
-            state.type = CellType::support;
-        }
-        return state;
-    };
-
-    apply_rule<Update::sync>(set_type_rand, _am.cells());
-};
-
-/// Differentiates progenitor cells using the NotchDelta::NotchDelta model
-/** \param notch_delta  The pointer to the differentiation model
- *  \param steps        Number of iteration steps the NotchDelta model is run.
- */
-template <class NotchDelta>
-void PCPVertex::differentiate_hair_cells_NotchDelta(
-        std::shared_ptr<NotchDelta> notch_delta, int steps)
-{
-    this->_log->debug("Differentiating progenitor cells to hair "
-        "and support cells using the NotchDelta model ...");
-
-    const auto& nd_cells = notch_delta->get_cm().cells();
-    const auto& cells = _am.cells();
-
-    std::unordered_map<std::shared_ptr<Cell>,
-                       std::shared_ptr<typename NotchDelta::Cell>> cell_map;
-    if (cells.size() > nd_cells.size()) {
-        this->_log->error("Cells in NotchDelta: {}. Cells in Vertex: {}",
-            nd_cells.size(), cells.size());
-        throw std::runtime_error("Cannot link cells of NotchDelta and Vertex "
-            "models. More cells in Vertex than in NotchDelta model!");
-    }
-    unsigned int iterator;
-    cell_map.reserve(cells.size());
-    for (iterator = 0; iterator < cells.size(); iterator++) {
-        cell_map.insert({cells[iterator], nd_cells[iterator]});
-    }
-    for (void(); iterator < nd_cells.size(); iterator++) {
-        nd_cells[iterator]->state.cell_type = NotchDelta::CellType::inactive;
-        nd_cells[iterator]->custom_links().neighbors.clear();
-    }
-
-    for (const auto& c : cells) {
-        auto mapped_cell = cell_map.at(c);
-        mapped_cell->custom_links().neighbors.clear();
-        for (auto n : _am.neighbors_of(c)) {
-            mapped_cell->custom_links().neighbors.push_back(cell_map.at(n));
-        }
-    }
-
-    notch_delta->prolog();
-    for (int i = 0; i < steps; i++) {
-        notch_delta->iterate();
-    }
-    notch_delta->epilog();
-
-    for (const auto [cell, nd_cell] : cell_map) {
-        auto type = nd_cell->state.cell_type;
-        if (type == NotchDelta::CellType::hair) {
-            cell->state.type = CellType::hair;
-        }
-        else if (type == NotchDelta::CellType::support) {
-            cell->state.type = CellType::support;
-        }
-        else {
-            cell->state.type = CellType::progenitor;
-        }
-    }
-};
-
 /// Increase the domain size by a certain area
 /** This remaps the domain of size A to size A + dA while keeping the 
  *  relation of Lx to Ly constant.
@@ -162,30 +78,20 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
     this->_space->set_domain_size(this->_space->get_domain_size() + stretch);
     auto domain = this->_space->get_domain_size();
 
+    const double area_change = stretch[0]*domain[1] + stretch[1]*domain[0];
+
     if (not compensate) {
-        return stretch[0]*domain[1] + stretch[1]*domain[0];
+        return area_change;
     }
 
-    int num_cells = _am.cells().size();
+    const auto& cells = _am.cells();
     if (fix_hc_volume) {
-        for (const auto& c : _am.cells()) {
-            num_cells -= (c->state.type == CellType::hair);
-        }
-        if (num_cells == 0) {
-            throw std::runtime_error("All cells eliminated!");
-        }
-    }
-
-    double dA = (stretch[0]*domain[1] + stretch[1]*domain[0]) / num_cells;
-
-    if (not fix_hc_volume) {        
-        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
-            cell->state.area_preferential += dA;
-            return cell->state;
-        };
-        apply_rule<Update::sync>(compensate_dA, _am.cells());
-    }
-    else {
+        const auto num_cells = std::count_if(
+            cells.begin(), cells.end(), 
+            [](const auto& c) {
+                return c->state.type == CellType::hair;
+            });
+        double dA = area_change / num_cells;
         const RuleFuncCell compensate_dA = [dA](const auto& cell) {
             auto state = cell->state;
             if (state.type != CellType::hair) {
@@ -193,10 +99,19 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
             }
             return state;
         };
-        apply_rule<Update::sync>(compensate_dA, _am.cells());
+        apply_rule<Update::sync>(compensate_dA, cells);    
+    }
+    else {
+        const auto num_cells = cells.size();
+        double dA = area_change / num_cells;
+        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+            cell->state.area_preferential += dA;
+            return cell->state;
+        };
+        apply_rule<Update::sync>(compensate_dA, cells);
     }
     
-    return stretch[0]*domain[1] + stretch[1]*domain[0];
+    return area_change;
 };
 
 } // namespace PCPVertex

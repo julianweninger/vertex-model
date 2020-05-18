@@ -22,77 +22,63 @@ space: &SPACE
   periodic: true
 
 # --- Operations
-# Proliferation -- cell division
-proliferation:
-  active: True
-  times:
-    prolog: 4
-    begin: -1
-    end: -1
-    iterates: 0
-    emit_interval: 4
-  num_increases: 10   # in how many minimization processes the area is increased
-  area_threshold: 0.
+# The sequence of operations
+operations:
+  - proliferate:
+      times: []
+      iterations_prolog: 5
+      iterations_epilog: 0
+      emit_interval: 4
+     
+      num_increases: 4   # in how many minimization processes the area is increased
+      area_threshold: 0.
 
-# Differentiation of progenitor to hair and support cells
-differentiation:
-  active: True
-  times:
-    prolog: 0
-    begin: 0
-    end: 0
-    iterates: 1
-    emit_interval: 0
-
-  hair_cell_fraction: 0.25  # only used if method='random'
-  notch_delta_steps: 1000
-  method: NotchDelta        # can be: NotchDelta, random
-
-# stretch the domain
-stretch_domain:
-  active: True
-  times:
-    begin: 1
-    # no end
-  stretch_speed: [0.01, 0.0]
-  fix_hair_cell_volume: True
-
-increment_area:
-  active: False
-  times:
-    begin: 1
-    # no end
+      minimization: ~
   
-  hair: 0.01
-  var_hair: 0.025
-  support: 0.
-  adapt_support: true
+  - differentiate_NotchDelta:
+      times: []
+      iterations_prolog: 1    # this happens after the proliferation
+      
+      steps: 1000        # only used if method='NotchDelta'
 
-increment_shape_index:
-  active: False
-  times:
-    begin: 0
-    end: 0
-    iterates: 1
-  support: -0.1
-  hair: 0.01
+  - increment_area:
+      times: !listgen [0, 10, 1]
+      
+      hair: 0.01
+      var_hair: 0.01
+      adapt_support: true
 
-increment_linetension:
-  active: False
-  times:
-    begin: 0
-    end: 0
-  
-  hair_hair: 10.
-  support: 0.
+  - increment_domain:
+      times: []
 
-increment_contractility:
-  active: False
-  times:
-    begin: 1
-    # no end
-  
-  support_support: 0.01
+      value: [0., 0.]
+      compensate: true
+      fix_hair_cell_volume: false
+
+  - increment_shape_index:
+      times: []
+
+      progenitor: 0.
+      hair: 0.
+      support: 0.
+
+  - increment_linetension:
+      times: []
+      
+      hair_hair: 10.
+      support_support: 0.
+
+  - increment_edge_contractility:
+      times: []
+      
+      hair_hair: 0.
+      support_support: 0.
+
+  - jiggle: # this is a void operation, but calling minimization
+      times: []
+      iterations_epilog: 4
+
+      emit_interval: 4
 
 # A model used in differentiation
 NotchDelta:
@@ -107,7 +93,8 @@ NotchDelta:
 
     neighborhood:
       mode: empty      # the neighborhood is automatically inherited from the
-                       # Vertex model 
+                       # Vertex model
+      compute_and_store: false
 
     # Cell initialization parameters
     cell_params: ~
@@ -177,14 +164,9 @@ NotchDelta:
 minimization:
   tolerance: &Tolerance 1.e-8
   max_steps: 15000
-  num_repeat: 1
+  num_repeat: 5
   jiggle_tolerance: 1.e-6
   jiggle_intensity: 0.01
-
-epilog:
-  jiggle:
-    iterations: 4
-    emit_interval: 5
 
 # The model for energy minimization
 PCPVertex:
@@ -216,7 +198,6 @@ PCPVertex:
         contractility: 1.
         cell_type: progenitor
 
-
   # --- Dynamics
   # damping factor
   dt: 0.01
@@ -238,46 +219,23 @@ PCPVertex:
   T2_threshold: 0.0075
 
   data_manager: &data_manager
-    # this builds the deciders
     deciders:
       write_always:
         type: always
-      
       write_slice: &slicer
         type: slice
         args:
           start: 0
           stop: 500
           step: 50
-
-      write_at_last:
-        type: once
-        args: 
-          time: 1000000
-
-    # this builds the triggers, here deciders are used
     triggers:
       build_slice: *slicer
-
       build_once:
         type: once
         args:
           time: 0
-      
-      build_once_at_1:
-        type: once
-        args:
-          time: 1
-      
       build_always:
         type: always
-
-      build_at_last:
-        type: once
-        args: 
-          time: 1000000      
-  
-    # these are the datasets written
     tasks:
       Energy_total: &energy
         active: true
@@ -319,25 +277,17 @@ data_manager:
   deciders:
     write_always:
       type: always
-    
-    write_slice: &slicer_2
-      type: slice
-      args:
-        start: 0
-        stop: 10000
-        step: 5
 
     write_composite: &slicer_comp
       type: simple_composite
       args:
         interval:
           intervals:
-            - [0, 2]
-            - [5, 1000000]  # replace 5 with last step
+            - [4, 10]
         slice:
           start: 0
           stop: 10000
-          step: 5
+          step: 2
 
     write_at_last:
       type: once
@@ -346,8 +296,6 @@ data_manager:
 
   # this builds the triggers, here deciders are used
   triggers:
-    build_slice: *slicer_2
-
     build_once:
       type: once
       args:

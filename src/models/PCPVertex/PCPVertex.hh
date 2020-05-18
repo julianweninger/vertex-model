@@ -76,6 +76,31 @@ struct MinimizationParams {
                 jiggle_tolerance, tolerance));
         }
     }
+
+    /// Initialize from config and inherit not defined values from default
+    template <typename Config>
+    MinimizationParams(const Config& cfg, const MinimizationParams& defaults)
+    :
+        tolerance(get_as<double>("tolerance", cfg, defaults.tolerance)),
+        max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
+        num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
+        jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
+                                        defaults.jiggle_tolerance)),
+        jiggle_intensity(get_as<double>("jiggle_intensity", cfg,
+                                        defaults.jiggle_intensity))
+    {
+        if (num_repeat == 0) {
+            throw Utopia::KeyError("num_repeat", cfg, fmt::format(
+                "Value must be larger than 0, but was {}", num_repeat));
+        }
+        if (jiggle_tolerance < tolerance) {
+            throw Utopia::KeyError("jiggle_tolerance", cfg, fmt::format(
+                "Value must be larger or equal to 'tolerance', but was {} < {}",
+                jiggle_tolerance, tolerance));
+        }
+    }
+
+
 };
 
 /// Type helper to define types used by the model

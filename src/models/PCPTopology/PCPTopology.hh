@@ -24,11 +24,13 @@
 
 #include <utopia/models/Environment/Environment.hh>
 
+#include "operations.hh"
 
 namespace Utopia {
 namespace Models {
 namespace PCPVertex {
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+using namespace OperationCollection;
 
 /// Type helper to define types used by the model
 using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
@@ -76,172 +78,14 @@ private:
     /// The parameter for energy minimization
     MinimizationParams _minimization_params;
 
-    /// The parameter for proliferation
-    struct ParamsProliferation {
-        /// The number of steps to double the cell's area  
-        unsigned int num_increases;
-
-        /// The minimal area of a cell to divide
-        /** \details The fraction to which a cell has to reach the target area
-         *           so that it can be divided
-         */
-        double threshold;
-
-        Utopia::IndexType generation_max_id;
-
-        ParamsProliferation (const Config& cfg)
-        :
-            num_increases(get_as<unsigned int>("num_increases", cfg)),
-            threshold(get_as<double>("area_threshold", cfg, 0.5)),
-            generation_max_id(0) 
-        {
-            if (num_increases == 0) {
-                throw std::invalid_argument("Parameter 'num_increases' in "
-                    "proliferation must be larger than 0. It specifies in how "
-                    "many steps the area of the cell should be increased.");
-            }
-        }
-    } _params_proliferation;
-
-    /// Config of operation proliferation
-    Config _cfg_proliferation;
-
-    /// Config of operation differentaition
-    Config _cfg_differentiation;
-
-    /// Config of operation stretch domain
-    Config _cfg_stretch_domain;
-    
-    /// The parameters for increment of cell area
-    struct ParamsIncrementArea {
-        /// The value of increment for area of hair cells
-        double hair;
-
-        /// The value of increment for area of support cells
-        double support;
-        
-        /// The variance of increment for area of hair cells
-        /** \details using a normal distribution
-         */
-        double var_hair;
-
-        /// The variance of increment for area of support cells
-        /** \details using a normal distribution
-         */
-        double var_support;
-
-        /// Whether to compensate area change in support cells
-        /** \details If true N_hc * A^0_hc + N_sc * A^0_sc = const
-         */
-        bool adapt_support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementArea (const Config& cfg)
-        :
-            hair(get_as<double>("hair", cfg)),
-            support(get_as<double>("support", cfg)),
-            var_hair(get_as<double>("var_hair", cfg, 0.)),
-            var_support(get_as<double>("var_support", cfg, 0.)),
-            adapt_support(get_as<bool>("adapt_support", cfg)),
-            name("increment_area"),
-            cfg(cfg)
-        {
-            if (adapt_support and support != 0) {
-                throw std::invalid_argument(fmt::format(
-                    "In cfg {}: If `adapt_support = True`, "
-                    "then the increment value for the support cells "
-                    "`support` must be zero, but was {}!", name, support));
-            }
-        }
-    } _params_increment_area;
-    
-    /// The parameters for increment of cell shape-index
-    struct ParamsIncrementShapeindex {
-        /// The value of increment for shape-index of hair cells
-        double hair;
-
-        /// The value of increment for shape-index of support cells
-        double support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementShapeindex (const Config& cfg)
-        :
-            hair(get_as<double>("hair", cfg, 0.)),
-            support(get_as<double>("support", cfg, 0.)),
-            name("increment_shape_index"),
-            cfg(cfg)
-        {
-            
-        }
-    } _params_increment_shape_index;
-    
-    /// The parameters for increment of edge linetension
-    struct ParamsIncrementLinetension {
-        /// The value of increment for hair-hair junctions
-        double hair_hair;
-
-        /// The value of increment for hair-support junctions
-        double hair_support;
-
-        /// The value of increment for support-support junctions
-        double support_support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementLinetension (const Config& cfg)
-        :
-            hair_hair(get_as<double>("hair_hair", cfg, 0.)),
-            hair_support(get_as<double>("hair_support", cfg, 0.)),
-            support_support(get_as<double>("support_support", cfg, 0.)),
-            name("increment_linetension"),
-            cfg(cfg)
-        {
-
-        }
-    } _params_increment_linetension;
-    
-    /// The parameters for increment of edge contractility
-    struct ParamsIncrementContractility {
-        /// The value of increment for hair-hair junctions
-        double hair_hair;
-
-        /// The value of increment for hair-support junctions
-        double hair_support;
-
-        /// The value of increment for support-support junctions
-        double support_support;
-
-        /// The name of this operation
-        const std::string name;
-
-        /// The original configuration
-        const Config cfg;
-
-        ParamsIncrementContractility (const Config& cfg)
-        :
-            hair_hair(get_as<double>("hair_hair", cfg, 0.)),
-            hair_support(get_as<double>("hair_support", cfg, 0.)),
-            support_support(get_as<double>("support_support", cfg, 0.)),
-            name("increment_contractility"),
-            cfg(cfg)
-        {
-
-        }
-    } _params_increment_contractility;
+    /// Container of operations
+    /** The operations are applied in the order of registration at specified
+     *  times (see `OperationBundle`) and energy minimization is performed as
+     *  defined in `OperationBundle::MinimizationMode`. The parameter for
+     *  minimization can be updated from default for every operation.
+     *  Operations can duplicate with same or different parameter.
+     */
+    std::vector<OperationBundle> _operations;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -277,422 +121,208 @@ public:
         
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
-        _params_proliferation(get_as<Config>("proliferation", this->_cfg)),
-        _cfg_proliferation(get_as<Config>("proliferation", this->_cfg)),
-        _cfg_differentiation(get_as<Config>("differentiation", this->_cfg)),
-        _cfg_stretch_domain(get_as<Config>("stretch_domain", this->_cfg)),
-        _params_increment_area(get_as<Config>("increment_area", this->_cfg)),
-        _params_increment_shape_index(get_as<Config>(
-            "increment_shape_index", this->_cfg)),
-        _params_increment_linetension(get_as<Config>(
-            "increment_linetension", this->_cfg)),
-        _params_increment_contractility(get_as<Config>(
-            "increment_contractility", this->_cfg)),
+        _operations{},
         _prob_distr(0.,1.)
     {
         this->_space = _vertex_model.get_space();
+
+        setup_operations(get_as<Config>("operations", this->_cfg));
+
         this->_log->info("Model set up.");
     }
 
 
 private:
     // .. Setup functions .....................................................
+    void setup_operations(const Config& cfg) {
+        this->_log->info("Setting up operations from {} configuration entr{} "
+                         "...", cfg.size(), cfg.size() != 1 ? "ies" : "y");
 
-    // .. Helper functions ....................................................
-    /// Perform a cell division on a random cell
-    /** Divides a random cell into two daughter cells.
-     *  The cell is first expanded to the double of its preferential area.
-     *  The cell is then divided at an axis through it's center at a random
-     *  angle, which creates an edge between the two daughter cells.
-     * 
-     *  \param threshold    Fraction of the area_preferential at which cell
-     *                      is not divided
-     */
-    void divide_random_cell() {
-        const auto& am = _vertex_model.get_am();
-        const auto& cells = am.cells();
-
-        Utopia::IndexType generation_max_id = _params_proliferation.generation_max_id;
-        AgentContainer<Cell> cells_of_current_generation(cells.size());
-        auto it = std::copy_if (cells.begin(), cells.end(),
-                                cells_of_current_generation.begin(),
-                                [generation_max_id](const auto& cell){
-                                    return cell->id() <
-                                        generation_max_id; } );
-        cells_of_current_generation.resize(
-            std::distance(cells_of_current_generation.begin(), it));
-        if (cells_of_current_generation.size() == 0) {
-            for (const auto& c : cells) {
-                generation_max_id = std::max(generation_max_id, c->id());
-            }
-            _params_proliferation.generation_max_id = generation_max_id + 1;
-            cells_of_current_generation = cells;
-        }
-
-        std::uniform_int_distribution<> int_dist(
-            0, cells_of_current_generation.size() - 1);
-        
-        auto cell = cells_of_current_generation[int_dist(*this->_rng)];
-        if (not this->_space->periodic) {
-            for (auto [e, flip] : cell->custom_links().edges) {
-                const auto [adj_cell_a, adj_cell_b] = am.adjoints_of(e);
-                if (not adj_cell_a or not adj_cell_b) {
-                    this->_log->error("Cannot divide randomly chosen cell, "
-                                      "because it is a boundary cell. Division "
-                                      "od boundary cells in non-periodic "
-                                      "boundary conditions is not implemented."
-                                      "CONTINUING WITHOUT DIVISION.");
-                    return;
-                }
-            }
-        }
-
-        double area_preferential = cell->state.area_preferential;
-        double dA = cell->state.area_preferential /
-                    _params_proliferation.num_increases;
-        for (unsigned int i = 0; i < _params_proliferation.num_increases; i++) {            
-            _vertex_model.increase_domain_size(dA);
-            cell->state.area_preferential += dA;
-            _vertex_model.minimize_energy(_minimization_params);
-        }
-
-        if (am.area_of(cell) < _params_proliferation.threshold *
-                            cell->state.area_preferential)
-        {
-            this->_log->error("Could not divide cell, because it would "
-                "not grow to sufficient area. For division requested area: "
-                "{}\% of {}. Area reached: {}. !!ABORTING!!",
-                _params_proliferation.threshold * 100,
-                cell->state.area_preferential, am.area_of(cell));
-            throw std::runtime_error("Cell division not possible!");
-        }
-
-        cell->state.area_preferential = area_preferential;
-        _vertex_model.divide_cell(cell, _prob_distr(*this->_rng) * PI);
-
-        return;
-    }
-    
-    /// Perform stretch domain
-    void stretch_domain () {
-        auto stretch_speed = get_as_SpaceVec<2>(
-                "stretch_speed", this->_cfg["stretch_domain"]);
-        
-        if (stretch_speed[0] == 0 and stretch_speed[1] == 0) {
+        // For zombie or empty configurations, return empty container
+        if (not cfg or not cfg.size()) {
             return;
         }
-        auto fix_hair_cell_volume = get_as<bool>("fix_hair_cell_volume",
-            this->_cfg["stretch_domain"], false);
-        double dA = _vertex_model.stretch_domain(stretch_speed, true,
-                                                 fix_hair_cell_volume);
-        
-        arma::Col<double>::fixed<CellType::num_cell_types> area_change;
-        int num_cells = _vertex_model.get_am().cells().size();
-        if (fix_hair_cell_volume) {
-            for (auto c : _vertex_model.get_am().cells()) {
-                num_cells -= (c->state.type == CellType::hair);
+        // Otherwise, require a sequence
+        if (not cfg.IsSequence()) {
+            throw std::invalid_argument("The config for initializing the "
+                "operations must be a sequence!");
+        }
+
+        // Iterate over the sequence of mappings
+        for (const auto& ops : cfg) {
+            // ops.IsMap() == true
+            // The top `ops` keys are now the names of the desired environment
+            // functions. Iterate over those ...
+            for (const auto& op_pair : ops) {
+                const auto name = op_pair.first.as<std::string>();
+                const auto& op_cfg = op_pair.second;
+                this->_log->trace("  Operation name:  {}", name);
+
+                if (name == "differentiate_NotchDelta") {
+                    auto notch_delta = std::make_shared<
+                        NotchDelta::NotchDelta>(
+                            "NotchDelta", *this,
+                            NotchDelta::DataIO::density_time,
+                            NotchDelta::DataIO::density_progenitor,
+                            NotchDelta::DataIO::density_hair,
+                            NotchDelta::DataIO::density_support,
+                            NotchDelta::DataIO::density_ratio_hair_support,
+                            NotchDelta::DataIO::number_hair_hair_contacts);
+                    _operations.push_back(
+                        build_differentiate_NotchDelta(name, op_cfg,
+                            _minimization_params, notch_delta));
+                }
+                else if (name == "differentiate_random") {
+                    _operations.push_back(
+                        build_differentiate_random(name, op_cfg,
+                                                   _minimization_params));
+                }
+                else if (name == "increment_area") {
+                    _operations.push_back(
+                        build_increment_area(name, op_cfg,
+                                             _minimization_params));
+                }
+                else if (name == "increment_domain") {
+                    _operations.push_back(
+                        build_increment_domain(name, op_cfg,
+                                               _minimization_params));
+                }
+                else if (name == "increment_edge_contractility") {
+                    _operations.push_back(
+                        build_increment_edge_contractility(name, op_cfg,
+                            _minimization_params));
+                }
+                else if (name == "increment_linetension") {
+                    _operations.push_back(
+                        build_increment_linetension(name, op_cfg,
+                                                    _minimization_params));
+                }
+                else if (name == "increment_shape_index") {
+                    _operations.push_back(
+                        build_increment_shape_index(name, op_cfg,
+                                                    _minimization_params));
+                }
+                else if (name == "jiggle" or name == "void") {
+                    _operations.push_back(
+                        build_jiggle(name, op_cfg, _minimization_params));
+                }
+                else if (name == "proliferate") {
+                    _operations.push_back(
+                        build_proliferate(name, op_cfg,
+                                            _minimization_params));
+                }
+                else {
+                    throw std::invalid_argument(fmt::format(
+                        "No operation '{}' available to construct! "
+                        "Choose from: {}", name,
+                            "differentiate_NotchDelta, "
+                            "differentiate_random, "
+                            "increment_area, "
+                            "increment_domain, "
+                            "increment_edge_contractility, "
+                            "increment_linetension, "
+                            "increment_shape_index, "
+                            "jiggle, "
+                            "proliferate, "
+                            "void."));
+                }
+
+                this->_log->debug("Added '{}' operation.", name);
             }
         }
-        
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            if (fix_hair_cell_volume and i == CellType::hair) {
-                area_change[i] = 0;
-            }
-            else {
-                area_change[i] = dA / num_cells;
-            }
-        }
-
-        PCPVertex::RuleFuncCell update = [this, area_change](const auto& cell) {
-            auto state = cell->state;
-            state.area_preferential -= area_change[state.type];
-            return state;
-        };
-
-        apply_rule<Update::sync>(update, _vertex_model.get_am().cells());
-   }
-
-    /// Differentiate cells
-    void differentiate_cells () {
-        this->_log->debug("Preparing differentiating progenitor cells to hair- "
-            "and support-cells ...");
-
-        auto method = get_as<std::string>("method",
-                                          this->_cfg["differentiation"]);
-        if (method == "random") {
-            double hair_cell_fraction = get_as<double>("hair_cell_fraction",
-                                            this->_cfg["differentiation"]);
-            _vertex_model.differentiate_hair_cells_random(hair_cell_fraction);
-        }
-        else if (method == "NotchDelta") {
-            auto notch_delta = std::make_shared<NotchDelta::NotchDelta>(
-                    "NotchDelta", *this,
-                    NotchDelta::DataIO::density_time,
-                    NotchDelta::DataIO::density_progenitor,
-                    NotchDelta::DataIO::density_hair,
-                    NotchDelta::DataIO::density_support,
-                    NotchDelta::DataIO::density_ratio_hair_support,
-                    NotchDelta::DataIO::number_hair_hair_contacts);
-            
-            auto steps = get_as<int>("notch_delta_steps",
-                                     this->_cfg["differentiation"]);
-            _vertex_model.differentiate_hair_cells_NotchDelta(notch_delta,
-                                                              steps);
-        }
-        else {
-            throw KeyError("method", this->_cfg["differentiation"], "Method "
-                "for differentiation can be: "
-                "random, " "NotchDelta");
-        }
-
-        int num_hc = 0;
-        for (const auto& c : _vertex_model.get_am().cells()) {
-            if (c->state.type == CellType::hair) {
-                num_hc++;
-            }
-        }
-        
-        this->_log->info("Differentiated progenitor cells; "
-            "there are {} hair cells out of {} cells ({}%)", num_hc,
-            _vertex_model.get_am().cells().size(),
-            double(num_hc)/_vertex_model.get_am().cells().size());
-        
-        return;
     }
+    
+    // .. Helper functions ....................................................
+    void apply_operation(OperationBundle& operation_bundle,
+                         bool prolog = false, bool epilog = false)
+    {
+        using MinimizationMode = OperationParams::MinimizationMode;
 
-    void increment_area () {
-        const auto& am = _vertex_model.get_am();
+        auto& [operation, params] = operation_bundle;
 
-        double hair = _params_increment_area.hair;
-        
-        double support;
-        if (not _params_increment_area.adapt_support) {
-            support = _params_increment_area.support;
+        std::size_t iterates;
+        if (prolog) {
+            iterates = params.iterations_prolog;
         }
-        else {
-            unsigned int num_hcs = 0;
-            for (const auto& c : am.cells()) {
-                if (c->state.type == CellType::hair) { num_hcs++; }
-            }
-            if (num_hcs == am.cells().size()) {
-                support = 0;
-            }
-            else {
-                support = -1. * hair * num_hcs / (am.cells().size() - num_hcs);
-            }
+        else if (epilog) {
+            iterates = params.iterations_epilog;
         }
-
-        std::normal_distribution<> dist_hair{hair,
-                                             _params_increment_area.var_hair};
-        std::normal_distribution<> dist_support{support,
-                                            _params_increment_area.var_support};
-
-        RuleFuncCell update = [hair, support, this,
-                               dist_hair{std::move(dist_hair)},
-                               dist_support{std::move(dist_support)}]
-                (const auto& cell) mutable
+        else if (params.times.size() and
+                 *params.times.begin() == this->_time)
         {
-            auto state = cell->state;
-            if (state.type == CellType::support) {
-                state.area_preferential += dist_support(*this->_rng);
+            // Invoke at this time; pop element corresponding to this time
+            params.times.erase(params.times.begin());
+
+            if (params.probability < 1 and
+                _prob_distr(*this->_rng) > params.probability)
+            {
+                iterates = 0;
             }
-            else if (state.type == CellType::hair) {
-                state.area_preferential += dist_hair(*this->_rng);
+            else {
+                iterates = params.iterations;
             }
-            return state;
-        };
-        
-        apply_rule<Update::sync>(update, am.cells());
-    }
+        }
+        else {
+            iterates = 0;
+        }
 
-    void increment_shape_index () {
-        double hair = _params_increment_shape_index.hair;
-        double support = _params_increment_shape_index.support;
+        auto emit_interval = params.emit_interval;
+        if (iterates == 0) {
+            this->_log->trace("Not invoking operation '{}' in iteration {}",
+                              params.name, this->_time);
+        }
+        else if (emit_interval > 0) {
+            this->_log->info("Applying operation '{}' with {} iterates ...",
+                             params.name, iterates);
+        }
+        else {
+            this->_log->debug("Applying operation '{}' with {} iterates ...",
+                              params.name, iterates);
+            emit_interval = iterates + 1;
+        }
 
-        RuleFuncCell update = [hair, support](const auto& cell) {
-            auto state = cell->state;
-            if (state.type == CellType::support) {
-                state.shape_index_preferential += support;
+        for (std::size_t it = 0; it < iterates; it++) {
+            operation(_vertex_model);
+
+            if (params.minimization_mode == MinimizationMode::Every) {
+                this->_log->debug("   Minimizing energy ...");
+                _vertex_model.minimize_energy(params.minimization_params);
             }
-            else if (state.type == CellType::hair) {
-                state.shape_index_preferential += hair;
+            else {
+                this->_log->debug("   NOT minimizing energy.");
             }
-            return state;
-        };
 
-        apply_rule<Update::sync>(update, _vertex_model.get_am().cells());
-    }
-
-    void increment_linetension () {
-        auto linetension = _vertex_model.get_linetension();
-
-        double hair_hair = _params_increment_linetension.hair_hair;
-        double hair_support = _params_increment_linetension.hair_support;
-        double support_support = _params_increment_linetension.support_support;
-
-        linetension(CellType::hair, CellType::hair) += hair_hair;
-        linetension(CellType::support, CellType::support) += support_support;
-        linetension(CellType::hair, CellType::support) += hair_support;
-        linetension(CellType::support, CellType::hair) = linetension(
-                                                            CellType::hair,
-                                                            CellType::support);
-
-        // set the contractility and update the edge properties
-        _vertex_model.set_linetension(linetension, true);
-    }
-
-    void increment_contractility () {
-        auto contractility = _vertex_model.get_edge_contractility();
-
-        double hair_hair = _params_increment_contractility.hair_hair;
-        double hair_support = _params_increment_contractility.hair_support;
-        double support_support = _params_increment_contractility.support_support;
-
-        contractility(CellType::hair, CellType::hair) += hair_hair;
-        contractility(CellType::support, CellType::support) += support_support;
-        contractility(CellType::hair, CellType::support) += hair_support;
-        contractility(CellType::support, CellType::hair) = contractility(
-                                                            CellType::hair,
-                                                            CellType::support);
-
-        // set the contractility and update the edge properties
-        _vertex_model.set_edge_contractility(contractility, true);
+            if ((it+1) % emit_interval == 0) {
+                this->_log->info("   Performed iterate {} / {} of operation "
+                                 "'{}'.", it+1, iterates, params.name);
+            }
+            else {
+                this->_log->debug("   Performed iterate {} / {} of operation "
+                                  "'{}'.", it+1, iterates, params.name);
+            }
+        }
+        if (iterates > 0 and
+            params.minimization_mode == MinimizationMode::Once)
+        {
+            this->_log->debug("   Minimizing energy ...");
+            _vertex_model.minimize_energy(params.minimization_params);
+        }
+        else if (iterates > 0 and
+                 params.minimization_mode == MinimizationMode::Manual)
+        {
+            this->_log->debug("   Energy was NOT minimized!");
+        }
     }
 
 public:
     // -- Public Interface ----------------------------------------------------
-    /// Perform an operation
-    /** \param operation    The operation to perform
-     *  \param name         The name of the operation
-     *  \param iterates     How often to apply the operation
-     *  \param emit_interval    How often to emit information on the progress
-     *                          If 0, no emit
-     * 
-     *  After every iteration the vertex model is equilibrated
-     */
-    bool perform_operation(std::function<void()> operation, std::string name,
-                           int iterates, int emit_interval)
-    {
-        if (iterates == 0) {
-            return false;
-        }
-
-        if (emit_interval > 0) {
-            this->_log->info("Performing operation '{}' with {} iterates ..",
-                             name, iterates);
-        }
-        else {
-            this->_log->debug("Performing operation '{}' with {} iterates ..",
-                              name, iterates);
-        }
-
-        if (emit_interval == 0) { emit_interval = iterates + 1; }
-
-        for (int i = 0; i < iterates; i++) {
-            operation();            
-            _vertex_model.minimize_energy(_minimization_params);
-
-            if ((i+1) % emit_interval == 0) {
-                this->_log->info("   Performed iterate {} of {} on operation "
-                                 "'{}'.", i+1, iterates, name);
-            }
-            else {
-                this->_log->debug("   Performed iterate {} of {} on operation "
-                                  "'{}'.", i+1, iterates, name);
-            }
-        }
-        return true;
-    }
-
-    /// Decider whether to perform an operation given a config
-    /** \param operation    The operation to perform
-     *  \param name         The name of the operation
-     *  \param cfg          The config from which to extract the times of
-     *                      application.
-     *  \param prolog       (optional) Whether called during prolog
-     *  \param epilog       (optional) Whether called during epilog
-     * 
-     *  The cfg can have entry `active`: bool, and a `times`: dict:
-     *      * `begin` (uint, default: 0): the first step of application
-     *      * `end` (uint, default: max_steps): the last step of
-     *        application
-     *      * `iterates` (uint, default: 1): The number of applications per step
-     *      * `probability` (double, [0, 1], default: 1): The probability that 
-     *         the operations is performed in this step. If evaluated true, all
-     *         iterates are applied
-     *      * `emit_interval` (uint, default: 0): The interval to emit
-     *        information on progress in `info` level, otherwise progress in
-     *        `debug` level
-     * 
-     *  \return whether operation was performed
-     */
-    bool perform_operation(std::function<void()> operation, std::string name,
-                           const Utopia::DataIO::Config& cfg, 
-                           bool prolog=false, bool epilog=false)
-    {
-        int num_steps;
-        if (not get_as<bool>("active", cfg, true)) {
-           return false;
-        }
-        else if (not cfg["times"] and not prolog and not epilog) { 
-            num_steps = 1;
-        }
-        else if (prolog) {
-            num_steps = get_as<int>("prolog", cfg["times"], 0);
-        }
-        else if (epilog) {
-            num_steps = get_as<int>("epilog", cfg["times"], 0);
-        }
-        else {
-            auto time = this->get_time();
-            if (get_as<unsigned int>("begin", cfg["times"], 0) > time or 
-                get_as<unsigned int>("end", cfg["times"],
-                                     this->get_time_max()) < time)
-            {
-                return false;
-            }
-            double probability = get_as<double>("probability", cfg["times"], 1);
-            if (probability != 1 and _prob_distr(*this->_rng) > probability) {
-                return false;
-            }
-            
-            num_steps = get_as<unsigned int>("iterates", cfg["times"], 1);
-        }
-
-        int emit_interval = get_as<unsigned int>("emit_interval",
-                                                 cfg["times"], 0);
-        
-        return perform_operation(operation, name, num_steps, emit_interval);
-    }
 
     // .. Simulation Control ..................................................
     /// Iterate a single step
     void perform_step () {
-        // increment entity parameter
-        perform_operation(
-            [this] () { return this->increment_area(); },
-            "increment_area", _params_increment_area.cfg);
-        perform_operation(
-            [this] () { return this->increment_shape_index(); },
-            "increment_shape_index", _params_increment_shape_index.cfg);
-        perform_operation(
-            [this] () { return this->increment_linetension(); },
-            "increment_linetension", _params_increment_linetension.cfg);
-        perform_operation(
-            [this] () { return this->increment_contractility(); },
-            "increment_contractility", _params_increment_contractility.cfg);
-
-        // deformations
-        perform_operation(
-            [this] () { return this->divide_random_cell(); },
-            "proliferation", _cfg_proliferation);
-        perform_operation(
-            [this] () { return this->differentiate_cells(); },
-            "differentiation", _cfg_differentiation);
-
-        perform_operation(
-            [this] () { return this->stretch_domain(); },
-            "stretch domain", _cfg_stretch_domain);
+        for (auto& operation_bundle : _operations) {
+            apply_operation(operation_bundle);
+        }
     }
 
     /// Monitor model information
@@ -703,96 +333,33 @@ public:
 
     /// The prolog
     /** Performs the following tasks:
-     *      1. call prolog of vertex model
+     *      1. initialize vertex model
      *      2. equilibrate vertex model
-     *      3. default prolog tasks
+     *      3. prolog operations
+     *      4. default prolog tasks
      */
     void prolog () {
-        perform_operation(
-            [this] () { return _vertex_model.prolog(); },
-            "initialise cells", 1, 0);
+        _vertex_model.prolog();
+        _vertex_model.minimize_energy(_minimization_params);
 
-        perform_operation(
-            [this] () { return this->divide_random_cell(); },
-            "proliferation", _cfg_proliferation, true);
-        this->_log->debug("Model initialised with proliferated vertex model. "
-                          "There are {} cells on equilibrated tissue.",
-                          _vertex_model.get_am().cells().size());
-        
-        perform_operation(
-            [this] () { return this->differentiate_cells(); },
-            "differentiation", _cfg_differentiation, true);
-
-        // increment entity parameter
-        perform_operation(
-            [this] () { return this->increment_area(); },
-            "increment_area", _params_increment_area.cfg,
-            true);
-        perform_operation(
-            [this] () { return this->increment_shape_index(); },
-            "increment_shape_index", _params_increment_shape_index.cfg,
-            true);
-        perform_operation(
-            [this] () { return this->increment_linetension(); },
-            "increment_linetension", _params_increment_linetension.cfg,
-            true);
-        perform_operation(
-            [this] () { return this->increment_contractility(); },
-            "increment_contractility", _params_increment_contractility.cfg,
-            true);
+        for (auto& operation : _operations) {
+            apply_operation(operation, true, false);
+        }
         
         return this->__prolog();
     }
 
     /// The epilog
     /** Performs the following tasks:
-     *      1. (optional) Equilibrate the vertex model with changed noise level
+     *      1. epilog operations
      *      2. default epilog tasks
      */
     void epilog () {
+        for (auto& operation : _operations) {
+            apply_operation(operation, false, true);
+        }
+
         _vertex_model.epilog();
-        
-        const auto domain = _vertex_model.get_space()->get_domain_size();
-        this->_log->info("Domain size is {} x {}.", domain[0], domain[1]);
-
-        if (not this->_cfg["epilog"]) {
-            return this->__epilog();
-        }
-
-        this->_log->info("Run finished at time {}. Starting epilog ..", 
-                         this->get_time());
-
-        auto epilog_cfg = this->_cfg["epilog"];
-
-        if (epilog_cfg["jiggle"]) {
-            const auto num_steps = get_as<unsigned int>("iterations",
-                                                epilog_cfg["jiggle"], 0);
-            const auto emit_interval = get_as<unsigned int>("emit_interval",
-                                                epilog_cfg["jiggle"], 0);
-
-            this->_log->info("Equilibrating vertex model another {} times ..", 
-                             num_steps);
-
-            const auto time0 = this->get_time();
-
-            for (unsigned int i = 0; i < num_steps; ++i) {
-                _vertex_model.minimize_energy(_minimization_params);
-                
-                this->increment_time();
-                this->_datamanager(static_cast<PCPTopology&>(*this));
-
-                if (emit_interval > 0 and 
-                    (this->get_time() - time0) % emit_interval == 0)
-                {
-                    this->_log->info("Finished minimization {} of {}", i+1, 
-                                     num_steps);
-                }
-                else {
-                    this->_log->debug("Finished minimization {} of {}", i+1,
-                                      num_steps);
-                }
-            }
-        }
 
         return this->__epilog();
     }
@@ -803,6 +370,11 @@ public:
     /// Getter for vertices
     const auto& get_am () const {
         return _vertex_model.get_am();
+    }
+    
+    /// Add an operation
+    void register_operation (OperationBundle& operation) {
+        _operations.push_back(operation);
     }
 };
 
