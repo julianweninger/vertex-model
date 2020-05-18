@@ -62,18 +62,32 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             area = data.sel(property='area')
             cell_type = data.sel(property='cell_type')
 
+            bins = range(3, 10)
+
             if only_type == 'hair':
                 num_neighbors = num_neighbors[cell_type == 1]
                 area = area[cell_type == 1]
             elif only_type == 'support':
                 num_neighbors = num_neighbors[cell_type == 2]
                 area = area[cell_type == 2]
+            elif only_type == 'support_hair':
+                num_neighbors = data.sel(property='num_hair_neighbors')
+                num_neighbors = num_neighbors[cell_type == 2]
+                area = area[cell_type == 2]
+                bins = range(0, 7)
+            elif only_type == 'support_support':
+                num_neighbors = num_neighbors - \
+                                data.sel(property='num_hair_neighbors')
+                num_neighbors = num_neighbors[cell_type == 2]
+                area = area[cell_type == 2]
+                bins = range(0, 7)
             elif only_type != 'all':
                 raise ValueError("'only_type' unknown, was '{}', but must be "
                 	        "one of {}"
-                            "".format(only_type, ['all', 'hair', 'support']))
+                            "".format(only_type, ['all', 'hair', 'support',
+                                                  'support_hair',
+                                                  'support_support']))
 
-            bins = range(4, 10)
 
             # the histogram
             hlpr.select_axis(col=0, row=0)
