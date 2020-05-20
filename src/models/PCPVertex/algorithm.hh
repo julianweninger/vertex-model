@@ -188,11 +188,11 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
         double energy_change = (new_energy - _energy) / new_energy;
 
         if (energy_change < -1e-14) {
-            this->_log->debug("Updating with timestep {} at energy change {}",
+            this->_log->trace("Updating with timestep {} at energy change {}",
                               _dt, energy_change);
         }
         else {
-            this->_log->debug("NOT updating with step size {} along direction "
+            this->_log->trace("NOT updating with step size {} along direction "
                               "of update at energy change {}", _dt,
                               energy_change);
             return this->_energy;
@@ -219,12 +219,12 @@ double PCPVertex::conjugate_gradient_step ()
     double energy_change = (new_energy - _energy) / new_energy;
 
     if (energy_change < -1e-14) {
-        this->_log->debug("Updating with timestep {} at energy change {}",
+        this->_log->trace("Updating with timestep {} at energy change {}",
                             _dt, energy_change);
         apply_rule<Update::sync>(update_position, _am.vertices());
     }
     else {
-        this->_log->debug("NOT updating with step size {} along direction "
+        this->_log->trace("NOT updating with step size {} along direction "
                           "of update at energy change {}", _dt,
                           energy_change);
         return this->_energy;
