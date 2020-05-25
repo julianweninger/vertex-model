@@ -20,8 +20,8 @@ struct OperationParams {
     const std::string name;
 
     /// The times when to invoke
-    /** \note This are the times of the model,
-     *        hence at iteration 1 the time is 0
+    /** \note This are the times of the model as per result,
+     *        hence at iteration 1 the time is resulting in 1.
      */
     std::set<Time> times;
 
@@ -82,8 +82,8 @@ struct OperationParams {
         iterations_epilog(get_as<std::size_t>("iterations_epilog", cfg, 0)),
         minimization_mode(setup_minimization_mode(get_as<std::string>(
             "mode", get_as<Config>("minimization", cfg, Config()), "every"))),
-        minimization_params((get_as<Config>("minimization", cfg, Config()),
-                            default_minim_params))
+        minimization_params(get_as<Config>("minimization", cfg, Config()),
+                            default_minim_params)
     {
         auto times_list = get_as<std::vector<Time>>("times", cfg);
         // TODO Consider wrapping negative values around
@@ -91,7 +91,7 @@ struct OperationParams {
         // Make sure negative times are not included
         times_list.erase(
             std::remove_if(times_list.begin(), times_list.end(),
-                            [](auto& t){ return (t < 0); }),
+                            [](auto& t){ return (t <= 0); }),
             times_list.end()
         );
 
@@ -130,6 +130,8 @@ using OperationBundle = typename std::pair<Operation, OperationParams>;
  *      - `probability` (double): The probability for a cell to differentiate
  *              to a hair cell; otherwise support cell. Gives a fraction of 
  *              hair cells for large enough number of cells.
+ * 
+ *  \note The entities properties do not change during differentiation.
  */
 OperationBundle build_differentiate_random (
         std::string name, const Config& cfg,
@@ -181,6 +183,8 @@ OperationBundle build_differentiate_random (
 /** The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
  *      - `steps` (uint): The numer of steps performed in the NotchDelta model.
+ * 
+ *  \note The entities properties do not change during differentiation.
  * 
  *  \param notch_delta  Pointer to a notch delta model
  */
@@ -280,6 +284,9 @@ OperationBundle build_differentiate_NotchDelta (
  *               - `adapt_support` (bool, default: false): If true, the total
  *                      area of hair and support cells remains constant, hence
  *                      support cells compensate area changes from hair cells.
+ * 
+ *  \note This affects the current entities properties, it does not overwrite
+ *        changes in the past.
  */
 OperationBundle build_increment_area (
         std::string name, const Config& cfg,
@@ -411,6 +418,9 @@ OperationBundle build_increment_domain (
  *              edges between cells of types hair and support.
  *      - `support_support` (double, default: 0.): Incremental value for 
  *              edges between cells of types support and support.
+ * 
+ *  \note This increments the matrix of linetension, hence affects current and
+ *        future edges between cells of corresponding type.
  */
 OperationBundle build_increment_edge_contractility (
         std::string name, const Config& cfg,
@@ -459,7 +469,7 @@ OperationBundle build_increment_edge_contractility (
         auto contractility = vertex_model.get_edge_contractility();
 
         contractility(CellType::progenitor,
-                    CellType::progenitor) += incr_prog_prog;
+                      CellType::progenitor) += incr_prog_prog;
         contractility(CellType::progenitor, CellType::hair) += incr_prog_hair;
         contractility(CellType::progenitor,
                       CellType::support) += incr_prog_supp;
@@ -470,7 +480,7 @@ OperationBundle build_increment_edge_contractility (
         
         contractility(CellType::support,
                       CellType::progenitor) += incr_prog_supp;
-        contractility(CellType::support, CellType::hair) = incr_hair_supp;
+        contractility(CellType::support, CellType::hair) += incr_hair_supp;
         contractility(CellType::support, CellType::support) += incr_supp_supp;
 
         // set the contractility and update the edge properties
@@ -495,6 +505,9 @@ OperationBundle build_increment_edge_contractility (
  *              edges between cells of types hair and support.
  *      - `support_support` (double, default: 0.): Incremental value for 
  *              edges between cells of types support and support.
+ * 
+ *  \note This increments the matrix of linetension, hence affects current and
+ *        future edges between cells of corresponding type.
  */
 OperationBundle build_increment_linetension (
         std::string name, const Config& cfg,
@@ -552,7 +565,7 @@ OperationBundle build_increment_linetension (
         linetension(CellType::hair, CellType::support) += incr_hair_supp;
         
         linetension(CellType::support, CellType::progenitor) += incr_prog_supp;
-        linetension(CellType::support, CellType::hair) = incr_hair_supp;
+        linetension(CellType::support, CellType::hair) += incr_hair_supp;
         linetension(CellType::support, CellType::support) += incr_supp_supp;
 
         // set the contractility and update the edge properties
@@ -571,6 +584,9 @@ OperationBundle build_increment_linetension (
  *              type hair.
  *      - `support` (double, default: 0.): Incremental value for cells of
  *              type support.
+ * 
+ *  \note This affects the current entities properties, it does not overwrite
+ *        changes in the past.
  */
 OperationBundle build_increment_shape_index (
         std::string name, const Config& cfg,
@@ -641,11 +657,9 @@ OperationBundle build_proliferate (
     OperationParams params(name, cfg, default_minim_params);
     
     auto num_increases(get_as<std::size_t>("num_increases", cfg));
-    if (num_increases == 0) {
-        throw std::invalid_argument("Parameter 'num_increases' in "
-            "proliferation must be larger than 0. It specifies in how "
-            "many steps the area of the cell should be increased.");
-    }
+    MinimizationParams minimization_after_increase(
+        get_as<Config>("minimization_after_increase", cfg, Config()),
+        params.minimization_params);
 
     auto threshold(get_as<double>("area_threshold", cfg, 0.5));
     
@@ -653,7 +667,8 @@ OperationBundle build_proliferate (
     
     std::uniform_real_distribution<double> prob_distr(0.,1.);
 
-    Operation operation = [num_increases, threshold, generation_max_id,
+    Operation operation = [num_increases, minimization_after_increase,
+                           threshold, generation_max_id,
                            prob_distr{std::move(prob_distr)}, params]
             (PCPVertex& vertex_model) mutable
     {
@@ -695,24 +710,30 @@ OperationBundle build_proliferate (
         }
 
         double area_preferential = cell->state.area_preferential;
-        double dA = cell->state.area_preferential / num_increases;
-        for (unsigned int i = 0; i < num_increases; i++) {            
-            vertex_model.increase_domain_size(dA);
-            cell->state.area_preferential += dA;
-            vertex_model.minimize_energy(params.minimization_params);
-        }
+        if (num_increases > 0) {
+            double dA = cell->state.area_preferential / num_increases;
+            for (unsigned int i = 0; i < num_increases; i++) {            
+                vertex_model.increase_domain_size(dA);
+                cell->state.area_preferential += dA;
+                vertex_model.minimize_energy(minimization_after_increase);
+            }
 
-        if (am.area_of(cell) < threshold * cell->state.area_preferential)
-        {
-            throw std::runtime_error(fmt::format("Cell division failed! "
-                "Cell did not grow to area larger than threshold. "
-                "For division requested minimal area: {}. \n"
-                "For division preferred area: {}. \n"
-                "Area reached: {}.", threshold * cell->state.area_preferential,
-                cell->state.area_preferential, am.area_of(cell)));
-        }
+            if (am.area_of(cell) < threshold * cell->state.area_preferential)
+            {
+                throw std::runtime_error(fmt::format("Cell division failed! "
+                    "Cell did not grow to area larger than threshold. "
+                    "For division requested minimal area: {}. \n"
+                    "For division preferred area: {}. \n"
+                    "Area reached: {}.",
+                    threshold * cell->state.area_preferential,
+                    cell->state.area_preferential, am.area_of(cell)));
+            }
 
-        cell->state.area_preferential = area_preferential;
+            cell->state.area_preferential = area_preferential;
+        }
+        else {
+            vertex_model.increase_domain_size(area_preferential);
+        }
 
         double angle = prob_distr(*vertex_model.get_rng()) * PI;
         vertex_model.divide_cell(cell, angle);        

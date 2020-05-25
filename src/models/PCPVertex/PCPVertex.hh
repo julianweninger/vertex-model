@@ -965,8 +965,12 @@ public:
         for (int i = 0; i < CellType::num_cell_types; i++) {
             for (int j = i + 1; j < CellType::num_cell_types; j++) {
                 if (linetension(i, j) != linetension(j, i)) {
-                    throw std::invalid_argument(
-                            "Linetension matrix needs to be symmetric!");
+                    throw std::invalid_argument(fmt::format(
+                            "Cannot set edge linetension! "
+                            "Linetension matrix needs to be symmetric, "
+                            "but entry ({}, {})={} and ({}, {})={}",
+                            i, j, linetension(i, j),
+                            j, i, linetension(j, i)));
                 }
             }
         }
@@ -977,7 +981,7 @@ public:
             {
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.contractility = this->_linetension(a->state.type,
+                state.linetension = this->_linetension(a->state.type,
                                                          b->state.type);
                 return state;
             };
@@ -998,8 +1002,12 @@ public:
         for (int i = 0; i < CellType::num_cell_types; i++) {
             for (int j = i + 1; j < CellType::num_cell_types; j++) {
                 if (contractility(i, j) != contractility(j, i)) {
-                    throw std::invalid_argument(
-                            "Contractility matrix needs to be symmetric!");
+                    throw std::invalid_argument(fmt::format(
+                            "Cannot set edge contractility! "
+                            "Contractility matrix needs to be symmetric, "
+                            "but entry ({}, {})={} and ({}, {})={}",
+                            i, j, contractility(i, j),
+                            j, i, contractility(j, i)));
                 }
             }
         }

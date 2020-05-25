@@ -1,0 +1,150 @@
+---
+default_minimization:
+  tolerance: 1.e-8
+  max_steps: 5
+  num_repeat: 5
+  jiggle_tolerance: 1.e-6
+  jiggle_intensity: 0.01
+
+apply_operation_prolog:
+  times: []
+  iterations_prolog: 4
+
+  minimization: &Minimization
+    num_repeat: 2
+    max_steps: 2
+    tolerance: 1e10
+    jiggle_tolerance: 1e10
+    jiggle_intensity: 0.
+
+apply_operation:
+  times: [1]
+  iterations: 5
+
+  minimization: *Minimization
+
+apply_operation_every:
+  times: [2]
+  iterations: 5
+
+  minimization:
+    num_repeat: 2
+    max_steps: 2
+    tolerance: 1e10
+    jiggle_tolerance: 1e10
+    jiggle_intensity: 0.
+    mode: every
+
+apply_operation_once:
+  times: [3]
+  iterations: 5
+
+  minimization: 
+    num_repeat: 2
+    max_steps: 2
+    tolerance: 1e10
+    jiggle_tolerance: 1e10
+    jiggle_intensity: 0.
+    mode: once
+
+apply_operation_manual:
+  times: [4]
+  iterations: 5
+
+  minimization:
+    num_repeat: 2
+    max_steps: 2
+    tolerance: 1e10
+    jiggle_tolerance: 1e10
+    jiggle_intensity: 0.
+    mode: manual
+    
+apply_operation_repeat:
+  times: [5]
+  iterations: 5
+
+  minimization:
+    num_repeat: 3
+    max_steps: 2
+    tolerance: 1e10
+    jiggle_tolerance: 1e10
+    jiggle_intensity: 0.
+
+apply_operation_epilog:
+  times: []
+  iterations_epilog: 4
+
+  minimization: *Minimization
+
+jiggle:
+  times: []
+
+differentiate_random:
+  times: !listgen [0, 5]
+  probability: 0.25
+
+increment_area:
+  times: !listgen [0, 5]
+
+  progenitor: 1.
+  var_progenitor: 0.1
+  hair: 2.
+  var_hair: 0.2
+  support: 3.
+  var_support: 0.3
+
+increment_area_adapt:
+  times: !listgen [0, 5]
+
+  hair: 1.
+  var_hair: 0.1
+  adapt_support: True
+
+increment_domain:
+  times: !listgen [0, 5]
+
+  value: [0.1, 0.2]
+  compensate: false
+
+increment_domain_compensate:
+  times: !listgen [0, 5]
+
+  value: [0.1, 0.2]
+  compensate: true
+  fix_hair_cell_volume: false
+
+increment_domain_compensate_fix:
+  times: !listgen [0, 5]
+
+  value: [0.1, 0.2]
+  compensate: true
+  fix_hair_cell_volume: true
+
+increment_edge_contractility: &edge_props
+  times: []
+  progenitor_progenitor: 0.11
+  progenitor_hair: 0.
+  progenitor_support: 0.
+  hair_hair: 0.22
+  hair_support: 0.23
+  support_support: 0.33
+
+increment_linetension: *edge_props
+
+increment_shape_index:
+  times: []
+
+  progenitor: 1.
+  hair: 2.
+  support: 3.
+
+proliferate:
+  times: []
+  num_increases: 1
+  area_threshold: 0.
+
+  minimization_after_increase:
+    tolerance: 1000
+    num_repeat: 1
+    jiggle_tolerance: 1000
+    jiggle_intensity: 0.

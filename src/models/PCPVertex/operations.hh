@@ -89,13 +89,13 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
         const auto num_cells = std::count_if(
             cells.begin(), cells.end(), 
             [](const auto& c) {
-                return c->state.type == CellType::hair;
+                return c->state.type != CellType::hair;
             });
         double dA = area_change / num_cells;
         const RuleFuncCell compensate_dA = [dA](const auto& cell) {
             auto state = cell->state;
             if (state.type != CellType::hair) {
-                cell->state.area_preferential += dA;
+                state.area_preferential += dA;
             }
             return state;
         };

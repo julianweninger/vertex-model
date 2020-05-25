@@ -248,7 +248,7 @@ private:
             iterates = params.iterations_epilog;
         }
         else if (params.times.size() and
-                 *params.times.begin() == this->_time)
+                 *params.times.begin() == this->_time + 1)
         {
             // Invoke at this time; pop element corresponding to this time
             params.times.erase(params.times.begin());
@@ -333,14 +333,12 @@ public:
 
     /// The prolog
     /** Performs the following tasks:
-     *      1. initialize vertex model
-     *      2. equilibrate vertex model
-     *      3. prolog operations
-     *      4. default prolog tasks
+     *      1. prolog of vertex model
+     *      1. prolog operations
+     *      1. default prolog tasks
      */
     void prolog () {
         _vertex_model.prolog();
-        _vertex_model.minimize_energy(_minimization_params);
 
         for (auto& operation : _operations) {
             apply_operation(operation, true, false);
@@ -352,7 +350,7 @@ public:
     /// The epilog
     /** Performs the following tasks:
      *      1. epilog operations
-     *      2. default epilog tasks
+     *      1. default epilog tasks
      */
     void epilog () {
         for (auto& operation : _operations) {
@@ -366,6 +364,13 @@ public:
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
+    /// Getter for the continuous time
+    /** \details This is the time of the vertex model used for energy
+     *           minimization.
+     */
+    std::size_t get_continuous_time() const {
+        return _vertex_model.get_time();
+    }
 
     /// Getter for vertices
     const auto& get_am () const {
@@ -373,8 +378,10 @@ public:
     }
     
     /// Add an operation
-    void register_operation (OperationBundle& operation) {
-        _operations.push_back(operation);
+    void register_operation (OperationBundle op_bundle) {
+        _operations.push_back(op_bundle);
+        auto [_, params] = op_bundle;
+        this->_log->trace("Registered operation '{}'", params.name);
     }
 };
 

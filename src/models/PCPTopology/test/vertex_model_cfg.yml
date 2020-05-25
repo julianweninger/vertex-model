@@ -1,0 +1,51 @@
+---
+PCPVertex:
+  T1_barrier: 1000.
+  T1_probability: 1.
+  T1_threshold: 0.2
+  T2_threshold: 0.0075
+  T1_separation_factor: 3
+  agent_manager:
+    cell_manager:
+      agent_params: 
+        area_preferential: 1.0
+        shape_index_preferential: 3.6
+        contractility: 1.
+        cell_type: progenitor
+    edge_manager:
+      agent_params: {contractility: 0., linetension: 0.}
+    setup_method: hexagonal
+    setup_params:
+      hexagonal: {hexagon_size: 0.62, lattice_columns: 8, lattice_rows: 8}
+      single: {size: 0.62}
+    vertex_manager:
+      non_periodic_offset: [1, 1]
+  area_elasticity: 1.0
+  cell_cell_polarity_interaction: 0.0
+  cell_initialisation_protein_level: 0.0
+  cell_polarity_exclusion: 0.0
+  data_manager:
+    deciders:
+      write_always: {type: always}
+    tasks:
+      Energy_time: {active: false, decider: write_always, trigger: build_once}
+    triggers:
+      build_once:
+        args: {time: 0}
+        type: once
+  dt: 0.01
+  minimization_tolerance: 1e-8
+  gamma: 0.0
+  initial_jiggle: 0.05
+  space:
+    extent: [1.0, 1.0]
+    periodic: true
+  update_scheme: steepest_gradient
+log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
+monitor_emit_interval: 2.0
+num_steps: 0
+output_path: test_data.h5
+seed: 42
+write_every: 1
+write_start: 0
+

@@ -77,12 +77,11 @@ data_manager:
     write_always:
       type: always
     
-    write_slice: &slicer
-      type: slice
+    write_interval: &interval
+      type: interval
       args:
-        start: 0
-        stop: 1000000
-        step: 1
+        intervals:
+          - [0, 1000000, 1]
 
     write_at_last:
       type: once
@@ -91,7 +90,7 @@ data_manager:
 
   # this builds the triggers, here deciders are used
   triggers:
-    build_slice: *slicer
+    build_interval: *interval
 
     build_once:
       type: once
@@ -138,8 +137,8 @@ data_manager:
 
     Vertices: &agents
       active: true
-      trigger: build_slice
-      decider: write_slice
+      trigger: build_interval
+      decider: write_interval
     Cells: *agents
     Edges: *agents
 

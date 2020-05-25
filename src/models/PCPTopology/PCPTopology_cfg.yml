@@ -222,14 +222,13 @@ PCPVertex:
     deciders:
       write_always:
         type: always
-      write_slice: &slicer
-        type: slice
+      write_interval: &interval_continuous
+        type: interval
         args:
-          start: 0
-          stop: 500
-          step: 50
+          intervals:
+            - [0, 100, 25]
     triggers:
-      build_slice: *slicer
+      build_interval: *interval_continuous
       build_once:
         type: once
         args:
@@ -241,14 +240,10 @@ PCPVertex:
         active: true
         trigger: build_once
         decider: write_always
-      Energy_linetension: 
-        <<: *energy
-      Energy_areaelasticity: 
-        <<: *energy
-      Energy_contractility: 
-        <<: *energy
-      Energy_time:
-        <<: *energy
+      Energy_linetension: *energy
+      Energy_areaelasticity: *energy
+      Energy_contractility: *energy
+      Energy_time: *energy
 
       # the polarity energies
       Energy_cell_cell_polarity: 
@@ -266,55 +261,28 @@ PCPVertex:
 
       Vertices: &agents_continuous
         active: true
-        trigger: build_slice
-        decider: write_slice
+        trigger: build_interval
+        decider: write_interval
       Cells: *agents_continuous
       Edges: *agents_continuous
 
 # plotting
 data_manager:
-  # this builds the deciders
   deciders:
-    write_always:
-      type: always
-
-    write_composite: &slicer_comp
-      type: simple_composite
+    write_always: {type: always}
+    write_interval: &interval
+      type: interval
       args:
-        interval:
-          intervals:
-            - [4, 10]
-        slice:
-          start: 0
-          stop: 10000
-          step: 2
-
-    write_at_last:
-      type: once
-      args: 
-        time: 1000000
-
-  # this builds the triggers, here deciders are used
+        intervals:
+          - [0, 10, 1]
+          - [10, 100, 10]
   triggers:
     build_once:
       type: once
       args:
         time: 0
-    
-    build_once_at_1:
-      type: once
-      args:
-        time: 1
-    
-    build_always:
-      type: always
-
-    build_composite: *slicer_comp
-
-    build_at_last:
-      type: once
-      args: 
-        time: 1000000
+    build_always: {type: always}
+    build_interval: *interval
   
   # these are the datasets written
   tasks:
@@ -328,8 +296,8 @@ data_manager:
 
     Vertices: &agents_equilibrium
         active: true
-        trigger: build_composite
-        decider: write_composite
+        trigger: build_interval
+        decider: write_interval
     Cells: *agents_equilibrium
     Edges: *agents_equilibrium
 
