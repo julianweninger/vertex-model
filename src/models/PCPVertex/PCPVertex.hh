@@ -311,7 +311,10 @@ public:
         // this->initialise_polarity_random(get_as<double>(
         //         "cell_initialisation_protein_level", this->_cfg));
 
-        jiggle_vertices(get_as<double>("initial_jiggle", this->_cfg, 0.));
+        double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
+        if (initial_jiggle > 0.) {
+            jiggle_vertices(initial_jiggle);
+        }
         
         this->_log->info("Model initialized.");
     }
