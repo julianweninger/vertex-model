@@ -80,6 +80,8 @@ cellular_structure:
   plot_func: cellular_structure
   file_ext: png
 
+  plot_vertices: false
+
   helpers:
     set_labels:
       x: x [a.u.]

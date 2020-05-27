@@ -22,7 +22,7 @@ from ..tools import save_and_close
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath: str='PCPVertex', cfgpath: str='PCPVertex',
-                       time: int=0):
+                       time: int=0, plot_vertices: bool=False):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -87,11 +87,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             Lx = v_data.attrs["Lx"][0]
             Ly = v_data.attrs["Ly"][0]
 
-            for v_id in v_data.id:
-                v = v_data.sel(id=v_id)
-                x = v.sel(property="x")
-                y = v.sel(property="y")
-                scatter_vertex(x, y, hlpr.ax)
+            if plot_vertices:
+                for v_id in v_data.id:
+                    v = v_data.sel(id=v_id)
+                    x = v.sel(property="x")
+                    y = v.sel(property="y")
+                    scatter_vertex(x, y, hlpr.ax)
 
             for e_id in e_data.id:
                 e = e_data.sel(id=e_id)
