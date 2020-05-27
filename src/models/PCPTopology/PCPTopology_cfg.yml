@@ -24,6 +24,13 @@ space: &SPACE
 # --- Operations
 # The sequence of operations
 operations:
+  - jiggle: # this is not done automatically
+      times: []
+      iterations_prolog: 0
+
+      minimization:
+        num_repeat: 1
+      
   - proliferate:
       times: []
       iterations_prolog: 5
@@ -236,27 +243,27 @@ PCPVertex:
       build_always:
         type: always
     tasks:
-      Energy_total: &energy
+      Energy_total: &energy_continuous
         active: true
         trigger: build_once
         decider: write_always
-      Energy_linetension: *energy
-      Energy_areaelasticity: *energy
-      Energy_contractility: *energy
-      Energy_time: *energy
+      Energy_linetension: *energy_continuous
+      Energy_areaelasticity: *energy_continuous
+      Energy_contractility: *energy_continuous
+      Energy_time: *energy_continuous
 
       # the polarity energies
       Energy_cell_cell_polarity: 
-        <<: *energy
+        <<: *energy_continuous
         active: false
       Energy_polarity_exclusion: 
-        <<: *energy
+        <<: *energy_continuous
         active: false
       Energy_lagrange_net_polarisation: 
-        <<: *energy
+        <<: *energy_continuous
         active: false
       Energy_lagrange_const_concentration: 
-        <<: *energy
+        <<: *energy_continuous
         active: false
 
       Vertices: &agents_continuous
@@ -286,6 +293,30 @@ data_manager:
   
   # these are the datasets written
   tasks:
+    Energy_total: &energy
+      active: true
+      trigger: build_once
+      decider: write_always
+    Energy_linetension: *energy
+    Energy_areaelasticity: *energy
+    Energy_contractility: *energy
+    Energy_time: *energy
+    Continuous_time: *energy
+
+    # the polarity energies
+    Energy_cell_cell_polarity: 
+      <<: *energy
+      active: false
+    Energy_polarity_exclusion: 
+      <<: *energy
+      active: false
+    Energy_lagrange_net_polarisation: 
+      <<: *energy
+      active: false
+    Energy_lagrange_const_concentration: 
+      <<: *energy
+      active: false
+
     Cell_area: &Statistics
       active: true
       trigger: build_once

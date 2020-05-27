@@ -10,6 +10,11 @@ using Utopia::get_as;
 template<typename ParentType>
 auto model_factory(ParentType parent) {
     return PCPTopology("PCPTopology", parent,
+        continuous_time_adaptor, time_energy_adaptor,
+        energy_adaptor, linetension_adaptor,
+        areaelasticity_adaptor, contractility_adaptor,
+        cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
+        lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // statistics
         statistics_time_adaptor, cell_neighbourhood_adaptor,
         cell_area_adaptor<typename PCPTopology::CellType>,

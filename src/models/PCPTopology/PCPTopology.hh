@@ -372,6 +372,36 @@ public:
         return _vertex_model.get_time();
     }
 
+    double get_energy() const {
+        return _vertex_model.get_energy();
+    }
+    
+    double get_energy_linetension() const {
+        return _vertex_model.get_energy_linetension();
+    }
+    double get_energy_edge_contractility() const {
+        return _vertex_model.get_energy_edge_contractility();
+    }
+    double get_energy_areaelasticity () const {
+        return _vertex_model.get_energy_areaelasticity();
+    }
+    double get_energy_cell_contractility () const {
+        return _vertex_model.get_energy_cell_contractility();
+    }
+    
+    // double get_energy_cell_cell_polarity() const {
+    //     return _vertex_model.get_energy_cell_cell_polarity();
+    // }
+    // double get_energy_polarity_exclusion () const {
+    //     return _vertex_model.get_energy_polarity_exclusion();
+    // }
+    // double get_energy_lagrange_net_polarisation() const {
+    //     return _vertex_model.get_energy_lagrange_net_polarisation();
+    // }
+    // double get_energy_lagrange_const_concentration() const {
+    //     return _vertex_model.get_energy_lagrange_const_concentration();
+    // }
+
     /// Getter for vertices
     const auto& get_am () const {
         return _vertex_model.get_am();

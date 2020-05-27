@@ -7,6 +7,25 @@ using namespace Utopia::DataIO;
 
 namespace Utopia::Models::PCPVertex::DataIO{
 
+/** Available datatree:
+ *      - Energy
+ *          - Energy_total
+ *          - Energy_time
+ *          - Energy_linetension
+ *          - Energy_areaelasticity
+ *          - Energy_contractility
+ *          - Energy_cell_cell_polarity
+ *          - Energy_polarity_exclusion
+ *          - Energy_lagrange_net_polarisation
+ *          - Energy_lagrange_const_concentration
+ *      - Vertices (time series groups)
+ *      - Cells (time series groups)
+ *      - Edges (time series groups)
+ *      - Statistics
+ *          - Cell_area
+ *          - Statistics_time
+ */
+
 /// Datamanager adaptor for total energy
 auto energy_adaptor = std::make_tuple(
 

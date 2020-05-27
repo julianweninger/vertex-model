@@ -4,7 +4,7 @@
 ---
 energy:
   based_on: .basic_uni.lineplots
-  model_name: PCPTopology/PCPVertex
+  model_name: PCPTopology
   file_ext: png
 
   helpers:

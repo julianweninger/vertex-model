@@ -16,8 +16,23 @@ energy:
     Energy/Contractility:
       label: contractility
 
-energy_polarity:
+energy_continuous:
   based_on: energy
+  model_name: PCPTopology/PCPVertex
+
+  to_plot:
+    Energy/Total:
+      label: TOTAL
+    Energy/Linetension:
+      label: line-tension
+    Energy/Areaelasticity:
+      label: area-elasticity
+    Energy/Contractility:
+      label: contractility
+
+energy_polarity_continuous:
+  based_on: energy
+  model_name: PCPTopology/PCPVertex
   enabled: false
 
   to_plot:
