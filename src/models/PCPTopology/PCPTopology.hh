@@ -233,6 +233,16 @@ private:
     }
     
     // .. Helper functions ....................................................
+    /** Apply an operation from a bundle
+     *  \param operation_bundle collection of operation and parameters
+     *  \param prolog           Whether it is called during the prolog of the
+     *                          model. `iterations_prolog` are performed.
+     *  \param epilog   	    Whether it is called during the epilog of the
+     *                          model. `iterations_epilog` are performed.
+     *                          Whenever the energy is minimized the time of the
+     *                          model is incremented and the datamanager is
+     *                          called.
+     */
     void apply_operation(OperationBundle& operation_bundle,
                          bool prolog = false, bool epilog = false)
     {
@@ -287,6 +297,12 @@ private:
             if (params.minimization_mode == MinimizationMode::Every) {
                 this->_log->debug("   Minimizing energy ...");
                 _vertex_model.minimize_energy(params.minimization_params);
+                
+                // write data during epilog
+                if (epilog) {
+                    this->increment_time();
+                    this->_datamanager(static_cast<PCPTopology&>(*this));
+                }
             }
             else {
                 this->_log->debug("   NOT minimizing energy.");
@@ -306,6 +322,12 @@ private:
         {
             this->_log->debug("   Minimizing energy ...");
             _vertex_model.minimize_energy(params.minimization_params);
+                
+            // write data during epilog
+            if (epilog) {
+                this->increment_time();
+                this->_datamanager(static_cast<PCPTopology&>(*this));
+            }
         }
         else if (iterates > 0 and
                  params.minimization_mode == MinimizationMode::Manual)
