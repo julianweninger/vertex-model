@@ -32,7 +32,3 @@ def test_run_and_eval_cfgs():
         mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
 
         print("Succeeded running and evaluating '{}'.\n".format(cfg_name))
-
-def test_increment_operation():    
-    mv, _ = mtc.create_run_load(from_cfg="test_increment_operations.yml",
-                                perform_sweep=False)

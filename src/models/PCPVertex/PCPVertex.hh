@@ -25,6 +25,84 @@ namespace PCPVertex {
 
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+/// The collection of parameters used for energy minimization
+struct MinimizationParams {
+    /// The tolerance in energy change 
+    double tolerance;
+
+    /// The maximum number of steps per minimization
+    std::size_t max_steps;
+
+    /// The number of jiggling the vertices
+    /** \details The first jiggle is applied before the first minimization,
+     *           then the energy is minimized up to `jiggle_tolerance`.
+     *           This is repeated up to the final minimization, which is 
+     *           done up `tolerance`.
+     * 
+     *  \note Must be > 0
+     */
+    std::size_t num_repeat;
+
+    /// The reduced tolerance for the preliminary minimizations
+    /** \details Only the final minimization is done with `tolerance`.
+     *  \note   Optional parameter, default is `tolerance`.
+     *  \note   The value of `jiggle_tolerance` cannot be smaller than
+     *          `tolerance`.
+     */
+    double jiggle_tolerance;
+
+    /// The intensity of the jiggling
+    /** \details The intensity scales relative to the typical lengthscale of a
+     *           cell \f$ l = \sqrt{A_{domain} / #cells} \f$
+     */
+    double jiggle_intensity;
+
+    template <typename Config>
+    MinimizationParams(const Config& cfg)
+    :
+        tolerance(get_as<double>("tolerance", cfg)),
+        max_steps(get_as<std::size_t>("max_steps", cfg)),
+        num_repeat(get_as<std::size_t>("num_repeat", cfg)),
+        jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg, tolerance)),
+        jiggle_intensity(get_as<double>("jiggle_intensity", cfg))
+    {
+        if (num_repeat == 0) {
+            throw Utopia::KeyError("num_repeat", cfg, fmt::format(
+                "Value must be larger than 0, but was {}", num_repeat));
+        }
+        if (jiggle_tolerance < tolerance) {
+            throw Utopia::KeyError("jiggle_tolerance", cfg, fmt::format(
+                "Value must be larger or equal to 'tolerance', but was {} < {}",
+                jiggle_tolerance, tolerance));
+        }
+    }
+
+    /// Initialize from config and inherit not defined values from default
+    template <typename Config>
+    MinimizationParams(const Config& cfg, const MinimizationParams& defaults)
+    :
+        tolerance(get_as<double>("tolerance", cfg, defaults.tolerance)),
+        max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
+        num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
+        jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
+                                        defaults.jiggle_tolerance)),
+        jiggle_intensity(get_as<double>("jiggle_intensity", cfg,
+                                        defaults.jiggle_intensity))
+    {
+        if (num_repeat == 0) {
+            throw Utopia::KeyError("num_repeat", cfg, fmt::format(
+                "Value must be larger than 0, but was {}", num_repeat));
+        }
+        if (jiggle_tolerance < tolerance) {
+            throw Utopia::KeyError("jiggle_tolerance", cfg, fmt::format(
+                "Value must be larger or equal to 'tolerance', but was {} < {}",
+                jiggle_tolerance, tolerance));
+        }
+    }
+
+
+};
+
 /// Type helper to define types used by the model
 using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
                                       Space::CustomSpace<2>>;
@@ -109,7 +187,7 @@ private:
     /// timestep scaling
     double _dt;
 
-    /// The update scheme for energy minimisation
+    /// The update scheme for energy minimization
     /** Currently implemented update schemes:
      *      -# steepest_gradient : Steepest gradient update at fixed step size
      *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
@@ -123,8 +201,8 @@ private:
         ConjugateGradient
     } _update_scheme;
     
-    /// The precision during minimisation
-    double _minimisation_precision;
+    /// The tolerance during minimization
+    double _minimization_tolerance;
 
     /// timestep scaling for polarity
     double _gamma;
@@ -210,21 +288,22 @@ public:
         // Get member paramters from cfg
         _dt(get_as<double>("dt", this->_cfg)),
         _update_scheme(this->setup_update_scheme(this->_cfg)),
-        _minimisation_precision(1e-8),
+        _minimization_tolerance(get_as<double>(
+            "minimization_tolerance", this->_cfg)),
         _gamma(get_as<double>("gamma", this->_cfg)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _T1_threshold(get_as<double>("T1_threshold", this->_cfg)),
-        _T1_separation(_T1_threshold * get_as<double>("T1_separation_factor",
-                       this->_cfg)),
+        _T1_separation(_T1_threshold *
+                       get_as<double>("T1_separation_factor",this->_cfg)),
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
             "cell_cell_polarity_interaction",this->_cfg)),
-        _cell_polarity_exclusion(get_as<double>("cell_polarity_exclusion", 
-                                                this->_cfg)),
+        _cell_polarity_exclusion(get_as<double>(
+            "cell_polarity_exclusion", this->_cfg)),
         _prob_distr(0.,1.),
         _energy_previous_step(0.),
         _energy(0.)
@@ -639,7 +718,8 @@ private:
     // -- The algorithm    ----------------------------------------------------
     // see algorithm.hh
     std::pair<double, double> determine_timestep (double dt,
-                                                  const double energy_0) const;
+                                                  const double energy_0,
+                                                  const double tolerance) const;
     double steepest_gradient_step (bool adaptive_step);
     double conjugate_gradient_step ();
     double perform_update_step(UpdateScheme update_scheme);
@@ -677,13 +757,13 @@ public:
 
 
     // .. Simulation Control ..................................................
-    void init_minimisation ();
+    void init_minimization ();
 
     /// Iterate a single step
     /** \details Rules applied
      *      -# perform T2 transitions on cells
      *      -# perform T1 transitions on edges 
-     *      -# perform minimisation step
+     *      -# perform minimization step
      */
     void perform_step () {
         bool transition_occurred = false;
@@ -719,7 +799,7 @@ public:
 
         if (transition_occurred) {
             // restart the conjugate gradient update
-            this->init_minimisation();
+            this->init_minimization();
         }
 
         _energy = this->get_energy();
@@ -750,6 +830,66 @@ public:
         this->_monitor.set_entry("energy", _energy);
         this->_monitor.set_entry("energy_change",
                                  _energy - _energy_previous_step);
+    }
+
+    /// Minimize the energy
+    /** Iterate this model until the change of energy is smaller than a given 
+     *  tolerance.
+     * 
+     *  \param  params  The collection of parameter required.
+     * 
+     *  \details 1. Jiggle vertices using jiggle_vertices()
+     *           2. Minimize energy to given tolerance by iterating this model.
+     *              The tolerance may be reduced 
+     *              See perform_step() for more details.
+     *           3. Repeat 1. and 2. `num_repeat` times.
+     */
+    std::size_t minimize_energy(const MinimizationParams& params)
+    {
+        const auto time_0 = this->get_time();
+
+        this->_log->debug("Minimizing energy from step {}", time_0);
+
+        for (std::size_t i = 0; i < params.num_repeat; i++)
+        {
+            this->jiggle_vertices(params.jiggle_intensity);
+
+            double tolerance;
+            if (i+1 == params.num_repeat) {
+                tolerance = params.tolerance;
+            }
+            else {
+                tolerance = params.jiggle_tolerance;
+            }
+            const auto time_start = this->get_time();
+            bool minimum_reached = false;
+            while (not minimum_reached) {
+                _minimization_tolerance = tolerance;
+                this->iterate();
+
+                double energy_change = this->get_rel_energy_change();
+                minimum_reached = (fabs(energy_change) < tolerance);
+                
+                if (not minimum_reached 
+                    and this->get_time() - time_start >= params.max_steps)
+                {
+                    throw std::runtime_error(fmt::format(
+                        "Equilibrium not reached within {} steps at a "
+                        "tolerance of {}! Energy change in last step was {}.", 
+                        params.max_steps, tolerance, energy_change));
+                }
+
+                if (stop_now.load()) {
+                    this->_log->warn("Was told to stop. Not iterating "
+                        "further ...");
+                    throw GotSignal(received_signum.load());
+                }
+            }
+        }
+
+        this->_log->debug("Energy minimized within {} steps", 
+                          this->get_time() - time_0);
+        return this->get_time() - time_0;
     }
 
     // Getters and setters ....................................................
@@ -825,8 +965,12 @@ public:
         for (int i = 0; i < CellType::num_cell_types; i++) {
             for (int j = i + 1; j < CellType::num_cell_types; j++) {
                 if (linetension(i, j) != linetension(j, i)) {
-                    throw std::invalid_argument(
-                            "Linetension matrix needs to be symmetric!");
+                    throw std::invalid_argument(fmt::format(
+                            "Cannot set edge linetension! "
+                            "Linetension matrix needs to be symmetric, "
+                            "but entry ({}, {})={} and ({}, {})={}",
+                            i, j, linetension(i, j),
+                            j, i, linetension(j, i)));
                 }
             }
         }
@@ -837,7 +981,7 @@ public:
             {
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.contractility = this->_linetension(a->state.type,
+                state.linetension = this->_linetension(a->state.type,
                                                          b->state.type);
                 return state;
             };
@@ -858,8 +1002,12 @@ public:
         for (int i = 0; i < CellType::num_cell_types; i++) {
             for (int j = i + 1; j < CellType::num_cell_types; j++) {
                 if (contractility(i, j) != contractility(j, i)) {
-                    throw std::invalid_argument(
-                            "Contractility matrix needs to be symmetric!");
+                    throw std::invalid_argument(fmt::format(
+                            "Cannot set edge contractility! "
+                            "Contractility matrix needs to be symmetric, "
+                            "but entry ({}, {})={} and ({}, {})={}",
+                            i, j, contractility(i, j),
+                            j, i, contractility(j, i)));
                 }
             }
         }
@@ -877,27 +1025,6 @@ public:
 
             apply_rule<Update::sync>(update, this->_am.edges());
         }
-    }
-
-    /** Criterion for the equilibrium state
-     * 
-     *  Equilibrium if PCPVertex::get_mean_energy_change() change is smaller
-     *  than threshold value
-     *  
-     *  \param threshold    The equilibrium threshold
-     * 
-     *  \return {whether equilibrium reached, relative energy change}
-     *  \note relative energy change is not normalised for step size
-     */
-    std::pair<bool, double> equilibrium_state_reached() const {
-        double energy_change = this->get_rel_energy_change ();
-        return std::make_pair(fabs(energy_change) < _minimisation_precision,
-                              energy_change);
-    };
-
-    /// Set a precision for minimisation
-    void set_minimisation_precision (double precision) {
-        _minimisation_precision = precision;
     }
 }; // class PCPVertex
 

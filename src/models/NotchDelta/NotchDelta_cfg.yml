@@ -75,16 +75,15 @@ data_manager:
     write_always:
       type: always
     
-    write_slice: &slicer
-      type: slice
+    write_interval: &interval
+      type: interval
       args:
-        start: 0
-        stop: 1000000
-        step: 50
+        intervals:
+          - [0, 1000000, 50]
 
   # this builds the triggers, here deciders are used
   triggers:
-    build_slice: *slicer
+    build_interval: *interval
 
     build_once:
       type: once
@@ -108,8 +107,8 @@ data_manager:
 
     Cell_type: &CM
       active: true
-      decider: write_slice
-      trigger: build_slice
+      decider: write_interval
+      trigger: build_interval
     Atoh1: *CM
     CM_time: *CM
 

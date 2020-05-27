@@ -51,8 +51,10 @@ initial_jiggle: 0.05
 
 # --- Dynamics
 # damping factor
-dt: 0.01
+dt: 0.01                      # only used with fixed step size
+minimization_tolerance: 1e-8  # only used with adaptive steps size
 update_scheme: steepest_gradient
+# can be steepest_gradient, steepest_gradient_adaptive, conjugate_gradient
 
 area_elasticity: 1.
 
@@ -68,7 +70,6 @@ T1_probability: 1.
 T1_barrier: 0.02
 T2_threshold: 0.0075
 
-
 # --- Data manager
 data_manager:
   # this builds the deciders
@@ -76,12 +77,11 @@ data_manager:
     write_always:
       type: always
     
-    write_slice: &slicer
-      type: slice
+    write_interval: &interval
+      type: interval
       args:
-        start: 0
-        stop: 1000000
-        step: 1
+        intervals:
+          - [0, 1000000, 1]
 
     write_at_last:
       type: once
@@ -90,7 +90,7 @@ data_manager:
 
   # this builds the triggers, here deciders are used
   triggers:
-    build_slice: *slicer
+    build_interval: *interval
 
     build_once:
       type: once
@@ -137,8 +137,8 @@ data_manager:
 
     Vertices: &agents
       active: true
-      trigger: build_slice
-      decider: write_slice
+      trigger: build_interval
+      decider: write_interval
     Cells: *agents
     Edges: *agents
 

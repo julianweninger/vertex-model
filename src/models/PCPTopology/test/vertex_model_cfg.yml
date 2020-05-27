@@ -7,21 +7,20 @@ PCPVertex:
   T1_separation_factor: 3
   agent_manager:
     cell_manager:
-      agent_params:
+      agent_params: 
         area_preferential: 1.0
         shape_index_preferential: 3.6
-        contractility: 0.02
+        contractility: 1.
         cell_type: progenitor
     edge_manager:
-      agent_params: {contractility: 0.02, linetension: 0.1}
+      agent_params: {contractility: 0., linetension: 0.}
     setup_method: hexagonal
     setup_params:
       hexagonal: {hexagon_size: 0.62, lattice_columns: 8, lattice_rows: 8}
       single: {size: 0.62}
     vertex_manager:
       non_periodic_offset: [1, 1]
-
-  area_elasticity: 10.0
+  area_elasticity: 1.0
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0
   cell_polarity_exclusion: 0.0
