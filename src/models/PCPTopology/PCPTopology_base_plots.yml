@@ -41,6 +41,22 @@ cellular_structure:
 
     animation_update_kwargs:  {}
 
+cell_neighbourhood:
+  module: model_plots.PCPTopology
+  plot_func: cell_neighbourhood
+  file_ext: png
+
+  helpers_frame_hist:
+    set_labels:
+      x: number of neighbours
+      y: frequency
+    set_limits:
+      y: [0., 0.7]
+  helpers_frame_area:
+    set_labels:
+      x: number of neighbours
+      y: mean area
+
 # -- Multiverse plots
 cell_property_multiverse:
   based_on: .dag.generic.facet_grid
