@@ -315,11 +315,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix)
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_hc)
     {
         using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        const std::string name = "increment_domain_compensate_fix";
+        const std::string name = "increment_domain_compensate_fix_hc";
         auto [op_diff, params_diff] = build_differentiate_random(
             "differentiate_random", get_as<Config>("differentiate_random", cfg),
             default_minim_params);
@@ -352,6 +352,49 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
         BOOST_CHECK_CLOSE(area_hc, new_area_hc, 1e-7);
+
+        SpaceVec d_domain = new_domain - domain;
+        BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
+        BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_sc)
+    {
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+        const std::string name = "increment_domain_compensate_fix_sc";
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+        auto [operation, params] = build_increment_domain(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        op_diff(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+        double area = 0.;
+        double area_sc = 0;
+        for (const auto& c : cells) {
+            area += c->state.area_preferential;
+            if (c->state.type == CellType::support) {
+                area_sc += c->state.area_preferential;
+            }
+        }
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+
+        operation(vertex_model);
+        
+        double new_area = 0.;
+        double new_area_sc = 0;
+        for (const auto& c : cells) {
+            new_area += c->state.area_preferential;
+            if (c->state.type == CellType::support) {
+                new_area_sc += c->state.area_preferential;
+            }
+        }
+        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
+        BOOST_CHECK_CLOSE(area_sc, new_area_sc, 1e-7);
 
         SpaceVec d_domain = new_domain - domain;
         BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);

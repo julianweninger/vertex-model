@@ -111,14 +111,21 @@ increment_domain_compensate:
 
   value: [0.1, 0.2]
   compensate: true
-  fix_hair_cell_volume: false
+  fix_hair_cell_area: false
 
-increment_domain_compensate_fix:
+increment_domain_compensate_fix_hc:
   times: !listgen [0, 5]
 
   value: [0.1, 0.2]
   compensate: true
-  fix_hair_cell_volume: true
+  fix_hair_cell_area: true
+
+increment_domain_compensate_fix_sc:
+  times: !listgen [0, 5]
+
+  value: [0.1, 0.2]
+  compensate: true
+  fix_support_cell_area: true
 
 increment_edge_contractility: &edge_props
   times: []

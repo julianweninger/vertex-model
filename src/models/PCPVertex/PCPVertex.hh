@@ -756,7 +756,7 @@ public:
 
     void increase_domain_size(double area);
     double stretch_domain(SpaceVec stretch, bool compensate,
-                          bool fix_hc_volume);
+        bool fix_hc_area, bool fix_sc_area);
 
 
     // .. Simulation Control ..................................................

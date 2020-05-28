@@ -378,7 +378,7 @@ OperationBundle build_increment_area (
  *      - `compensate` (bool): Whether to compensate the increase in area in the
  *              preferential area of the cells. If true, keeps the mechanical
  *              properties constant
- *      - `fix_hair_cell_volume` (bool, default: false): Whether to fix the area
+ *      - `fix_hair_cell_area` (bool, default: false): Whether to fix the area
  *              of cells of type hair.
  */
 OperationBundle build_increment_domain (
@@ -391,13 +391,19 @@ OperationBundle build_increment_domain (
     
     SpaceVec increment(get_as_SpaceVec<2>("value", cfg));
     bool compensate(get_as<bool>("compensate", cfg));
-    bool fix_hair_cell_volume(get_as<bool>("fix_hair_cell_volume", cfg, false));
+    bool fix_hc_area(get_as<bool>("fix_hair_cell_area", cfg, false));
+    bool fix_sc_area(get_as<bool>("fix_support_cell_area", cfg, false));
 
+    if (compensate and fix_hc_area and fix_sc_area) {
+        throw std::invalid_argument("Cannot compensate area while fixing "
+            "hair and support cell area in operation 'increment_domain'!");
+    }
+    
     Operation operation = [increment, compensate,
-                           fix_hair_cell_volume] (PCPVertex& vertex_model)
+                           fix_hc_area, fix_sc_area] (PCPVertex& vertex_model)
     {
         vertex_model.stretch_domain(increment, compensate,
-                                    fix_hair_cell_volume);
+                                    fix_hc_area, fix_sc_area);
     };
 
     return std::make_pair(operation, params);
