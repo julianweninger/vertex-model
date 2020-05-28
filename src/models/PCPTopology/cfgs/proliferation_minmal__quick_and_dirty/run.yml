@@ -1,0 +1,50 @@
+# A minimal configuration to do cell proliferation
+# In quick and dirty during proliferation the energy is not minimized.
+# This results in a significant (~ factor 100) speed up with similar results.
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/proliferation_minimal/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/proliferation_minimal/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_proliferation_quick_and_dirty
+
+parameter_space:
+  num_steps: 2
+
+  PCPTopology:
+    operations:
+      - jiggle:
+          times: []
+          iterations_prolog: 1
+
+          minimization:
+            num_repeat: 1
+
+      - proliferate:
+          times: [1]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 64
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+
+      - jiggle:
+          times: [2]
+          iterations_prolog: 0
+
+          minimization:
+            num_repeat: 5
+
+    PCPVertex:
+      log_level: warn

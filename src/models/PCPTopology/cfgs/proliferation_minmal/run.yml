@@ -1,4 +1,4 @@
-# A minimal configuration to do cell proliferation
+# A minimal configuration to do cell proliferation 
 #
 # The model can be run by typing : 
 # $ cd /path-to-Utopia/vertex-model
@@ -12,12 +12,12 @@ paths:
   model_note: default_proliferation
 
 parameter_space:
-  num_steps: 10
+  num_steps: 3
 
   PCPTopology:
     operations:
       - proliferate:
-          times: [10]
+          times: !listgen [4]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 0
