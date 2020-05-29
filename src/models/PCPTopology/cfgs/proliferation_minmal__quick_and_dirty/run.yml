@@ -47,4 +47,14 @@ parameter_space:
             num_repeat: 5
 
     PCPVertex:
-      log_level: warn
+      log_level: info
+
+      data_manager:
+        deciders:
+          write_interval: &interval_continuous
+            type: interval
+            args:
+              intervals:
+                - [100, 800, 100]
+        triggers:
+          build_interval: *interval_continuous

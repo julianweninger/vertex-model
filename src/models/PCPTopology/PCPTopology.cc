@@ -19,6 +19,8 @@ auto model_factory(ParentType parent) {
         statistics_time_adaptor, cell_neighbourhood_adaptor,
         cell_area_adaptor<typename PCPTopology::CellType>,
         cell_area_histogram_adaptor,
+        // transition adaptors
+        T1_adaptor, T1_attempted_adaptor, T2_adaptor,
         // the position adaptors
         vertices_adaptor,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,

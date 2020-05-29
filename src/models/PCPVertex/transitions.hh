@@ -32,6 +32,8 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         double division_angle,
         EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility)
 {
+    this->_log->debug("Dividing cell ...");
+ 
     if (not _space->periodic) {
         throw std::runtime_error("Cell division not implemented in "
             "non-periodic boundary condition!");
@@ -542,7 +544,7 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
     if (random_number > probability)
     {
-        this->_log->info("Aborting T1 transition, because energy increased by "
+        this->_log->debug("Aborting T1 transition, because energy increased by "
                 "{} .. The probability to do this T1 transition is {}.",
                 new_energy - current_energy, probability);
         
@@ -605,12 +607,8 @@ template<class Model>
 bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
 {
     if (cell->custom_links().edges.size() != 3) {
-        this->_log->info("Delaying T2 transition, because the cell has more "
+        this->_log->debug("Delaying T2 transition, because the cell has more "
             "3 vertices (has {} vertices).", cell->custom_links().edges.size());
-        this->_log->debug("Since correct implementation is "
-            "missing, a T2 transition on this cell would violate the condition, "
-            "that a vertex has 3 (or less at boundary) adjoint edges and cells. "
-            "Waiting, that T1 transitions occur so that T2 becomes possible..");
         return false;
     }
 

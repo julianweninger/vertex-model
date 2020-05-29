@@ -2,3 +2,49 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
+energy:
+  based_on: .basic_uni.lineplots
+  model_name: PCPVertex
+  file_ext: png
+
+  helpers:
+    set_labels:
+      x: time
+      y: energy [a.u.]
+
+transitions:
+  model_name: PCPVertex
+  creator: universe
+  universes: all
+  module: model_plots.PCPVertex
+  plot_func: transitions
+  file_ext: png
+
+cellular_structure:
+  creator: universe
+  universes: all
+  module: model_plots.PCPVertex
+  plot_func: cellular_structure
+  file_ext: png
+
+  plot_vertices: false
+
+  helpers:
+    set_labels:
+      x: x [a.u.]
+      y: y [a.u.]
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs:  {}

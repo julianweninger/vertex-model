@@ -270,6 +270,24 @@ private:
     /// Current energy
     double _energy;
 
+    /// The number of T1 transitions
+    std::size_t _num_T1s;
+
+    /// The total number of T1 transitions
+    std::size_t _num_T1s_total;
+
+    /// The number of T1 transitions attempted
+    std::size_t _num_T1s_attempted;
+
+    /// The total number of T1 transitions attempted
+    std::size_t _num_T1s_attempted_total;
+
+    /// The number of T2 transitions
+    std::size_t _num_T2s;
+
+    /// The total number of T2 transitions
+    std::size_t _num_T2s_total;
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
@@ -306,7 +324,13 @@ public:
             "cell_polarity_exclusion", this->_cfg)),
         _prob_distr(0.,1.),
         _energy_previous_step(0.),
-        _energy(0.)
+        _energy(0.),
+        _num_T1s(0),
+        _num_T1s_total(0),
+        _num_T1s_attempted(0),
+        _num_T1s_attempted_total(0),
+        _num_T2s(0),
+        _num_T2s_total(0)
     {
         // this->initialise_polarity_random(get_as<double>(
         //         "cell_initialisation_protein_level", this->_cfg));
@@ -749,7 +773,6 @@ public:
      *  \param division_angle   angle (in rad) at which the cell is divided
      */
     void divide_cell(std::shared_ptr<Cell> cell, double division_angle) {
-        this->_log->info("Dividing cell..");
         return _am.divide_cell(cell, division_angle, _linetension,
                                _edge_contractility);
     }
@@ -772,23 +795,27 @@ public:
         bool transition_occurred = false;
 
         // T2 transitions -- cell extrusion
+        _num_T2s = 0;
         for (int i = _am.cells().size() - 1; i >= 0; i--) {
             double area = _am.area_of(_am.cells()[i]);
             if (area < _T2_threshold) {
-                this->_log->info("Removing cell in T2 transition in step {}..",
+                this->_log->debug("Removing cell in T2 transition in step {}..",
                                  this->_time);
                 bool T2 = _am.remove_cell_T2(_am.cells()[i]);
                 transition_occurred = transition_occurred or T2;
+                _num_T2s += T2;
             }
         }
 
         // T1 transition -- neighborhood change
+        _num_T1s = 0;
+        _num_T1s_attempted = 0;
         for (int i = _am.edges().size() - 1; i >= 0; i--) {
             double length = _am.length_of(_am.edges()[i]);
             if (length < _T1_threshold
                 and _prob_distr(*this->_rng) < _T1_probability)
             {
-                this->_log->info("Removing edge in T1 transition in step {}..",
+                this->_log->debug("Removing edge in T1 transition in step {}..",
                                  this->_time);
                 bool T1 = _am.remove_edge_T1(_am.edges()[i],
                         _linetension, _edge_contractility,
@@ -797,8 +824,20 @@ public:
                                     return this->get_energy(es, cs, 0.); },
                         _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
                 transition_occurred = transition_occurred or T1;
+                _num_T1s += T1;
+                _num_T1s_attempted++;
             }
         }
+        if (_num_T2s > 0 or _num_T1s > 0 or _num_T1s_attempted > 0) {
+            this->_log->info("Removed {} cell{} and {} edge{} ({} aborted) in "
+                             "step {}",
+                            _num_T2s, _num_T2s != 1 ? "s":"", 
+                            _num_T1s, _num_T1s != 1 ? "s":"",
+                            _num_T1s_attempted, this->_time);
+        }
+        _num_T1s_total += _num_T1s;
+        _num_T1s_attempted_total += _num_T1s_attempted;
+        _num_T2s_total += _num_T2s;
 
         if (transition_occurred) {
             // restart the conjugate gradient update
@@ -846,6 +885,8 @@ public:
      *              The tolerance may be reduced 
      *              See perform_step() for more details.
      *           3. Repeat 1. and 2. `num_repeat` times.
+     * 
+     *  \return num steps performed
      */
     std::size_t minimize_energy(const MinimizationParams& params)
     {
@@ -951,15 +992,40 @@ public:
     }
     double get_rel_energy_change () const;
 
+    std::size_t get_num_T1s() const {
+        return _num_T1s;
+    }
+
+    std::size_t get_num_T1s_attempted() const {
+        return _num_T1s_attempted;
+    }
+
+    std::size_t get_num_T2s() const {
+        return _num_T2s;
+    }
+
+    std::size_t get_num_T1s_total() const {
+        return _num_T1s_total;
+    }
+
+    std::size_t get_num_T1s_attempted_total() const {
+        return _num_T1s_attempted_total;
+    }
+
+    std::size_t get_num_T2s_total() const {
+        return _num_T2s_total;
+    }
+
     const AgentManager& get_am () const {
         return _am;
     }
     
+    /// Get linetension matrix
     const auto get_linetension () const {
         return _linetension;
     }
     
-    /// Set 
+    /// Set linetension matrix
     void set_linetension (
             arma::Mat<double>::fixed<CellType::num_cell_types,
                                      CellType::num_cell_types> linetension,

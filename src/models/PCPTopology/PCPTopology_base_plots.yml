@@ -12,6 +12,14 @@ energy:
       x: time
       y: energy [a.u.]
 
+transitions:
+  model_name: PCPTopology
+  creator: universe
+  universes: all
+  module: model_plots.PCPTopology
+  plot_func: transitions
+  file_ext: png
+
 cellular_structure:
   creator: universe
   universes: all

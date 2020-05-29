@@ -75,6 +75,10 @@ PCPTopology:
         Energy_time: {active: false, decider: write_always, trigger: build_once}
         Energy_total: {active: false, decider: write_always, trigger: build_once}
         Vertices: *id003
+        num_T1s: {active: false, decider: write_always, trigger: build_once}
+        num_T1s_attempted: {active: false, decider: write_always, trigger: build_once}
+        num_T2s: {active: false, decider: write_always, trigger: build_once}
+        Statistics_time: {active: false, decider: write_always, trigger: build_once}
       triggers:
         build_always: {type: always}
         build_interval: *id004

@@ -4,6 +4,7 @@ import logging
 from typing import Tuple
 
 import numpy as np
+import xarray as xr
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -18,6 +19,63 @@ from utopya.dataprocessing import transform
 from ..tools import save_and_close
 
 # -----------------------------------------------------------------------------
+
+
+@is_plot_func(creator_type=UniversePlotCreator)
+def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
+                model_name: str='PCPVertex', **plot_kwargs):
+    """Performs a plot of the T1 and T2 transitions over time together with 
+    the energy
+    
+    Args:
+        dm (DataManager): The data manager from which to retrieve the data
+        uni (UniverseGroup): The data for this universe
+        hlpr (PlotHelper): The PlotHelper
+        model_name (str): The name of the model the data resides in
+        path_to_data (str or Tuple[str, str]): The path to the data within the
+            model data or the paths to the x and the y data, respectively
+        transform_data (dict, optional): Transformations to apply to the data.
+            This can be used for dimensionality reduction of the data, but
+            also for other operations, e.g. to selecting a slice.
+            For available parameters, see
+            :py:func:`utopya.dataprocessing.transform`
+        transformations_log_level (int, optional): The log level of all the
+            transformation operations.
+        **plot_kwargs: Passed on to plt.plot
+    
+    Raises:
+        ValueError: On invalid data dimensionality
+        ValueError: On mismatch of data shapes
+    """
+    # Get the data
+    energy = uni['data'][model_name]['Energy']['Total']
+    linetension = uni['data'][model_name]['Energy']['Linetension']
+    contractility = uni['data'][model_name]['Energy']['Contractility']
+    areaelasticity = uni['data'][model_name]['Energy']['Areaelasticity']
+    num_T1s = uni['data'][model_name]['Statistics/num_T1s']
+    num_T1s_attempted = uni['data'][model_name]['Statistics/num_T1s_attempted']
+    num_T2s = uni['data'][model_name]['Statistics/num_T2s']
+
+    # Create the line plot of energy
+    hlpr.ax.plot(energy.time, energy, label='total')
+    hlpr.ax.plot(linetension.time, linetension, label='linetension')
+    hlpr.ax.plot(contractility.time, contractility, label='contractility')
+    hlpr.ax.plot(areaelasticity.time, areaelasticity, label='areaelasticity')
+
+    hlpr.ax.set_xlabel("Time [steps]")
+    hlpr.ax.set_ylabel("Energy [a.u.]")
+    hlpr.ax.legend(loc='upper left')
+    hlpr.ax.set_xlim(left=energy.time[0], right=energy.time[-1])
+
+    # Plot the T1s
+    ax2 = hlpr.ax.twinx()
+    ax2.plot(num_T1s_attempted.time, num_T1s_attempted, color='gray', label='#T1 attempted')
+    ax2.plot(num_T1s.time, num_T1s, color='black', label='#T1')
+    ax2.plot(num_T2s.time, num_T2s, color='seagreen', label='#T2')
+
+    ax2.set_ylabel("Transitions")
+    ax2.set_ylim(bottom=0)
+    ax2.legend(loc='upper right')
 
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,

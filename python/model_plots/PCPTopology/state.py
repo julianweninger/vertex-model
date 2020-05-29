@@ -18,8 +18,61 @@ from utopya.plot_funcs.basic_uni import lineplot, lineplots
 from utopya.dataprocessing import transform
 
 from ..tools import save_and_close
+from ..PCPVertex.state import transitions as transitions_base
 
 # -----------------------------------------------------------------------------
+
+@is_plot_func(creator_type=UniversePlotCreator)
+def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
+                model_name: str='PCPTopolgy',
+                map_to_continuous_time: bool=False,
+                map_to_discrete_time: bool=False,
+                continuous_time_path: str='PCPTopology/Energy/Continuous_time',
+                **plot_kwargs):
+    """Performs a plot of the T1 and T2 transitions over time together with 
+    the energy
+    
+    Args:
+        dm (DataManager): The data manager from which to retrieve the data
+        uni (UniverseGroup): The data for this universe
+        hlpr (PlotHelper): The PlotHelper
+        model_name (str): The name of the model the data resides in
+        path_to_data (str or Tuple[str, str]): The path to the data within the
+            model data or the paths to the x and the y data, respectively
+        transform_data (dict, optional): Transformations to apply to the data.
+            This can be used for dimensionality reduction of the data, but
+            also for other operations, e.g. to selecting a slice.
+            For available parameters, see
+            :py:func:`utopya.dataprocessing.transform`
+        transformations_log_level (int, optional): The log level of all the
+            transformation operations.
+        **plot_kwargs: Passed on to plt.plot
+    
+    Raises:
+        ValueError: On invalid data dimensionality
+        ValueError: On mismatch of data shapes
+    """
+    transitions_base(dm, uni=uni, hlpr=hlpr, model_name=model_name,
+                     **plot_kwargs)
+    
+    continuous_time = uni['data'][continuous_time_path]
+
+    if map_to_continuous_time:
+        ax3 = hlpr.ax.twiny()
+        ax3.set_xlim(hlpr.ax.get_xlim())
+        ax3.set_xticks(continuous_time.time)
+        ax3.set_xticklabels(["%.0f" % continuous_time.sel(time=time) for time 
+                                in continuous_time.time])
+
+        ax3.set_xlabel("Continuous time")
+
+    if map_to_discrete_time:
+        ax3 = hlpr.ax.twiny()
+        ax3.set_xlim(hlpr.ax.get_xlim())
+        ax3.set_xticks(continuous_time.data)
+        ax3.set_xticklabels(["%.0f" % time for time in continuous_time.time])
+
+        ax3.set_xlabel("Time of operations")
 
 def plot_neighbourhood(data, *, hlpr, only_type: str, 
                        helpers_frame_hist: dict=None,

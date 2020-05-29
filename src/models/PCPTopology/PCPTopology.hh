@@ -91,6 +91,23 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+    /// The number of T1 transitions
+    std::size_t _num_T1s;
+
+    /// The total number of T1 transitions
+    std::size_t _num_T1s_total;
+
+    /// The number of T1 transitions attempted
+    std::size_t _num_T1s_attempted;
+
+    /// The total number of T1 transitions attempted
+    std::size_t _num_T1s_attempted_total;
+
+    /// The number of T2 transitions
+    std::size_t _num_T2s;
+
+    /// The total number of T2 transitions
+    std::size_t _num_T2s_total;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -107,6 +124,7 @@ public:
         
         // construct the vertex model with an external maximum time stamp
         _vertex_model("PCPVertex", *this,
+                    // energy adaptors
                     DataIO::time_energy_adaptor, DataIO::energy_adaptor,
                     DataIO::areaelasticity_adaptor,
                     DataIO::linetension_adaptor,
@@ -115,6 +133,11 @@ public:
                     DataIO::polarity_exclusion_adaptor,
                     DataIO::lagrange_net_polarisation_adaptor,
                     DataIO::lagrange_const_concentration_adaptor,
+                    // transition adaptors
+                    DataIO::statistics_time_adaptor,
+                    DataIO::T1_adaptor, DataIO::T1_attempted_adaptor,
+                    DataIO::T2_adaptor,
+                    // position adaptors
                     DataIO::vertices_adaptor,  
                     DataIO::cells_adaptor<SpaceVec, CellType>,
                     DataIO::edges_adaptor),
@@ -122,7 +145,13 @@ public:
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
         _operations{},
-        _prob_distr(0.,1.)
+        _prob_distr(0.,1.),
+        _num_T1s(0),
+        _num_T1s_total(0),
+        _num_T1s_attempted(0),
+        _num_T1s_attempted_total(0),
+        _num_T2s(0),
+        _num_T2s_total(0)
     {
         this->_space = _vertex_model.get_space();
 
@@ -345,12 +374,27 @@ public:
         for (auto& operation_bundle : _operations) {
             apply_operation(operation_bundle);
         }
+
+        _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
+        _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
+                             _num_T1s_attempted_total;
+        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
+
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
     }
 
     /// Monitor model information
-    void monitor () {        
-        this->_monitor.set_entry("num cells",
+    void monitor () {
+        this->_monitor.set_entry("num_cells",
                                  _vertex_model.get_am().cells().size());
+        this->_monitor.set_entry("num_T1_transitions",
+                                 _vertex_model.get_num_T1s_total());
+        this->_monitor.set_entry("num_T1_transitions_attempted",
+                                 _vertex_model.get_num_T1s_attempted_total());
+        this->_monitor.set_entry("num_T2_transitions",
+                                 _vertex_model.get_num_T2s_total());
     }
 
     /// The prolog
@@ -365,6 +409,13 @@ public:
         for (auto& operation : _operations) {
             apply_operation(operation, true, false);
         }
+
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
+        _num_T1s = _num_T1s_total;
+        _num_T1s_attempted = _num_T1s_attempted_total;
+        _num_T2s = _num_T2s_total;
         
         return this->__prolog();
     }
@@ -380,6 +431,15 @@ public:
         }
 
         _vertex_model.epilog();
+        
+        _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
+        _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
+                             _num_T1s_attempted_total;
+        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
+
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
 
         return this->__epilog();
     }
@@ -423,6 +483,18 @@ public:
     // double get_energy_lagrange_const_concentration() const {
     //     return _vertex_model.get_energy_lagrange_const_concentration();
     // }
+
+    std::size_t get_num_T1s() const {
+        return _num_T1s;
+    }
+
+    std::size_t get_num_T1s_attempted() const {
+        return _num_T1s_attempted;
+    }
+
+    std::size_t get_num_T2s() const {
+        return _num_T2s;
+    }
 
     /// Getter for vertices
     const auto& get_am () const {

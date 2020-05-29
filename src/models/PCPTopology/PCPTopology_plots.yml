@@ -45,6 +45,15 @@ energy_polarity_continuous:
     Energy/Lagrange_const_concentration: 
       label: lagrange-const-concentration
 
+transitions:
+  based_on: transitions
+  map_to_continuous_time: True
+
+transitions_continuous:
+  based_on: transitions
+  model_name: PCPTopology/PCPVertex
+  map_to_discrete_time: True
+
 cell_area:
   based_on: .basic_uni.lineplots
   model_name: PCPTopology

@@ -60,7 +60,7 @@ operations:
 
       value: [0., 0.]
       compensate: true
-      fix_hair_cell_volume: false
+      fix_hair_cell_area: false
 
   - increment_shape_index:
       times: []
@@ -266,6 +266,11 @@ PCPVertex:
         <<: *energy_continuous
         active: false
 
+      Statistics_time: *energy_continuous
+      num_T1s: *energy_continuous
+      num_T1s_attempted: *energy_continuous
+      num_T2s: *energy_continuous
+
       Vertices: &agents_continuous
         active: true
         trigger: build_interval
@@ -316,6 +321,10 @@ data_manager:
     Energy_lagrange_const_concentration: 
       <<: *energy
       active: false
+
+    num_T1s: *energy
+    num_T1s_attempted: *energy
+    num_T2s: *energy
 
     Cell_area: &Statistics
       active: true
