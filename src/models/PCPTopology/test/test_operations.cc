@@ -19,6 +19,9 @@
 #include "../operations.hh"
 #include "../PCPTopology_write_tasks.hh"
 
+#include "../../NotchDelta/NotchDelta.hh"
+#include "../../NotchDelta/NotchDelta_write_tasks.hh"
+
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex::OperationCollection;
 using Utopia::DataIO::Config;
@@ -146,6 +149,57 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
                                 return cell->state.type == 
                                         CellType::progenitor; });
         BOOST_TEST(cnt == 0);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_NotchDelta) {
+        using Utopia::Models::NotchDelta::NotchDelta;
+
+        auto notch_delta = std::make_shared<NotchDelta>(
+                "NotchDelta", pp,
+                Utopia::Models::NotchDelta::DataIO::density_time);
+        auto notch_delta_prolog = std::make_shared<bool>(false);
+
+        std::string name = "differentiate_NotchDelta";
+        auto [operation, params] = build_differentiate_NotchDelta(
+            name, get_as<Config>(name, cfg), default_minim_params,
+            notch_delta, notch_delta_prolog);
+
+        // This should call the prolog and iterate a first 100 steps
+        operation(vertex_model);
+
+        BOOST_TEST(notch_delta_prolog);
+        BOOST_TEST(notch_delta->get_time() == 100);
+
+        const auto& cells = vertex_model.get_am().cells();
+        auto cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().nd_cell; });
+        BOOST_TEST(cnt == cells.size());
+
+        // Continue iteration
+        operation(vertex_model);
+        BOOST_TEST(notch_delta->get_time() == 200);
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().nd_cell; });
+        BOOST_TEST(cnt == cells.size());
+        
+        
+        // Continue iteration with new task
+        name = "differentiate_NotchDelta_second_task";
+        auto [new_operation, new_params] = build_differentiate_NotchDelta(
+            name, get_as<Config>(name, cfg), default_minim_params,
+            notch_delta, notch_delta_prolog);
+        
+        new_operation(vertex_model);
+        
+        BOOST_TEST(notch_delta->get_time() == 210);
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().nd_cell; });
+        BOOST_TEST(cnt == cells.size());
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area) {

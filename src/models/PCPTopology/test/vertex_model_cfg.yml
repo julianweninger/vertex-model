@@ -41,6 +41,42 @@ PCPVertex:
     extent: [1.0, 1.0]
     periodic: true
   update_scheme: steepest_gradient
+
+  
+NotchDelta:
+  Environment:
+    env_state_funcs:
+    - noise:
+        atoh1: {distribution: exponential, lambda: 100, mode: add}
+    space: {periodic: true}
+  atoh1_suppression: {rate_0: 1.0, rate_1: 1.0}
+  atoh1_threshold: 1.0
+  cell_manager:
+    cell_params: null
+    grid: {resolution: 16, structure: square}
+    neighborhood: {mode: Moore}
+  data_manager:
+    deciders:
+      write_always: {type: always}
+      write_interval: &id003
+        args:
+          intervals:
+          - [0, 1000000, 50]
+        type: interval
+    tasks:
+      Density_time: {active: true, decider: write_always, trigger: build_once}
+    triggers:
+      build_always: {type: always}
+      build_interval: *id003
+      build_once:
+        args: {time: 0}
+        type: once
+  rate_ph: {rate_0: 0.005, rate_1: 0.0}
+  rate_ps: 0.01
+  rate_swap: 0.1
+  space: {periodic: true}
+
+
 log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 0
@@ -48,4 +84,3 @@ output_path: test_data.h5
 seed: 42
 write_every: 1
 write_start: 0
-

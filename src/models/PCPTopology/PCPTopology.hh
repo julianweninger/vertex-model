@@ -86,6 +86,14 @@ private:
      *  Operations can duplicate with same or different parameter.
      */
     std::vector<OperationBundle> _operations;
+
+    /// The instance of the notch_delta model used by proliferation tasks
+    /** \note Only initialized when needed
+     */
+    std::shared_ptr<NotchDelta::NotchDelta> _notch_delta;
+
+    /// Whether the _notch_delta model's prolog was performed
+    std::shared_ptr<bool> _notch_delta_prolog;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -188,18 +196,11 @@ private:
                 this->_log->trace("  Operation name:  {}", name);
 
                 if (name == "differentiate_NotchDelta") {
-                    auto notch_delta = std::make_shared<
-                        NotchDelta::NotchDelta>(
-                            "NotchDelta", *this,
-                            NotchDelta::DataIO::density_time,
-                            NotchDelta::DataIO::density_progenitor,
-                            NotchDelta::DataIO::density_hair,
-                            NotchDelta::DataIO::density_support,
-                            NotchDelta::DataIO::density_ratio_hair_support,
-                            NotchDelta::DataIO::number_hair_hair_contacts);
+                    this->setup_notch_delta();
                     _operations.push_back(
                         build_differentiate_NotchDelta(name, op_cfg,
-                            _minimization_params, notch_delta));
+                            _minimization_params, _notch_delta,
+                            _notch_delta_prolog));
                 }
                 else if (name == "differentiate_random") {
                     _operations.push_back(
@@ -259,6 +260,26 @@ private:
                 this->_log->debug("Added '{}' operation.", name);
             }
         }
+    }
+    
+    /// Setup a notch delta model
+    void setup_notch_delta ()
+    {
+        if (_notch_delta) {
+            return;
+        }
+
+        _notch_delta = std::make_shared<
+            NotchDelta::NotchDelta>(
+                "NotchDelta", *this,
+                NotchDelta::DataIO::density_time,
+                NotchDelta::DataIO::density_progenitor,
+                NotchDelta::DataIO::density_hair,
+                NotchDelta::DataIO::density_support,
+                NotchDelta::DataIO::density_ratio_hair_support,
+                NotchDelta::DataIO::number_hair_hair_contacts);
+
+        _notch_delta_prolog = std::make_shared<bool>(false);        
     }
     
     // .. Helper functions ....................................................
@@ -430,8 +451,6 @@ public:
             apply_operation(operation, false, true);
         }
 
-        _vertex_model.epilog();
-        
         _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
         _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
                              _num_T1s_attempted_total;
@@ -440,6 +459,12 @@ public:
         _num_T1s_total = _vertex_model.get_num_T1s_total();
         _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
         _num_T2s_total = _vertex_model.get_num_T2s_total();
+
+        _vertex_model.epilog();
+
+        if (_notch_delta) {
+            _notch_delta->epilog();
+        }
 
         return this->__epilog();
     }

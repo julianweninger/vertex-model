@@ -179,77 +179,112 @@ OperationBundle build_differentiate_random (
     return std::make_pair(operation, params);
 }
 
-/// The operation to increment
-/** The following parameter are extracted from cfg 
+/// The operation differentiate cells using the NotchDelta model
+/** \details The differentiation occurs as in the NotchDelta model.
+ *  The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
- *      - `steps` (uint): The numer of steps performed in the NotchDelta model.
+ *      - `steps` (uint, default: 1): The numer of steps performed in the
+ *              NotchDelta model without synchronisation to the Vertex model.
  * 
  *  \note The entities properties do not change during differentiation.
  * 
+ *  \warning The linking is done on the first apply of the operations and static
+ *           must be handled manually thereafter.!
+ * 
  *  \param notch_delta  Pointer to a notch delta model
+ *  \param prolog       Whether to perform the association of the two cell
+ *                      manager
  */
 template <class NotchDelta>
 OperationBundle build_differentiate_NotchDelta (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params,
-        std::shared_ptr<NotchDelta> notch_delta)
+        std::shared_ptr<NotchDelta> notch_delta,
+        std::shared_ptr<bool> prolog)
 {
     OperationParams params(name, cfg, default_minim_params);
 
-    std::size_t steps(get_as<std::size_t>("steps", cfg));
-    
-    if (params.iterations_prolog + params.iterations_epilog +
-        params.iterations * (params.times.size()) > 1)
-    {
-        throw std::invalid_argument(fmt::format(
-            "Differentiate can be applied only once, because terminal "
-            "process. Iterations in prolog: {}, in run {}, in epilog",
-            params.iterations_prolog,
-            params.iterations * (params.times.size()),
-            params.iterations_epilog));
-    }
+    std::size_t steps(get_as<std::size_t>("steps", cfg, 1));
 
-    Operation operation = [notch_delta, steps] (PCPVertex& vertex_model)
+    Operation operation = [notch_delta, prolog, steps] (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
         using NDCellType = typename NotchDelta::CellType;
 
-        const auto& nd_cells = notch_delta->get_cm().cells();
-        const auto& cells = vertex_model.get_am().cells();
+        if (not *prolog) {
+            notch_delta->get_logger()->info(
+                "Setting up the custom neighbourhood of the cells as per the "
+                "neighbourhood in the Vertex model ...");
+                
 
-        std::unordered_map<std::shared_ptr<PCPVertex::Cell>,
-                           std::shared_ptr<typename NotchDelta::Cell>> cell_map;
-        if (cells.size() > nd_cells.size()) {
-            throw std::runtime_error(fmt::format("Cannot link cells of "
-                "NotchDelta and Vertex models because ore cells in Vertex "
-                "({} cells) than in NotchDelta model ({} cells)!",
-                nd_cells.size(), cells.size()));
-        }
-        unsigned int iterator;
-        cell_map.reserve(cells.size());
-        for (iterator = 0; iterator < cells.size(); iterator++) {
-            cell_map.insert({cells[iterator], nd_cells[iterator]});
-        }
-        for (void(); iterator < nd_cells.size(); iterator++) {
-            nd_cells[iterator]->state.cell_type = NDCellType::inactive;
-            nd_cells[iterator]->custom_links().neighbors.clear();
-        }
+            const auto& nd_cells = notch_delta->get_cm().cells();
+            const auto& cells = vertex_model.get_am().cells();
+            if (cells.size() > nd_cells.size()) {
+                throw std::runtime_error(fmt::format("Cannot link cells of "
+                    "NotchDelta and Vertex models because ore cells in Vertex "
+                    "({} cells) than in NotchDelta model ({} cells)!",
+                    nd_cells.size(), cells.size()));
+            }
 
-        for (const auto& c : cells) {
-            auto mapped_cell = cell_map.at(c);
-            mapped_cell->custom_links().neighbors.clear();
-            for (auto n : vertex_model.get_am().neighbors_of(c)) {
-                mapped_cell->custom_links().neighbors.push_back(cell_map.at(n));
+            unsigned int iterator;
+            for (iterator = 0; iterator < cells.size(); iterator++) {
+                cells[iterator]->custom_links().nd_cell = nd_cells[iterator];
+            }
+            for (void(); iterator < nd_cells.size(); iterator++) {
+                nd_cells[iterator]->state.cell_type = NDCellType::inactive;
+                nd_cells[iterator]->custom_links().neighbors.clear();
+            }
+
+            for (const auto& cell : cells) {
+                auto& nd_cell = cell->custom_links().nd_cell;
+                nd_cell->custom_links().neighbors.clear();
+                for (auto n : vertex_model.get_am().neighbors_of(cell)) {
+                    nd_cell->custom_links().neighbors.push_back(
+                        n->custom_links().nd_cell);
+                }
+            }
+    
+            notch_delta->prolog();
+            *prolog = true;
+        }
+        else {
+            const auto& cells = vertex_model.get_am().cells();
+            for (const auto& cell : cells) {
+                auto& nd_cell = cell->custom_links().nd_cell;
+                if (not nd_cell) {
+                    throw std::runtime_error("Could not find link to NotchDelta "
+                        "cell. This might be because a new cell was created "
+                        "in the vertex model, e.g. by proliferation. This is "
+                        "currently not handled.");
+                }
+                nd_cell->custom_links().neighbors.clear();
+                for (auto n : vertex_model.get_am().neighbors_of(cell)) {
+                    nd_cell->custom_links().neighbors.push_back(
+                        n->custom_links().nd_cell);
+                }
+            }
+
+            const auto& nd_cells = notch_delta->get_cm().cells();
+            std::size_t cnt = std::count_if(nd_cells.begin(), nd_cells.end(),
+                                    [](const auto& cell) {
+                                            return cell->state.cell_type != 
+                                                NDCellType::inactive; });
+            if (cnt != cells.size()) {
+                throw std::runtime_error(fmt::format("Links from cells in "
+                    "vertex models to cells in NotchDelta model corrupted! "
+                    "There were {} cells in vertex model and {} in NotchDelta "
+                    "model.", cells.size(), cnt));
             }
         }
 
-        notch_delta->prolog();
         for (std::size_t i = 0; i < steps; i++) {
             notch_delta->iterate();
         }
-        notch_delta->epilog();
+        notch_delta->identify_clusters();
 
-        for (const auto [cell, nd_cell] : cell_map) {
+        for (const auto& cell : vertex_model.get_am().cells()) {
+            const auto& nd_cell = cell->custom_links().nd_cell;
+
             auto type = nd_cell->state.cell_type;
             if (type == NDCellType::hair) {
                 cell->state.type = CellType::hair;

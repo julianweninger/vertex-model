@@ -80,11 +80,19 @@ jiggle:
   times: []
 
 differentiate_random:
-  times: !listgen [0, 5]
+  times: []
   probability: 0.25
 
+differentiate_NotchDelta:
+  times: []
+  steps: 100
+
+differentiate_NotchDelta_second_task:
+  times: []
+  steps: 10
+
 increment_area:
-  times: !listgen [0, 5]
+  times: []
 
   progenitor: 1.
   var_progenitor: 0.1
@@ -94,34 +102,34 @@ increment_area:
   var_support: 0.3
 
 increment_area_adapt:
-  times: !listgen [0, 5]
+  times: []
 
   hair: 1.
   var_hair: 0.1
   adapt_support: True
 
 increment_domain:
-  times: !listgen [0, 5]
+  times: []
 
   value: [0.1, 0.2]
   compensate: false
 
 increment_domain_compensate:
-  times: !listgen [0, 5]
+  times: []
 
   value: [0.1, 0.2]
   compensate: true
   fix_hair_cell_area: false
 
 increment_domain_compensate_fix_hc:
-  times: !listgen [0, 5]
+  times: []
 
   value: [0.1, 0.2]
   compensate: true
   fix_hair_cell_area: true
 
 increment_domain_compensate_fix_sc:
-  times: !listgen [0, 5]
+  times: []
 
   value: [0.1, 0.2]
   compensate: true

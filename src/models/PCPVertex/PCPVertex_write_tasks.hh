@@ -522,6 +522,52 @@ auto cells_adaptor = std::make_tuple(
     }    
 ); // end cell position adaptor
 
+/// Datamanager adaptor for the cluster of hair cells
+/** Attributes are:
+ *      -# Lx: Domain size in x coordinate
+ *      -# Ly: Domain size in y coordinate
+ */
+auto hair_cluster_adaptor = std::make_tuple(
+    // name of the task
+    "Hair_cluster",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Hair_cluster");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& cells = model.get_am().cells();
+        dataset->write(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                std::size_t cluster_id;
+                if (cell->custom_links().nd_cell) {
+                    cluster_id = cell->custom_links().nd_cell->state.cluster_id;
+                }
+                else {
+                    cluster_id = 0;
+                }
+                return cluster_id;
+            });
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {m.get_am().cells().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "id");
+    }    
+); // end hair cluster adaptor
+
 /// Datamanager adaptor for edges properties
 auto edges_adaptor = std::make_tuple(
 

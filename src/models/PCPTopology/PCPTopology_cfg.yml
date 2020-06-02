@@ -44,9 +44,9 @@ operations:
   
   - differentiate_NotchDelta:
       times: []
-      iterations_prolog: 1    # this happens after the proliferation
+      iterations_prolog: 2    # this happens after the proliferation
       
-      steps: 1000        # only used if method='NotchDelta'
+      steps: 500        # only used if method='NotchDelta'
 
   - increment_area:
       times: !listgen [0, 10, 1]
@@ -340,4 +340,5 @@ data_manager:
         decider: write_interval
     Cells: *agents_equilibrium
     Edges: *agents_equilibrium
+    Hair_cluster: *agents_equilibrium
 
