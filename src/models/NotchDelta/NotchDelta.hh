@@ -34,11 +34,15 @@ struct CellState {
     /// Whether has neighbor of type hair
     bool has_hair_neighbor;
 
+    /// An ID denoting to which cluster this cell belongs
+    std::size_t cluster_id;
+
     /// Construct the cell state from a configuration
     CellState()
     :
         cell_type(progenitor),
-        has_hair_neighbor(false)
+        has_hair_neighbor(false),
+        cluster_id(0)
     {}
 };
 
@@ -202,7 +206,14 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+    /// The incremental cluster tag
+    unsigned int _cluster_id_cnt;
 
+    /// The time cluster tags were updated last
+    Time _cluster_id_time;
+
+    /// A temporary container for use in cluster identification
+    CellContainer<Cell> _cluster_members;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -228,7 +239,10 @@ public:
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
-        _prob_distr(0., 1.)
+        _prob_distr(0., 1.),
+        _cluster_id_cnt(),
+        _cluster_id_time(1e9),
+        _cluster_members()
     {
         // copy the cm neighborhood to custom links
         if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
@@ -285,6 +299,44 @@ private:
     // .. Setup functions .....................................................
     
     // .. Helper functions ....................................................
+
+    /// Identify each cluster of hair cells
+    RuleFunc _identify_cluster = [this](const auto& cell){
+        if (cell->state.cluster_id != 0 or
+            cell->state.cell_type != CellType::hair)
+        {
+            // already labelled, nothing to do. Return current state
+            return cell->state;
+        }
+        // else: need to label this cell
+
+        // Increment the cluster ID counter and label the given cell
+        _cluster_id_cnt++;
+        cell->state.cluster_id = _cluster_id_cnt;
+
+        // Use existing cluster member container, clear it, add current cell
+        auto& cluster = _cluster_members;
+        cluster.clear();
+        cluster.push_back(cell);
+
+        // Perform the percolation
+        for (unsigned int i = 0; i < cluster.size(); ++i) {
+            // Iterate over all potential cluster members c, i.e. all
+            // neighbors of cell cluster[i] that is already in the cluster
+            for (const auto& nb : cluster[i]->custom_links().neighbors) {
+                // If it is a hair cell that is not yet in the cluster, add it.
+                if (    nb->state.cluster_id == 0
+                    and nb->state.cell_type == CellType::hair)
+                {
+                    nb->state.cluster_id = _cluster_id_cnt;
+                    cluster.push_back(nb);
+                    // This extends the outer for-loop...
+                }
+            }
+        }
+
+        return cell->state;
+    };
 
     // .. Rule functions ......................................................
     /// The differentiation rule for progenitor cells
@@ -403,6 +455,37 @@ private:
     };
 
 public:
+    // .. Helper functions ....................................................
+    /// Identify clusters
+    /** This function identifies clusters and updates the cell
+     *  specific cluster_id as well as the member variable 
+     *  cluster_id_cnt that counts the number of ids
+     * 
+     *  \note This function tracks the last time it was applied and is hence not
+     *        applied twice at the same timepoint
+     */
+    void identify_clusters(){
+        if (_cluster_id_time == this->_time) {
+            // already applied in this step
+            return;
+        }
+
+        this->_log->debug("Identifying cluster ids");
+
+        // reset cluster counter
+        _cluster_id_cnt = 0;
+        apply_rule<Update::sync>(
+            [](const auto& cell) {
+                cell->state.cluster_id = 0;
+                return cell->state; },
+            _cm.cells() );
+        
+        apply_rule<Update::async, Shuffle::off>(_identify_cluster, 
+                                                _cm.cells());
+
+        _cluster_id_time = this->_time;
+    }
+
     // -- Public Interface ----------------------------------------------------
     
     // .. Simulation Control ..................................................
