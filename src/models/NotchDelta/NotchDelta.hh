@@ -233,9 +233,12 @@ public:
         _envm("Environment", *this, _cm),
 
         // Initialize model parameters
-        _rate_ph(),
+        _rate_ph(setup_as_vector(
+            get_as<Config>("rate_ph", this->_cfg), "rate_ph")),
         _rate_ps(get_as<double>("rate_ps", this->_cfg)),
-        _rate_atoh1(),
+        _rate_atoh1(setup_as_vector(
+            get_as<Config>("atoh1_suppression", this->_cfg),
+            "atoh1_suppression")),
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
@@ -251,44 +254,10 @@ public:
             }
         }
 
-        if (not this->_cfg["rate_ph"]) {
-            throw std::invalid_argument("Missing cfg entry: Expected dict with "
-                "key 'rate_ph'.");
-        }
-        _rate_ph.clear();
-        for (int it = 0; true; it++) {
-            if (not this->_cfg["rate_ph"]["rate_"+std::to_string(it)]) {
-                break;
-            }
-            _rate_ph.push_back(get_as<double>("rate_"+std::to_string(it),
-                                              this->_cfg["rate_ph"]));
-        }
-        if (_rate_ph.size() < 2) {
-            throw std::invalid_argument("Missing cfg entry: Expected at least "
-                "2 entries in dict 'rate_ph'!");
-        }
-
-        if (not this->_cfg["atoh1_suppression"]) {
-            throw std::invalid_argument("Missing cfg entry: Expected dict with "
-                "key 'atoh1_suppression'.");
-        }
-        _rate_atoh1.clear();
-        for (int it = 0; true; it++) {
-            if (not this->_cfg["atoh1_suppression"]["rate_"+std::to_string(it)])
-            {
-                break;
-            }
-            _rate_atoh1.push_back(get_as<double>("rate_"+std::to_string(it),
-                                                 this->_cfg["atoh1_suppression"]));
-        }
-        if (_rate_atoh1.size() < 2) {
-            throw std::invalid_argument("Missing cfg entry: Expected at least "
-                "2 entries in dict 'rate_atoh1'!");
-        }
-
-
         if (_atoh1_threshold <= 0.) {
-            _atoh1_threshold = 1e-10;
+            throw std::invalid_argument(fmt::format("Value of "
+                "'atho1_threshold' must be larger than 0, but was {}.",
+                _atoh1_threshold));
         }
 
         this->_log->debug("{} model fully set up.", this->_name);
@@ -297,6 +266,29 @@ public:
 
 private:
     // .. Setup functions .....................................................
+    /// Extract a collection of rates as a vector from a config node
+    /** Instead of defining `some_rate_vector: [0., 0., 0.]`, define it as
+     *  `some_rate_vector: {rate_0: 0., rate_1: 0., rate_2: 0.}`.
+     */
+    std::vector<double> setup_as_vector(const Config& cfg,
+            const std::string&& name)
+    {
+        std::vector<double> vec;
+        for (std::size_t i = 0; cfg["rate_"+std::to_string(i)]; i++) {
+            vec.push_back(get_as<double>("rate_" + std::to_string(i), cfg));
+        }
+
+        if (vec.size() == 0) {
+            throw std::invalid_argument(fmt::format("Provide a minimum of 1 "
+                "rate to initilize the rate vector {}. Expected entries of "
+                "type 'rate_i' with i consecutive uints in [0, N].", name));
+        }
+
+        this->_log->debug("Set up rates vector {} with {} entr{}", name, 
+                          vec.size(), vec.size() != 1 ? "ies" : "y");
+
+        return vec;
+    }
     
     // .. Helper functions ....................................................
 
@@ -373,17 +365,14 @@ private:
         if (state.cell_type == CellType::inactive) { return state; }
 
         // number of neighboring hair cells
-        int ns_hair = 0;
-        for (const auto& n : cell->custom_links().neighbors) {
-            if (n->state.cell_type == CellType::hair) { ns_hair++; }
-        }
-
-        if (ns_hair == 0.) {
-            return state;
-        }
+        std::size_t nbs_hair = std::count_if(
+            cell->custom_links().neighbors.begin(),
+            cell->custom_links().neighbors.end(),
+            [](const auto& nb) {
+                return nb->state.cell_type == CellType::hair; });
 
         // the rate of atoh1 change
-        int mapping = std::min(ns_hair, int(_rate_atoh1.size() - 1));
+        auto mapping = std::min(nbs_hair, _rate_atoh1.size() - 1);
         env_state.atoh1 /= _rate_atoh1[mapping];
 
         cell->custom_links().env->state = env_state;
