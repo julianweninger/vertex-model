@@ -12,8 +12,8 @@ using Utopia::get_as;
 
 /// Factory for model 
 template<typename ParentType>
-auto model_factory(ParentType parent) {
-    return PCPVertex("PCPVertex", parent,
+auto model_factory(ParentType &parent) {
+    return PCPVertex("PCPVertex", parent, {}, std::make_tuple(
         // the energy adaptors
         time_energy_adaptor, energy_adaptor, linetension_adaptor,
         areaelasticity_adaptor, contractility_adaptor,
@@ -23,7 +23,7 @@ auto model_factory(ParentType parent) {
         vertices_adaptor,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,
                       typename PCPVertex::CellType>,
-        edges_adaptor);
+        edges_adaptor));
 }
 
 int main (int, char** argv) {
