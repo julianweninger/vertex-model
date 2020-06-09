@@ -9,7 +9,8 @@ using Utopia::get_as;
 /// Factory for model 
 template<typename ParentType>
 auto model_factory(ParentType parent) {
-    return PCPTopology("PCPTopology", parent,
+    return PCPTopology("PCPTopology", parent, {}, std::make_tuple(
+        // energy adaptors
         continuous_time_adaptor, time_energy_adaptor,
         energy_adaptor, linetension_adaptor,
         areaelasticity_adaptor, contractility_adaptor,
@@ -26,7 +27,7 @@ auto model_factory(ParentType parent) {
         cells_adaptor<typename PCPVertex::Space::SpaceVec,
                       typename PCPTopology::CellType>,
         edges_adaptor,
-        hair_cluster_adaptor);
+        hair_cluster_adaptor));
 }
 
 int main (int, char** argv) {

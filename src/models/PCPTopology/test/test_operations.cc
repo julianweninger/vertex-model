@@ -42,8 +42,9 @@ struct Fixture : ModelFixture {
     :
         ModelFixture(),
         pp("vertex_model_cfg.yml"),
-        vertex_model("PCPVertex", pp,
-                     Models::PCPVertex::DataIO::time_energy_adaptor),
+        vertex_model("PCPVertex", pp, {},
+                     std::make_tuple(
+                        Models::PCPVertex::DataIO::time_energy_adaptor)),
         cfg(YAML::LoadFile("test_operations.yml")),
         default_minim_params(cfg["default_minimization"])
     { }
@@ -67,8 +68,8 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
         get_as<Config>("default_minimization", cfg));
 
     PseudoParent<> pseudo_parent("topology_model_cfg.yml");
-    Models::PCPVertex::PCPTopology model("PCPTopology", pseudo_parent,
-        Models::PCPVertex::DataIO::time_energy_adaptor);
+    Models::PCPVertex::PCPTopology model("PCPTopology", pseudo_parent, {},
+        std::make_tuple(Models::PCPVertex::DataIO::time_energy_adaptor));
     std::string name;
     std::size_t prev_time = model.get_continuous_time();
     std::size_t time;

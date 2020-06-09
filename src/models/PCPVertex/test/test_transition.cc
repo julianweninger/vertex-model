@@ -21,11 +21,13 @@ PCPVertex model_factory(bool periodic) {
 
     if (periodic) {
         Utopia::PseudoParent pp("test_periodic.yml");
-        return PCPVertex("PCPVertex", pp, time_energy_adaptor);
+        return PCPVertex("PCPVertex", pp, {},
+                         std::make_tuple(time_energy_adaptor));
     }
     else {
         Utopia::PseudoParent pp("test.yml");
-        return PCPVertex("PCPVertex", pp, time_energy_adaptor);
+        return PCPVertex("PCPVertex", pp, {},
+                         std::make_tuple(time_energy_adaptor));
     }
 }
 
