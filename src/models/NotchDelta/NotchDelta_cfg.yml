@@ -24,7 +24,7 @@ space: &SPACE
 cell_manager:
   grid:
     structure: square
-    resolution: 16
+    resolution: 8
 
   neighborhood:
     mode: Moore
@@ -37,7 +37,7 @@ cell_manager:
 
 # -- Dynamics
 rate_ph:
-  rate_0: 0.005 # the rate above threshold
+  rate_0: 8.e-3 # the rate above threshold
   # the rates below threshold
   #   if more than one entry given, linear mapping.
   #   latter rates correspond to lower concentrations of atoh1
@@ -67,7 +67,7 @@ Environment:
         atoh1:
           mode: add
           distribution: exponential
-          lambda: 100
+          lambda: 80
 
 data_manager:
   # this builds the deciders
@@ -79,7 +79,7 @@ data_manager:
       type: interval
       args:
         intervals:
-          - [0, 1000000, 50]
+          - [0, 1000000, 10]
 
   # this builds the triggers, here deciders are used
   triggers:

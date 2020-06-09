@@ -10,13 +10,15 @@ densities:
 hair_hair_contacts:
   based_on: hair_hair_contacts
 
+
 # Spatial CA animations .......................................................
 state_anim:
   based_on: state_anim
 
 
+# Multiverse plots ............................................................
 
-# -- Bifurcation plots
+# -- Bifurcation plots ...........
 bifurcation_lambda_ratio:
   based_on: bifurcation_ratio
   enabled: false

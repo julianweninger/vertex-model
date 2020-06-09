@@ -63,23 +63,24 @@ state_anim:
     enabled: true
 
 heatmap_density: &heatmap_density
+  based_on: .dag.generic.facet_grid
   creator: multiverse
-  module: model_plots.NotchDelta
-  plot_func: heatmap
+  # module: model_plots.NotchDelta
+  # plot_func: heatmap
   file_ext: png
   
-  select:
+  select_and_combine:
     fields: 
-      Hair: data/NotchDelta/Densities/Hair
-  transform_data:
-    - isel:
-        time: -1
-
-  to_plot: Hair
+      data:
+        path: data/NotchDelta/Densities/Hair
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
 
   cmap: cividis
-  label: density
-  origin: lower
+
+  label: hair density
 
   helpers:
     set_labels:
@@ -89,18 +90,99 @@ heatmap_density: &heatmap_density
 heatmap_contacts: 
   <<: *heatmap_density
 
-  select:
+  select_and_combine:
     fields: 
-      Contacts: data/NotchDelta/Densities/Number_hair_hair_contacts
-  transform_data:
-    - isel:
-        time: -1
+      data:
+        path: data/NotchDelta/Densities/Number_hair_hair_contacts
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
 
   label: num contacts
-  to_plot: Contacts
+
+
+# Plot the size of the biggest cluster vs density
+# Multiverse plot with beta remapped to density
+percolation_diagram:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  file_ext: png
+
+  select_and_combine:
+    fields:
+      cells:
+        path: CM/Cell_type
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
+      cluster_id:
+        path: CM/Cluster_id
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
+          - operation: where
+            args: ['>', 0]
+    base_path: data/NotchDelta
+
+  transform:
+    # calculate the num cells
+    - operation: .count
+      args: [!dag_tag cells]
+      kwargs:
+        dim: {x, y}
+      tag: num_cells
+    
+    # calculate the hair density
+    - operation: where
+      args: [!dag_tag cells, '==', 1]
+    - operation: .count
+      args: [!dag_prev ]
+      kwargs:
+        dim: {x, y}
+      tag: num_hair_cells
+    - div: [!dag_tag num_hair_cells, !dag_tag num_cells]
+      tag: density
+    
+    # calculate the size of the biggest cluster
+    - operation: import_and_call
+      args: [model_plots.NotchDelta, count_unique, !dag_tag cluster_id,
+             ['x', 'y']]
+      tag: cluster_sizes
+    - operation: .max
+      args: [!dag_prev ]
+      kwargs:
+        dim: unique
+    - div: [!dag_prev , !dag_tag num_cells]
+      tag: max_cluster_size
+
+    # remap coords to density
+    - operation: .assign_coords
+      args: [!dag_tag max_cluster_size]
+      kwargs:
+        beta: !dag_tag density
+    - operation: .rename
+      args: [!dag_prev ]
+      kwargs:
+        beta: density
+      tag: data
+
+  x: density
+  marker: '.'
+  ls: None
+
+  helpers:
+    set_labels:
+      y: max cluster density
+    # set_limits:
+      # x: [0, 0.45]
+      # y: [0, 0.4]
 
 bifurcation: &bifurcation
   based_on: .attractor.bifurcation_diagram_1d
+  file_ext: png
 
   analysis_steps: [fixpoint]
   analysis_kwargs:
@@ -119,7 +201,6 @@ bifurcation_density:
 
   select:
     fields:
-      Ratio: data/NotchDelta/Densities/Ratio_hair_support
       Hair: data/NotchDelta/Densities/Hair
       Support: data/NotchDelta/Densities/Support
 
@@ -133,11 +214,6 @@ bifurcation_density:
       label: support cells
       plot_kwargs:
         color: black
-        s: 7
-    Ratio:
-      label: ratio hair to support cells
-      plot_kwargs:
-        color: blue
         s: 7
 
   helpers:
