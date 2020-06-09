@@ -175,7 +175,7 @@ private:
 
     /// The rate of progenitor to hair cell transition
     /** The first entry is for atoh1 levels above threshold, the latter entries
-     *  are linearly mapped to atoh1 levels below threshold
+     *  are inverse-linearly mapped to atoh1 levels below threshold
      */
     std::vector<double> _rate_ph;
 
@@ -342,9 +342,8 @@ private:
         auto atoh1 = cell->custom_links().env->state.atoh1;
 
         if (state.cell_type == CellType::progenitor) {
-            int mapping;
-            mapping = ceil((1 - atoh1/_atoh1_threshold) * 
-                            (_rate_ph.size() - 1));
+            int mapping = ceil((1 - atoh1/_atoh1_threshold) * 
+                               (_rate_ph.size() - 1));
             if (_prob_distr(*this->_rng) < _rate_ph[std::max(mapping, 0)]) {
                 state.cell_type = CellType::hair;
             }
