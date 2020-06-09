@@ -210,12 +210,13 @@ public:
     /** \param name     Name of this model instance
      *  \param parent   The parent model this model instance resides in
      */
-    template<class ParentModel, typename... Taskargs>
-    NotchDelta (const std::string name, ParentModel &parent,
-                Taskargs&&... taskargs)
+    template<class ParentModel, class... WriterArgs>
+    NotchDelta (const std::string name, ParentModel &parent_model,
+                const DataIO::Config& custom_cfg = {},
+                std::tuple<WriterArgs...> &&writer_args = {})
     :
         // Initialize first via base model
-        Base(name, parent, std::forward<Taskargs>(taskargs)...),
+        Base(name, parent_model, custom_cfg, writer_args),
 
         // Now initialize the cell manager
         _cm(*this),

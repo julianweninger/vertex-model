@@ -98,15 +98,17 @@ public:
     /** \param name     Name of this model instance
      *  \param parent   The parent model this model instance resides in
      */
-    template<class ParentModel, typename... Taskargs>
-    PCPTopology (const std::string name, ParentModel& parent, 
-                 Taskargs&&... taskargs)
+    template<class ParentModel, typename... WriterArgs>
+    PCPTopology (const std::string name, ParentModel &parent_model,
+                 const Config& custom_cfg = {},
+                 std::tuple<WriterArgs...> &&writer_args = {})
     :
         // Initialize first via base model
-        Base(name, parent, std::forward<Taskargs>(taskargs)...),
+        Base(name, parent_model, custom_cfg, writer_args),
         
         // construct the vertex model with an external maximum time stamp
-        _vertex_model("PCPVertex", *this,
+        _vertex_model("PCPVertex", *this, {}, std::make_tuple(
+                    // energy adaptors
                     DataIO::time_energy_adaptor, DataIO::energy_adaptor,
                     DataIO::areaelasticity_adaptor,
                     DataIO::linetension_adaptor,
@@ -115,9 +117,10 @@ public:
                     DataIO::polarity_exclusion_adaptor,
                     DataIO::lagrange_net_polarisation_adaptor,
                     DataIO::lagrange_const_concentration_adaptor,
+                    // entities adaptors
                     DataIO::vertices_adaptor,  
                     DataIO::cells_adaptor<SpaceVec, CellType>,
-                    DataIO::edges_adaptor),
+                    DataIO::edges_adaptor)),
         
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
@@ -159,15 +162,18 @@ private:
                 this->_log->trace("  Operation name:  {}", name);
 
                 if (name == "differentiate_NotchDelta") {
-                    auto notch_delta = std::make_shared<
-                        NotchDelta::NotchDelta>(
-                            "NotchDelta", *this,
-                            NotchDelta::DataIO::density_time,
-                            NotchDelta::DataIO::density_progenitor,
-                            NotchDelta::DataIO::density_hair,
-                            NotchDelta::DataIO::density_support,
-                            NotchDelta::DataIO::density_ratio_hair_support,
-                            NotchDelta::DataIO::number_hair_hair_contacts);
+                    std::shared_ptr<NotchDelta::NotchDelta> notch_delta(
+                        new NotchDelta::NotchDelta("NotchDelta", *this, {}, 
+                            std::make_tuple(
+                                NotchDelta::DataIO::density_time,
+                                NotchDelta::DataIO::density_progenitor,
+                                NotchDelta::DataIO::density_hair,
+                                NotchDelta::DataIO::density_support,
+                                NotchDelta::DataIO::density_ratio_hair_support,
+                                NotchDelta::DataIO::number_hair_hair_contacts
+                            )
+                        )
+                    );
                     _operations.push_back(
                         build_differentiate_NotchDelta(name, op_cfg,
                             _minimization_params, notch_delta));

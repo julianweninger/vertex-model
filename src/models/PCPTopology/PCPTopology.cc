@@ -9,7 +9,7 @@ using Utopia::get_as;
 /// Factory for model 
 template<typename ParentType>
 auto model_factory(ParentType parent) {
-    return PCPTopology("PCPTopology", parent,
+    return PCPTopology("PCPTopology", parent, {}, std::make_tuple(
         // statistics
         statistics_time_adaptor, cell_neighbourhood_adaptor,
         cell_area_adaptor<typename PCPTopology::CellType>,
@@ -18,7 +18,7 @@ auto model_factory(ParentType parent) {
         vertices_adaptor,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,
                       typename PCPTopology::CellType>,
-        edges_adaptor);
+        edges_adaptor));
 }
 
 int main (int, char** argv) {

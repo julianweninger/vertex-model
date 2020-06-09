@@ -7,13 +7,38 @@ paths:
   model_note: test_solvers
 
 parameter_space:
-  num_steps: 14
+  num_steps: 2
 
   PCPTopology: !model
     model_name: PCPTopology
 
-    PCPVertex:    
-      gamma: 0.0
+    PCPVertex:
       update_scheme: !sweep
         default: steepest_gradient
         values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
+    
+    operations:
+      - jiggle:
+          times: []
+          iterations_prolog: 1
+
+          minimization:
+            num_repeat: 1
+
+      - proliferate:
+          times: [1]
+
+          iterations: 64
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+
+      - jiggle:
+          times: [2]
+          minimization:
+            num_repeat: 1
+            tolerance: 1e-5
+            jiggle_tolerance: 1e-5

@@ -22,7 +22,7 @@ NotchDelta model_factory() {
 
     using Utopia::Models::NotchDelta::DataIO::density_time;
 
-    return NotchDelta("NotchDelta", pp, density_time);
+    return NotchDelta("NotchDelta", pp, {}, std::make_tuple(density_time));
 }
 
 /// A fixture used in the test_PCPVertex test suite
