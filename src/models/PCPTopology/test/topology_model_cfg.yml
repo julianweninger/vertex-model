@@ -1,34 +1,6 @@
 ---
 PCPTopology:
   log_level: debug
-  NotchDelta:
-    log_level: info
-    Environment:
-      env_state_funcs:
-      - noise:
-          atoh1: {distribution: exponential, lambda: 100, mode: add}
-      space: &id002 {periodic: false}
-    atoh1_suppression: {rate_0: 10.0, rate_1: 1.0}
-    atoh1_threshold: 1.0
-    cell_manager:
-      cell_params: null
-      grid: {resolution: 15, structure: square}
-      neighborhood: {compute_and_store: false, mode: empty}
-    data_manager:
-      deciders:
-        write_always: {type: always}
-      tasks:
-        Density_hair: &id001 {active: true, decider: write_always, trigger: build_once}
-        Density_progenitor: *id001
-        Density_support: *id001
-        Density_time: *id001
-        Number_hair_hair_contacts: *id001
-      triggers:
-        build_once: {type: once}
-    rate_ph: {rate_0: 0.008, rate_1: 0.0}
-    rate_ps: 0.01
-    rate_swap: 1.0
-    space: *id002
   PCPVertex:
     log_level: info
     T1_barrier: 0.02

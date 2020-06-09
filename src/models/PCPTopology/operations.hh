@@ -202,6 +202,11 @@ OperationBundle build_differentiate_NotchDelta (
         std::shared_ptr<NotchDelta> notch_delta,
         std::shared_ptr<bool> prolog)
 {
+    if (not notch_delta) {
+        throw std::runtime_error("Received nullptr in "
+            "build_operation_NotchDelta!");
+    }
+    
     OperationParams params(name, cfg, default_minim_params);
 
     std::size_t steps(get_as<std::size_t>("steps", cfg, 1));

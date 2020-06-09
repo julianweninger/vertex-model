@@ -155,12 +155,16 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_NotchDelta) {
         using Utopia::Models::NotchDelta::NotchDelta;
 
-        auto notch_delta = std::make_shared<NotchDelta>(
-                "NotchDelta", pp,
-                Utopia::Models::NotchDelta::DataIO::density_time);
+        std::string name = "differentiate_NotchDelta";
+
+        std::shared_ptr<NotchDelta> notch_delta(new NotchDelta(
+            "NotchDelta", pp, 
+            get_as<Config>("NotchDelta", 
+                           get_as<Config>(name, cfg)),
+            std::make_tuple(
+                Utopia::Models::NotchDelta::DataIO::density_time)));
         auto notch_delta_prolog = std::make_shared<bool>(false);
 
-        std::string name = "differentiate_NotchDelta";
         auto [operation, params] = build_differentiate_NotchDelta(
             name, get_as<Config>(name, cfg), default_minim_params,
             notch_delta, notch_delta_prolog);

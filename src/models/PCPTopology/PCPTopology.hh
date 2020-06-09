@@ -197,7 +197,8 @@ private:
                 this->_log->trace("  Operation name:  {}", name);
 
                 if (name == "differentiate_NotchDelta") {
-                    this->setup_notch_delta();
+                    this->setup_notch_delta(
+                            get_as<Config>("NotchDelta", op_cfg, {}));
                     _operations.push_back(
                         build_differentiate_NotchDelta(name, op_cfg,
                             _minimization_params, _notch_delta,
@@ -264,14 +265,20 @@ private:
     }
     
     /// Setup a notch delta model
-    void setup_notch_delta ()
+    void setup_notch_delta (const Config& cfg = {})
     {
         if (_notch_delta) {
             return;
         }
 
+        this->_log->debug("Setting up NotchDelta model from {}",
+            cfg.size() ? 
+                "custom configuration."
+                : 
+                fmt::format("configuration within {} model.", this->_name));
+
         _notch_delta = std::shared_ptr<NotchDelta::NotchDelta>(
-            new NotchDelta::NotchDelta("NotchDelta", *this, {}, 
+            new NotchDelta::NotchDelta("NotchDelta", *this, cfg, 
                 std::make_tuple(
                     NotchDelta::DataIO::density_time,
                     NotchDelta::DataIO::density_progenitor,
