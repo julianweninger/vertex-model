@@ -4,63 +4,17 @@
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
 ---
 # Mean value plots ............................................................
-hair_hair_contacts:
-  based_on: .basic_uni.lineplot
-  model_name: NotchDelta
-  file_ext: png
-
-  path_to_data: Densities/Number_hair_hair_contacts
-  label: Hair-hair contacts
-
-  helpers:
-    set_labels:
-      x: time
-      y: cnt
-      
 densities:
-  based_on: .basic_uni.lineplots
-  model_name: NotchDelta
-  file_ext: png
+  based_on: densities
 
-  to_plot: 
-    Densities/Hair:
-      label: Hair
-      color: red
-    Densities/Support:
-      label: Support
-      color: black
-    Densities/Progenitor:
-      label: Progenitor
-      color: gray
-    Densities/Ratio_hair_support:
-      label: ratio hair/support
-      color: blue
-
-  helpers:
-    set_labels:
-      x: time
-      y: density
-    set_limits:
-      y: [0,1.]
-
+hair_hair_contacts:
+  based_on: hair_hair_contacts
 
 # Spatial CA animations .......................................................
 state_anim:
   based_on: state_anim
-  file_ext: png
 
-  enabled: true
 
-  to_plot:
-    CM/Cell_type:
-      title: Cell Type
-      limits: [0, 2]
-      cmap:
-        Progenitor: White
-        Hair: Red
-        Support: Gray
-    CM/Atoh1:
-      title: Atoh1
 
 # -- Bifurcation plots
 bifurcation_lambda_ratio:

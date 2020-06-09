@@ -178,9 +178,6 @@ NotchDelta_densities:
     NotchDelta/Densities/Progenitor:
       label: Progenitor
       color: gray
-    NotchDelta/Densities/Ratio_hair_support:
-      label: ratio hair/support
-      color: blue
 
   helpers:
     set_labels:

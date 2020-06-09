@@ -118,7 +118,7 @@ NotchDelta:
 
   atoh1_suppression:
     # in every step the atoh1 level in neighboring cells is divided by this value 
-    rate_0: 10. # for 0 HC neighbors
+    rate_0: 1. # for 0 HC neighbors
     # for one or more HC neighbors
     #   if more than one entry given, each entry for one more neighbor
     #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
@@ -161,7 +161,6 @@ NotchDelta:
         decider: write_always
       Density_hair: *density
       Density_support: *density
-      Density_ratio_hair_support: *density
       Number_hair_hair_contacts: *density
       Density_time: *density
 

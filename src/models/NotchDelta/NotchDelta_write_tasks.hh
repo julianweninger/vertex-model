@@ -66,21 +66,6 @@ auto density_support = std::make_tuple(
         hdfdataset->add_attribute("coords__time", "Time"); }
 ); // end density_support
 
-auto density_ratio_hair_support = std::make_tuple(
-    "Density_ratio_hair_support",
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Densities"); },
-    [](auto& dataset, auto& model) {
-        dataset->write(model.get_densities()[1]/model.get_densities()[2]); },
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Ratio_hair_support"); },
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time"); }
-); // end density_ratio
-
 auto number_hair_hair_contacts = std::make_tuple(
     "Number_hair_hair_contacts",
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {

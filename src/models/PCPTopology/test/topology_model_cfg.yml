@@ -20,7 +20,6 @@ PCPTopology:
       tasks:
         Density_hair: &id001 {active: true, decider: write_always, trigger: build_once}
         Density_progenitor: *id001
-        Density_ratio_hair_support: *id001
         Density_support: *id001
         Density_time: *id001
         Number_hair_hair_contacts: *id001

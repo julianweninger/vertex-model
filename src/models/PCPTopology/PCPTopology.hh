@@ -277,7 +277,6 @@ private:
                     NotchDelta::DataIO::density_progenitor,
                     NotchDelta::DataIO::density_hair,
                     NotchDelta::DataIO::density_support,
-                    NotchDelta::DataIO::density_ratio_hair_support,
                     NotchDelta::DataIO::number_hair_hair_contacts
                 )
             )

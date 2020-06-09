@@ -2,10 +2,58 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
-state_anim:
-  based_on: .ca.state
-  
+densities:
+  based_on: .basic_uni.lineplots
   model_name: NotchDelta
+  file_ext: png
+
+  to_plot: 
+    Densities/Hair:
+      label: Hair
+      color: red
+    Densities/Support:
+      label: Support
+      color: black
+    Densities/Progenitor:
+      label: Progenitor
+      color: gray
+
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    set_limits:
+      y: [0,1.]
+
+hair_hair_contacts:
+  based_on: .basic_uni.lineplot
+  model_name: NotchDelta
+  file_ext: png
+
+  path_to_data: Densities/Number_hair_hair_contacts
+  label: Hair-hair contacts
+
+  helpers:
+    set_labels:
+      x: time
+      y: cnt
+
+state_anim:
+  based_on: .ca.state  
+  file_ext: png
+
+  model_name: NotchDelta
+
+  to_plot:
+    CM/Cell_type:
+      title: Cell Type
+      limits: [0, 2]
+      cmap:
+        Progenitor: White
+        Hair: Red
+        Support: Gray
+    CM/Atoh1:
+      title: Atoh1
 
   # Specify the time index (will be ignored, but needs to be specified)
   time_idx: 0
@@ -30,6 +78,13 @@ heatmap_density: &heatmap_density
   to_plot: Hair
 
   cmap: cividis
+  label: density
+  origin: lower
+
+  helpers:
+    set_labels:
+      x: differentiation rate
+      y: delay lambda
 
 heatmap_contacts: 
   <<: *heatmap_density
@@ -41,6 +96,7 @@ heatmap_contacts:
     - isel:
         time: -1
 
+  label: num contacts
   to_plot: Contacts
 
 bifurcation: &bifurcation
@@ -67,7 +123,6 @@ bifurcation_density:
       Hair: data/NotchDelta/Densities/Hair
       Support: data/NotchDelta/Densities/Support
 
-          
   to_plot:
     Hair:
       label: hair cells
