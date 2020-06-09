@@ -70,7 +70,7 @@ struct MinimizationParams {
             throw Utopia::KeyError("num_repeat", cfg, fmt::format(
                 "Value must be larger than 0, but was {}", num_repeat));
         }
-        if (jiggle_tolerance < tolerance) {
+        if (num_repeat > 1 and jiggle_tolerance < tolerance) {
             throw Utopia::KeyError("jiggle_tolerance", cfg, fmt::format(
                 "Value must be larger or equal to 'tolerance', but was {} < {}",
                 jiggle_tolerance, tolerance));
