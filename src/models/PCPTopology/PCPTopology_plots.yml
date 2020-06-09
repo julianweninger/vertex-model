@@ -6,29 +6,9 @@
 energy:
   based_on: energy
 
-  to_plot:
-    Energy/Total:
-      label: TOTAL
-    Energy/Linetension:
-      label: line-tension
-    Energy/Areaelasticity:
-      label: area-elasticity
-    Energy/Contractility:
-      label: contractility
-
 energy_continuous:
   based_on: energy
   model_name: PCPTopology/PCPVertex
-
-  to_plot:
-    Energy/Total:
-      label: TOTAL
-    Energy/Linetension:
-      label: line-tension
-    Energy/Areaelasticity:
-      label: area-elasticity
-    Energy/Contractility:
-      label: contractility
 
 energy_polarity_continuous:
   based_on: energy
@@ -55,45 +35,18 @@ transitions_continuous:
   map_to_discrete_time: True
 
 cell_area:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology
-  file_ext: png
-
-  to_plot:
-    area_average:
-      path_to_data: Statistics/Cell_area
-      transform_data:
-        - sel:
-            property: area_average
-      label: average cell area
-    area_hair_average:
-      path_to_data: Statistics/Cell_area
-      transform_data:
-        - sel:
-            property: area_hair_average
-      label: average area for HCs
-    area_support_average:
-      path_to_data: Statistics/Cell_area
-      transform_data:
-        - sel:
-            property: area_support_average
-      label: average area for SCs
-
+  based_on: cell_area
+      
 equilibrium_cellular_structure:
   based_on: cellular_structure
-  datapath: PCPTopology
-  cfgpath: PCPTopology/PCPVertex
 
 cellular_structure:
   based_on: cellular_structure
   datapath: PCPTopology/PCPVertex
-  cfgpath: PCPTopology/PCPVertex
 
 cell_neighbourhood: !pspace
   based_on: cell_neighbourhood
-  creator: universe
-  universes: all
-
+  
   only_type: !sweep
     default: all
     values:
@@ -102,53 +55,6 @@ cell_neighbourhood: !pspace
       - support
       - support_hair
       - support_support
-
-  animation:
-    enabled: true
-    writer: frames
-    writer_kwargs:
-      ffmpeg:
-        init:
-          fps: 10
-        saving:
-          dpi: 300
-      frames:
-        saving:
-          dpi: 300
-    animation_update_kwargs:  {}
-
-# stack the results from multiple seeds 
-cell_neighborhood_seed: !pspace
-  based_on: cell_neighbourhood
-  plot_func: cell_neighbourhood_mv
-  creator: multiverse
-
-  enabled: false
-
-  only_type: !sweep
-    default: all
-    values:
-      - all
-      - hair
-      - support
-      - support_hair
-      - support_support
-  
-  select_and_combine: 
-    fields:
-      data:
-        path: Cells
-        with_previous_result: true
-        transform:
-        - .sel:
-            time: 1
-    # subspace:
-    #   shape_index_preferential: !sweep
-    #     default: 3.6
-    #     linspace: [3.0, 3.7, 8]
-    base_path: data/PCPTopology
-  
-  helpers: ~
 
 NotchDelta_hair_hair_contacts:
   based_on: .basic_uni.lineplot
