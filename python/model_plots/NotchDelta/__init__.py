@@ -5,3 +5,4 @@ top level of your model plots subpackage.
 """
 
 from .data_ops import *
+from .percolation import *

@@ -106,70 +106,27 @@ heatmap_contacts:
 # Multiverse plot with beta remapped to density
 percolation_diagram:
   based_on: .dag.generic.facet_grid
+  module: model_plots.NotchDelta
+  plot_func: percolation_diagram
   creator: multiverse
   file_ext: png
 
   select_and_combine:
     fields:
       cells:
-        path: CM/Cell_type
+        path: Cell_type
         with_previous_result: true
         transform:
           - .isel:
               time: -1
       cluster_id:
-        path: CM/Cluster_id
+        path: Cluster_id
         with_previous_result: true
         transform:
           - .isel:
               time: -1
-          - operation: where
-            args: ['>', 0]
-    base_path: data/NotchDelta
+    base_path: data/NotchDelta/CM
 
-  transform:
-    # calculate the num cells
-    - operation: .count
-      args: [!dag_tag cells]
-      kwargs:
-        dim: {x, y}
-      tag: num_cells
-    
-    # calculate the hair density
-    - operation: where
-      args: [!dag_tag cells, '==', 1]
-    - operation: .count
-      args: [!dag_prev ]
-      kwargs:
-        dim: {x, y}
-      tag: num_hair_cells
-    - div: [!dag_tag num_hair_cells, !dag_tag num_cells]
-      tag: density
-    
-    # calculate the size of the biggest cluster
-    - operation: import_and_call
-      args: [model_plots.NotchDelta, count_unique, !dag_tag cluster_id,
-             ['x', 'y']]
-      tag: cluster_sizes
-    - operation: .max
-      args: [!dag_prev ]
-      kwargs:
-        dim: unique
-    - div: [!dag_prev , !dag_tag num_cells]
-      tag: max_cluster_size
-
-    # remap coords to density
-    - operation: .assign_coords
-      args: [!dag_tag max_cluster_size]
-      kwargs:
-        beta: !dag_tag density
-    - operation: .rename
-      args: [!dag_prev ]
-      kwargs:
-        beta: density
-      tag: data
-
-  x: density
   marker: '.'
   ls: None
 
