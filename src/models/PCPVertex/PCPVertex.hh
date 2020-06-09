@@ -247,6 +247,11 @@ private:
      *  \f$\Delta E < 0\f$.
      */
     const double _T1_barrier;
+
+    /// A timeout after attempted unsuccessful T1 transition
+    /** Default is 0
+     */
+    const std::size_t _T1_timeout;
     
     /// Area elasticity constant K
     double _area_elasticity;
@@ -317,6 +322,7 @@ public:
                        get_as<double>("T1_separation_factor",this->_cfg)),
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
+        _T1_timeout(get_as<std::size_t>("T1_timeout", this->_cfg, 0)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
@@ -812,18 +818,27 @@ public:
         _num_T1s = 0;
         _num_T1s_attempted = 0;
         for (int i = _am.edges().size() - 1; i >= 0; i--) {
-            double length = _am.length_of(_am.edges()[i]);
+            auto& edge = _am.edges()[i];
+            double length = _am.length_of(edge);
             if (length < _T1_threshold
-                and _prob_distr(*this->_rng) < _T1_probability)
+                and _prob_distr(*this->_rng) < _T1_probability
+                and ((edge->state.last_T1_attempt - this->_time) > _T1_timeout
+                     or edge->state.last_T1_attempt == 0))
             {
                 this->_log->debug("Removing edge in T1 transition in step {}..",
                                  this->_time);
-                bool T1 = _am.remove_edge_T1(_am.edges()[i],
+                bool T1 = _am.remove_edge_T1(edge,
                         _linetension, _edge_contractility,
                         [this](const AgentContainer<Edge>& es,
                                const AgentContainer<Cell>& cs) { 
                                     return this->get_energy(es, cs, 0.); },
                         _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
+                
+                if (not T1) {
+                    edge->state.last_T1_attempt = this->_time;
+                }
+                // else: edge was removed
+
                 transition_occurred = transition_occurred or T1;
                 _num_T1s += T1;
                 _num_T1s_attempted++;
