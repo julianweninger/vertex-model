@@ -7,6 +7,28 @@ using namespace Utopia::DataIO;
 
 namespace Utopia::Models::PCPVertex::DataIO{
 
+/** Available datatree:
+ *      - Energy
+ *          - Energy_total
+ *          - Energy_time
+ *          - Energy_linetension
+ *          - Energy_areaelasticity
+ *          - Energy_contractility
+ *          - Energy_cell_cell_polarity
+ *          - Energy_polarity_exclusion
+ *          - Energy_lagrange_net_polarisation
+ *          - Energy_lagrange_const_concentration
+ *      - Vertices (time series groups)
+ *      - Cells (time series groups)
+ *      - Edges (time series groups)
+ *      - Statistics
+ *          - num T1s
+ *          - num_T1s_attempted
+ *          - num T2s
+ *          - Cell_area
+ *          - Statistics_time
+ */
+
 /// Datamanager adaptor for total energy
 auto energy_adaptor = std::make_tuple(
 
@@ -500,6 +522,52 @@ auto cells_adaptor = std::make_tuple(
     }    
 ); // end cell position adaptor
 
+/// Datamanager adaptor for the cluster of hair cells
+/** Attributes are:
+ *      -# Lx: Domain size in x coordinate
+ *      -# Ly: Domain size in y coordinate
+ */
+auto hair_cluster_adaptor = std::make_tuple(
+    // name of the task
+    "Hair_cluster",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Hair_cluster");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& cells = model.get_am().cells();
+        dataset->write(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                std::size_t cluster_id;
+                if (cell->custom_links().nd_cell) {
+                    cluster_id = cell->custom_links().nd_cell->state.cluster_id;
+                }
+                else {
+                    cluster_id = 0;
+                }
+                return cluster_id;
+            });
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {m.get_am().cells().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "id");
+    }    
+); // end hair cluster adaptor
+
 /// Datamanager adaptor for edges properties
 auto edges_adaptor = std::make_tuple(
 
@@ -553,6 +621,102 @@ auto edges_adaptor = std::make_tuple(
         
     }    
 ); // end edge link adaptor
+
+/// Datamanager adaptor for total energy
+auto T1_adaptor = std::make_tuple(
+
+    // name of the task
+    "num_T1s",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_num_T1s());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("num_T1s");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end T1_adaptor
+
+/// Datamanager adaptor for total energy
+auto T1_attempted_adaptor = std::make_tuple(
+
+    // name of the task
+    "num_T1s_attempted",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_num_T1s_attempted());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("num_T1s_attempted");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end T1_attempted_adaptor
+
+/// Datamanager adaptor for total energy
+auto T2_adaptor = std::make_tuple(
+
+    // name of the task
+    "num_T2s",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_num_T2s());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("num_T2s");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end T2_adaptor
 
 /// Datamanager adaptor for total energy
 template <typename CellType>

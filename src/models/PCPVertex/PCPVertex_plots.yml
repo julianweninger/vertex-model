@@ -4,9 +4,7 @@
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
 ---
 energy:
-  based_on: .basic_uni.lineplots
-  model_name: PCPVertex
-  file_ext: png
+  based_on: energy
 
   to_plot:
     Energy/Total:
@@ -26,19 +24,13 @@ energy:
     # Energy/Lagrange_const_concentration: 
     #   label: lagrange-const-concentration
 
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
-
 energy_mechanics:
-  based_on: .basic_uni.lineplots
-  model_name: PCPVertex
-  file_ext: png
-
+  based_on: energy
   enabled: false
 
   to_plot:
+    Energy/Total:
+      label: TOTAL
     Energy/Linetension:
       label: line-tension
     Energy/Areaelasticity:
@@ -46,16 +38,8 @@ energy_mechanics:
     Energy/Contractility:
       label: contractility
 
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
-
 energy_polarity:
-  based_on: .basic_uni.lineplots
-  model_name: PCPVertex
-  file_ext: png
-
+  based_on: energy
   enabled: false
 
   to_plot:
@@ -68,37 +52,10 @@ energy_polarity:
     Energy/Lagrange_const_concentration: 
       label: lagrange-const-concentration
 
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
-        
+transitions:
+  based_on: transitions
+
 cellular_structure:
-  creator: universe
-  universes: all
-  module: model_plots.PCPVertex
-  plot_func: cellular_structure
-  file_ext: png
-
-  helpers:
-    set_labels:
-      x: x [a.u.]
-      y: y [a.u.]
-    set_limits:
-      x: [0, 500]
-      y: [0, 500]
-
-  animation:
-    enabled: true
-    writer: frames
-    writer_kwargs:
-      ffmpeg:
-        init:
-          fps: 10
-        saving:
-          dpi: 300
-      frames:
-        saving:
-          dpi: 300
-
-    animation_update_kwargs:  {}
+  based_on: cellular_structure
+  datapath: PCPVertex
+  cfgpath: PCPVertex

@@ -80,11 +80,46 @@ jiggle:
   times: []
 
 differentiate_random:
-  times: !listgen [0, 5]
+  times: []
   probability: 0.25
 
+differentiate_NotchDelta:
+  times: []
+  steps: 100
+  
+  NotchDelta:
+    log_level: info
+    Environment:
+      env_state_funcs:
+      - noise:
+          atoh1: {distribution: exponential, lambda: 100, mode: add}
+      space: &id002 {periodic: false}
+    atoh1_suppression: {rate_0: 10.0, rate_1: 1.0}
+    atoh1_threshold: 1.0
+    cell_manager:
+      cell_params: null
+      grid: {resolution: 15, structure: square}
+      neighborhood: {compute_and_store: false, mode: empty}
+    data_manager:
+      deciders:
+        write_always: {type: always}
+      tasks:
+        Density_time: {active: true, decider: write_always, trigger: build_once}
+      triggers:
+        build_once: {type: once}
+    rate_ph: {rate_0: 0.008, rate_1: 0.0}
+    rate_ps: 0.01
+    rate_swap: 1.0
+    space: *id002
+
+differentiate_NotchDelta_second_task:
+  times: []
+  steps: 10
+
+  # reusing the NotchDelta model from `differentiate_NotchDelta`
+
 increment_area:
-  times: !listgen [0, 5]
+  times: []
 
   progenitor: 1.
   var_progenitor: 0.1
@@ -94,31 +129,38 @@ increment_area:
   var_support: 0.3
 
 increment_area_adapt:
-  times: !listgen [0, 5]
+  times: []
 
   hair: 1.
   var_hair: 0.1
   adapt_support: True
 
 increment_domain:
-  times: !listgen [0, 5]
+  times: []
 
   value: [0.1, 0.2]
   compensate: false
 
 increment_domain_compensate:
-  times: !listgen [0, 5]
+  times: []
 
   value: [0.1, 0.2]
   compensate: true
-  fix_hair_cell_volume: false
+  fix_hair_cell_area: false
 
-increment_domain_compensate_fix:
-  times: !listgen [0, 5]
+increment_domain_compensate_fix_hc:
+  times: []
 
   value: [0.1, 0.2]
   compensate: true
-  fix_hair_cell_volume: true
+  fix_hair_cell_area: true
+
+increment_domain_compensate_fix_sc:
+  times: []
+
+  value: [0.1, 0.2]
+  compensate: true
+  fix_support_cell_area: true
 
 increment_edge_contractility: &edge_props
   times: []

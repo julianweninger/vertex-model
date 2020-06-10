@@ -1,0 +1,6 @@
+---
+heatmap_density:
+  based_on: heatmap_density
+
+heatmap_contacts:
+  based_on: heatmap_contacts

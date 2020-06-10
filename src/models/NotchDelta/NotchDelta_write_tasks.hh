@@ -66,21 +66,6 @@ auto density_support = std::make_tuple(
         hdfdataset->add_attribute("coords__time", "Time"); }
 ); // end density_support
 
-auto density_ratio_hair_support = std::make_tuple(
-    "Density_ratio_hair_support",
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Densities"); },
-    [](auto& dataset, auto& model) {
-        dataset->write(model.get_densities()[1]/model.get_densities()[2]); },
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Ratio_hair_support"); },
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time"); }
-); // end density_ratio
-
 auto number_hair_hair_contacts = std::make_tuple(
     "Number_hair_hair_contacts",
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
@@ -108,7 +93,7 @@ auto CM_time = std::make_tuple(
     []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
     [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         hdfdataset->add_attribute("dim_name__0", "time"); }
-); // end time_adaptor
+); // end CM_time_adaptor
 
 auto cell_type = std::make_tuple(
     "Cell_type",
@@ -134,7 +119,7 @@ auto cell_type = std::make_tuple(
         hdfdataset->add_attribute("space_extent",
                                   model.get_cm().grid()->space()->extent);
         hdfdataset->add_attribute("index_order", "F");}
-); // end density_support
+); // end cell_type_adaptor
 
 auto cell_atoh1 = std::make_tuple(
     "Atoh1",
@@ -160,8 +145,35 @@ auto cell_atoh1 = std::make_tuple(
         hdfdataset->add_attribute("space_extent",
                                   model.get_cm().grid()->space()->extent);
         hdfdataset->add_attribute("index_order", "F");}
-); // end density_support
+); // end cell_atoh1_adaptor
 
+auto cluster_id = std::make_tuple(
+    "Cluster_id",
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("CM"); },
+    [](auto& dataset, auto& model) {
+        model.identify_clusters();
+
+        auto cells = model.get_cm().cells();
+        dataset->write(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.cluster_id; }); },
+    [](auto& group, auto& model) -> decltype(auto) {
+        return group->open_dataset("Cluster_id",
+                    {H5S_UNLIMITED, model.get_cm().cells().size()}); },
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "cell_id");
+        hdfdataset->add_attribute("content", "grid");
+        hdfdataset->add_attribute("grid_shape", 
+                                  model.get_cm().grid()->shape());
+        hdfdataset->add_attribute("space_extent",
+                                  model.get_cm().grid()->space()->extent);
+        hdfdataset->add_attribute("index_order", "F");}
+); // end cluster_id_adaptor
 
 } // namespace Utopia::Models::NotchDelta::DataIO
 

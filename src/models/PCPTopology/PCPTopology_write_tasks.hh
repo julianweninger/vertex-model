@@ -7,6 +7,46 @@ using namespace Utopia::DataIO;
 
 namespace Utopia::Models::PCPVertex::DataIO{
 
+/** Available datatree:
+ *      - Energy
+ *          - Continuous_time
+ *      - Statistics
+ *          - Cell_neighbourhood
+ *          - Cell_area_histogram
+ */
+
+/// Datamanager adaptor for timepoint mapping to PCPVertex model
+auto continuous_time_adaptor = std::make_tuple(
+
+    // name of the task
+    "Continuous_time",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Energy");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_continuous_time());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Continuous_time");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end time_adaptor
+
 /// Datamanager adaptor for vertex-position
 auto cell_neighbourhood_adaptor = std::make_tuple(
 

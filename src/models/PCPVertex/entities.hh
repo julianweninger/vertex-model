@@ -20,7 +20,7 @@ struct VertexState {
     bool remove;
 
     /// An id that identifies the vertex within the container
-    int current_id;
+    std::size_t current_id;
 
     /// Constructor
     VertexState ()
@@ -48,6 +48,10 @@ struct EdgeState {
     /// The contractility parameter
     double contractility;
 
+    /// The time T1 transition was last attempted
+    /** 0 if never attempted */
+    std::size_t last_T1_attempt;
+
     /// Polartity protein level on side to cell a
     double sigma_a;
 
@@ -71,6 +75,7 @@ struct EdgeState {
     :
         linetension(get_as<double>("linetension", cfg)),
         contractility(get_as<double>("contractility", cfg)),
+        last_T1_attempt(0),
         sigma_a(0.), sigma_b(0.),
         d_sigma_a(0.), d_sigma_b(0.),
         remove(false)

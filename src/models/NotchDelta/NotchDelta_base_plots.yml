@@ -2,10 +2,58 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
-state_anim:
-  based_on: .ca.state
-  
+densities:
+  based_on: .basic_uni.lineplots
   model_name: NotchDelta
+  file_ext: png
+
+  to_plot: 
+    Densities/Hair:
+      label: Hair
+      color: red
+    Densities/Support:
+      label: Support
+      color: black
+    Densities/Progenitor:
+      label: Progenitor
+      color: gray
+
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    set_limits:
+      y: [0,1.]
+
+hair_hair_contacts:
+  based_on: .basic_uni.lineplot
+  model_name: NotchDelta
+  file_ext: png
+
+  path_to_data: Densities/Number_hair_hair_contacts
+  label: Hair-hair contacts
+
+  helpers:
+    set_labels:
+      x: time
+      y: cnt
+
+state_anim:
+  based_on: .ca.state  
+  file_ext: png
+
+  model_name: NotchDelta
+
+  to_plot:
+    CM/Cell_type:
+      title: Cell Type
+      limits: [0, 2]
+      cmap:
+        Progenitor: White
+        Hair: Red
+        Support: Gray
+    CM/Atoh1:
+      title: Atoh1
 
   # Specify the time index (will be ignored, but needs to be specified)
   time_idx: 0
@@ -15,36 +63,83 @@ state_anim:
     enabled: true
 
 heatmap_density: &heatmap_density
+  based_on: .dag.generic.facet_grid
   creator: multiverse
-  module: model_plots.NotchDelta
-  plot_func: heatmap
+  # module: model_plots.NotchDelta
+  # plot_func: heatmap
   file_ext: png
   
-  select:
+  select_and_combine:
     fields: 
-      Hair: data/NotchDelta/Densities/Hair
-  transform_data:
-    - isel:
-        time: -1
-
-  to_plot: Hair
+      data:
+        path: data/NotchDelta/Densities/Hair
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
 
   cmap: cividis
+
+  label: hair density
+
+  helpers:
+    set_labels:
+      x: differentiation rate
+      y: delay lambda
 
 heatmap_contacts: 
   <<: *heatmap_density
 
-  select:
+  select_and_combine:
     fields: 
-      Contacts: data/NotchDelta/Densities/Number_hair_hair_contacts
-  transform_data:
-    - isel:
-        time: -1
+      data:
+        path: data/NotchDelta/Densities/Number_hair_hair_contacts
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
 
-  to_plot: Contacts
+  label: num contacts
+
+
+# Plot the size of the biggest cluster vs density
+# Multiverse plot with beta remapped to density
+percolation_diagram:
+  based_on: .dag.generic.facet_grid
+  module: model_plots.NotchDelta
+  plot_func: percolation_diagram
+  creator: multiverse
+  file_ext: png
+
+  select_and_combine:
+    fields:
+      cells:
+        path: Cell_type
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
+      cluster_id:
+        path: Cluster_id
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
+    base_path: data/NotchDelta/CM
+
+  marker: '.'
+  ls: None
+
+  helpers:
+    set_labels:
+      y: max cluster density
+    # set_limits:
+      # x: [0, 0.45]
+      # y: [0, 0.4]
 
 bifurcation: &bifurcation
   based_on: .attractor.bifurcation_diagram_1d
+  file_ext: png
 
   analysis_steps: [fixpoint]
   analysis_kwargs:
@@ -63,11 +158,9 @@ bifurcation_density:
 
   select:
     fields:
-      Ratio: data/NotchDelta/Densities/Ratio_hair_support
       Hair: data/NotchDelta/Densities/Hair
       Support: data/NotchDelta/Densities/Support
 
-          
   to_plot:
     Hair:
       label: hair cells
@@ -78,11 +171,6 @@ bifurcation_density:
       label: support cells
       plot_kwargs:
         color: black
-        s: 7
-    Ratio:
-      label: ratio hair to support cells
-      plot_kwargs:
-        color: blue
         s: 7
 
   helpers:

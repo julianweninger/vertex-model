@@ -19,6 +19,9 @@
 #include "../operations.hh"
 #include "../PCPTopology_write_tasks.hh"
 
+#include "../../NotchDelta/NotchDelta.hh"
+#include "../../NotchDelta/NotchDelta_write_tasks.hh"
+
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex::OperationCollection;
 using Utopia::DataIO::Config;
@@ -147,6 +150,61 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
                                 return cell->state.type == 
                                         CellType::progenitor; });
         BOOST_TEST(cnt == 0);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_NotchDelta) {
+        using Utopia::Models::NotchDelta::NotchDelta;
+
+        std::string name = "differentiate_NotchDelta";
+
+        std::shared_ptr<NotchDelta> notch_delta(new NotchDelta(
+            "NotchDelta", pp, 
+            get_as<Config>("NotchDelta", 
+                           get_as<Config>(name, cfg)),
+            std::make_tuple(
+                Utopia::Models::NotchDelta::DataIO::density_time)));
+        auto notch_delta_prolog = std::make_shared<bool>(false);
+
+        auto [operation, params] = build_differentiate_NotchDelta(
+            name, get_as<Config>(name, cfg), default_minim_params,
+            notch_delta, notch_delta_prolog);
+
+        // This should call the prolog and iterate a first 100 steps
+        operation(vertex_model);
+
+        BOOST_TEST(notch_delta_prolog);
+        BOOST_TEST(notch_delta->get_time() == 100);
+
+        const auto& cells = vertex_model.get_am().cells();
+        auto cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().nd_cell; });
+        BOOST_TEST(cnt == cells.size());
+
+        // Continue iteration
+        operation(vertex_model);
+        BOOST_TEST(notch_delta->get_time() == 200);
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().nd_cell; });
+        BOOST_TEST(cnt == cells.size());
+        
+        
+        // Continue iteration with new task
+        name = "differentiate_NotchDelta_second_task";
+        auto [new_operation, new_params] = build_differentiate_NotchDelta(
+            name, get_as<Config>(name, cfg), default_minim_params,
+            notch_delta, notch_delta_prolog);
+        
+        new_operation(vertex_model);
+        
+        BOOST_TEST(notch_delta->get_time() == 210);
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().nd_cell; });
+        BOOST_TEST(cnt == cells.size());
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area) {
@@ -316,11 +374,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix)
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_hc)
     {
         using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        const std::string name = "increment_domain_compensate_fix";
+        const std::string name = "increment_domain_compensate_fix_hc";
         auto [op_diff, params_diff] = build_differentiate_random(
             "differentiate_random", get_as<Config>("differentiate_random", cfg),
             default_minim_params);
@@ -353,6 +411,49 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
         BOOST_CHECK_CLOSE(area_hc, new_area_hc, 1e-7);
+
+        SpaceVec d_domain = new_domain - domain;
+        BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
+        BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_sc)
+    {
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+        const std::string name = "increment_domain_compensate_fix_sc";
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+        auto [operation, params] = build_increment_domain(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        op_diff(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+        double area = 0.;
+        double area_sc = 0;
+        for (const auto& c : cells) {
+            area += c->state.area_preferential;
+            if (c->state.type == CellType::support) {
+                area_sc += c->state.area_preferential;
+            }
+        }
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+
+        operation(vertex_model);
+        
+        double new_area = 0.;
+        double new_area_sc = 0;
+        for (const auto& c : cells) {
+            new_area += c->state.area_preferential;
+            if (c->state.type == CellType::support) {
+                new_area_sc += c->state.area_preferential;
+            }
+        }
+        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
+        BOOST_CHECK_CLOSE(area_sc, new_area_sc, 1e-7);
 
         SpaceVec d_domain = new_domain - domain;
         BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);

@@ -18,8 +18,127 @@ from utopya.plot_funcs.basic_uni import lineplot, lineplots
 from utopya.dataprocessing import transform
 
 from ..tools import save_and_close
+from ..PCPVertex.state import transitions as transitions_base
 
 # -----------------------------------------------------------------------------
+
+@is_plot_func(creator_type=UniversePlotCreator)
+def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
+                model_name: str='PCPTopolgy',
+                map_to_continuous_time: bool=False,
+                map_to_discrete_time: bool=False,
+                continuous_time_path: str='PCPTopology/Energy/Continuous_time',
+                **plot_kwargs):
+    """Performs a plot of the T1 and T2 transitions over time together with 
+    the energy
+    
+    Args:
+        dm (DataManager): The data manager from which to retrieve the data
+        uni (UniverseGroup): The data for this universe
+        hlpr (PlotHelper): The PlotHelper
+        model_name (str): The name of the model the data resides in
+        path_to_data (str or Tuple[str, str]): The path to the data within the
+            model data or the paths to the x and the y data, respectively
+        transform_data (dict, optional): Transformations to apply to the data.
+            This can be used for dimensionality reduction of the data, but
+            also for other operations, e.g. to selecting a slice.
+            For available parameters, see
+            :py:func:`utopya.dataprocessing.transform`
+        transformations_log_level (int, optional): The log level of all the
+            transformation operations.
+        **plot_kwargs: Passed on to plt.plot
+    
+    Raises:
+        ValueError: On invalid data dimensionality
+        ValueError: On mismatch of data shapes
+    """
+    transitions_base(dm, uni=uni, hlpr=hlpr, model_name=model_name,
+                     **plot_kwargs)
+    
+    continuous_time = uni['data'][continuous_time_path]
+
+    if map_to_continuous_time:
+        ax3 = hlpr.ax.twiny()
+        ax3.set_xlim(hlpr.ax.get_xlim())
+        ax3.set_xticks(continuous_time.time)
+        ax3.set_xticklabels(["%.0f" % continuous_time.sel(time=time) for time 
+                                in continuous_time.time])
+
+        ax3.set_xlabel("Continuous time")
+
+    if map_to_discrete_time:
+        ax3 = hlpr.ax.twiny()
+        ax3.set_xlim(hlpr.ax.get_xlim())
+        ax3.set_xticks(continuous_time.data)
+        ax3.set_xticklabels(["%.0f" % time for time in continuous_time.time])
+
+        ax3.set_xlabel("Time of operations")
+
+def plot_neighbourhood(data, *, hlpr, only_type: str, 
+                       helpers_frame_hist: dict=None,
+                       helpers_frame_area: dict=None,
+                       **plot_kwargs):
+    """ Helper function to plot the cell_neighbourhood
+    """
+    num_neighbors = data.sel(property='num_neighbors')
+    area = data.sel(property='area')
+    cell_type = data.sel(property='cell_type')
+
+    bins = range(3, 10)
+
+    if only_type == 'hair':
+        num_neighbors = num_neighbors[cell_type == 1]
+        area = area[cell_type == 1]
+    elif only_type == 'support':
+        num_neighbors = num_neighbors[cell_type == 2]
+        area = area[cell_type == 2]
+    elif only_type == 'support_hair':
+        num_neighbors = data.sel(property='num_hair_neighbors')
+        num_neighbors = num_neighbors[cell_type == 2]
+        area = area[cell_type == 2]
+        bins = range(0, 7)
+    elif only_type == 'support_support':
+        num_neighbors = num_neighbors - \
+                        data.sel(property='num_hair_neighbors')
+        num_neighbors = num_neighbors[cell_type == 2]
+        area = area[cell_type == 2]
+        bins = range(0, 7)
+    elif only_type != 'all':
+        raise ValueError("'only_type' unknown, was '{}', but must be "
+                    "one of {}"
+                    "".format(only_type, ['all', 'hair', 'support',
+                                            'support_hair',
+                                            'support_support']))
+
+    # the histogram
+    hlpr.select_axis(col=0, row=0)
+    hlpr.ax.clear()
+
+    hlpr.ax.hist(x=num_neighbors, bins=bins, density=True)
+
+    if helpers_frame_hist:
+        for name, args in helpers_frame_hist.items():
+            hlpr.invoke_helper(name, **args)
+
+    # the mean area per polygon class
+    hlpr.select_axis(col=1, row=0)
+    hlpr.ax.clear()
+
+    area_mean = xr.DataArray([area.where(num_neighbors==i)\
+                                    .mean().data for i in bins],
+                                dims=['num_neighbors'],
+                                coords={'num_neighbors': bins})
+    area_std = xr.DataArray([area.where(num_neighbors==i)\
+                                    .std().data for i in bins],
+                                dims=['num_neighbors_std'],
+                                coords={'num_neighbors_std': bins})
+    
+    hlpr.ax.errorbar(x=bins, y=area_mean, yerr=area_std)
+
+    if helpers_frame_area:    
+        for name, args in helpers_frame_area.items():
+            hlpr.invoke_helper(name, **args)
+
 
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
@@ -56,75 +175,23 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     def update():
         # grp['cells'] is TimeSeriesGroup -> single dimension time
         for time in grp:
-            # select the data
-            data = grp[time]
-            num_neighbors = data.sel(property='num_neighbors')
-            area = data.sel(property='area')
-            cell_type = data.sel(property='cell_type')
-
-            bins = range(3, 10)
-
-            if only_type == 'hair':
-                num_neighbors = num_neighbors[cell_type == 1]
-                area = area[cell_type == 1]
-            elif only_type == 'support':
-                num_neighbors = num_neighbors[cell_type == 2]
-                area = area[cell_type == 2]
-            elif only_type == 'support_hair':
-                num_neighbors = data.sel(property='num_hair_neighbors')
-                num_neighbors = num_neighbors[cell_type == 2]
-                area = area[cell_type == 2]
-                bins = range(0, 7)
-            elif only_type == 'support_support':
-                num_neighbors = num_neighbors - \
-                                data.sel(property='num_hair_neighbors')
-                num_neighbors = num_neighbors[cell_type == 2]
-                area = area[cell_type == 2]
-                bins = range(0, 7)
-            elif only_type != 'all':
-                raise ValueError("'only_type' unknown, was '{}', but must be "
-                	        "one of {}"
-                            "".format(only_type, ['all', 'hair', 'support',
-                                                  'support_hair',
-                                                  'support_support']))
-
-
-            # the histogram
+            plot_neighbourhood(grp[time], hlpr=hlpr, only_type=only_type,
+                               helpers_frame_hist=helpers_frame_hist,
+                               helpers_frame_area=helpers_frame_area)
+            
             hlpr.select_axis(col=0, row=0)
-            hlpr.ax.clear()
-
-            hlpr.ax.hist(x=num_neighbors, bins=bins, density=True)
-
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
-            for name, args in helpers_frame_hist.items():
-                hlpr.invoke_helper(name, **args)
-
-            # the mean area per polygon class
-            hlpr.select_axis(col=1, row=0)
-            hlpr.ax.clear()
-
-            area_mean = xr.DataArray([area.where(num_neighbors==i)\
-                                          .mean().data for i in bins],
-                                     dims=['num_neighbors'],
-                                     coords={'num_neighbors': bins})
-            area_std = xr.DataArray([area.where(num_neighbors==i)\
-                                         .std().data for i in bins],
-                                     dims=['num_neighbors_std'],
-                                     coords={'num_neighbors_std': bins})
-            
-            hlpr.ax.errorbar(x=bins, y=area_mean, yerr=area_std)
-            
-            for name, args in helpers_frame_area.items():
-                hlpr.invoke_helper(name, **args)
             
             yield
 
     hlpr.register_animation_update(update)
 
 
-
 @is_plot_func(creator_type=MultiversePlotCreator, use_dag=True)
-def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper, **plot_kwargs):
+def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
+                          only_type: str='all',
+                          helpers_frame_hist: dict=None,
+                          helpers_frame_area: dict=None, **plot_kwargs):
     """A creator-averse plot function using the data transformation
     framework and the plot helper framework.
 
@@ -133,37 +200,12 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper, **plot_kwargs):
         hlpr: The associated plot helper.
         **plot_kwargs: Passed on to matplotlib.pyplot.plot
     """
-    data = data['data']
 
+    # Prepare the figure ......................................................
+    # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure(ncols=2)
-    hlpr.select_axis(col=0, row=0)
-    hlpr.ax.clear()
-    
-    histogram, bins = np.histogram(data.sel(property='num_neighbors'),
-                                  bins=range(3, 10))
+    data = data['data'].stack(z=('seed', 'id')).squeeze()
 
-    hlpr.invoke_helper('set_title', title="Mean {}".format(mean))
-    hlpr.invoke_helper('set_labels', x='number of neighbours',
-                        y='count')
-    hlpr.invoke_helper('set_limits', y=[0,100])
-    
-    hlpr.ax.hist(x=bins, height=histogram)
-
-
-    hlpr.select_axis(col=1, row=0)
-    hlpr.ax.clear()
-
-    for num in range(3, 10):
-        area_mean = data[data.sel(property='num_neighbors')==num].sel(property='area').mean()
-        hlpr.ax.scatter(num, )
-    
-    area_polygon = data.sel(property='area') / data.sel(property='num_neighbors')
-    hlpr.ax.plot(area.num_neighbors[1:], area[1:], '-s')
-    hlpr.invoke_helper('set_labels', x='number of neighbours',
-                        y='<$A_n$>/<A>')
-    hlpr.invoke_helper('set_limits', y=[0.6,1.2], x=[3, 9])
-
-    print(data)
-
-    # Create a lineplot on the currently selected axis
-    # hlpr.ax.plot(data['x'], data['y'], **plot_kwargs)
+    plot_neighbourhood(data, hlpr=hlpr, only_type=only_type,
+                       helpers_frame_hist=helpers_frame_hist,
+                       helpers_frame_area=helpers_frame_area)

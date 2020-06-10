@@ -64,17 +64,26 @@ void PCPVertex::increase_domain_size(double area)
 /** \param stretch   The stretching distance
  *  \param compensate   Whether to compensate the growth of the dissue by 
  *                      increase of preferential area
- *  \param fix_hc_volume   Whether to fix the volume of type CellType::hair
+ *  \param fix_hc_area   Whether to fix the area of type CellType::hair
+ *  \param fix_sc_area   Whether to fix the area of type CellType::support
  * 
  *  \return The total change in area
  */
 double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
-        bool fix_hc_volume)
+        bool fix_hc_area, bool fix_sc_area)
 {
-    this->_log->debug("stretching domain by ({}, {}). Compensate {}, "
-                      "fix hair cell volume {}", stretch[0], stretch[1], 
-                      compensate, fix_hc_volume);
+    if (compensate and fix_hc_area and fix_sc_area) {
+        throw std::invalid_argument("Cannot compensate area while fixing "
+            "hair and support cell area in operation 'increment_domain'!");
+    }
 
+    this->_log->debug("Stretching domain by ({}, {}). {}compensating area, "
+                      "{}fixing hair cell area, {}fixing support cell area ...",
+                      stretch[0], stretch[1],
+                      compensate ? "":"not ",
+                      fix_hc_area ? "":"not ",
+                      fix_sc_area ? "":"not ");
+    
     this->_space->set_domain_size(this->_space->get_domain_size() + stretch);
     auto domain = this->_space->get_domain_size();
 
@@ -85,7 +94,7 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
     }
 
     const auto& cells = _am.cells();
-    if (fix_hc_volume) {
+    if (fix_hc_area) {
         const auto num_cells = std::count_if(
             cells.begin(), cells.end(), 
             [](const auto& c) {
@@ -100,6 +109,22 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
             return state;
         };
         apply_rule<Update::sync>(compensate_dA, cells);    
+    }
+    else if (fix_sc_area) {
+        const auto num_cells = std::count_if(
+            cells.begin(), cells.end(), 
+            [](const auto& c) {
+                return c->state.type != CellType::support;
+            });
+        double dA = area_change / num_cells;
+        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+            auto state = cell->state;
+            if (state.type != CellType::support) {
+                state.area_preferential += dA;
+            }
+            return state;
+        };
+        apply_rule<Update::sync>(compensate_dA, cells);
     }
     else {
         const auto num_cells = cells.size();

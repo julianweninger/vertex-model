@@ -86,11 +86,36 @@ private:
      *  Operations can duplicate with same or different parameter.
      */
     std::vector<OperationBundle> _operations;
+
+    /// The instance of the notch_delta model used by proliferation tasks
+    /** \note Only initialized when needed
+     */
+    std::shared_ptr<NotchDelta::NotchDelta> _notch_delta;
+
+    /// Whether the _notch_delta model's prolog was performed
+    std::shared_ptr<bool> _notch_delta_prolog;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+    /// The number of T1 transitions
+    std::size_t _num_T1s;
+
+    /// The total number of T1 transitions
+    std::size_t _num_T1s_total;
+
+    /// The number of T1 transitions attempted
+    std::size_t _num_T1s_attempted;
+
+    /// The total number of T1 transitions attempted
+    std::size_t _num_T1s_attempted_total;
+
+    /// The number of T2 transitions
+    std::size_t _num_T2s;
+
+    /// The total number of T2 transitions
+    std::size_t _num_T2s_total;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -108,24 +133,34 @@ public:
         
         // construct the vertex model with an external maximum time stamp
         _vertex_model("PCPVertex", *this, {}, std::make_tuple(
-                    // energy adaptors
-                    DataIO::time_energy_adaptor, DataIO::energy_adaptor,
-                    DataIO::areaelasticity_adaptor,
-                    DataIO::linetension_adaptor,
-                    DataIO::contractility_adaptor,
-                    DataIO::cell_cell_polarity_adaptor,
-                    DataIO::polarity_exclusion_adaptor,
-                    DataIO::lagrange_net_polarisation_adaptor,
-                    DataIO::lagrange_const_concentration_adaptor,
-                    // entities adaptors
-                    DataIO::vertices_adaptor,  
-                    DataIO::cells_adaptor<SpaceVec, CellType>,
-                    DataIO::edges_adaptor)),
+                // energy adaptors
+                DataIO::time_energy_adaptor, DataIO::energy_adaptor,
+                DataIO::areaelasticity_adaptor,
+                DataIO::linetension_adaptor,
+                DataIO::contractility_adaptor,
+                DataIO::cell_cell_polarity_adaptor,
+                DataIO::polarity_exclusion_adaptor,
+                DataIO::lagrange_net_polarisation_adaptor,
+                DataIO::lagrange_const_concentration_adaptor,
+                // transition adaptors
+                DataIO::statistics_time_adaptor,
+                DataIO::T1_adaptor, DataIO::T1_attempted_adaptor,
+                DataIO::T2_adaptor,
+                // position adaptors
+                DataIO::vertices_adaptor,
+                DataIO::cells_adaptor<SpaceVec, CellType>,
+                DataIO::edges_adaptor)),
         
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
         _operations{},
-        _prob_distr(0.,1.)
+        _prob_distr(0.,1.),
+        _num_T1s(0),
+        _num_T1s_total(0),
+        _num_T1s_attempted(0),
+        _num_T1s_attempted_total(0),
+        _num_T2s(0),
+        _num_T2s_total(0)
     {
         this->_space = _vertex_model.get_space();
 
@@ -162,21 +197,12 @@ private:
                 this->_log->trace("  Operation name:  {}", name);
 
                 if (name == "differentiate_NotchDelta") {
-                    std::shared_ptr<NotchDelta::NotchDelta> notch_delta(
-                        new NotchDelta::NotchDelta("NotchDelta", *this, {}, 
-                            std::make_tuple(
-                                NotchDelta::DataIO::density_time,
-                                NotchDelta::DataIO::density_progenitor,
-                                NotchDelta::DataIO::density_hair,
-                                NotchDelta::DataIO::density_support,
-                                NotchDelta::DataIO::density_ratio_hair_support,
-                                NotchDelta::DataIO::number_hair_hair_contacts
-                            )
-                        )
-                    );
+                    this->setup_notch_delta(
+                            get_as<Config>("NotchDelta", op_cfg, {}));
                     _operations.push_back(
                         build_differentiate_NotchDelta(name, op_cfg,
-                            _minimization_params, notch_delta));
+                            _minimization_params, _notch_delta,
+                            _notch_delta_prolog));
                 }
                 else if (name == "differentiate_random") {
                     _operations.push_back(
@@ -238,7 +264,45 @@ private:
         }
     }
     
+    /// Setup a notch delta model
+    void setup_notch_delta (const Config& cfg = {})
+    {
+        if (_notch_delta) {
+            return;
+        }
+
+        this->_log->debug("Setting up NotchDelta model from {}",
+            cfg.size() ? 
+                "custom configuration."
+                : 
+                fmt::format("configuration within {} model.", this->_name));
+
+        _notch_delta = std::shared_ptr<NotchDelta::NotchDelta>(
+            new NotchDelta::NotchDelta("NotchDelta", *this, cfg, 
+                std::make_tuple(
+                    NotchDelta::DataIO::density_time,
+                    NotchDelta::DataIO::density_progenitor,
+                    NotchDelta::DataIO::density_hair,
+                    NotchDelta::DataIO::density_support,
+                    NotchDelta::DataIO::number_hair_hair_contacts
+                )
+            )
+        );
+
+        _notch_delta_prolog = std::make_shared<bool>(false);        
+    }
+    
     // .. Helper functions ....................................................
+    /** Apply an operation from a bundle
+     *  \param operation_bundle collection of operation and parameters
+     *  \param prolog           Whether it is called during the prolog of the
+     *                          model. `iterations_prolog` are performed.
+     *  \param epilog   	    Whether it is called during the epilog of the
+     *                          model. `iterations_epilog` are performed.
+     *                          Whenever the energy is minimized the time of the
+     *                          model is incremented and the datamanager is
+     *                          called.
+     */
     void apply_operation(OperationBundle& operation_bundle,
                          bool prolog = false, bool epilog = false)
     {
@@ -293,6 +357,12 @@ private:
             if (params.minimization_mode == MinimizationMode::Every) {
                 this->_log->debug("   Minimizing energy ...");
                 _vertex_model.minimize_energy(params.minimization_params);
+                
+                // write data during epilog
+                if (epilog) {
+                    this->increment_time();
+                    this->_datamanager(static_cast<PCPTopology&>(*this));
+                }
             }
             else {
                 this->_log->debug("   NOT minimizing energy.");
@@ -312,6 +382,12 @@ private:
         {
             this->_log->debug("   Minimizing energy ...");
             _vertex_model.minimize_energy(params.minimization_params);
+                
+            // write data during epilog
+            if (epilog) {
+                this->increment_time();
+                this->_datamanager(static_cast<PCPTopology&>(*this));
+            }
         }
         else if (iterates > 0 and
                  params.minimization_mode == MinimizationMode::Manual)
@@ -329,12 +405,27 @@ public:
         for (auto& operation_bundle : _operations) {
             apply_operation(operation_bundle);
         }
+
+        _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
+        _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
+                             _num_T1s_attempted_total;
+        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
+
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
     }
 
     /// Monitor model information
-    void monitor () {        
-        this->_monitor.set_entry("num cells",
+    void monitor () {
+        this->_monitor.set_entry("num_cells",
                                  _vertex_model.get_am().cells().size());
+        this->_monitor.set_entry("num_T1_transitions",
+                                 _vertex_model.get_num_T1s_total());
+        this->_monitor.set_entry("num_T1_transitions_attempted",
+                                 _vertex_model.get_num_T1s_attempted_total());
+        this->_monitor.set_entry("num_T2_transitions",
+                                 _vertex_model.get_num_T2s_total());
     }
 
     /// The prolog
@@ -349,6 +440,13 @@ public:
         for (auto& operation : _operations) {
             apply_operation(operation, true, false);
         }
+
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
+        _num_T1s = _num_T1s_total;
+        _num_T1s_attempted = _num_T1s_attempted_total;
+        _num_T2s = _num_T2s_total;
         
         return this->__prolog();
     }
@@ -363,7 +461,20 @@ public:
             apply_operation(operation, false, true);
         }
 
+        _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
+        _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
+                             _num_T1s_attempted_total;
+        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
+
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
+
         _vertex_model.epilog();
+
+        if (_notch_delta) {
+            _notch_delta->epilog();
+        }
 
         return this->__epilog();
     }
@@ -376,6 +487,48 @@ public:
      */
     std::size_t get_continuous_time() const {
         return _vertex_model.get_time();
+    }
+
+    double get_energy() const {
+        return _vertex_model.get_energy();
+    }
+    
+    double get_energy_linetension() const {
+        return _vertex_model.get_energy_linetension();
+    }
+    double get_energy_edge_contractility() const {
+        return _vertex_model.get_energy_edge_contractility();
+    }
+    double get_energy_areaelasticity () const {
+        return _vertex_model.get_energy_areaelasticity();
+    }
+    double get_energy_cell_contractility () const {
+        return _vertex_model.get_energy_cell_contractility();
+    }
+    
+    // double get_energy_cell_cell_polarity() const {
+    //     return _vertex_model.get_energy_cell_cell_polarity();
+    // }
+    // double get_energy_polarity_exclusion () const {
+    //     return _vertex_model.get_energy_polarity_exclusion();
+    // }
+    // double get_energy_lagrange_net_polarisation() const {
+    //     return _vertex_model.get_energy_lagrange_net_polarisation();
+    // }
+    // double get_energy_lagrange_const_concentration() const {
+    //     return _vertex_model.get_energy_lagrange_const_concentration();
+    // }
+
+    std::size_t get_num_T1s() const {
+        return _num_T1s;
+    }
+
+    std::size_t get_num_T1s_attempted() const {
+        return _num_T1s_attempted;
+    }
+
+    std::size_t get_num_T2s() const {
+        return _num_T2s;
     }
 
     /// Getter for vertices

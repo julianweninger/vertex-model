@@ -34,11 +34,15 @@ struct CellState {
     /// Whether has neighbor of type hair
     bool has_hair_neighbor;
 
+    /// An ID denoting to which cluster this cell belongs
+    std::size_t cluster_id;
+
     /// Construct the cell state from a configuration
     CellState()
     :
         cell_type(progenitor),
-        has_hair_neighbor(false)
+        has_hair_neighbor(false),
+        cluster_id(0)
     {}
 };
 
@@ -171,7 +175,7 @@ private:
 
     /// The rate of progenitor to hair cell transition
     /** The first entry is for atoh1 levels above threshold, the latter entries
-     *  are linearly mapped to atoh1 levels below threshold
+     *  are inverse-linearly mapped to atoh1 levels below threshold
      */
     std::vector<double> _rate_ph;
 
@@ -202,7 +206,14 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+    /// The incremental cluster tag
+    unsigned int _cluster_id_cnt;
 
+    /// The time cluster tags were updated last
+    Time _cluster_id_time;
+
+    /// A temporary container for use in cluster identification
+    CellContainer<Cell> _cluster_members;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -223,13 +234,19 @@ public:
         _envm("Environment", *this, _cm),
 
         // Initialize model parameters
-        _rate_ph(),
+        _rate_ph(setup_as_vector(
+            get_as<Config>("rate_ph", this->_cfg), "rate_ph")),
         _rate_ps(get_as<double>("rate_ps", this->_cfg)),
-        _rate_atoh1(),
+        _rate_atoh1(setup_as_vector(
+            get_as<Config>("atoh1_suppression", this->_cfg),
+            "atoh1_suppression")),
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
-        _prob_distr(0., 1.)
+        _prob_distr(0., 1.),
+        _cluster_id_cnt(),
+        _cluster_id_time(1e9),
+        _cluster_members()
     {
         // copy the cm neighborhood to custom links
         if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
@@ -238,44 +255,10 @@ public:
             }
         }
 
-        if (not this->_cfg["rate_ph"]) {
-            throw std::invalid_argument("Missing cfg entry: Expected dict with "
-                "key 'rate_ph'.");
-        }
-        _rate_ph.clear();
-        for (int it = 0; true; it++) {
-            if (not this->_cfg["rate_ph"]["rate_"+std::to_string(it)]) {
-                break;
-            }
-            _rate_ph.push_back(get_as<double>("rate_"+std::to_string(it),
-                                              this->_cfg["rate_ph"]));
-        }
-        if (_rate_ph.size() < 2) {
-            throw std::invalid_argument("Missing cfg entry: Expected at least "
-                "2 entries in dict 'rate_ph'!");
-        }
-
-        if (not this->_cfg["atoh1_suppression"]) {
-            throw std::invalid_argument("Missing cfg entry: Expected dict with "
-                "key 'atoh1_suppression'.");
-        }
-        _rate_atoh1.clear();
-        for (int it = 0; true; it++) {
-            if (not this->_cfg["atoh1_suppression"]["rate_"+std::to_string(it)])
-            {
-                break;
-            }
-            _rate_atoh1.push_back(get_as<double>("rate_"+std::to_string(it),
-                                                 this->_cfg["atoh1_suppression"]));
-        }
-        if (_rate_atoh1.size() < 2) {
-            throw std::invalid_argument("Missing cfg entry: Expected at least "
-                "2 entries in dict 'rate_atoh1'!");
-        }
-
-
         if (_atoh1_threshold <= 0.) {
-            _atoh1_threshold = 1e-10;
+            throw std::invalid_argument(fmt::format("Value of "
+                "'atho1_threshold' must be larger than 0, but was {}.",
+                _atoh1_threshold));
         }
 
         this->_log->debug("{} model fully set up.", this->_name);
@@ -284,8 +267,69 @@ public:
 
 private:
     // .. Setup functions .....................................................
+    /// Extract a collection of rates as a vector from a config node
+    /** Instead of defining `some_rate_vector: [0., 0., 0.]`, define it as
+     *  `some_rate_vector: {rate_0: 0., rate_1: 0., rate_2: 0.}`.
+     */
+    std::vector<double> setup_as_vector(const Config& cfg,
+            const std::string&& name)
+    {
+        std::vector<double> vec;
+        for (std::size_t i = 0; cfg["rate_"+std::to_string(i)]; i++) {
+            vec.push_back(get_as<double>("rate_" + std::to_string(i), cfg));
+        }
+
+        if (vec.size() == 0) {
+            throw std::invalid_argument(fmt::format("Provide a minimum of 1 "
+                "rate to initilize the rate vector {}. Expected entries of "
+                "type 'rate_i' with i consecutive uints in [0, N].", name));
+        }
+
+        this->_log->debug("Set up rates vector {} with {} entr{}", name, 
+                          vec.size(), vec.size() != 1 ? "ies" : "y");
+
+        return vec;
+    }
     
     // .. Helper functions ....................................................
+
+    /// Identify each cluster of hair cells
+    RuleFunc _identify_cluster = [this](const auto& cell){
+        if (cell->state.cluster_id != 0 or
+            cell->state.cell_type != CellType::hair)
+        {
+            // already labelled, nothing to do. Return current state
+            return cell->state;
+        }
+        // else: need to label this cell
+
+        // Increment the cluster ID counter and label the given cell
+        _cluster_id_cnt++;
+        cell->state.cluster_id = _cluster_id_cnt;
+
+        // Use existing cluster member container, clear it, add current cell
+        auto& cluster = _cluster_members;
+        cluster.clear();
+        cluster.push_back(cell);
+
+        // Perform the percolation
+        for (unsigned int i = 0; i < cluster.size(); ++i) {
+            // Iterate over all potential cluster members c, i.e. all
+            // neighbors of cell cluster[i] that is already in the cluster
+            for (const auto& nb : cluster[i]->custom_links().neighbors) {
+                // If it is a hair cell that is not yet in the cluster, add it.
+                if (    nb->state.cluster_id == 0
+                    and nb->state.cell_type == CellType::hair)
+                {
+                    nb->state.cluster_id = _cluster_id_cnt;
+                    cluster.push_back(nb);
+                    // This extends the outer for-loop...
+                }
+            }
+        }
+
+        return cell->state;
+    };
 
     // .. Rule functions ......................................................
     /// The differentiation rule for progenitor cells
@@ -298,9 +342,8 @@ private:
         auto atoh1 = cell->custom_links().env->state.atoh1;
 
         if (state.cell_type == CellType::progenitor) {
-            int mapping;
-            mapping = ceil((1 - atoh1/_atoh1_threshold) * 
-                            (_rate_ph.size() - 1));
+            int mapping = ceil((1 - atoh1/_atoh1_threshold) * 
+                               (_rate_ph.size() - 1));
             if (_prob_distr(*this->_rng) < _rate_ph[std::max(mapping, 0)]) {
                 state.cell_type = CellType::hair;
             }
@@ -322,17 +365,14 @@ private:
         if (state.cell_type == CellType::inactive) { return state; }
 
         // number of neighboring hair cells
-        int ns_hair = 0;
-        for (const auto& n : cell->custom_links().neighbors) {
-            if (n->state.cell_type == CellType::hair) { ns_hair++; }
-        }
-
-        if (ns_hair == 0.) {
-            return state;
-        }
+        std::size_t nbs_hair = std::count_if(
+            cell->custom_links().neighbors.begin(),
+            cell->custom_links().neighbors.end(),
+            [](const auto& nb) {
+                return nb->state.cell_type == CellType::hair; });
 
         // the rate of atoh1 change
-        int mapping = std::min(ns_hair, int(_rate_atoh1.size() - 1));
+        auto mapping = std::min(nbs_hair, _rate_atoh1.size() - 1);
         env_state.atoh1 /= _rate_atoh1[mapping];
 
         cell->custom_links().env->state = env_state;
@@ -404,6 +444,37 @@ private:
     };
 
 public:
+    // .. Helper functions ....................................................
+    /// Identify clusters
+    /** This function identifies clusters and updates the cell
+     *  specific cluster_id as well as the member variable 
+     *  cluster_id_cnt that counts the number of ids
+     * 
+     *  \note This function tracks the last time it was applied and is hence not
+     *        applied twice at the same timepoint
+     */
+    void identify_clusters(){
+        if (_cluster_id_time == this->_time) {
+            // already applied in this step
+            return;
+        }
+
+        this->_log->debug("Identifying cluster ids");
+
+        // reset cluster counter
+        _cluster_id_cnt = 0;
+        apply_rule<Update::sync>(
+            [](const auto& cell) {
+                cell->state.cluster_id = 0;
+                return cell->state; },
+            _cm.cells() );
+        
+        apply_rule<Update::async, Shuffle::off>(_identify_cluster, 
+                                                _cm.cells());
+
+        _cluster_id_time = this->_time;
+    }
+
     // -- Public Interface ----------------------------------------------------
     
     // .. Simulation Control ..................................................

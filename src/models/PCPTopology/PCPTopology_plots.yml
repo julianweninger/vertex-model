@@ -6,18 +6,13 @@
 energy:
   based_on: energy
 
-  to_plot:
-    Energy/Total:
-      label: TOTAL
-    Energy/Linetension:
-      label: line-tension
-    Energy/Areaelasticity:
-      label: area-elasticity
-    Energy/Contractility:
-      label: contractility
-
-energy_polarity:
+energy_continuous:
   based_on: energy
+  model_name: PCPTopology/PCPVertex
+
+energy_polarity_continuous:
+  based_on: energy
+  model_name: PCPTopology/PCPVertex
   enabled: false
 
   to_plot:
@@ -30,49 +25,28 @@ energy_polarity:
     Energy/Lagrange_const_concentration: 
       label: lagrange-const-concentration
 
+transitions:
+  based_on: transitions
+  map_to_continuous_time: True
+
+transitions_continuous:
+  based_on: transitions
+  model_name: PCPTopology/PCPVertex
+  map_to_discrete_time: True
+
 cell_area:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology
-  file_ext: png
-
-  to_plot:
-    area_average:
-      path_to_data: Statistics/Cell_area
-      transform_data:
-        - sel:
-            property: area_average
-      label: average cell area
-    area_hair_average:
-      path_to_data: Statistics/Cell_area
-      transform_data:
-        - sel:
-            property: area_hair_average
-      label: average area for HCs
-    area_support_average:
-      path_to_data: Statistics/Cell_area
-      transform_data:
-        - sel:
-            property: area_support_average
-      label: average area for SCs
-
+  based_on: cell_area
+      
 equilibrium_cellular_structure:
   based_on: cellular_structure
-  datapath: PCPTopology
-  cfgpath: PCPTopology/PCPVertex
 
 cellular_structure:
   based_on: cellular_structure
   datapath: PCPTopology/PCPVertex
-  cfgpath: PCPTopology/PCPVertex
 
 cell_neighbourhood: !pspace
-  creator: universe
-  universes: all
-  module: model_plots.PCPTopology
-  plot_func: cell_neighbourhood
-  file_ext: png
-
-  enabled: true
+  based_on: cell_neighbourhood
+  
   only_type: !sweep
     default: all
     values:
@@ -81,65 +55,6 @@ cell_neighbourhood: !pspace
       - support
       - support_hair
       - support_support
-
-  helpers_frame_hist:
-    set_labels:
-      x: number of neighbours
-      y: frequency
-    set_limits:
-      y: [0., 0.7]
-  helpers_frame_area:
-    set_labels:
-      x: number of neighbours
-      y: mean area
-    # set_limits:
-      # y: [0.6, 1.4]
-
-  animation:
-    enabled: true
-    writer: frames
-    writer_kwargs:
-      ffmpeg:
-        init:
-          fps: 10
-        saving:
-          dpi: 300
-      frames:
-        saving:
-          dpi: 300
-    animation_update_kwargs:  {}
-
-cell_neighborhood_seed: #!pspace
-  creator: multiverse
-  module: model_plots.PCPTopology
-  plot_func: cell_neighbourhood_mv
-
-  enabled: false
-  
-  select_and_combine: 
-    fields:
-      data:
-        path: Cells
-        with_previous_result: true
-        transform:
-        - .sel:
-            time: 120
-    # subspace:
-    #   shape_index_preferential: !sweep
-    #     default: 3.6
-    #     linspace: [3.4, 3.8, 11]
-    base_path: data/PCPTopology
-
-  transform:
-    - .sel:
-        shape_index_preferential: 3.6
-  
-  helpers:
-    set_labels:
-      x: bins [1]
-      y: counts [1]
-    set_limits:
-      x: [3, 9]
 
 NotchDelta_hair_hair_contacts:
   based_on: .basic_uni.lineplot
@@ -169,9 +84,6 @@ NotchDelta_densities:
     NotchDelta/Densities/Progenitor:
       label: Progenitor
       color: gray
-    NotchDelta/Densities/Ratio_hair_support:
-      label: ratio hair/support
-      color: blue
 
   helpers:
     set_labels:

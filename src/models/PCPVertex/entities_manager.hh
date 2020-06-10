@@ -1,6 +1,8 @@
 #ifndef UTOPIA_MODELS_PCPVERTEX_ENTITIESMANAGER_HH
 #define UTOPIA_MODELS_PCPVERTEX_ENTITIESMANAGER_HH
 
+#include "../NotchDelta/NotchDelta.hh"
+
 namespace Utopia::Models::PCPVertex {
 
 template<class Model>
@@ -51,6 +53,12 @@ public:
          *           vertex a or b. 
          */
         std::vector<std::pair<std::shared_ptr<Edge>, bool>> edges;
+        
+        /// The type of a cell in the NotchDelta model
+        using NDCell = Utopia::Models::NotchDelta::NotchDelta::Cell;
+        
+        /// A cell in the NotchDelta model
+        std::shared_ptr<NDCell> nd_cell;
     };
     using CellTraits = Utopia::AgentTraits<CellState, Update::manual, false,
                                            EmptyTag, CellLinks>;
@@ -717,6 +725,10 @@ private:
 
     /// Remove an edge
     void remove_cell (const std::shared_ptr<Cell>& cell) {
+        if (cell->custom_links().nd_cell) {
+            cell->custom_links().nd_cell->state.cell_type = 
+                Utopia::Models::NotchDelta::CellState::StateType::inactive;
+        }
         _cell_manager.remove_agent(cell);
     }
 

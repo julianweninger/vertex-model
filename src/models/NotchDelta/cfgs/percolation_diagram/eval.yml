@@ -1,0 +1,24 @@
+---
+percolation_diagram:
+  based_on: percolation_diagram
+  map_coord: beta
+
+bifurcation_density:
+  based_on: bifurcation_density  
+  dim: beta
+
+  analysis_kwargs:
+    fixpoint:
+      abs_std: 0.1
+      isclose_kwargs: {atol: 0.}
+      spin_up_time: 50
+
+bifurcation_contacts:
+  based_on: bifurcation_contacts
+  dim: beta
+  
+  analysis_kwargs:
+    fixpoint:
+      abs_std: 0.1
+      isclose_kwargs: {atol: 0.}
+      spin_up_time: 50
