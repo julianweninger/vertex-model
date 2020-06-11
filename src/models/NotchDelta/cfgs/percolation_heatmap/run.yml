@@ -8,11 +8,10 @@ parameter_space:
   num_steps: 100
   NotchDelta:
     rate_ph:
-      beta: !sweep
+      rate_0: !sweep
         default: 8e-3
-        linspace: [4e-3, 8e-3, 4]
-      rate_0: !coupled-sweep
-        target_name: beta
+        linspace: [0.01, 0.06, 4]
+        name: beta
     
     Environment:
       env_state_funcs:
@@ -22,4 +21,5 @@ parameter_space:
               distribution: exponential
               lambda: !sweep
                 default: 80
-                values: [80, 100]
+                values: [40, 60]
+                name: lambda
