@@ -208,7 +208,7 @@ PCPVertex:
   # damping factor
   dt: 0.01
   minimization_tolerance: *Tolerance
-  update_scheme: steepest_gradient_adaptive
+  update_scheme: conjugate_gradient
 
   area_elasticity: 1.
 

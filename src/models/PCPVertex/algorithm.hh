@@ -22,10 +22,11 @@ std::pair<double, double> PCPVertex::determine_timestep (
     dt = std::max(std::min(2*dt, 2.), 1e-8);
 
     // check that actually moving towards a minimum
-    if (this->get_energy(1e-8) >= energy_0) {
+    double tmp_energy = this->get_energy(1e-8);
+    if (tmp_energy >= energy_0) {
         this->_log->debug("Already in minimum. At step size of 1e-8 the energy "
             "along direction of update increased by {}.",
-            this->get_energy(1e-8)-energy_0);
+            tmp_energy-energy_0);
 
         return std::make_pair(0., energy_0);
     }
@@ -154,22 +155,25 @@ std::pair<double, double> PCPVertex::determine_timestep (
 /// Initialisation of the energy minisation process
 void PCPVertex::init_minimization ()
 {
+    _energy = this->get_energy();
+
     if (this->_update_scheme != ConjugateGradient) {
         return;
     }
 
-    RuleFuncVertex init = [this](const auto& vertex) {
-        auto state = vertex->state;
-        state.g = this->_am.position_of(vertex);
-        state.h = state.g;
-        return state;
-    };
-
     set_gradient();
 
-    apply_rule<Update::sync>(init, _am.vertices());
+    apply_rule<Update::sync>(
+        [this](const auto& vertex) {
+            auto state = vertex->state;
+            state.g = state.f;
+            state.h = state.g;
+            return state;
+        },
+        _am.vertices()
+    );
 
-    _dt = 1e-3;
+    _dt = 0.05;
 };
 
 /// Single step in direction of steepest gradient
