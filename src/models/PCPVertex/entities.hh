@@ -8,6 +8,8 @@ struct VertexState {
     using SpaceVec = Utopia::SpaceVecType<2>;
 
     /// The steepest gradient slope
+    /** \f$ f = - \nabla V (r_0) \f$ with \f$r_0\f$ the position of this vertex 
+     */
     SpaceVec f;
 
     /// Conjugate gradient

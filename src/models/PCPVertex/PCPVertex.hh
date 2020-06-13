@@ -726,16 +726,8 @@ private:
      *  @param v    The pointer to the vertex to update
      */
     const RuleFuncVertex update_position = [this](const auto& vertex) {
-        const auto state = vertex->state;
-        // if (arma::norm(state.f) * this->_dt > 0.1) {
-        //     throw std::runtime_error(fmt::format("Timestep badly chosen. " 
-        //         "Vertex ({}, {}) would move by ({}, {}), i.e. by more than {}",
-        //         _am.position_of(vertex)[0], _am.position_of(vertex)[1], 
-        //         state.f[0], state.f[1],
-        //         arma::norm(state.f)));
-        // }
-        _am.move_by(vertex, state.f * this->_dt);
-        return state;
+        _am.move_by(vertex, vertex->state.f * this->_dt);
+        return vertex->state;
     };
 
     /** The update of polarity protein levels
@@ -860,9 +852,6 @@ public:
             this->init_minimization();
         }
 
-        _energy = this->get_energy();
-        // NOTE need this, because operations might have changed it
-        //      since last update
         _energy_previous_step = _energy;
         _energy = perform_update_step(_update_scheme);
 
@@ -881,6 +870,9 @@ public:
 
         //     std::for_each(_edges.begin(), _edges.end(), update_polarity);
         // }
+
+        this->_log->trace("Energy changed by {}",
+                          _energy - _energy_previous_step);
     }
     
     /// Monitor model information
@@ -923,6 +915,9 @@ public:
             }
             const auto time_start = this->get_time();
             bool minimum_reached = false;
+
+            this->init_minimization();
+
             while (not minimum_reached) {
                 _minimization_tolerance = tolerance;
                 this->iterate();
