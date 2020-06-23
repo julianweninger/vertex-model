@@ -13,8 +13,6 @@ import matplotlib.patches as mpatches
 
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
-from utopya.plot_funcs.basic_uni import lineplot, lineplots
-from utopya.dataprocessing import transform
 
 from ..tools import save_and_close
 
