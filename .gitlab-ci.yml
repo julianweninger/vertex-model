@@ -3,7 +3,7 @@
 # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
   # Which Utopia base image to use
-  UTOPIA_BASE_IMAGE: ccees/utopia-base:eoan-v1
+  UTOPIA_BASE_IMAGE: ccees/utopia-base:focal-v1
 
   # Which repo to use for the framework and which branch to clone from
   UTOPIA_CLONE_URL: https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia.git
