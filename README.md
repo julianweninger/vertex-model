@@ -4,8 +4,7 @@ This private repository contains the vertex models within [Utopia] developed in
 Karsten Kruse's group at University of Geneva and Madan Rao's group at Simon
 Centre, National Centre for Biological Sciences, Bangalore.
 
-If not mentioned explicitly, all instructions and considerations from the
-main repository still apply here.
+**Note:** If not mentioned explicitly, all instructions and considerations from the [main repository][Utopia] still apply here. ☝️
 
 #### Contents of this Readme
 * [Installation](#installation)
@@ -213,7 +212,7 @@ to retrieve the coverage information.
 
 ## Dependencies
 
-The version numbers given here are those available in the testing image, based on Ubuntu 19.10.
+The version numbers given here are those available in the testing image, based on Ubuntu 20.04.
 These version numbers are _not_ enforced.
 
 
