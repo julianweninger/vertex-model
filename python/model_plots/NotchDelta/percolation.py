@@ -13,8 +13,6 @@ import matplotlib as mpl
 import os
 
 import dantro.utils.data_ops as dops
-from .data_ops import count_unique
-# NOTE this will be available in dantro v13.1 _(WIP)_
 
 from dantro.plot_creators.ext_funcs.generic import facet_grid
 
@@ -41,7 +39,7 @@ def map_percolation_strentgh_to_density(*, cluster_id: xr.DataArray,
     num_cells = cluster_id.count(dim={'x', 'y'})
 
     clusters = dops.where(cluster_id, ">", 0)
-    cluster_sizes = count_unique(clusters, dims=['x', 'y'])
+    cluster_sizes = dops.count_unique(clusters, dims=['x', 'y'])
     # the density of the biggest cluster 
     perc = cluster_sizes.max(dim='unique') / num_cells
     
@@ -77,7 +75,7 @@ def percolation_diagram(*, data: dict, hlpr: PlotHelper, map_dim: str=None,
     num_cells = data['cluster_id'].count(dim={'x', 'y'})
 
     clusters = dops.where(data['cluster_id'], ">", 0)
-    cluster_sizes = count_unique(clusters, dims=['x', 'y'])
+    cluster_sizes = dops.count_unique(clusters, dims=['x', 'y'])
     # the density of the biggest cluster 
     perc = cluster_sizes.max(dim='unique') / num_cells
 

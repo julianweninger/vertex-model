@@ -56,34 +56,34 @@ cell_neighbourhood: !pspace
       - support_hair
       - support_support
 
-NotchDelta_hair_hair_contacts:
-  based_on: .basic_uni.lineplot
-  model_name: PCPTopology
+rosettes:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
   file_ext: png
 
-  path_to_data: NotchDelta/Densities/Number_hair_hair_contacts
-  label: Hair-hair contacts
-
-  helpers:
-    set_labels:
-      x: time
-      y: cnt
+  select_and_combine:
+    fields:
+      data: Densities/Rosettes
+    base_path: data/PCPTopology/NotchDelta
       
 NotchDelta_densities:
   based_on: .basic_uni.lineplots
   model_name: PCPTopology
   file_ext: png
 
-  to_plot: 
-    NotchDelta/Densities/Hair:
-      label: Hair
-      color: red
-    NotchDelta/Densities/Support:
-      label: Support
-      color: black
+  to_plot:
     NotchDelta/Densities/Progenitor:
       label: Progenitor
       color: gray
+    NotchDelta/Densities/Support:
+      label: Support
+      color: black
+    NotchDelta/Densities/Hair:
+      label: Hair
+      color: red
+    NotchDelta/Densities/Rosettes:
+      label: Rosettes
+      color: violet
 
   helpers:
     set_labels:

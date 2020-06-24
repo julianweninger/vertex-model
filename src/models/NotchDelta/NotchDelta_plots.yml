@@ -7,8 +7,8 @@
 densities:
   based_on: densities
 
-hair_hair_contacts:
-  based_on: hair_hair_contacts
+rosettes:
+  based_on: rosettes
 
 
 # Spatial CA animations .......................................................

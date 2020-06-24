@@ -5,21 +5,15 @@ paths:
   model_note: default_percolation_heatmap
 
 parameter_space:
-  num_steps: 100
+  num_steps: 300
   NotchDelta:
     rate_ph:
       rate_0: !sweep
         default: 8e-3
-        linspace: [0.01, 0.06, 4]
+        values: [0.001, 0.005, 0.01, 0.06]
         name: beta
-    
-    Environment:
-      env_state_funcs:
-        - noise:
-            atoh1:
-              mode: add
-              distribution: exponential
-              lambda: !sweep
-                default: 80
-                values: [40, 60]
-                name: lambda
+
+    rate_swap: !sweep
+      default: 0.
+      linspace: [0., 0.01, 2]
+      name: swap

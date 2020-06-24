@@ -111,8 +111,8 @@ BOOST_AUTO_TEST_CASE(test_custom_neighborhood)
         BOOST_TEST(c->state.cell_type == NotchDelta::CellType::inactive);
     }
 
-    // compare the number of contacts
-    unsigned int num_hh_contacts = 0;
+    // compare the number of rosettes
+    unsigned int num_rosettes = 0;
     for (const auto& cell : cm.cells()) {
         if (cell->state.cell_type != NotchDelta::CellType::hair) {
             continue;
@@ -125,11 +125,11 @@ BOOST_AUTO_TEST_CASE(test_custom_neighborhood)
                 break;
             }
         }
-        if (has_contact) {
-            num_hh_contacts++;
+        if (not has_contact /*and of kind hair*/) {
+            num_rosettes++;
         }
     }
-    BOOST_TEST(num_hh_contacts == model.get_hh_contacts());
+    BOOST_TEST(num_rosettes == model.get_num_rosettes());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

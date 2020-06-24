@@ -534,13 +534,15 @@ public:
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
     }
 
-    /// Get the number of hair cells that have at least one hair cell neighbor
-    unsigned int get_hh_contacts() const {
+    /// Get the number of hair cells that have no contact to another hair cell
+    unsigned int get_num_rosettes() const {
         apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
 
         unsigned int cnt = 0;
         for (auto c : _cm.cells()) {
-            cnt += c->state.has_hair_neighbor;
+            if (c->state.cell_type == CellType::hair) {
+                cnt += (not c->state.has_hair_neighbor);
+            }
         }
 
         return cnt;

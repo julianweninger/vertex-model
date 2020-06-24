@@ -7,17 +7,20 @@ densities:
   model_name: NotchDelta
   file_ext: png
 
-  to_plot: 
-    Densities/Hair:
-      label: Hair
-      color: red
-    Densities/Support:
-      label: Support
-      color: black
+  to_plot:
     Densities/Progenitor:
       label: Progenitor
       color: gray
-
+    Densities/Support:
+      label: Support
+      color: black
+    Densities/Hair:
+      label: Hair
+      color: red
+    Densities/Rosettes:
+      label: Rosettes
+      color: violet
+      
   helpers:
     set_labels:
       x: time
@@ -25,18 +28,15 @@ densities:
     set_limits:
       y: [0,1.]
 
-hair_hair_contacts:
-  based_on: .basic_uni.lineplot
-  model_name: NotchDelta
+rosettes:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
   file_ext: png
 
-  path_to_data: Densities/Number_hair_hair_contacts
-  label: Hair-hair contacts
-
-  helpers:
-    set_labels:
-      x: time
-      y: cnt
+  select_and_combine:
+    fields:
+      data: Densities/Rosettes
+    base_path: data/NotchDelta
 
 state_anim:
   based_on: .ca.state  
@@ -82,10 +82,6 @@ heatmap_density: &heatmap_density
 
   label: hair density
 
-  helpers:
-    set_labels:
-      x: differentiation rate
-      y: delay lambda
 
 heatmap_contacts: 
   <<: *heatmap_density
@@ -93,7 +89,7 @@ heatmap_contacts:
   select_and_combine:
     fields: 
       data:
-        path: data/NotchDelta/Densities/Number_hair_hair_contacts
+        path: data/NotchDelta/Densities/Rosettes
         with_previous_result: true
         transform:
           - .isel:
@@ -219,7 +215,7 @@ bifurcation_contacts:
 
   select:
     fields:
-      Contacts: data/NotchDelta/Densities/Number_hair_hair_contacts
+      Contacts: data/NotchDelta/Densities/Rosettes
 
   dim: lambda
 
