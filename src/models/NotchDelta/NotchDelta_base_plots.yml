@@ -38,6 +38,64 @@ rosettes:
       data: Densities/Rosettes
     base_path: data/NotchDelta
 
+rosettes_bifurcation:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  file_ext: png
+
+  x: hair density
+
+  marker: o
+  linewidth: 0
+
+  select_and_combine:
+    fields:
+      _rosette_density: Rosettes
+      _hair_density: Hair
+    base_path: data/NotchDelta/Densities
+
+  transform:
+    - .coords:
+      args: [!dag_tag _rosette_density, time]
+    - create_mask:
+      args: [!dag_prev , '>=', 700]
+      tag: time_mask_rosette
+    - .where:
+      args: [!dag_tag _rosette_density, !dag_tag time_mask_rosette]
+    - .mean:
+      args: [!dag_prev , time]
+      tag: rosette_density
+      # the density of rosettes
+    
+    - .coords:
+      args: [!dag_tag _hair_density, time]
+    - create_mask:
+      args: [!dag_prev , '>=', 700]
+      tag: time_mask_hair
+    - .where:
+      args: [!dag_tag _hair_density, !dag_tag time_mask_hair]
+    - .mean:
+      args: [!dag_prev , time]
+      tag: hair_density
+      # the density of hairs
+
+    - div:
+      args: [!dag_tag rosette_density, !dag_tag hair_density]
+    - xr.DataArray:
+      args: [!dag_prev ]
+      kwargs:
+        name: rosette fraction
+      tag: rosette_fraction
+
+    - import_and_call:
+      args: [model_plots.NotchDelta, replace_dim, !dag_tag rosette_fraction,
+             !dag_tag hair_density]
+      kwargs:
+        dim: beta
+        new_dim: hair density
+      tag: data
+      # exchange dimension beta with data from hair_density
+
 state_anim:
   based_on: .ca.state  
   file_ext: png

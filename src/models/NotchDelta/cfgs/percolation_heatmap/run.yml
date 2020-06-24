@@ -5,7 +5,7 @@ paths:
   model_note: default_percolation_heatmap
 
 parameter_space:
-  num_steps: 300
+  num_steps: 1000
   NotchDelta:
     rate_ph:
       rate_0: !sweep
