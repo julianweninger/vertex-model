@@ -11,10 +11,10 @@ percolation_diagram: !pspace
     - .sel:
       args: [!dag_prev ]
       kwargs:
-        lambda: !sweep
+        swap: !sweep
           default: 80
-          values: [40, 60]
-          name: lambda
+          linspace: [0., 0.01, 2]
+          name: swap
       tag: cells
 
     - .isel:
@@ -24,9 +24,31 @@ percolation_diagram: !pspace
     - .sel:
       args: [!dag_prev ]
       kwargs:
-        lambda: !coupled-sweep          
-          target_name: lambda
+        swap: !coupled-sweep          
+          target_name: swap
       tag: cluster_id
+
+rosettes:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  file_ext: png
+
+  select_and_combine:
+    fields:
+      _data: Densities/Rosettes
+    base_path: data/NotchDelta
+
+  transform:
+    - .coords:
+      args: [!dag_tag _data, time]
+    - create_mask:
+      args: [!dag_prev , '>=', 700]
+      tag: time_mask
+    - .where:
+      args: [!dag_tag _data, !dag_tag time_mask]
+    - .mean:
+      args: [!dag_prev , time]
+      tag: data
 
 heatmap_density:
   based_on: heatmap_density
@@ -37,7 +59,7 @@ heatmap_contacts:
 percolation_bifurcation:
   based_on: percolation_bifurcation
   map_dim: beta
-  # x: lambda
+  # x: swap
   # col: param
   # sharey: false
 

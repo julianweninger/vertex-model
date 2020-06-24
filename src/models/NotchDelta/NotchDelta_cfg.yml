@@ -101,7 +101,7 @@ data_manager:
       decider: write_always
     Density_hair: *density
     Density_support: *density
-    Number_hair_hair_contacts: *density
+    Density_rosettes: *density
     Density_time: *density
 
     Cell_type: &CM

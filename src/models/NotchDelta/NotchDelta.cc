@@ -15,8 +15,7 @@ int main (int, char** argv) {
         // Initialize the main model instance and directly run it
         NotchDelta("NotchDelta", pp, {}, std::make_tuple(density_time, 
             density_progenitor, density_hair, density_support,
-            number_hair_hair_contacts,
-            CM_time, cell_type, cell_atoh1, cluster_id)
+            density_rosettes, CM_time, cell_type, cell_atoh1, cluster_id)
         ).run();
 
         // Done.

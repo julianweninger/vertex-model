@@ -284,7 +284,7 @@ private:
                     NotchDelta::DataIO::density_progenitor,
                     NotchDelta::DataIO::density_hair,
                     NotchDelta::DataIO::density_support,
-                    NotchDelta::DataIO::number_hair_hair_contacts
+                    NotchDelta::DataIO::density_rosettes
                 )
             )
         );
