@@ -21,57 +21,6 @@ from utopya.plot_funcs._basic import _errorbar
 # Get a logger
 log = logging.getLogger(__name__)
 
-def count_unique(data, dims: List[str]=None) -> xr.DataArray:
-    """Applies np.unique to the given data and constructs a xr.DataArray for
-    the results.
-
-    NaN values are filtered out.
-
-    NOTE this is a tmp copy from dantro 13.1 _(WIP)_
-
-    Args:
-        data: The data
-        dims (List[str], optional): The dimensions along which to apply
-            np.unique. The other dimensions will be available after the
-            operation. If not provided it is applied along all dims.
-
-    """
-    def _count_unique(data) -> xr.DataArray:
-        unique, counts = np.unique(data, return_counts=True)
-        
-        # remove np.nan values
-        # NOTE np.nan != np.nan, hence np.nan will count 1 for every occurrence,
-        #      but duplicate values not allowed in coords.
-        counts = counts[~np.isnan(unique)]
-        unique = unique[~np.isnan(unique)]
-
-        if isinstance(data, xr.DataArray):
-            name = data.name + " (unique counts)"
-        else:
-            name = "data (unique counts)"
-
-        # Construct a new data array and return
-        return xr.DataArray(data=counts,
-                            name=name,
-                            dims=('unique',),
-                            coords=dict(unique=unique))
-    
-    if not dims:
-        return _count_unique(data)
-
-    if not isinstance(data, xr.DataArray):
-        raise TypeError("Data needs to be of type xr.DataArray, but was "
-                        f"{type(data)}!")
-    
-    # use split-apply-combine along those dimensions not in dims
-    split_dims = [dim for dim in data.dims if dim not in dims]
-    
-    if len(split_dims) == 0:
-        return _count_unique(data)
-
-    data = data.stack(_stack_cu=split_dims).groupby('_stack_cu')
-    return data.map(_count_unique).unstack('_stack_cu')
-
 def my_histogram(data, dims: List[str]=None, **kwargs) -> xr.DataArray:
     """Applies np.histogram to the given data and constructs a xr.DataArray for
     the results.
@@ -102,3 +51,53 @@ def my_histogram(data, dims: List[str]=None, **kwargs) -> xr.DataArray:
     dims = [dim for dim in data.dims if dim not in dims]
     return data.stack(z=dims).groupby('z').map(_histogram, **kwargs).unstack('z')
 
+def replace_dim(data: xr.DataArray, coords: xr.DataArray,
+                dim: str, new_dim: str=None) -> xr.DataArray:
+    """Assign new coordinates to this object.
+    Returns a new object with all the original data in addition to the new
+    coordinates.
+    If data has multiple dimensions, split-apply-combine is used; this may cause
+    the data to increase in length along this dimension, because filled with
+    NaNs.
+
+    args:
+        data (xr.DataArray): The data where the replace the dimension
+        coords (xr.DataArray): The coords of the new dimension. Needs to have
+            same dimensions as data.
+        dim (str): The dim along which to assign the new coords
+        new_dim (str, optional): The name of the new dimension. If None the name
+        of coords is used.
+    """
+    def _map_density(data: xr.Dataset, data_variable: str,
+                     coords_variable: str,
+                     stack_dim: str) -> xr.DataArray:
+        """
+        """
+        # have to preserve the stack dim coordinates for unstacking
+        if len(data.dims) > 1:
+            return xr.DataArray(data=data[data_variable].data, name=data_variable,
+                dims=(stack_dim, coords_variable, ),
+                coords={stack_dim: data[stack_dim],
+                        coords_variable: data[coords_variable].data})
+        else:
+            return xr.DataArray(data=data[data_variable].data, name=data_variable,
+                dims=(coords_variable, ),
+                coords={coords_variable: data[coords_variable].data})
+
+    if not new_dim:
+        new_dim = coords.name
+    
+    dataset = xr.Dataset({data.name: data, new_dim: coords},
+                          coords={coord: data[coord] for coord in data.coords})
+
+    # Use split-apply-combine to reduce the data along `map_dim`
+    split_dims = [d for d in data.dims if d != dim]
+    dataset = dataset.stack(_stack_rd=split_dims).groupby('_stack_rd')
+
+    data = dataset.map(_map_density,
+                       data_variable=data.name,
+                       coords_variable=new_dim,
+                       stack_dim='_stack_rd')
+    data = data.unstack('_stack_rd')
+
+    return data
