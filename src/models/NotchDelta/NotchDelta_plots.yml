@@ -19,7 +19,7 @@ state_anim:
 # Multiverse plots ............................................................
 percolation_diagram:
   based_on: percolation_diagram
-  map_coord: beta
+  map_dim: beta
   
   enabled: false
 

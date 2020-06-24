@@ -113,19 +113,21 @@ percolation_diagram:
 
   select_and_combine:
     fields:
-      cells:
-        path: Cell_type
-        with_previous_result: true
-        transform:
-          - .isel:
-              time: -1
-      cluster_id:
-        path: Cluster_id
-        with_previous_result: true
-        transform:
-          - .isel:
-              time: -1
+      _cells: Cell_type
+      _cluster_id: Cluster_id
     base_path: data/NotchDelta/CM
+
+  transform:
+    - .isel:
+      args: [!dag_tag _cells]
+      kwargs:
+        time: -1
+      tag: cells
+    - .isel:
+      args: [!dag_tag _cluster_id]
+      kwargs:
+        time: -1
+      tag: cluster_id
 
   marker: '.'
   ls: None
@@ -136,6 +138,37 @@ percolation_diagram:
     # set_limits:
       # x: [0, 0.45]
       # y: [0, 0.4]
+    set_legend:
+      use_legend: true
+
+percolation_bifurcation:
+  based_on: .dag.generic.facet_grid
+  module: model_plots.NotchDelta
+  plot_func: percolation_bifurcation
+  creator: multiverse
+  file_ext: png
+  
+  col: param
+  sharey: false
+
+  select_and_combine:
+    fields:
+      _cells: Cell_type
+      _cluster_id: Cluster_id
+    base_path: data/NotchDelta/CM
+
+  transform:
+    - .isel:
+      args: [!dag_tag _cells]
+      kwargs:
+        time: -1
+      tag: cells
+    - .isel:
+      args: [!dag_tag _cluster_id]
+      kwargs:
+        time: -1
+          
+      tag: cluster_id
 
 bifurcation: &bifurcation
   based_on: .attractor.bifurcation_diagram_1d
@@ -155,6 +188,8 @@ bifurcation: &bifurcation
 
 bifurcation_density:
   <<: *bifurcation
+  
+  # WARN creates warnings
 
   select:
     fields:
@@ -175,10 +210,12 @@ bifurcation_density:
 
   helpers:
     set_labels:
-      y: density / ratio
+      y: density
 
 bifurcation_contacts:
   <<: *bifurcation
+
+  # WARN y limits not correctly set!
 
   select:
     fields:

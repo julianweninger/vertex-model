@@ -1,6 +1,45 @@
 ---
+percolation_diagram: !pspace
+  based_on: percolation_diagram
+  map_dim: beta
+  
+  transform:
+    - .isel:
+      args: [!dag_tag _cells]
+      kwargs:
+        time: -1
+    - .sel:
+      args: [!dag_prev ]
+      kwargs:
+        lambda: !sweep
+          default: 80
+          values: [40, 60]
+          name: lambda
+      tag: cells
+
+    - .isel:
+      args: [!dag_tag _cluster_id]
+      kwargs:
+        time: -1
+    - .sel:
+      args: [!dag_prev ]
+      kwargs:
+        lambda: !coupled-sweep          
+          target_name: lambda
+      tag: cluster_id
+
 heatmap_density:
   based_on: heatmap_density
 
 heatmap_contacts:
   based_on: heatmap_contacts
+
+percolation_bifurcation:
+  based_on: percolation_bifurcation
+  map_dim: beta
+  # x: lambda
+  # col: param
+  # sharey: false
+
+  p0: [0.4, 0.01]
+  min_perc_strength: 0.8

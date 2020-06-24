@@ -1,11 +1,14 @@
 ---
 percolation_diagram:
   based_on: percolation_diagram
-  map_coord: beta
+  map_dim: beta
 
 bifurcation_density:
   based_on: bifurcation_density  
   dim: beta
+
+  enabled: false
+  # WARN creating warnings
 
   analysis_kwargs:
     fixpoint:
@@ -16,6 +19,9 @@ bifurcation_density:
 bifurcation_contacts:
   based_on: bifurcation_contacts
   dim: beta
+
+  enabled: false
+  # WARN y limits not correctly set!
   
   analysis_kwargs:
     fixpoint:

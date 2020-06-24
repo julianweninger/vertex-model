@@ -54,7 +54,22 @@ The condition of atoh1 accumulating to a threshold value defines a delay time :m
 In the absence of suppression and T1 transitions one can calculate the steady state fraction of `hair`-cells:
 
 .. math::
-  \frac{h}{s} = \frac{r_h \exp{(-\tau_{delay}/\tau)}}{r_s + r_h(1-\exp{(-\tau_{delay}/\tau)})}
+  \frac{h}{s} = \frac{r_h \exp{(-\tau_{delay}/\tau)}}{r_s + r_h(1-\exp{(-\tau_{delay}/\tau)})} \\
+
+  \frac{h}{s}(\bar{\beta}, \bar{\lambda}) =
+    \frac{\bar{\beta} \exp{(-\bar{\lambda})}}
+         {1 + \bar{\beta}(1 - \exp{(-\bar{\lambda}}))}
+
+or
+
+.. math::
+  h (\bar{\beta}, \bar{\lambda}) =
+    \frac{\frac{\bar{\beta} \exp{(-\bar{\lambda})}}
+               {1 + \bar{\beta}(1 - \exp{(-\bar{\lambda}}))}}
+         {1 + \frac{\bar{\beta} \exp{(-\bar{\lambda})}}
+                   {1 + \bar{\beta}(1 - \exp{(-\bar{\lambda}}))}}
+
+  h (\bar{\beta}, \bar{\lambda}) = \frac{\bar{\beta}}{1 + \bar{\beta}} \exp{(-\bar{\lambda})}
 
 
 References
