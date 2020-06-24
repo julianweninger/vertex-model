@@ -54,11 +54,16 @@ def my_histogram(data, dims: List[str]=None, **kwargs) -> xr.DataArray:
 def replace_dim(data: xr.DataArray, coords: xr.DataArray,
                 dim: str, new_dim: str=None) -> xr.DataArray:
     """Assign new coordinates to this object.
+
     Returns a new object with all the original data in addition to the new
     coordinates.
-    If data has multiple dimensions, split-apply-combine is used; this may cause
-    the data to increase in length along this dimension, because filled with
-    NaNs.
+
+    If data has single dimension, performs
+    data.assign_coords({dim: coords}).rename({dim: new_dim}).
+
+    If data has multiple dimensions, split-apply-combine is used to do this on
+    every coordinate except dim; this may cause the data to increase in length
+    along this dimension, because filled with NaNs.
 
     args:
         data (xr.DataArray): The data where the replace the dimension
@@ -92,12 +97,16 @@ def replace_dim(data: xr.DataArray, coords: xr.DataArray,
 
     # Use split-apply-combine to reduce the data along `map_dim`
     split_dims = [d for d in data.dims if d != dim]
-    dataset = dataset.stack(_stack_rd=split_dims).groupby('_stack_rd')
+    if len(split_dims) > 0:
+        dataset = dataset.stack(_stack_rd=split_dims).groupby('_stack_rd')
 
-    data = dataset.map(_map_density,
-                       data_variable=data.name,
-                       coords_variable=new_dim,
-                       stack_dim='_stack_rd')
-    data = data.unstack('_stack_rd')
-
+        data = dataset.map(_map_density,
+                        data_variable=data.name,
+                        coords_variable=new_dim,
+                        stack_dim='_stack_rd')
+        data = data.unstack('_stack_rd')
+    else:
+        data = data.assign_coords({dim: coords})
+        data = data.rename({dim: new_dim})
+    
     return data

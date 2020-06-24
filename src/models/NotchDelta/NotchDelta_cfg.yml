@@ -67,7 +67,7 @@ Environment:
         atoh1:
           mode: add
           distribution: exponential
-          lambda: 80
+          lambda: 40
 
 data_manager:
   # this builds the deciders
