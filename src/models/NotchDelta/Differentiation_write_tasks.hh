@@ -1,11 +1,11 @@
-#ifndef UTOPIA_MODELS_NOTCHDELTA_WRITETASKS_HH
-#define UTOPIA_MODELS_NOTCHDELTA_WRITETASKS_HH
+#ifndef UTOPIA_MODELS_DIFFERENTIATION_WRITETASKS_HH
+#define UTOPIA_MODELS_DIFFERENTIATION_WRITETASKS_HH
 
 #include "utopia/data_io/hdfgroup.hh"
 
 using namespace Utopia::DataIO;
 
-namespace Utopia::Models::NotchDelta::DataIO{
+namespace Utopia::Models::Differentiation::DataIO{
 
 /// Datamanager adaptor for timepoints
 auto density_time = std::make_tuple(
@@ -184,7 +184,7 @@ auto cluster_id = std::make_tuple(
         hdfdataset->add_attribute("index_order", "F");}
 ); // end cluster_id_adaptor
 
-} // namespace Utopia::Models::NotchDelta::DataIO
+} // namespace Utopia::Models::Differentiation::DataIO
 
 
-#endif // UTOPIA_MODELS_NOTCHDELTA_WRITETASKS_HH
+#endif // UTOPIA_MODELS_DIFFERENTIATION_WRITETASKS_HH

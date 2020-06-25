@@ -20,7 +20,7 @@
 #include "../PCPTopology_write_tasks.hh"
 
 #include "../../NotchDelta/NotchDelta.hh"
-#include "../../NotchDelta/NotchDelta_write_tasks.hh"
+#include "../../NotchDelta/Differentiation_write_tasks.hh"
 
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex::OperationCollection;
@@ -162,7 +162,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             get_as<Config>("NotchDelta", 
                            get_as<Config>(name, cfg)),
             std::make_tuple(
-                Utopia::Models::NotchDelta::DataIO::density_time)));
+                Utopia::Models::Differentiation::DataIO::density_time)));
         auto notch_delta_prolog = std::make_shared<bool>(false);
 
         auto [operation, params] = build_differentiate_NotchDelta(

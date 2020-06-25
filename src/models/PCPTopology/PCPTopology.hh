@@ -18,7 +18,7 @@
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 
 #include "../NotchDelta/NotchDelta.hh"
-#include "../NotchDelta/NotchDelta_write_tasks.hh"
+#include "../NotchDelta/Differentiation_write_tasks.hh"
 
 #include "PCPTopology_write_tasks.hh"
 
@@ -278,11 +278,11 @@ private:
         _notch_delta = std::shared_ptr<NotchDelta::NotchDelta>(
             new NotchDelta::NotchDelta("NotchDelta", *this, cfg, 
                 std::make_tuple(
-                    NotchDelta::DataIO::density_time,
-                    NotchDelta::DataIO::density_progenitor,
-                    NotchDelta::DataIO::density_hair,
-                    NotchDelta::DataIO::density_support,
-                    NotchDelta::DataIO::density_rosettes
+                    Differentiation::DataIO::density_time,
+                    Differentiation::DataIO::density_progenitor,
+                    Differentiation::DataIO::density_hair,
+                    Differentiation::DataIO::density_support,
+                    Differentiation::DataIO::density_rosettes
                 )
             )
         );
