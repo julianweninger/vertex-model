@@ -201,43 +201,18 @@ private:
 
         return state;
     };
-    
-    /// The preparation stage for T1_transitions
-    /** Tagges a hair cell, if has at least one hair cell neighbor
-     */
-    const RuleFunc T1_transition_tag = [this](const auto& cell)
-    {
-        auto state = cell->state;
-        state.has_hair_neighbor = false;
-
-        if (state.cell_type != CellType::hair) {
-            return state;
-        }
-
-        for (auto&& n : cell->custom_links().neighbors) {
-            if (n->state.cell_type == CellType::hair) {
-                state.has_hair_neighbor = true;
-                break;
-            }
-        }
-
-        return state;
-    };
 
     /// The T1 transition rule
-    /** Tag cells using NotchDelta::T1_transition_tag.
+    /** Tag cells using NotchDelta::tag_rosettes.
      *  If tagges, it swaps state with a random non-hair cell typed neighbor
      * 
      *  \note This is an asynchronous rule! It cannot be applied synchronously.
      *  \note This rule is deterministic
      */
-    const RuleFunc T1_transition = [this](
-            auto& cell){
-        auto state = cell->state;
+    const RuleFunc T1_transition = [this](const auto& cell){
+        auto state = tag_rosettes(cell);
 
-        state = T1_transition_tag(cell);
-
-        if (not state.has_hair_neighbor)
+        if (state.cell_type != CellType::hair or state.is_rosette)
         {
             return state;
         }

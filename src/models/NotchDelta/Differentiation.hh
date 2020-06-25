@@ -28,8 +28,10 @@ struct CellState {
         num_states
     } cell_type;
 
-    /// Whether has neighbor of type hair
-    bool has_hair_neighbor;
+    /// Whether forms a rosette
+    /** A rosette is a hair cell with no hair cell neighbors
+     */
+    bool is_rosette;
 
     /// An ID denoting to which cluster this cell belongs
     std::size_t cluster_id;
@@ -38,7 +40,7 @@ struct CellState {
     CellState()
     :
         cell_type(progenitor),
-        has_hair_neighbor(false),
+        is_rosette(false),
         cluster_id(0)
     { }
 };
@@ -204,27 +206,31 @@ private:
         return cell->state;
     };
 
-    /// The preparation stage for T1_transitions
-    /** Tagges a hair cell, if has at least one hair cell neighbor
+protected:
+    // .. Helper functions ....................................................
+    /// Tag those cells that form a rosette
+    /** I.e. hair cells that have no hair cell neighbors
      */
-    const RuleFunc T1_transition_tag = [this](const auto& cell)
+    const RuleFunc tag_rosettes = [this](const auto& cell)
     {
         auto state = cell->state;
-        state.has_hair_neighbor = false;
 
         if (state.cell_type != CellType::hair) {
+            state.is_rosette = false;
             return state;
         }
 
+        state.is_rosette = true;
         for (auto&& n : cell->custom_links().neighbors) {
             if (n->state.cell_type == CellType::hair) {
-                state.has_hair_neighbor = true;
+                state.is_rosette = false;
                 break;
             }
         }
 
         return state;
     };
+
 
 public:
     // .. Helper functions ....................................................
@@ -290,15 +296,15 @@ public:
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
     }
 
-    /// Get the number of hair cells that have no contact to another hair cell
+    /// Get the number of rosettes
+    /** I.e. hair cells that have no contact to another hair cell
+     */
     unsigned int get_num_rosettes() const {
-        apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
+        apply_rule<Update::sync>(tag_rosettes, _cm.cells());
 
         unsigned int cnt = 0;
         for (auto c : _cm.cells()) {
-            if (c->state.cell_type == CellType::hair) {
-                cnt += (not c->state.has_hair_neighbor);
-            }
+            cnt += c->state.is_rosette;
         }
 
         return cnt;
