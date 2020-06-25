@@ -17,7 +17,7 @@
 ---
 # --- Space parameters
 # The physical space this model is embedded in
-space: &SPACE
+space:
   periodic: true
 
 # --- CellManager and cell initialization
@@ -58,16 +58,7 @@ atoh1_threshold: 1.
 
 rate_swap: 0.1
 
-Environment:
-  space:
-   <<: *SPACE
-
-  env_state_funcs:
-    - noise:
-        atoh1:
-          mode: add
-          distribution: exponential
-          lambda: 40
+lambda: 40
 
 data_manager:
   # this builds the deciders

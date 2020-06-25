@@ -132,15 +132,7 @@ NotchDelta:
   rate_swap: 1.
 
   # for the accumulation of atoh1
-  Environment:
-    space: *NOTCHSPACE
-
-    env_state_funcs:
-      - noise:
-          atoh1:
-            mode: add
-            distribution: exponential
-            lambda: 100
+  lambda: 40
 
   data_manager:
     # this builds the deciders

@@ -12,9 +12,6 @@
 #include <utopia/core/apply.hh>
 #include <utopia/core/select.hh>
 
-#include <utopia/models/Environment/Environment.hh>
-
-
 namespace Utopia::Models::NotchDelta {
 
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -37,76 +34,30 @@ struct CellState {
     /// An ID denoting to which cluster this cell belongs
     std::size_t cluster_id;
 
+    /// the level of atoh1
+    double atoh1;
+
     /// Construct the cell state from a configuration
     CellState()
     :
         cell_type(progenitor),
         has_hair_neighbor(false),
-        cluster_id(0)
-    {}
-};
-
-/// State of the Environment model
-struct EnvCellState : Environment::BaseEnvCellState {
-    /// the level of atoh1
-    double atoh1;
-
-    /// Constructor a uniform background
-    EnvCellState()
-    :
+        cluster_id(0),
         atoh1(0.)
     { }
-
-    /// Constructor a uniform background
-    EnvCellState(const DataIO::Config& cfg)
-    :
-        atoh1(get_as<double>("atoh1", cfg, 0.))
-    { }
-
-    ~EnvCellState() = default;
-
-    /// Getter
-    double get_env(const std::string& key) const {
-        if (key == "atoh1") {
-            return atoh1;
-        }
-        else {
-            throw std::invalid_argument("No parameter '"+ key +
-                                        "' available in EnvCellState!");
-        }
-    }
-
-    /// Setter
-    void set_env(const std::string& key, const double& value) {        
-        if (key == "atoh1") {
-            atoh1 = value;
-        }
-        else {
-            throw std::invalid_argument("No parameter '"+ key +
-                                        "' available in EnvCellState!");
-        }
-    }
 };
 
-using EnvModel = Environment::Environment<Environment::DummyEnvParam,
-                                          EnvCellState>;
-using EnvCell = EnvModel::CellManager::Cell;
 
-/// The type of the link container of cells in the Environment model
+
+/// The type of the link container
 template<class CellContainer>
-struct EnvLinks {
-    /// Link to the associated cell in Environment model
-    std::shared_ptr<EnvCell> env;
-
+struct CustomLinks {
     /// The custom neighborhood
     CellContainer neighbors;
 };
-
-
 /// Specialize the CellTraits type helper for this model
 using CellTraits = Utopia::CellTraits<CellState, Update::manual, true,
-                                      EmptyTag, EnvLinks>;
-
+                                      EmptyTag, CustomLinks>;
 
 /// Type helper to define types used by the model
 using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
@@ -170,9 +121,6 @@ private:
      */
     CellManager _cm;
 
-    /// The Environment model
-    EnvModel _envm;
-
     /// The rate of progenitor to hair cell transition
     /** The first entry is for atoh1 levels above threshold, the latter entries
      *  are inverse-linearly mapped to atoh1 levels below threshold
@@ -182,9 +130,8 @@ private:
     /// The rate of progenitor to support cell transition
     double _rate_ps;
 
-    /// The rate of atoh1 accumulation
-    /** This is the mean rate.
-     *  Values are uniformly distributed between [0, 2*rate] within each cell
+    /// The rate of atoh1 suppression
+    /** The entries are for 0 ... N neighbors of type hair
      */
     std::vector<double> _rate_atoh1;
     
@@ -204,6 +151,9 @@ private:
 
     /// A re-usable uniform real distribution to evaluate probabilities
     std::uniform_real_distribution<double> _prob_distr;
+
+    /// The exponential distribution used for atoh1 production
+    std::exponential_distribution<double> _exp_distr;
 
     // .. Temporary objects ...................................................
     /// The incremental cluster tag
@@ -231,7 +181,6 @@ public:
 
         // Now initialize the cell manager
         _cm(*this),
-        _envm("Environment", *this, _cm),
 
         // Initialize model parameters
         _rate_ph(setup_as_vector(
@@ -244,6 +193,7 @@ public:
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
         _prob_distr(0., 1.),
+        _exp_distr(get_as<double>("lambda", this->_cfg)),
         _cluster_id_cnt(),
         _cluster_id_time(1e9),
         _cluster_members()
@@ -332,6 +282,15 @@ private:
     };
 
     // .. Rule functions ......................................................
+    /// Accumulate atoh1 in all cells
+    /** Use an exponential distribution with mean 1 / lambda
+     */
+    const RuleFunc accumulate_atoh1 = [this](const auto& cell) {
+        auto state = cell->state;
+        state.atoh1 += _exp_distr(*this->_rng);
+        return state;
+    };
+   
     /// The differentiation rule for progenitor cells
     /** A progenitor cell differentiates
      *      - to hair cell with probability depending on atoh1 level
@@ -339,10 +298,9 @@ private:
      */
     const RuleFunc transition = [this](const auto& cell){
         auto state = cell->state;
-        auto atoh1 = cell->custom_links().env->state.atoh1;
 
         if (state.cell_type == CellType::progenitor) {
-            int mapping = ceil((1 - atoh1/_atoh1_threshold) * 
+            int mapping = ceil((1 - state.atoh1/_atoh1_threshold) * 
                                (_rate_ph.size() - 1));
             if (_prob_distr(*this->_rng) < _rate_ph[std::max(mapping, 0)]) {
                 state.cell_type = CellType::hair;
@@ -360,22 +318,18 @@ private:
             const auto& cell)
     {
         auto state = cell->state;
-        auto env_state = cell->custom_links().env->state;
 
         if (state.cell_type == CellType::inactive) { return state; }
 
         // number of neighboring hair cells
-        std::size_t nbs_hair = std::count_if(
-            cell->custom_links().neighbors.begin(),
-            cell->custom_links().neighbors.end(),
+        const auto& neighbors = cell->custom_links().neighbors;
+        std::size_t nbs_hair = std::count_if(neighbors.begin(), neighbors.end(),
             [](const auto& nb) {
                 return nb->state.cell_type == CellType::hair; });
 
         // the rate of atoh1 change
         auto mapping = std::min(nbs_hair, _rate_atoh1.size() - 1);
-        env_state.atoh1 /= _rate_atoh1[mapping];
-
-        cell->custom_links().env->state = env_state;
+        state.atoh1 /= _rate_atoh1[mapping];
 
         return state;
     };
@@ -433,11 +387,8 @@ private:
             std::shuffle(neighbors.begin(), neighbors.end(), *this->_rng);
             auto n = neighbors.back(); 
 
-            // swap the state and the env->state (atoh1, etc.)
+            // swap the state with neighbor
             std::swap(state, n->state);
-            std::swap(cell->custom_links().env->state,
-                      n->custom_links().env->state);
-            // NOTE keep the geometric properties like neighbors
         }
         
         return state;
@@ -481,13 +432,13 @@ public:
 
     /// Iterate a single step
     /** \details Performs the following rules
+     *      -# NotchDelta::accumulate_atoh1
      *      -# NotchDelta::suppress_atoh1
      *      -# NotchDelta::transition
      *      -# NotchDelta::T1_transition
      */
     void perform_step () {
-        _envm.iterate();
-
+        apply_rule<Update::sync>(accumulate_atoh1, _cm.cells());
         apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
         apply_rule<Update::sync>(transition, _cm.cells());
 
@@ -511,13 +462,11 @@ public:
 
     /// The custom prolog
     void prolog () {
-        _envm.prolog();
         return this->__prolog();
     }
 
     //// The custom epilog
     void epilog () {
-        _envm.epilog();
         return this->__epilog();
     }
 

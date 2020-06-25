@@ -44,11 +44,7 @@ PCPVertex:
 
   
 NotchDelta:
-  Environment:
-    env_state_funcs:
-    - noise:
-        atoh1: {distribution: exponential, lambda: 100, mode: add}
-    space: {periodic: true}
+  lambda: 40
   atoh1_suppression: {rate_0: 1.0, rate_1: 1.0}
   atoh1_threshold: 1.0
   cell_manager:

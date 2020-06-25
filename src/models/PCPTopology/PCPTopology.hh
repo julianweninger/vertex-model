@@ -22,8 +22,6 @@
 
 #include "PCPTopology_write_tasks.hh"
 
-#include <utopia/models/Environment/Environment.hh>
-
 #include "operations.hh"
 
 namespace Utopia {

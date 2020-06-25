@@ -137,7 +137,7 @@ auto cell_atoh1 = std::make_tuple(
         auto cells = model.get_cm().cells();
         dataset->write(cells.begin(), cells.end(),
             [](const auto& cell) {
-                return cell->custom_links().env->state.atoh1; }); },
+                return cell->state.atoh1; }); },
     [](auto& group, auto& model) -> decltype(auto) {
         return group->open_dataset("Atoh1",
                     {H5S_UNLIMITED, model.get_cm().cells().size()}); },

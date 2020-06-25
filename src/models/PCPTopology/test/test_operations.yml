@@ -89,11 +89,7 @@ differentiate_NotchDelta:
   
   NotchDelta:
     log_level: info
-    Environment:
-      env_state_funcs:
-      - noise:
-          atoh1: {distribution: exponential, lambda: 100, mode: add}
-      space: &id002 {periodic: false}
+    lambda: 40
     atoh1_suppression: {rate_0: 10.0, rate_1: 1.0}
     atoh1_threshold: 1.0
     cell_manager:
@@ -110,7 +106,7 @@ differentiate_NotchDelta:
     rate_ph: {rate_0: 0.008, rate_1: 0.0}
     rate_ps: 0.01
     rate_swap: 1.0
-    space: *id002
+    space: {periodic: false}
 
 differentiate_NotchDelta_second_task:
   times: []
