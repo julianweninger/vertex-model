@@ -13,9 +13,10 @@ int main (int, char** argv) {
         Utopia::PseudoParent pp(argv[1]);
 
         // Initialize the main model instance and directly run it
-        NotchDelta("NotchDelta", pp, {}, std::make_tuple(density_time, 
-            density_progenitor, density_hair, density_support,
-            density_rosettes, CM_time, cell_type, cell_atoh1, cluster_id)
+        NotchDelta("NotchDelta", pp, {},
+            std::make_tuple(density_time,  density_progenitor, density_hair,
+                density_support, density_rosettes,
+                CM_time, cell_type, cell_atoh1, cluster_id)
         ).run();
 
         // Done.

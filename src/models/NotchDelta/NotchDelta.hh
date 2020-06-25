@@ -12,114 +12,44 @@
 #include <utopia/core/apply.hh>
 #include <utopia/core/select.hh>
 
-namespace Utopia::Models::NotchDelta {
+#include "Differentiation.hh"
+
+namespace Utopia::Models {
+namespace NotchDelta {
 
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
 /// The type of a cell's state
-struct CellState {
-    /// The type of a cell
-    enum StateType {
-        progenitor,
-        hair,
-        support,
-        inactive,
-        num_states
-    } cell_type;
-
-    /// Whether has neighbor of type hair
-    bool has_hair_neighbor;
-
-    /// An ID denoting to which cluster this cell belongs
-    std::size_t cluster_id;
-
+struct CellState : Differentiation::CellState {
     /// the level of atoh1
     double atoh1;
 
     /// Construct the cell state from a configuration
     CellState()
     :
-        cell_type(progenitor),
-        has_hair_neighbor(false),
-        cluster_id(0),
+        Differentiation::CellState(),
         atoh1(0.)
     { }
 };
 
-
-
-/// The type of the link container
-template<class CellContainer>
-struct CustomLinks {
-    /// The custom neighborhood
-    CellContainer neighbors;
-};
 /// Specialize the CellTraits type helper for this model
-using CellTraits = Utopia::CellTraits<CellState, Update::manual, true,
-                                      EmptyTag, CustomLinks>;
-
-/// Type helper to define types used by the model
-using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
+using CellTraits = Differentiation::CellTraits<CellState>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-/// The NotchDelta Model; a good start for a CA-based model
-/** TODO Add your model description here.
- *  This model's only right to exist is to be a template for new models.
- *  That means its functionality is based on nonsense but it shows how
- *  actually useful functionality could be implemented.
- */
+/// The NotchDelta Model
 class NotchDelta:
-    public Model<NotchDelta, ModelTypes>
+    public Differentiation::Differentiation<CellTraits>
 {
-public:
-    /// The type of the Model base class of this derived class
-    using Base = Model<NotchDelta, ModelTypes>;
-
-    /// Data type of the group to write model data to, holding datasets
-    using DataGroup = typename Base::DataGroup;
-
-    /// Data type for a dataset
-    using DataSet = typename Base::DataSet;
-
-    /// Type of the CellManager to use
-    using CellManager = Utopia::CellManager<CellTraits, NotchDelta>;
-
-    /// Type of a cell
-    using Cell = CellManager::Cell;
-
-    /// The state type of a cell
-    using CellType = CellState::StateType;
-
-    /// Extract the type of the rule function from the CellManager
-    /** This is a function that receives a reference to a cell and returns the 
-      * new cell state. For more details, check out \ref Utopia::CellManager
-      *
-      * \note   Whether the cell state gets applied directly or
-      *         requires a synchronous update depends on the update mode
-      *         specified in the cell traits.
-      */
-    using RuleFunc = typename CellManager::RuleFunc;
-
-    /// The type of a function returning the neighborhood of a cell
-    using NBFuncCell = std::function<CellContainer<Cell>(
-                                const std::shared_ptr<Cell>&)>;
-
-
+// using typenames from Differentiation
 
 private:
-    // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _log, _space
-    // ... but you should definitely check out the documentation ;)
-
     // -- Members -------------------------------------------------------------
-    /// The cell manager
-    /** \note the neighborhood defined in the cell manager is copied to the 
-     *        custom neighborhood in `custom_links` and should not be accessed
-     *        in the cell manager!
-     */
-    CellManager _cm;
+    // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _log, _space
+    // _cm, _prob_distr
+    // ... but you should definitely check out the documentation ;)
 
     /// The rate of progenitor to hair cell transition
     /** The first entry is for atoh1 levels above threshold, the latter entries
@@ -149,21 +79,8 @@ private:
      */
     double _rate_swap;
 
-    /// A re-usable uniform real distribution to evaluate probabilities
-    std::uniform_real_distribution<double> _prob_distr;
-
     /// The exponential distribution used for atoh1 production
     std::exponential_distribution<double> _exp_distr;
-
-    // .. Temporary objects ...................................................
-    /// The incremental cluster tag
-    unsigned int _cluster_id_cnt;
-
-    /// The time cluster tags were updated last
-    Time _cluster_id_time;
-
-    /// A temporary container for use in cluster identification
-    CellContainer<Cell> _cluster_members;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -177,10 +94,8 @@ public:
                 std::tuple<WriterArgs...> &&writer_args = {})
     :
         // Initialize first via base model
-        Base(name, parent_model, custom_cfg, writer_args),
-
-        // Now initialize the cell manager
-        _cm(*this),
+        Differentiation::Differentiation<CellTraits>(name, parent_model,
+                                                     custom_cfg, writer_args),
 
         // Initialize model parameters
         _rate_ph(setup_as_vector(
@@ -192,19 +107,8 @@ public:
         _atoh1_threshold(get_as<double>("atoh1_threshold", this->_cfg)),
         _rate_swap(get_as<double>("rate_swap", this->_cfg)),
         
-        _prob_distr(0., 1.),
-        _exp_distr(get_as<double>("lambda", this->_cfg)),
-        _cluster_id_cnt(),
-        _cluster_id_time(1e9),
-        _cluster_members()
+        _exp_distr(get_as<double>("lambda", this->_cfg))
     {
-        // copy the cm neighborhood to custom links
-        if (get_as<std::string>("mode", _cm.cfg()["neighborhood"]) != "empty") {
-            for (auto c : _cm.cells()) {
-                c->custom_links().neighbors = _cm.neighbors_of(c);
-            }
-        }
-
         if (_atoh1_threshold <= 0.) {
             throw std::invalid_argument(fmt::format("Value of "
                 "'atho1_threshold' must be larger than 0, but was {}.",
@@ -243,43 +147,6 @@ private:
     
     // .. Helper functions ....................................................
 
-    /// Identify each cluster of hair cells
-    RuleFunc _identify_cluster = [this](const auto& cell){
-        if (cell->state.cluster_id != 0 or
-            cell->state.cell_type != CellType::hair)
-        {
-            // already labelled, nothing to do. Return current state
-            return cell->state;
-        }
-        // else: need to label this cell
-
-        // Increment the cluster ID counter and label the given cell
-        _cluster_id_cnt++;
-        cell->state.cluster_id = _cluster_id_cnt;
-
-        // Use existing cluster member container, clear it, add current cell
-        auto& cluster = _cluster_members;
-        cluster.clear();
-        cluster.push_back(cell);
-
-        // Perform the percolation
-        for (unsigned int i = 0; i < cluster.size(); ++i) {
-            // Iterate over all potential cluster members c, i.e. all
-            // neighbors of cell cluster[i] that is already in the cluster
-            for (const auto& nb : cluster[i]->custom_links().neighbors) {
-                // If it is a hair cell that is not yet in the cluster, add it.
-                if (    nb->state.cluster_id == 0
-                    and nb->state.cell_type == CellType::hair)
-                {
-                    nb->state.cluster_id = _cluster_id_cnt;
-                    cluster.push_back(nb);
-                    // This extends the outer for-loop...
-                }
-            }
-        }
-
-        return cell->state;
-    };
 
     // .. Rule functions ......................................................
     /// Accumulate atoh1 in all cells
@@ -302,10 +169,11 @@ private:
         if (state.cell_type == CellType::progenitor) {
             int mapping = ceil((1 - state.atoh1/_atoh1_threshold) * 
                                (_rate_ph.size() - 1));
-            if (_prob_distr(*this->_rng) < _rate_ph[std::max(mapping, 0)]) {
+            double rate_ph = _rate_ph[std::max(mapping, 0)];
+            if (this->_prob_distr(*this->_rng) < rate_ph) {
                 state.cell_type = CellType::hair;
             }
-            else if (_prob_distr(*this->_rng) < _rate_ps) {
+            else if (this->_prob_distr(*this->_rng) < _rate_ps) {
                 state.cell_type = CellType::support;
             }
         }
@@ -396,35 +264,6 @@ private:
 
 public:
     // .. Helper functions ....................................................
-    /// Identify clusters
-    /** This function identifies clusters and updates the cell
-     *  specific cluster_id as well as the member variable 
-     *  cluster_id_cnt that counts the number of ids
-     * 
-     *  \note This function tracks the last time it was applied and is hence not
-     *        applied twice at the same timepoint
-     */
-    void identify_clusters(){
-        if (_cluster_id_time == this->_time) {
-            // already applied in this step
-            return;
-        }
-
-        this->_log->debug("Identifying cluster ids");
-
-        // reset cluster counter
-        _cluster_id_cnt = 0;
-        apply_rule<Update::sync>(
-            [](const auto& cell) {
-                cell->state.cluster_id = 0;
-                return cell->state; },
-            _cm.cells() );
-        
-        apply_rule<Update::async, Shuffle::off>(_identify_cluster, 
-                                                _cm.cells());
-
-        _cluster_id_time = this->_time;
-    }
 
     // -- Public Interface ----------------------------------------------------
     
@@ -448,61 +287,12 @@ public:
             *this->_rng);
     }
 
-    /// Monitor model information
-    void monitor () {
-        auto densities = this->get_densities();
-
-        this->_monitor.set_entry("density_progenitor",
-                                 densities[CellType::progenitor]);
-        this->_monitor.set_entry("density_hair",
-                                 densities[CellType::hair]);
-        this->_monitor.set_entry("density_support",
-                                 densities[CellType::support]);
-    }
-
-    /// The custom prolog
-    void prolog () {
-        return this->__prolog();
-    }
-
-    //// The custom epilog
-    void epilog () {
-        return this->__epilog();
-    }
-
 
     // .. Getters and setters .................................................
-    // Add getters and setters here to interface with other models
-    /// Getter for density of different cell types
-    std::vector<double> get_densities () const {
-        std::vector<int> count(CellType::num_states, 0.);
-        for (auto c : _cm.cells()) {
-            count[int(c->state.cell_type)]++;
-        }
-        double num_cells = _cm.cells().size() - count[int(CellType::inactive)];
-        return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
-    }
-
-    /// Get the number of hair cells that have no contact to another hair cell
-    unsigned int get_num_rosettes() const {
-        apply_rule<Update::sync>(T1_transition_tag, _cm.cells());
-
-        unsigned int cnt = 0;
-        for (auto c : _cm.cells()) {
-            if (c->state.cell_type == CellType::hair) {
-                cnt += (not c->state.has_hair_neighbor);
-            }
-        }
-
-        return cnt;
-    }
-
-    /// Getter for the cell manager
-    const auto& get_cm () const {
-        return this->_cm;
-    }
+    // use interface of Base!
 };
 
-} // namespace Utopia::Models::NotchDelta
+} // namespace NotchDelta
+} // namespace Utopia::Models
 
-#endif // UTOPIA_MODELS_COPYMEGRID_HH
+#endif // UTOPIA_MODELS_NOTCHDELTA_HH
