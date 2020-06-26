@@ -1,0 +1,290 @@
+# The base plots of this model
+#
+# The configurations given here can be used in the <model_name>_plots.yml file
+---
+densities:
+  based_on: .basic_uni.lineplots
+  model_name: Collier
+  file_ext: png
+
+  to_plot:
+    Densities/Progenitor:
+      label: Progenitor
+      color: gray
+    Densities/Support:
+      label: Support
+      color: black
+    Densities/Hair:
+      label: Hair
+      color: red
+    Densities/Rosettes:
+      label: Rosettes
+      color: violet
+      
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    # set_limits:
+    #   y: [0,1.]
+
+rosettes:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  file_ext: png
+
+  select_and_combine:
+    fields:
+      data: Densities/Rosettes
+    base_path: data/Collier
+
+rosettes_bifurcation:
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  file_ext: png
+
+  x: hair density
+
+  marker: o
+  linewidth: 0
+
+  select_and_combine:
+    fields:
+      _rosette_density: Rosettes
+      _hair_density: Hair
+    base_path: data/Collier/Densities
+
+  transform:
+    - .coords:
+      args: [!dag_tag _rosette_density, time]
+    - create_mask:
+      args: [!dag_prev , '>=', 700]
+      tag: time_mask_rosette
+    - .where:
+      args: [!dag_tag _rosette_density, !dag_tag time_mask_rosette]
+    - .mean:
+      args: [!dag_prev , time]
+      tag: rosette_density
+      # the density of rosettes
+    
+    - .coords:
+      args: [!dag_tag _hair_density, time]
+    - create_mask:
+      args: [!dag_prev , '>=', 700]
+      tag: time_mask_hair
+    - .where:
+      args: [!dag_tag _hair_density, !dag_tag time_mask_hair]
+    - .mean:
+      args: [!dag_prev , time]
+      tag: hair_density
+      # the density of hairs
+
+    - div:
+      args: [!dag_tag rosette_density, !dag_tag hair_density]
+    - xr.DataArray:
+      args: [!dag_prev ]
+      kwargs:
+        name: rosette fraction
+      tag: rosette_fraction
+
+    - import_and_call:
+      args: [model_plots.Collier, replace_dim, !dag_tag rosette_fraction,
+             !dag_tag hair_density]
+      kwargs:
+        dim: beta
+        new_dim: hair density
+      tag: data
+      # exchange dimension beta with data from hair_density
+
+state_anim:
+  based_on: .ca.state  
+  file_ext: png
+
+  model_name: Collier
+
+  to_plot:
+    CM/Cell_type:
+      title: Cell Type
+      limits: [0, 2]
+      cmap:
+        Progenitor: White
+        Hair: Red
+        Support: Gray
+
+  # Specify the time index (will be ignored, but needs to be specified)
+  time_idx: 0
+
+  # Enable animation (disabled by default)
+  animation:
+    enabled: true
+
+heatmap_density: &heatmap_density
+  based_on: .dag.generic.facet_grid
+  creator: multiverse
+  # module: model_plots.Collier
+  # plot_func: heatmap
+  file_ext: png
+  
+  select_and_combine:
+    fields: 
+      data:
+        path: data/Collier/Densities/Hair
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
+
+  cmap: cividis
+
+  label: hair density
+
+
+heatmap_contacts: 
+  <<: *heatmap_density
+
+  select_and_combine:
+    fields: 
+      data:
+        path: data/Collier/Densities/Rosettes
+        with_previous_result: true
+        transform:
+          - .isel:
+              time: -1
+
+  label: num contacts
+
+
+# Plot the size of the biggest cluster vs density
+# Multiverse plot with beta remapped to density
+percolation_diagram:
+  based_on: .dag.generic.facet_grid
+  module: model_plots.Collier
+  plot_func: percolation_diagram
+  creator: multiverse
+  file_ext: png
+
+  select_and_combine:
+    fields:
+      _cells: Cell_type
+      _cluster_id: Cluster_id
+    base_path: data/Collier/CM
+
+  transform:
+    - .isel:
+      args: [!dag_tag _cells]
+      kwargs:
+        time: -1
+      tag: cells
+    - .isel:
+      args: [!dag_tag _cluster_id]
+      kwargs:
+        time: -1
+      tag: cluster_id
+
+  marker: '.'
+  ls: None
+
+  helpers:
+    set_labels:
+      y: max cluster density
+    # set_limits:
+      # x: [0, 0.45]
+      # y: [0, 0.4]
+    set_legend:
+      use_legend: true
+
+percolation_bifurcation:
+  based_on: .dag.generic.facet_grid
+  module: model_plots.Collier
+  plot_func: percolation_bifurcation
+  creator: multiverse
+  file_ext: png
+  
+  col: param
+  sharey: false
+
+  select_and_combine:
+    fields:
+      _cells: Cell_type
+      _cluster_id: Cluster_id
+    base_path: data/Collier/CM
+
+  transform:
+    - .isel:
+      args: [!dag_tag _cells]
+      kwargs:
+        time: -1
+      tag: cells
+    - .isel:
+      args: [!dag_tag _cluster_id]
+      kwargs:
+        time: -1
+          
+      tag: cluster_id
+
+bifurcation: &bifurcation
+  based_on: .attractor.bifurcation_diagram_1d
+  file_ext: png
+
+  analysis_steps: [fixpoint]
+  analysis_kwargs:
+    fixpoint:
+      abs_std: 0.1
+      isclose_kwargs: {atol: 0.}
+      spin_up_time: 800
+
+  rectangle_map_kwargs:
+    extend: true
+    default_distance: 1.
+    default_pos: [0., 0.5]
+
+bifurcation_density:
+  <<: *bifurcation
+  
+  # WARN creates warnings
+
+  select:
+    fields:
+      Hair: data/Collier/Densities/Hair
+      Support: data/Collier/Densities/Support
+
+  to_plot:
+    Hair:
+      label: hair cells
+      plot_kwargs:
+        color: red
+        s: 14
+    Support:
+      label: support cells
+      plot_kwargs:
+        color: black
+        s: 7
+
+  helpers:
+    set_labels:
+      y: density
+
+bifurcation_contacts:
+  <<: *bifurcation
+
+  # WARN y limits not correctly set!
+
+  select:
+    fields:
+      Contacts: data/Collier/Densities/Rosettes
+
+  dim: lambda
+
+  to_plot:
+    Contacts:
+      label: Hair-Hair contacts
+      plot_kwargs:
+        color: red
+        s: 14
+  
+  helpers:
+    set_labels:
+      y: Counts
+    set_limits:
+      y: [0, 1000.]
+

@@ -40,6 +40,9 @@ using CellTraits = Differentiation::CellTraits<CellState>;
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 /// The NotchDelta Model
+/** A Differentiation model using T1 transitions and atoh1 lateral inhibition
+ *  to model spatial patterning. 
+ */
 class NotchDelta:
     public Differentiation::Differentiation<CellTraits>
 {
@@ -265,6 +268,20 @@ public:
 
     // .. Getters and setters .................................................
     // use interface of Base!
+
+    /// Getter for density of atoh1
+    std::vector<double> get_protein_densities () const {
+        const auto& cells = _cm.cells();
+        double atoh1 = 0.;
+        for (const auto& cell : cells) {
+            atoh1 += cell->state.atoh1;
+        }
+        std::size_t num_cells = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.cell_type != CellType::inactive; });
+        atoh1 /= static_cast<double>(num_cells);
+        return {atoh1};
+    }
 };
 
 } // namespace NotchDelta

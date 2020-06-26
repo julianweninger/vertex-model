@@ -1,0 +1,92 @@
+# The default plots of this model
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+# Mean value plots ............................................................
+densities:
+  based_on: densities
+
+protein_densities:
+  based_on: .basic_uni.lineplots
+  model_name: Collier
+  file_ext: png
+
+  to_plot:
+    Densities/Notch:
+      label: Notch
+      color: black
+    Densities/Delta:
+      label: Delta
+      color: blue
+    Densities/NICD:
+      label: NICD
+      color: red
+      
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    # set_limits:
+    #   y: [0,1.]
+
+
+rosettes:
+  based_on: rosettes
+
+
+# Spatial CA animations .......................................................
+state_anim:
+  based_on: state_anim
+
+  to_plot:
+    CM/Cell_type:
+      title: Cell Type
+      limits: [0, 2]
+      cmap:
+        Progenitor: White
+        Hair: Red
+        Support: Gray
+    CM/Notch:
+      title: Notch
+      cmap: gray
+    CM/Delta:
+      title: Delta
+      cmap: Blues
+    CM/NICD:
+      title: NICD
+      cmap: Oranges
+
+
+
+# Multiverse plots ............................................................
+percolation_diagram:
+  based_on: percolation_diagram
+  map_dim: beta
+  
+  enabled: false
+
+# -- Bifurcation plots ...........
+bifurcation_lambda_ratio:
+  based_on: bifurcation_ratio
+  enabled: false
+  # NOTE 1d bifurcation
+  
+  dim: lambda
+
+bifurcation_lambda_contacts:
+  based_on: bifurcation_contacts
+  enabled: false
+  # NOTE 1d bifurcation
+
+  dim: lambda
+
+heatmap_density:
+  based_on: heatmap_density
+  enabled: false
+  # NOTE 2d multiverse plot
+
+heatmap_contacts:
+  based_on: heatmap_contacts
+  enabled: false
+  # NOTE 2d multiverse plot

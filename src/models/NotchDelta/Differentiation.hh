@@ -64,11 +64,9 @@ using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-/// The Differentiation Model; a good start for a CA-based model
-/** TODO Add your model description here.
- *  This model's only right to exist is to be a template for new models.
- *  That means its functionality is based on nonsense but it shows how
- *  actually useful functionality could be implemented.
+/// The base of Differentiation models; a good start for a Differentiation model
+/** This model provides a base for models that want to describe the
+ *  differentiation of progenitor cells to hair and support cells.
  */
 template<typename CellTraits>
 class Differentiation:
@@ -294,6 +292,11 @@ public:
         }
         double num_cells = _cm.cells().size() - count[int(CellType::inactive)];
         return {count[0]/num_cells, count[1]/num_cells, count[2]/num_cells}; 
+    }
+
+    /// Getter for density of protein densities
+    virtual std::vector<double> get_protein_densities () const {
+        return {};
     }
 
     /// Get the number of rosettes
