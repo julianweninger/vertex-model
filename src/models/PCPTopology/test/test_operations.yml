@@ -118,7 +118,7 @@ differentiate_Collier:
     interaction_strength_cis: 10.
     cooperativity_delta: 1.
     cooperativity_nicd: 1.
-    notch_threshold: 0.025
+    notch_threshold_factor: 0.1
 
 differentiate_Collier_second_task:
   times: []

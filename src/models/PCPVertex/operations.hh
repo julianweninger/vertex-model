@@ -9,7 +9,7 @@ namespace PCPVertex {
 
 /// Apply a perturbation to the position of vertices
 /** \details Move every vertex randomly on a given lengthscale.
- *           The length scale is \f$ l = I * \sqrt{A_{domain} / #cells} \f$,
+ *           The length scale is \f$ l = I * \sqrt{A_{domain} / num_cells} \f$,
  *           with the intensity I.
  *           The displacement is pulled from a uniform distribution form [-l, l]
  *           for all coordinates.

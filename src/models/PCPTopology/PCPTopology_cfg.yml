@@ -123,8 +123,7 @@ Collier:
   cooperativity_delta: 1.
   cooperativity_nicd: 1.
 
-  notch_threshold: 0.025
-
+  notch_threshold_factor: 0.1
   # -- Data manager configuration
   data_manager:
     deciders: {write_always: {type: always}}

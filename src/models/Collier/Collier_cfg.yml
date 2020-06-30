@@ -43,15 +43,18 @@ interaction_strength_cis: 10.
 cooperativity_delta: 1.
 cooperativity_nicd: 1.
 
-notch_threshold: 0.025
+notch_threshold_factor: 0.1
 
 
 # --- Data manager configuration
 data_manager:
   # this builds the deciders
   deciders:
-    write_always:
-      type: always
+    write_density:
+      type: interval
+      args:
+        intervals:
+          - [0, 10000000, 100]
     
     write_interval: &interval
       type: interval
@@ -76,7 +79,7 @@ data_manager:
     Density_progenitor: &density
       active: true
       trigger: build_once
-      decider: write_always
+      decider: write_density
     Density_hair: *density
     Density_support: *density
     Density_rosettes: *density

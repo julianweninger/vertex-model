@@ -135,12 +135,24 @@ private:
     /// The cooperativity of NICD activity
     double _cooperativity_nicd;
     
-    /// The threshold of notch concentration
+    /// A factor for calculating _notch_threshold
+    /** \f$ \theta = min + f * (max - min) \f$
+     *  with \f$ \theta \f$ the threshold and min, max the minimum and maximum
+     *  of notch levels accross cells.
+     */
+    double _notch_threshold_factor;
+
+    // .. Temporary objects ...................................................
+    /// The minimum notch level accross cells
+    double _minimum_notch;
+
+    /// The maximum notch level accross cells
+    double _maximum_notch;
+    
     /** If a cell's notch concentration falls below threshold it is considered
      *  a hair cell; otherwise it is considered a support cell
      */
     double _notch_threshold;
-
 
 
 public:
@@ -187,8 +199,8 @@ public:
         _cooperativity_nicd(
             get_as<double>("cooperativity_nicd", this->_cfg)),
          
-        _notch_threshold(
-            get_as<double>("notch_threshold", this->_cfg))
+        _notch_threshold_factor(
+            get_as<double>("notch_threshold_factor", this->_cfg))
         
     {
         if (_degradation_notch < 0) {
@@ -345,6 +357,18 @@ public:
      */
     void perform_step () {
         apply_rule<Update::sync>(update, _cm.cells());
+
+        _minimum_notch = 1.e8;
+        _maximum_notch = 0.;
+        for (const auto& cell : _cm.cells()) {
+            double notch = cell->state.notch;
+            _minimum_notch = std::min(_minimum_notch, notch);
+            _maximum_notch = std::max(_maximum_notch, notch);
+        }
+        _notch_threshold = _minimum_notch +
+                           _notch_threshold_factor * 
+                                (_maximum_notch - _minimum_notch);
+
         apply_rule<Update::sync>(determine_cell_type, _cm.cells());
     }
 

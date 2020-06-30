@@ -97,8 +97,7 @@ rosettes_bifurcation:
       # exchange dimension beta with data from hair_density
 
 state_anim:
-  based_on: .ca.state  
-  file_ext: png
+  based_on: .ca.state.anim_ffmpeg
 
   model_name: Collier
 
