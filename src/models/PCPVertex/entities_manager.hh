@@ -153,11 +153,11 @@ public:
         return _cell_manager.agents();
     }
 
-    SpaceVec position_of(const Vertex& vertex) const {
+    SpaceVec position_of (const Vertex& vertex) const {
         return _space->map_to_absolute_space(vertex.position());
     }
 
-    SpaceVec position_of(const std::shared_ptr<Vertex>& vertex) const {
+    SpaceVec position_of (const std::shared_ptr<Vertex>& vertex) const {
         return position_of(*vertex);
     }
 
@@ -234,54 +234,34 @@ public:
         return _space->distance(position_of(a), position_of(b));
     }
 
-    auto length_of (const Edge& edge) const {
-        return distance(edge.custom_links().a, edge.custom_links().b);
-    }
-
     auto length_of (const std::shared_ptr<Edge>& edge) const {
-        return length_of(*edge);
-    }
-
-    /// Calculate the perimeter of a cell
-    double perimeter_of (const Cell& cell) const {
-        return this->perimeter_of_virtual(cell, 0.);
+        return distance(edge->custom_links().a, edge->custom_links().b);
     }
 
     /// Calculate the perimeter of a cell
     double perimeter_of (const std::shared_ptr<Cell>& cell) const {
-        return perimeter_of(*cell);
-    }
-
-    /// Calculate the perimeter of a cell
-    double perimeter_of_virtual (const Cell& cell, double beta) const {
-        double perimeter = 0.;
-        for (auto [e, flip] : cell.custom_links().edges) {
-            SpaceVec a, b;
-            if (beta == 0) {
-                a = position_of(e->custom_links().a);
-                b = position_of(e->custom_links().b);
-            }
-            else {
-                std::tie(a, b) = displace_virtual(e, beta);
-            }
-            perimeter += _space->distance(a, b);
-        }
-        return perimeter;
+        return this->perimeter_of_virtual(cell, 0.);
     }
 
     /// Calculate the perimeter of a cell
     double perimeter_of_virtual (const std::shared_ptr<Cell>& cell,
                                  double beta) const {
-        return perimeter_of_virtual(*cell, beta);
-    }
-
-    /// Calculate the area of a cell
-    /** \note   It is assumed that the edges are ordered anti-clockwise.
-     *          If the edges are ordered clockwise, the area is correct but of 
-     *          negative sign.
-     */
-    double area_of (const Cell& cell) const {
-        return this->area_of_virtual(cell, 0.);
+        double perimeter = 0.;
+        for (auto [e, flip] : cell->custom_links().edges) {
+            if (beta == 0) {
+                perimeter += this->_space->distance(
+                    position_of(e->custom_links().a),
+                    position_of(e->custom_links().b));
+            }
+            else {
+                const SpaceVec &a = displace_virtual(e->custom_links().a,
+                                                         beta);
+                const SpaceVec &b = displace_virtual(e->custom_links().b,
+                                                         beta);
+                perimeter += _space->distance(a, b);
+            }
+        }
+        return perimeter;
     }
 
     /// Calculate the area of a cell
@@ -290,7 +270,7 @@ public:
      *          negative sign.
      */
     double area_of (const std::shared_ptr<Cell>& cell) const {
-        return area_of(*cell);
+        return this->area_of_virtual(cell, 0.);
     }
 
     /// Calculate the area of a cell
@@ -298,12 +278,13 @@ public:
      *          If the edges are ordered clockwise, the area is correct but of 
      *          negative sign.
      */
-    double area_of_virtual (const Cell& cell, double beta) const {
+    double area_of_virtual (const std::shared_ptr<Cell>& cell,
+                            double beta) const {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
 
         // the ordered edges using flip boolian: [edge, flip]
-        const auto& edges = cell.custom_links().edges;
+        const auto& edges = cell->custom_links().edges;
 
         // define a reference in space
         auto [e, flip] = edges.front();
@@ -338,33 +319,23 @@ public:
 
             if (flip) { std::swap(a, b); }
 
-            area += a(0) * b(1) - b(0) * a(1);
+            area += a[0] * b[1] - b[0] * a[1];
         }
 
         // since the edges have to be ordered anti-clockwise 
         return 0.5 * area;
     }
-
-    /// Calculate the area of a cell
-    /** \note   It is assumed that the edges are ordered anti-clockwise.
-     *          If the edges are ordered clockwise, the area is correct but of 
-     *          negative sign.
-     */
-    double area_of_virtual (const std::shared_ptr<Cell>& cell,
-                            double beta) const {
-        return area_of_virtual(*cell, beta);
-    }
-
+    
     /// Returns the barycenter of the given cell
     /** \note   It is assumed that the edges are ordered anti-clockwise or 
      *          clock-wise
      */
-    SpaceVec barycenter_of (const Cell& cell) const {
+    SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) const {
         static_assert(Space::dim == 2, "Center of a cell is only implemented "
                       "for 2 dimensional space!");
 
         // the ordered edges using flip boolian: [edge, flip]
-        const auto& edges = cell.custom_links().edges;
+        const auto& edges = cell->custom_links().edges;
 
         // define a reference in space
         auto [e, flip] = edges.front();
@@ -392,14 +363,6 @@ public:
         area /= 2;
         if (area == 0) { area += 1e-12; }
         return _space->map_into_space(center / (6 * area));
-    }
-    
-    /// Returns the barycenter of the given cell
-    /** \note   It is assumed that the edges are ordered anti-clockwise or 
-     *          clock-wise
-     */
-    SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) const {
-        return barycenter_of(*cell);
     }
 
     AgentContainer<Edge> adjoint_edges_of(
@@ -444,50 +407,25 @@ public:
      * 
      *  \param beta     The step size along the direction of update
      */
-    SpaceVec displace_virtual (const Vertex& vertex, double beta) const {
-        const auto pos = position_of(vertex) + beta * vertex.state.f;
+    const SpaceVec& displace_virtual (const std::shared_ptr<Vertex>& vertex,
+                               double beta) const {
+        if (std::get<double>(vertex->state.virtual_pos) == beta) {
+            return std::get<SpaceVec>(vertex->state.virtual_pos);
+        }
+
+        SpaceVec pos = position_of(vertex) + beta * vertex->state.f;
         
         if (this->_space->periodic) {
-            return this->_space->map_into_space(pos);
+            pos = this->_space->map_into_space(pos);
         }
         else {
             if (not this->_space->contains(pos)) {
                 throw OutOfSpace(pos, this->_space, "Could not move agent!");
             }
-            return pos;
         }
-    }
 
-    /// Calculate to where a vertex would move
-    /** \details vertices move along the self-managed value Vertex::State::f
-     * 
-     *  \param beta     The step size along the direction of update
-     */
-    SpaceVec displace_virtual (const std::shared_ptr<Vertex>& vertex,
-                               double beta) const {
-        return displace_virtual(*vertex, beta);
-    }
-
-    /// Calculate where the two vertices of edge would move to
-    /** \details vertices move along the self-managed value Vertex::State::f
-     * 
-     *  \param beta     The step size along the direction of update
-     */
-    std::pair<SpaceVec, SpaceVec> displace_virtual (const Edge& edge,
-                                                    double beta) const {
-        return std::make_pair(displace_virtual(edge.custom_links().a, beta),
-                              displace_virtual(edge.custom_links().b, beta));
-    }
-
-    /// Calculate where the two vertices of edge would move to
-    /** \details vertices move along the self-managed value Vertex::State::f
-     * 
-     *  \param beta     The step size along the direction of update
-     */
-    std::pair<SpaceVec, SpaceVec> displace_virtual (
-            const std::shared_ptr<Edge>& edge, double beta) const
-    {
-        return displace_virtual(*edge, beta);
+        vertex->state.virtual_pos = std::make_pair(beta, pos);
+        return std::get<SpaceVec>(vertex->state.virtual_pos);
     }
 
     template <typename EdgeParamMatrix>
@@ -668,7 +606,7 @@ private:
         c->custom_links().edges = this->order_edges(edges);
 
         // check that edges are anti-clockwise
-        if (area_of(*c) < 0.) {
+        if (area_of(c) < 0.) {
             // they are clockwise -> flip all edges and start from back
             auto& edges = c->custom_links().edges;
             const auto tmp_edges = c->custom_links().edges;

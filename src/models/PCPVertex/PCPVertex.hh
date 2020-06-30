@@ -446,6 +446,7 @@ private:
     {
         auto state = vertex->state;
         state.f.zeros();
+        state.virtual_pos = std::make_pair(0, state.f);
         return state;
     };
 

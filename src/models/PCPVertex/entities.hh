@@ -18,6 +18,12 @@ struct VertexState {
     /// Direction of update (conjugate gradient)
     SpaceVec h;
 
+    /// The position of the vertex when moved by beta along direction of update.
+    /** The first value (double) is beta, the latter (SpaceVec) the virtual
+     *  position.
+     */
+    std::pair<double, SpaceVec> virtual_pos;
+
     /// Whether to remove
     bool remove;
 
