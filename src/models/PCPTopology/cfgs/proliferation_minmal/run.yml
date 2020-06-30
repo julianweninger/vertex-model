@@ -2,8 +2,8 @@
 #
 # The model can be run by typing : 
 # $ cd /path-to-Utopia/vertex-model
-# $ utopia run PCPTopology src/models/PCPTopology/cfgs/proliferation_minimal/run.yml \
-#          --plots-cfg src/models/PCPTopology/cfgs/proliferation_minimal/eval.yml
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
 #
 # The content of this file is used to update the corresponding entries in
 # ../PCPTopology_cfg.yml

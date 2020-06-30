@@ -161,6 +161,8 @@ public:
                 c->custom_links().neighbors = _cm.neighbors_of(c);
             }
         }
+
+        this->_log->debug("Differentiation model base constructor finished.");
     }
 
 

@@ -47,7 +47,6 @@ notch_threshold: 0.025
 
 
 # --- Data manager configuration
-
 data_manager:
   # this builds the deciders
   deciders:

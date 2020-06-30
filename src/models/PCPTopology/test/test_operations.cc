@@ -19,8 +19,10 @@
 #include "../operations.hh"
 #include "../PCPTopology_write_tasks.hh"
 
+#include "../../Collier/Collier.hh"
 #include "../../NotchDelta/NotchDelta.hh"
 #include "../../NotchDelta/Differentiation_write_tasks.hh"
+#include "../../Collier/Collier_write_tasks.hh"
 
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex::OperationCollection;
@@ -151,6 +153,60 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
                                         CellType::progenitor; });
         BOOST_TEST(cnt == 0);
     }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_Collier) {
+        using Utopia::Models::Collier::Collier;
+
+        std::string name = "differentiate_Collier";
+
+        std::shared_ptr<Collier> collier(new Collier(
+            "Collier", pp, 
+            get_as<Config>("Collier", 
+                           get_as<Config>(name, cfg)),
+            std::make_tuple(
+                Utopia::Models::Differentiation::DataIO::density_time)));
+        auto collier_prolog = std::make_shared<bool>(false);
+
+        auto [operation, params] = build_differentiate_Collier(
+            name, get_as<Config>(name, cfg), default_minim_params,
+            collier, collier_prolog);
+
+        // This should call the prolog and iterate a first 100 steps
+        operation(vertex_model);
+
+        BOOST_TEST(collier_prolog);
+        BOOST_TEST(collier->get_time() == 100);
+
+        const auto& cells = vertex_model.get_am().cells();
+        auto cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().c_cell; });
+        BOOST_TEST(cnt == cells.size());
+
+        // Continue iteration
+        operation(vertex_model);
+        BOOST_TEST(collier->get_time() == 200);
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().c_cell; });
+        BOOST_TEST(cnt == cells.size());
+        
+        
+        // Continue iteration with new task
+        name = "differentiate_Collier_second_task";
+        auto [new_operation, new_params] = build_differentiate_Collier(
+            name, get_as<Config>(name, cfg), default_minim_params,
+            collier, collier_prolog);
+        
+        new_operation(vertex_model);
+        
+        BOOST_TEST(collier->get_time() == 210);
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->custom_links().c_cell; });
+    }       
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_NotchDelta) {
         using Utopia::Models::NotchDelta::NotchDelta;

@@ -55,16 +55,6 @@ cell_neighbourhood: !pspace
       - support
       - support_hair
       - support_support
-
-rosettes:
-  based_on: .dag.generic.facet_grid
-  creator: multiverse
-  file_ext: png
-
-  select_and_combine:
-    fields:
-      data: Densities/Rosettes
-    base_path: data/PCPTopology/NotchDelta
       
 NotchDelta_densities:
   based_on: .basic_uni.lineplots

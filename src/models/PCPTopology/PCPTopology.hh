@@ -10,6 +10,7 @@
 #include <utopia/core/model.hh>
 #include <utopia/core/types.hh>
 
+// model for energy minimization
 #include "../PCPVertex/PCPVertex.hh"
 #include "../PCPVertex/space.hh"
 #include "../PCPVertex/energy.hh"
@@ -17,12 +18,14 @@
 #include "../PCPVertex/operations.hh"
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 
-#include "../NotchDelta/NotchDelta.hh"
-#include "../NotchDelta/Differentiation_write_tasks.hh"
-
 #include "PCPTopology_write_tasks.hh"
-
 #include "operations.hh"
+
+// coupled models
+#include "../NotchDelta/NotchDelta.hh"
+#include "../Collier/Collier.hh"
+#include "../NotchDelta/Differentiation_write_tasks.hh"
+#include "../Collier/Collier_write_tasks.hh"
 
 namespace Utopia {
 namespace Models {
@@ -84,6 +87,14 @@ private:
      *  Operations can duplicate with same or different parameter.
      */
     std::vector<OperationBundle> _operations;
+
+    /// The instance of the Collier model used by proliferation tasks
+    /** \note Only initialized when needed
+     */
+    std::shared_ptr<Collier::Collier> _collier;
+
+    /// Whether the _notch_delta model's prolog was performed
+    std::shared_ptr<bool> _collier_prolog;
 
     /// The instance of the notch_delta model used by proliferation tasks
     /** \note Only initialized when needed
@@ -194,7 +205,15 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Operation name:  {}", name);
 
-                if (name == "differentiate_NotchDelta") {
+                if (name == "differentiate_Collier") {
+                    this->setup_collier(
+                            get_as<Config>("Collier", op_cfg, {}));
+                    _operations.push_back(
+                        build_differentiate_Collier(name, op_cfg,
+                            _minimization_params, _collier,
+                            _collier_prolog));
+                }
+                else if (name == "differentiate_NotchDelta") {
                     this->setup_notch_delta(
                             get_as<Config>("NotchDelta", op_cfg, {}));
                     _operations.push_back(
@@ -245,6 +264,7 @@ private:
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
                         "Choose from: {}", name,
+                            "differentiate_Collier, "
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
                             "increment_area, "
@@ -260,6 +280,37 @@ private:
                 this->_log->debug("Added '{}' operation.", name);
             }
         }
+    }
+    
+    /// Setup a Collier model
+    void setup_collier (const Config& cfg = {})
+    {
+        if (_collier) {
+            return;
+        }
+
+        this->_log->debug("Setting up Collier model from {}",
+            cfg.size() ? 
+                "custom configuration."
+                : 
+                fmt::format("configuration within {} model.", this->_name));
+
+        _collier = std::shared_ptr<Collier::Collier>(
+            new Collier::Collier("Collier", *this, cfg, 
+                std::make_tuple(
+                    Differentiation::DataIO::density_time,
+                    Differentiation::DataIO::density_progenitor,
+                    Differentiation::DataIO::density_hair,
+                    Differentiation::DataIO::density_support,
+                    Differentiation::DataIO::density_rosettes,
+                    Collier::DataIO::density_notch,
+                    Collier::DataIO::density_delta,
+                    Collier::DataIO::density_nicd
+                )
+            )
+        );
+
+        _collier_prolog = std::make_shared<bool>(false);        
     }
     
     /// Setup a notch delta model

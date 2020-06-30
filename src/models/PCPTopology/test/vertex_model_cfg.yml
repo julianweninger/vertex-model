@@ -73,7 +73,7 @@ NotchDelta:
   space: {periodic: true}
 
 
-log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
+log_levels: {core: warn, data_io: warn, data_mngr: info, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 0
 output_path: test_data.h5
