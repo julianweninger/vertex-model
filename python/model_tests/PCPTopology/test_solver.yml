@@ -25,6 +25,7 @@ parameter_space:
 
           minimization:
             num_repeat: 1
+            jiggle_intensity: 1.e-3
 
       - proliferate:
           times: [1]
