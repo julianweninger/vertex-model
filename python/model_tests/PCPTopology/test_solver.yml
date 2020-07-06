@@ -13,6 +13,7 @@ parameter_space:
     model_name: PCPTopology
 
     PCPVertex:
+      log_level: trace
       update_scheme: !sweep
         default: steepest_gradient
         values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]

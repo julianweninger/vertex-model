@@ -157,17 +157,17 @@ void PCPVertex::init_minimization ()
 {
     _energy = this->get_energy();
 
+    set_gradient();
+
     if (this->_update_scheme != ConjugateGradient) {
         return;
     }
-
-    set_gradient();
 
     apply_rule<Update::sync>(
         [this](const auto& vertex) {
             auto state = vertex->state;
             state.g = state.f;
-            state.h = state.g;
+            state.h = state.f;
             return state;
         },
         _am.vertices()
@@ -192,7 +192,8 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
         double energy_change = (new_energy - _energy) / new_energy;
 
         if (energy_change < -1e-14) {
-            this->_log->trace("Updating with timestep {} at energy change {}",
+            this->_log->trace("Updating with timestep {} at relative energy "
+                              "change {}",
                               _dt, energy_change);
         }
         else {
@@ -202,13 +203,15 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
             return this->_energy;
         }
     }
-    else {
-        new_energy = this->get_energy(_dt);
-    }
-
+ 
     apply_rule<Update::sync>(update_position, _am.vertices());
 
-    return new_energy;
+    if (not adaptive_step) {
+        return this->get_energy();
+    }
+    else {
+        return new_energy;
+    }
 };
 
 /// Single step in direction of conjugate gradient

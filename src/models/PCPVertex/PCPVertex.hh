@@ -875,6 +875,12 @@ public:
         this->_log->trace("Energy changed by {}",
                           _energy - _energy_previous_step);
     }
+
+    void prolog () {
+        this->init_minimization();
+        _energy = this->get_energy();
+        return this->__prolog();
+    }
     
     /// Monitor model information
     void monitor () {
@@ -931,7 +937,8 @@ public:
                 {
                     throw std::runtime_error(fmt::format(
                         "Equilibrium not reached within {} steps at a "
-                        "tolerance of {}! Energy change in last step was {}.", 
+                        "tolerance of {}! Relative energy change in last step "
+                        "was {}.", 
                         params.max_steps, tolerance, energy_change));
                 }
 
@@ -952,28 +959,95 @@ public:
     // Add getters and setters here to interface with other model
 
     // NOTE when adding energy terms remember to add them to get_energy(..)
+protected:
     double get_energy_linetension(const AgentContainer<Edge>& es,
                                   double beta = 0.) const;
-    double get_energy_linetension() const {
-        return get_energy_linetension(_am.edges(), 0.); }
-    
     double get_energy_edge_contractility(const AgentContainer<Edge>& es,
                                          double beta = 0.) const;
+    double get_energy_areaelasticity (const AgentContainer<Cell>& cs,
+                                      double beta = 0.) const;    
+    double get_energy_cell_contractility (const AgentContainer<Cell>& cs,
+                                          double beta = 0.) const;
+    double get_energy(const AgentContainer<Edge>& es,
+                      const AgentContainer<Cell>& cs,
+                      double beta = 0.) const;
+    
+    /// Predict the energy from linetension term
+    /** by moving the vertices towards energy minimum at stepsize beta.
+     *  This uses steepest gradient direction or conjugate gradient direction
+     *  depending on update scheme.
+     * 
+     *  \warning The gradient is not updated! Must be done manually.
+     */    
+    double get_energy_linetension(double beta) const {
+        return get_energy_linetension(_am.edges(), beta);
+    }
+    
+    /// Predict the energy from edge contractility
+    /** by moving the vertices towards energy minimum at stepsize beta.
+     *  This uses steepest gradient direction or conjugate gradient direction
+     *  depending on update scheme.
+     * 
+     *  \warning The gradient is not updated! Must be done manually.
+     */        
+    double get_energy_edge_contractility(double beta) const {
+        return get_energy_edge_contractility(_am.edges(), beta);
+    }
+    
+    /// Predict the energy from area elasticity
+    /** by moving the vertices towards energy minimum at stepsize beta.
+     *  This uses steepest gradient direction or conjugate gradient direction
+     *  depending on update scheme.
+     * 
+     *  \warning The gradient is not updated! Must be done manually.
+     */        
+    double get_energy_areaelasticity (double beta) const {
+        return get_energy_areaelasticity(_am.cells(), beta);
+    }
+    
+    /// Predict the energy from cell contractility
+    /** by moving the vertices towards energy minimum at stepsize beta.
+     *  This uses steepest gradient direction or conjugate gradient direction
+     *  depending on update scheme.
+     * 
+     *  \warning The gradient is not updated! Must be done manually.
+     */
+    double get_energy_cell_contractility (double beta) const {
+        return get_energy_cell_contractility(_am.cells(), beta);
+    }
+    
+    /// Predict the energy
+    /** by moving the vertices towards energy minimum at stepsize beta.
+     *  This uses steepest gradient direction or conjugate gradient direction
+     *  depending on update scheme.
+     * 
+     *  \warning The gradient is not updated! Must be done manually.
+     */        
+    double get_energy(double beta) const {
+        return get_energy(_am.edges(), _am.cells(), beta);
+    }
+
+public:
+    double get_energy_linetension() const {
+        return get_energy_linetension(_am.edges(), 0.);
+    }
+    
     double get_energy_edge_contractility() const {
         return get_energy_edge_contractility(_am.edges(), 0.);
     }
     
-    double get_energy_areaelasticity (const AgentContainer<Cell>& cs,
-                                      double beta = 0.) const;
     double get_energy_areaelasticity () const {
         return get_energy_areaelasticity(_am.cells(), 0.);
     }
-    
-    double get_energy_cell_contractility (const AgentContainer<Cell>& cs,
-                                          double beta = 0.) const;
+
     double get_energy_cell_contractility () const {
         return get_energy_cell_contractility(_am.cells(), 0.);
     }
+    double get_energy() const {
+        return get_energy(_am.edges(), _am.cells(), 0.);
+    }
+
+    double get_rel_energy_change () const;
     
     // double get_energy_cell_cell_polarity(const EdgeContainer& es) const;
     // double get_energy_cell_cell_polarity() const {
@@ -995,14 +1069,6 @@ public:
     // double get_energy_lagrange_const_concentration() const {
     //     return get_energy_lagrange_const_concentration(_cells);
     // }
-    
-    double get_energy(const AgentContainer<Edge>& es,
-                      const AgentContainer<Cell>& cs,
-                      double beta = 0.) const;
-    double get_energy(double beta = 0.) const {
-        return get_energy(_am.edges(), _am.cells(), beta);
-    }
-    double get_rel_energy_change () const;
 
     std::size_t get_num_T1s() const {
         return _num_T1s;
@@ -1028,6 +1094,7 @@ public:
         return _num_T2s_total;
     }
 
+    /// The entities manager - vertices, edges, cells
     const AgentManager& get_am () const {
         return _am;
     }

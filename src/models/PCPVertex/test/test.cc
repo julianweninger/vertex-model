@@ -12,7 +12,10 @@
 #include "../operations.hh"
 #include "../PCPVertex_write_tasks.hh"
 
+using namespace Utopia;
 using namespace Utopia::Models::PCPVertex;
+
+const double precision = 1e-12;
 
 PCPVertex model_factory(bool periodic) {
     using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
@@ -28,6 +31,55 @@ PCPVertex model_factory(bool periodic) {
                          std::make_tuple(time_energy_adaptor));
     }
 }
+
+class TEST_PCPVertex_energy_prediction : public PCPVertex
+{
+public:
+    template<class ParentModel>
+    TEST_PCPVertex_energy_prediction (
+        const std::string name,
+        ParentModel &parent_model,
+        const Utopia::DataIO::Config custom_cfg = {})
+    :
+        PCPVertex(name, parent_model, custom_cfg,
+             std::make_tuple(Utopia::Models::PCPVertex::DataIO::time_energy_adaptor))
+    {
+        test_energy_prediction();
+    }
+
+    void test_energy_prediction() {
+        this->prolog();
+
+        std::string update_scheme(get_as<std::string>("update_scheme",
+                                                        this->_cfg));
+        BOOST_TEST(update_scheme == "steepest_gradient",
+            "Test of energy prediction relies on fixed step size!");
+        
+        const auto dt = get_as<double>("dt", this->_cfg);
+        const auto& am = this->get_am();
+
+        // predict the energy terms
+        auto new_energy = this->get_energy(dt);
+        auto linetension = this->get_energy_linetension(am.edges(), dt);
+        auto e_contr = this->get_energy_edge_contractility(am.edges(), dt);
+        auto area_elast = this->get_energy_areaelasticity(am.cells(), dt);
+        auto c_contr = this->get_energy_cell_contractility(am.cells(), dt);
+        
+        this->iterate();
+
+        // test the predictions
+        BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
+                        precision);
+        BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
+                        precision);
+        BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
+                        precision);
+        BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
+                        precision);
+        BOOST_CHECK_CLOSE(new_energy, this->get_energy(),
+                        precision);
+    }
+};
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
@@ -74,6 +126,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     {
         auto model = model_factory(true);
         test_model_minimization(model);
+    }
+
+    /// Test the energy calculation
+    BOOST_AUTO_TEST_CASE(test_energy_prediction)
+    {
+        Utopia::PseudoParent pp("test_periodic.yml");
+        TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
     }
 
 
