@@ -28,6 +28,25 @@ densities:
     # set_limits:
     #   y: [0,1.]
 
+protein_concentrations_per_cell:
+  creator: universe
+  universes: all
+  module: model_plots.Collier
+  plot_func: protein_concentrations_per_cell
+  file_ext: png
+
+  select:
+    delta: data/Collier/CM/Delta
+    notch: data/Collier/CM/Notch
+    nicd: data/Collier/CM/NICD
+
+  transform: ~
+
+  helpers:
+    setup_figure:
+      ncols: 3
+      scale_figsize_with_subplots_shape: True
+
 rosettes:
   based_on: .dag.generic.facet_grid
   creator: multiverse
