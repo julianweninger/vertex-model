@@ -30,6 +30,7 @@ operations:
 
       minimization:
         num_repeat: 1
+        jiggle_intensity: 1.e-3
       
   - proliferate:
       times: []
@@ -206,7 +207,7 @@ PCPVertex:
 
   # --- Dynamics
   # damping factor
-  dt: 0.01
+  dt: 1.e-2
   minimization_tolerance: *Tolerance
   update_scheme: conjugate_gradient
 

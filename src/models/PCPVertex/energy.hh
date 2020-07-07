@@ -15,15 +15,16 @@ namespace PCPVertex {
 double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    SpaceVec a, b;
+    double length;
     if (beta > 0) {
-        std::tie(a, b) = this->_am.displace_virtual(edge, beta);
+        const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
+        const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
+        length = this->_space->distance(a, b);
     }
     else {
-        a = _am.position_of(edge->custom_links().a);
-        b = _am.position_of(edge->custom_links().b);
+        length = this->_space->distance(_am.position_of(edge->custom_links().a),
+                                        _am.position_of(edge->custom_links().b));
     }
-    const double length = this->_space->distance(a, b);
     
     return edge->state.linetension * length;
 };
@@ -31,15 +32,16 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    SpaceVec a, b;
+    double length;
     if (beta > 0) {
-        std::tie(a, b) = this->_am.displace_virtual(edge, beta);
+        const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
+        const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
+        length = this->_space->distance(a, b);
     }
     else {
-        a = _am.position_of(edge->custom_links().a);
-        b = _am.position_of(edge->custom_links().b);
+        length = this->_space->distance(_am.position_of(edge->custom_links().a),
+                                        _am.position_of(edge->custom_links().b));
     }
-    const double length = this->_space->distance(a, b);
     
     return 0.5 * edge->state.contractility * pow(length, 2);
 };

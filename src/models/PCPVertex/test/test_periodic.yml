@@ -42,7 +42,7 @@ PCPVertex:
     extent: [1.0, 1.0]
     periodic: true
   update_scheme: steepest_gradient
-log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
+log_levels: {core: debug, data_io: debug, data_mngr: debug, model: trace}
 monitor_emit_interval: 2.0
 num_steps: 0
 output_path: test_data.h5
