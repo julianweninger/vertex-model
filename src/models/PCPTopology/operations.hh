@@ -179,8 +179,138 @@ OperationBundle build_differentiate_random (
     return std::make_pair(operation, params);
 }
 
+/// The operation differentiate cells using the Collier model
+/** \details The differentiation occurs as in the Collier model.
+ *  The geometric properties and cell states are synchronized after n (`steps`)
+ *  iterations of the Collier model.
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `steps` (uint, default: 1): The numer of steps performed in the
+ *              Collier model without synchronisation to the Vertex model.
+ * 
+ *  \note The entities properties do not change during differentiation.
+ * 
+ *  \note The association of Vertex cells to Collier cells is arbitrary and
+ *      might change with every call of operation. The cell's neighborhood is
+ *      identical anyways.
+ * 
+ *  \param collier  Pointer to a Collier model
+ *  \param prolog       Whether the prolog of Collier model already performed
+ */
+template <class Collier>
+OperationBundle build_differentiate_Collier (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Collier> collier,
+        std::shared_ptr<bool> prolog)
+{
+    if (not collier) {
+        throw std::runtime_error("Received nullptr in "
+            "build_operation_Collier!");
+    }
+    
+    OperationParams params(name, cfg, default_minim_params);
+
+    std::size_t steps(get_as<std::size_t>("steps", cfg, 1));
+
+    Operation operation = [collier, prolog, steps] (PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+        // Collier model cells
+        using CCellType = typename Collier::CellType;
+
+        collier->get_logger()->debug(
+            "Setting up the custom neighbourhood of the cells as per the "
+            "neighbourhood in the Vertex model ...");
+            
+
+        const auto& c_cells = collier->get_cm().cells();
+        const auto& cells = vertex_model.get_am().cells();
+        if (cells.size() > c_cells.size()) {
+            throw std::runtime_error(fmt::format("Cannot link cells of "
+                "Collier and Vertex models because more cells in Vertex "
+                "({} cells) than in Collier model ({} cells)!",
+                cells.size(), c_cells.size()));
+        }
+
+        unsigned int iterator;
+        for (iterator = 0; iterator < cells.size(); iterator++) {
+            cells[iterator]->custom_links().c_cell = c_cells[iterator];
+            
+            auto type = cells[iterator]->state.type;
+            if (not *prolog) {
+                void(); // use initialization of Collier Model
+            }
+            else if (type == CellType::hair) {
+                c_cells[iterator]->state.cell_type = CCellType::hair;
+            }
+            else if (type == CellType::support) {
+                c_cells[iterator]->state.cell_type = CCellType::support;
+            }
+            else if (type == CellType::progenitor) {
+                c_cells[iterator]->state.cell_type = CCellType::progenitor;
+            }
+            else {
+                throw std::runtime_error(fmt::format("Cell type {} from vertex "
+                    "model not available in Collier model!", type));
+            }
+        }
+        for (void(); iterator < c_cells.size(); iterator++) {
+            c_cells[iterator]->state.cell_type = CCellType::inactive;
+            c_cells[iterator]->custom_links().neighbors.clear();
+        }
+
+        for (const auto& cell : cells) {
+            auto& c_cell = cell->custom_links().c_cell;
+            c_cell->custom_links().neighbors.clear();
+            for (auto n : vertex_model.get_am().neighbors_of(cell)) {
+                c_cell->custom_links().neighbors.push_back(
+                    n->custom_links().c_cell);
+            }
+        }
+    
+        if (not *prolog) {
+            collier->prolog();
+            *prolog = true;
+        }
+
+
+        collier->get_logger()->debug(
+            "Itterating the Collier model for {} steps ...", steps);
+        for (std::size_t i = 0; i < steps; i++) {
+            collier->iterate();
+        }
+        collier->identify_clusters();
+
+        collier->get_logger()->debug(
+            "Synchronizing Collier changes to Vertex model ...");
+        for (const auto& cell : vertex_model.get_am().cells()) {
+            const auto& c_cell = cell->custom_links().c_cell;
+
+            auto type = c_cell->state.cell_type;
+            if (type == CCellType::hair) {
+                cell->state.type = CellType::hair;
+            }
+            else if (type == CCellType::support) {
+                cell->state.type = CellType::support;
+            }
+            else if (type == CCellType::progenitor){
+                cell->state.type = CellType::progenitor;
+            }
+            else {
+                throw std::runtime_error(fmt::format("Cell type {} from "
+                    "Collier not available in vertex model!", type));
+            }
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// The operation differentiate cells using the NotchDelta model
 /** \details The differentiation occurs as in the NotchDelta model.
+ *  The geometric properties and cell states are synchronized after n (`steps`)
+ *  iterations of the NotchDelta model.
  *  The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
  *      - `steps` (uint, default: 1): The numer of steps performed in the
@@ -188,12 +318,12 @@ OperationBundle build_differentiate_random (
  * 
  *  \note The entities properties do not change during differentiation.
  * 
- *  \warning The linking is done on the first apply of the operations and static
- *           must be handled manually thereafter.!
+ *  \note The association of Vertex cells to NotchDelta cells is arbitrary and
+ *      might change with every call of operation. The cell's neighborhood is
+ *      identical anyways.
  * 
  *  \param notch_delta  Pointer to a notch delta model
- *  \param prolog       Whether to perform the association of the two cell
- *                      manager
+ *  \param prolog       Whether the prolog of ND is already finished
  */
 template <class NotchDelta>
 OperationBundle build_differentiate_NotchDelta (
@@ -216,77 +346,69 @@ OperationBundle build_differentiate_NotchDelta (
         using CellType = PCPVertex::CellType;
         using NDCellType = typename NotchDelta::CellType;
 
-        if (not *prolog) {
-            notch_delta->get_logger()->info(
-                "Setting up the custom neighbourhood of the cells as per the "
-                "neighbourhood in the Vertex model ...");
-                
+        notch_delta->get_logger()->debug(
+            "Setting up the custom neighbourhood of the cells as per the "
+            "neighbourhood in the Vertex model ...");            
 
-            const auto& nd_cells = notch_delta->get_cm().cells();
-            const auto& cells = vertex_model.get_am().cells();
-            if (cells.size() > nd_cells.size()) {
-                throw std::runtime_error(fmt::format("Cannot link cells of "
-                    "NotchDelta and Vertex models because ore cells in Vertex "
-                    "({} cells) than in NotchDelta model ({} cells)!",
-                    nd_cells.size(), cells.size()));
-            }
+        const auto& nd_cells = notch_delta->get_cm().cells();
+        const auto& cells = vertex_model.get_am().cells();
+        if (cells.size() > nd_cells.size()) {
+            throw std::runtime_error(fmt::format("Cannot link cells of "
+                "NotchDelta and Vertex models because more cells in Vertex "
+                "({} cells) than in NotchDelta model ({} cells)!",
+                cells.size(), nd_cells.size()));
+        }
 
-            unsigned int iterator;
-            for (iterator = 0; iterator < cells.size(); iterator++) {
-                cells[iterator]->custom_links().nd_cell = nd_cells[iterator];
+        unsigned int iterator;
+        for (iterator = 0; iterator < cells.size(); iterator++) {
+            cells[iterator]->custom_links().nd_cell = nd_cells[iterator];
+            
+            auto type = cells[iterator]->state.type;
+            if (not *prolog) {
+                void(); // use initialization of ND Model
             }
-            for (void(); iterator < nd_cells.size(); iterator++) {
-                nd_cells[iterator]->state.cell_type = NDCellType::inactive;
-                nd_cells[iterator]->custom_links().neighbors.clear();
+            else if (type == CellType::hair) {
+                nd_cells[iterator]->state.cell_type = NDCellType::hair;
             }
+            else if (type == CellType::support) {
+                nd_cells[iterator]->state.cell_type = NDCellType::support;
+            }
+            else if (type == CellType::progenitor) {
+                nd_cells[iterator]->state.cell_type = NDCellType::progenitor;
+            }
+            else {
+                throw std::runtime_error(fmt::format("Cell type {} from vertex "
+                    "model not available in NotchDelta model!", type));
+            }
+        }
+        for (void(); iterator < nd_cells.size(); iterator++) {
+            nd_cells[iterator]->state.cell_type = NDCellType::inactive;
+            nd_cells[iterator]->custom_links().neighbors.clear();
+        }
 
-            for (const auto& cell : cells) {
-                auto& nd_cell = cell->custom_links().nd_cell;
-                nd_cell->custom_links().neighbors.clear();
-                for (auto n : vertex_model.get_am().neighbors_of(cell)) {
-                    nd_cell->custom_links().neighbors.push_back(
-                        n->custom_links().nd_cell);
-                }
+        for (const auto& cell : cells) {
+            auto& nd_cell = cell->custom_links().nd_cell;
+            nd_cell->custom_links().neighbors.clear();
+            for (auto n : vertex_model.get_am().neighbors_of(cell)) {
+                nd_cell->custom_links().neighbors.push_back(
+                    n->custom_links().nd_cell);
             }
+        }
     
+        if (not *prolog) {
             notch_delta->prolog();
             *prolog = true;
         }
-        else {
-            const auto& cells = vertex_model.get_am().cells();
-            for (const auto& cell : cells) {
-                auto& nd_cell = cell->custom_links().nd_cell;
-                if (not nd_cell) {
-                    throw std::runtime_error("Could not find link to NotchDelta "
-                        "cell. This might be because a new cell was created "
-                        "in the vertex model, e.g. by proliferation. This is "
-                        "currently not handled.");
-                }
-                nd_cell->custom_links().neighbors.clear();
-                for (auto n : vertex_model.get_am().neighbors_of(cell)) {
-                    nd_cell->custom_links().neighbors.push_back(
-                        n->custom_links().nd_cell);
-                }
-            }
 
-            const auto& nd_cells = notch_delta->get_cm().cells();
-            std::size_t cnt = std::count_if(nd_cells.begin(), nd_cells.end(),
-                                    [](const auto& cell) {
-                                            return cell->state.cell_type != 
-                                                NDCellType::inactive; });
-            if (cnt != cells.size()) {
-                throw std::runtime_error(fmt::format("Links from cells in "
-                    "vertex models to cells in NotchDelta model corrupted! "
-                    "There were {} cells in vertex model and {} in NotchDelta "
-                    "model.", cells.size(), cnt));
-            }
-        }
-
+        notch_delta->get_logger()->debug(
+            "Itterating the NotchDelta model for {} steps ...", steps);   
         for (std::size_t i = 0; i < steps; i++) {
             notch_delta->iterate();
         }
         notch_delta->identify_clusters();
 
+        notch_delta->get_logger()->debug(
+            "Synchronizing NotchDelta changes to Vertex model ...");   
         for (const auto& cell : vertex_model.get_am().cells()) {
             const auto& nd_cell = cell->custom_links().nd_cell;
 
@@ -297,8 +419,12 @@ OperationBundle build_differentiate_NotchDelta (
             else if (type == NDCellType::support) {
                 cell->state.type = CellType::support;
             }
-            else {
+            else if (type == NDCellType::progenitor) {
                 cell->state.type = CellType::progenitor;
+            }
+            else {
+                throw std::runtime_error(fmt::format("Cell type {} from "
+                    "NotchDelta model not available in Vertex model!", type));
             }
         }
     };

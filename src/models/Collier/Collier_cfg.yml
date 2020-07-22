@@ -1,4 +1,4 @@
-# The model configuration for the NotchDelta model
+# The model configuration for the Collier model
 ---
 # --- Space parameters
 # The physical space this model is embedded in
@@ -9,57 +9,58 @@ space:
 cell_manager:
   grid:
     structure: square
-    resolution: 8
+    resolution: 16
 
   neighborhood:
     mode: Moore
 
   # Cell initialization parameters
-  cell_params: ~
+  cell_params:
+    notch: 1.
+    notch_sigma: 0.2
+    delta: 1.
+    delta_sigma: 0.2
+    nicd: 0.1
+    nicd_sigma: 0.02
 
 
 # --- Model parameters
 # Add parameters and their documentation here ...
 
 # -- Dynamics
-rate_ph:
-  rate_0: 8.e-3 # the rate above threshold
-  # the rates below threshold
-  #   if more than one entry given, linear mapping.
-  #   latter rates correspond to lower concentrations of atoh1
-  rate_1: 0.
+time_resolution: 1000
 
-rate_ps: 1.e-2
+degradation_delta: 1.
+degradation_notch: 1.
 
-atoh1_suppression:
-  # in every step the atoh1 level in neighboring cells is divided by this value 
-  rate_0: 1.0 # for 0 HC neighbors
-  # for one or more HC neighbors
-  #   if more than one entry given, each entry for one more neighbor
-  #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
-  #   last entry for n or more HC neighbors 
-  rate_1: 1.
+production_notch: 1.
+production_delta: 50.
+production_nicd: 200.
 
-atoh1_threshold: 1.
+interaction_strength_trans: 1.
+interaction_strength_cis: 10.
 
-rate_swap: 0.1
+cooperativity_delta: 1.
+cooperativity_nicd: 1.
 
-lambda: 40
+notch_threshold_factor: 0.1
 
 
-# --- Data manager config
-
+# --- Data manager configuration
 data_manager:
   # this builds the deciders
   deciders:
-    write_always:
-      type: always
+    write_density:
+      type: interval
+      args:
+        intervals:
+          - [0, 10000000, 100]
     
     write_interval: &interval
       type: interval
       args:
         intervals:
-          - [0, 1000000, 10]
+          - [0, 1000000, 500]
 
   # this builds the triggers, here deciders are used
   triggers:
@@ -78,18 +79,23 @@ data_manager:
     Density_progenitor: &density
       active: true
       trigger: build_once
-      decider: write_always
+      decider: write_density
     Density_hair: *density
     Density_support: *density
     Density_rosettes: *density
+    Density_notch: *density
+    Density_delta: *density
+    Density_nicd: *density
     Density_time: *density
 
     Cell_type: &CM
       active: true
       decider: write_interval
       trigger: build_interval
-    Atoh1: *CM
-    CM_time: *CM
     Cluster_id: *CM
+    Notch: *CM
+    Delta: *CM
+    NICD: *CM
+    CM_time: *CM
 
 

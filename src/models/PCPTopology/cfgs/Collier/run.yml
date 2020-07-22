@@ -1,0 +1,42 @@
+# A minimal configuration to differentiate cells using the Collier model
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_Collier
+
+parameter_space:
+  num_steps: 10
+
+  PCPTopology:
+    operations:
+      - jiggle:
+          times: []
+          iterations_prolog: 1
+          minimization:
+            num_repeat: 1
+
+      - proliferate:
+          times: []
+          iterations_prolog: 64
+          num_increases: 0
+          area_threshold: 0.
+          minimization:
+            mode: manual
+
+      - jiggle:
+          times: []
+          iterations_prolog: 2
+
+      - differentiate_Collier:
+          times: !listgen [11]
+          steps: 5000
+
+          minimization:
+            mode: manual

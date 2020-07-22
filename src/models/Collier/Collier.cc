@@ -1,10 +1,10 @@
 #include <iostream>
 
-#include "NotchDelta.hh"
-#include "NotchDelta_write_tasks.hh"
-#include "Differentiation_write_tasks.hh"
+#include "Collier.hh"
+#include "Collier_write_tasks.hh"
+#include "../NotchDelta/Differentiation_write_tasks.hh"
 
-using namespace Utopia::Models::NotchDelta;
+using namespace Utopia::Models::Collier;
 using namespace Utopia::Models::Differentiation::DataIO;
 
 
@@ -14,10 +14,12 @@ int main (int, char** argv) {
         Utopia::PseudoParent pp(argv[1]);
 
         // Initialize the main model instance and directly run it
-        NotchDelta("NotchDelta", pp, {},
+        Collier("Collier", pp, {},
             std::make_tuple(density_time,  density_progenitor, density_hair,
-                density_support, density_rosettes,
-                CM_time, cell_type, cluster_id, DataIO::cell_atoh1)
+                density_support, density_rosettes, DataIO::density_notch,
+                DataIO::density_delta, DataIO::density_nicd, 
+                CM_time, cell_type, cluster_id, DataIO::cell_notch,
+                DataIO::cell_delta, DataIO::cell_nicd)
         ).run();
 
         // Done.

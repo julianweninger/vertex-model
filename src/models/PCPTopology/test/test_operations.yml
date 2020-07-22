@@ -83,17 +83,56 @@ differentiate_random:
   times: []
   probability: 0.25
 
+differentiate_Collier:
+  times: []
+  steps: 100
+  
+  Collier:
+    log_level: info
+    cell_manager:
+      grid: {resolution: 15, structure: square}
+      neighborhood: {compute_and_store: false, mode: empty}
+      cell_params:
+        notch: 1.
+        notch_sigma: 0.2
+        delta: 1.
+        delta_sigma: 0.2
+        nicd: 0.1
+        nicd_sigma: 0.02
+    data_manager:
+      deciders:
+        write_always: {type: always}
+      tasks:
+        Density_time: {active: true, decider: write_always, trigger: build_once}
+      triggers:
+        build_once: {type: once}
+    space: {periodic: false}
+
+    time_resolution: 1000
+    degradation_delta: 1.
+    degradation_notch: 1.
+    production_notch: 1.
+    production_delta: 50.
+    production_nicd: 200.
+    interaction_strength_trans: 1.
+    interaction_strength_cis: 10.
+    cooperativity_delta: 1.
+    cooperativity_nicd: 1.
+    notch_threshold_factor: 0.1
+
+differentiate_Collier_second_task:
+  times: []
+  steps: 10
+
+  # reusing the Collier model from `differentiate_Collier`
+
 differentiate_NotchDelta:
   times: []
   steps: 100
   
   NotchDelta:
     log_level: info
-    Environment:
-      env_state_funcs:
-      - noise:
-          atoh1: {distribution: exponential, lambda: 100, mode: add}
-      space: &id002 {periodic: false}
+    lambda: 40
     atoh1_suppression: {rate_0: 10.0, rate_1: 1.0}
     atoh1_threshold: 1.0
     cell_manager:
@@ -110,7 +149,7 @@ differentiate_NotchDelta:
     rate_ph: {rate_0: 0.008, rate_1: 0.0}
     rate_ps: 0.01
     rate_swap: 1.0
-    space: *id002
+    space: {periodic: false}
 
 differentiate_NotchDelta_second_task:
   times: []

@@ -1,6 +1,7 @@
 #ifndef UTOPIA_MODELS_PCPVERTEX_ENTITIESMANAGER_HH
 #define UTOPIA_MODELS_PCPVERTEX_ENTITIESMANAGER_HH
 
+#include "../Collier/Collier.hh"
 #include "../NotchDelta/NotchDelta.hh"
 
 namespace Utopia::Models::PCPVertex {
@@ -54,11 +55,11 @@ public:
          */
         std::vector<std::pair<std::shared_ptr<Edge>, bool>> edges;
         
-        /// The type of a cell in the NotchDelta model
-        using NDCell = Utopia::Models::NotchDelta::NotchDelta::Cell;
-        
         /// A cell in the NotchDelta model
-        std::shared_ptr<NDCell> nd_cell;
+        std::shared_ptr<Utopia::Models::NotchDelta::NotchDelta::Cell> nd_cell;
+        
+        /// A cell in the Collier model
+        std::shared_ptr<Utopia::Models::Collier::Collier::Cell> c_cell;
     };
     using CellTraits = Utopia::AgentTraits<CellState, Update::manual, false,
                                            EmptyTag, CellLinks>;

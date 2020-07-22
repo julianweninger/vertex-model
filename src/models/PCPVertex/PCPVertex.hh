@@ -53,7 +53,7 @@ struct MinimizationParams {
 
     /// The intensity of the jiggling
     /** \details The intensity scales relative to the typical lengthscale of a
-     *           cell \f$ l = \sqrt{A_{domain} / #cells} \f$
+     *           cell \f$ l = \sqrt{A_{domain} / num_cells} \f$
      */
     double jiggle_intensity;
 

@@ -8,7 +8,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include "../NotchDelta.hh"
-#include "../NotchDelta_write_tasks.hh"
+#include "../Differentiation_write_tasks.hh"
 
 using namespace Utopia;
 using namespace Utopia::Models::NotchDelta;
@@ -20,7 +20,7 @@ NotchDelta model_factory() {
     // access
     PseudoParent pp("./test.yml");
 
-    using Utopia::Models::NotchDelta::DataIO::density_time;
+    using Utopia::Models::Differentiation::DataIO::density_time;
 
     return NotchDelta("NotchDelta", pp, {}, std::make_tuple(density_time));
 }
