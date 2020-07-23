@@ -402,6 +402,39 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_area)
+    {
+        const std::string name = "increment_domain_area";
+        auto [operation, params] = build_increment_domain(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        const auto& cells = vertex_model.get_am().cells();
+        double area = 0.;
+        for (const auto& c : cells) {
+            area += c->state.area_preferential;
+        }
+
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
+
+        operation(vertex_model);
+        
+        double new_area = 0.;
+        for (const auto& c : cells) {
+            new_area += c->state.area_preferential;
+        }
+        BOOST_CHECK_CLOSE(area, new_area, 1e-2);
+
+        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+
+        // incremented by area
+        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], 
+                          domain[0] * domain[1] + 0.02, 1e-5);
+        // ratio constant
+        BOOST_CHECK_CLOSE(new_domain[0] / new_domain[1],
+                          domain[0] / domain[1], 1.e-5);
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate)
     {
         const std::string name = "increment_domain_compensate";
@@ -424,10 +457,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
-
-        SpaceVec d_domain = new_domain - domain;
-        BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
-        BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_hc)
@@ -467,10 +496,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
         BOOST_CHECK_CLOSE(area_hc, new_area_hc, 1e-7);
-
-        SpaceVec d_domain = new_domain - domain;
-        BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
-        BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_sc)
@@ -510,10 +535,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
         BOOST_CHECK_CLOSE(area_sc, new_area_sc, 1e-7);
-
-        SpaceVec d_domain = new_domain - domain;
-        BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
-        BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
     }
     
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_edge_contractility) {

@@ -540,7 +540,8 @@ OperationBundle build_increment_area (
 /// The operation to increment the domain size
 /** The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
- *      - `value` (SpaceVec<2>): The incremental increase in x and y
+ *      - `value` (SpaceVec<2> or float): The incremental increase in x and y,
+ *              or the incremental area (ratio Lx to Ly constant)
  *      - `compensate` (bool): Whether to compensate the increase in area in the
  *              preferential area of the cells. If true, keeps the mechanical
  *              properties constant
@@ -554,25 +555,37 @@ OperationBundle build_increment_domain (
     using SpaceVec = PCPVertex::SpaceVec;
 
     OperationParams params(name, cfg, default_minim_params);
-    
-    SpaceVec increment(get_as_SpaceVec<2>("value", cfg));
-    bool compensate(get_as<bool>("compensate", cfg));
-    bool fix_hc_area(get_as<bool>("fix_hair_cell_area", cfg, false));
-    bool fix_sc_area(get_as<bool>("fix_support_cell_area", cfg, false));
 
-    if (compensate and fix_hc_area and fix_sc_area) {
-        throw std::invalid_argument("Cannot compensate area while fixing "
-            "hair and support cell area in operation 'increment_domain'!");
+    if (cfg["value"] and cfg["value"].IsSequence()) {
+        SpaceVec increment(get_as_SpaceVec<2>("value", cfg));
+        bool compensate(get_as<bool>("compensate", cfg));
+        bool fix_hc_area(get_as<bool>("fix_hair_cell_area", cfg, false));
+        bool fix_sc_area(get_as<bool>("fix_support_cell_area", cfg, false));
+
+        if (compensate and fix_hc_area and fix_sc_area) {
+            throw std::invalid_argument("Cannot compensate area while fixing "
+                "hair and support cell area in operation 'increment_domain'!");
+        }
+        
+        Operation operation = [increment, compensate, fix_hc_area,
+                               fix_sc_area] (PCPVertex& vertex_model)
+        {
+            vertex_model.stretch_domain(increment, compensate,
+                                        fix_hc_area, fix_sc_area);
+        };
+
+        return std::make_pair(operation, params);
     }
-    
-    Operation operation = [increment, compensate,
-                           fix_hc_area, fix_sc_area] (PCPVertex& vertex_model)
-    {
-        vertex_model.stretch_domain(increment, compensate,
-                                    fix_hc_area, fix_sc_area);
-    };
+    else {
+        double increment(get_as<double>("value", cfg));
 
-    return std::make_pair(operation, params);
+        Operation operation = [increment] (PCPVertex& vertex_model)
+        {
+            vertex_model.increase_domain_size(increment);
+        };
+
+        return std::make_pair(operation, params);
+    }
 }
 
 /// The operation to increment edge contractility
