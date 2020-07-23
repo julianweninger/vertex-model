@@ -730,5 +730,111 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_TEST(cells.size() == num_cells + 1);
         // NOTE the procedure of division itself is tested in PCPVertex
     }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+        double init_area = domain[0] * domain[1];
+
+        const std::string name = "set_area";
+        auto [operation, params] = build_set_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+
+        std::vector<double> areas;
+        areas.reserve(cells.size());
+        for (const auto& cell : cells) {
+            areas.push_back(cell->state.area_preferential);
+        }
+        auto [mean, stdev] = get_statistics(areas);
+
+        BOOST_CHECK_CLOSE(mean, 2, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.1, 10);
+
+
+        // differentiate progenitor cells, test again                   
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+
+        op_diff(vertex_model);
+        operation(vertex_model);
+
+        std::vector<double> areas_HCs;
+        std::vector<double> areas_SCs;
+        areas_HCs.reserve(cells.size());
+        areas_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                areas_HCs.push_back(cell->state.area_preferential);
+            }
+            else if (cell->state.type == CellType::support) {
+                areas_SCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_HCs.shrink_to_fit();
+        areas_SCs.shrink_to_fit();
+        
+        std::tie(mean, stdev) = get_statistics(areas_HCs);
+        BOOST_CHECK_CLOSE(mean, 4, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.2, 10);
+        
+        std::tie(mean, stdev) = get_statistics(areas_SCs);
+        BOOST_CHECK_CLOSE(mean, 5, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.3, 15);
+
+        domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
+        
+    }
+    
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_adapt)
+    {
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+        const std::string name = "set_area_adapt";
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+        auto [operation, params] = build_set_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        op_diff(vertex_model);
+        operation(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+        std::vector<double> areas_HCs;
+        std::vector<double> areas_SCs;
+        areas_HCs.reserve(cells.size());
+        areas_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                areas_HCs.push_back(cell->state.area_preferential);
+            }
+            else if (cell->state.type == CellType::support) {
+                areas_SCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_HCs.shrink_to_fit();
+        areas_SCs.shrink_to_fit();
+        
+        auto [mean, stdev] = get_statistics(areas_HCs);
+
+        BOOST_CHECK_CLOSE(mean, 4, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.2, 25);
+        
+        std::tie(mean, stdev) = get_statistics(areas_SCs);
+
+        BOOST_CHECK_CLOSE(mean, 5, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.3, 15);
+
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+        double cell_area = std::accumulate(areas_HCs.begin(),
+                                             areas_HCs.end(), 0.);
+        cell_area += std::accumulate(areas_SCs.begin(), areas_SCs.end(), 0.);
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
+    }
     
 BOOST_AUTO_TEST_SUITE_END()

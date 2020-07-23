@@ -229,3 +229,22 @@ proliferate:
     num_repeat: 1
     jiggle_tolerance: 1000
     jiggle_intensity: 0.
+
+set_area:
+  times: []
+
+  progenitor: 2.
+  var_progenitor: 0.1
+  hair: 4.
+  var_hair: 0.2
+  support: 5.
+  var_support: 0.3
+
+set_area_adapt:
+  times: []
+
+  hair: 4.
+  var_hair: 0.2
+  support: 5.
+  var_support: 0.3
+  adapt_domain: True
