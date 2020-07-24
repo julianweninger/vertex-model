@@ -540,7 +540,8 @@ OperationBundle build_increment_area (
 /// The operation to increment the domain size
 /** The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
- *      - `value` (SpaceVec<2>): The incremental increase in x and y
+ *      - `value` (SpaceVec<2> or float): The incremental increase in x and y,
+ *              or the incremental area (ratio Lx to Ly constant)
  *      - `compensate` (bool): Whether to compensate the increase in area in the
  *              preferential area of the cells. If true, keeps the mechanical
  *              properties constant
@@ -554,25 +555,37 @@ OperationBundle build_increment_domain (
     using SpaceVec = PCPVertex::SpaceVec;
 
     OperationParams params(name, cfg, default_minim_params);
-    
-    SpaceVec increment(get_as_SpaceVec<2>("value", cfg));
-    bool compensate(get_as<bool>("compensate", cfg));
-    bool fix_hc_area(get_as<bool>("fix_hair_cell_area", cfg, false));
-    bool fix_sc_area(get_as<bool>("fix_support_cell_area", cfg, false));
 
-    if (compensate and fix_hc_area and fix_sc_area) {
-        throw std::invalid_argument("Cannot compensate area while fixing "
-            "hair and support cell area in operation 'increment_domain'!");
+    if (cfg["value"] and cfg["value"].IsSequence()) {
+        SpaceVec increment(get_as_SpaceVec<2>("value", cfg));
+        bool compensate(get_as<bool>("compensate", cfg));
+        bool fix_hc_area(get_as<bool>("fix_hair_cell_area", cfg, false));
+        bool fix_sc_area(get_as<bool>("fix_support_cell_area", cfg, false));
+
+        if (compensate and fix_hc_area and fix_sc_area) {
+            throw std::invalid_argument("Cannot compensate area while fixing "
+                "hair and support cell area in operation 'increment_domain'!");
+        }
+        
+        Operation operation = [increment, compensate, fix_hc_area,
+                               fix_sc_area] (PCPVertex& vertex_model)
+        {
+            vertex_model.stretch_domain(increment, compensate,
+                                        fix_hc_area, fix_sc_area);
+        };
+
+        return std::make_pair(operation, params);
     }
-    
-    Operation operation = [increment, compensate,
-                           fix_hc_area, fix_sc_area] (PCPVertex& vertex_model)
-    {
-        vertex_model.stretch_domain(increment, compensate,
-                                    fix_hc_area, fix_sc_area);
-    };
+    else {
+        double increment(get_as<double>("value", cfg));
 
-    return std::make_pair(operation, params);
+        Operation operation = [increment] (PCPVertex& vertex_model)
+        {
+            vertex_model.increase_domain_size(increment);
+        };
+
+        return std::make_pair(operation, params);
+    }
 }
 
 /// The operation to increment edge contractility
@@ -922,6 +935,122 @@ OperationBundle build_jiggle (
     OperationParams params(name, cfg, default_minim_params);
 
     Operation operation = [] ([[maybe_unused]] PCPVertex& vertex_model) { };
+
+    return std::make_pair(operation, params);
+}
+
+/// The operation to set preferential area
+/** \details The following parameter are extracted from cfg 
+ *           (besides those passed to `OperationParams`):
+ *               - `progenitor` (double, default: 0.): new value for
+ *                      cells of type progenitor. Value 0. is ignored and
+ *                      previous value of preferential area kept.
+ *               - `var_progenitor` (double, default: 0.): variance for cells
+ *                      of type progenitor; using normal distribution
+ *               - `hair` (double, default: 0.): new value for cells
+ *                      of type hair. Value 0. is ignored and
+ *                      previous value of preferential area kept.
+ *               - `var_hair` (double, default: 0.): variance for cells
+ *                      of type hair; using normal distribution
+ *               - `support` (double, default: 0.): new value for cells
+ *                      of type support. Value 0. is ignored and
+ *                      previous value of preferential area kept.
+ *               - `var_support` (double, default: 0.): variance for cells
+ *                      of type support; using normal distribution
+ *               - `adapt_domain` (bool, default: false): If true, the domain
+ *                      size is adapted to fit the cells as per preferential 
+ *                      area.
+ */
+OperationBundle build_set_area (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double prog(get_as<double>("progenitor", cfg, 0.));
+    double var_prog(get_as<double>("var_progenitor", cfg, 0.));
+    double hair(get_as<double>("hair", cfg, 0.));
+    double var_hair(get_as<double>("var_hair", cfg, 0.));
+    double support(get_as<double>("support", cfg, 0.));
+    double var_support(get_as<double>("var_support", cfg, 0.));
+    bool adapt_domain(get_as<bool>("adapt_domain", cfg, false));
+
+    Operation operation = [prog, var_prog,
+                           hair, var_hair,
+                           support, var_support,
+                           adapt_domain]
+            (PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+
+        std::normal_distribution<> dist_prog{prog, var_prog};
+        std::normal_distribution<> dist_hair{hair, var_hair};
+        std::normal_distribution<> dist_support{support, var_support};
+
+        PCPVertex::RuleFuncCell update = [vertex_model,
+                                          dist_prog{std::move(dist_prog)},
+                                          dist_hair{std::move(dist_hair)},
+                                          dist_support{std::move(dist_support)}]
+                (const auto& cell) mutable
+        {
+            auto state = cell->state;
+            if (state    .type == CellType::progenitor
+                     and dist_prog.mean() != 0.) {
+                state.area_preferential = dist_prog(*vertex_model.get_rng());
+                if (state.area_preferential <= 0.) {
+                    throw std::invalid_argument(fmt::format("Cannot set "
+                        "preferential area, as it is negative! The "
+                        "preferential area is {}, chosen from a normal "
+                        "distribution with mean {} and std {}",
+                        state.area_preferential,
+                        dist_hair.mean(), dist_hair.stddev()));
+                }
+            }
+            else if (    state.type == CellType::support
+                     and dist_support.mean() != 0.) {
+                state.area_preferential = dist_support(*vertex_model.get_rng());
+                if (state.area_preferential <= 0.) {
+                    throw std::invalid_argument(fmt::format("Cannot set "
+                        "preferential area, as it is negative! The "
+                        "preferential area is {}, chosen from a normal "
+                        "distribution with mean {} and std {}",
+                        state.area_preferential,
+                        dist_hair.mean(), dist_hair.stddev()));
+                }
+            }
+            else if (    state.type == CellType::hair
+                     and dist_hair.mean() != 0.) {
+                state.area_preferential = dist_hair(*vertex_model.get_rng());
+                if (state.area_preferential <= 0.) {
+                    throw std::invalid_argument(fmt::format("Cannot set "
+                        "preferential area, as it is negative! The "
+                        "preferential area is {}, chosen from a normal "
+                        "distribution with mean {} and std {}",
+                        state.area_preferential,
+                        dist_hair.mean(), dist_hair.stddev()));
+                }
+            }
+            return state;
+        };
+        
+        apply_rule<Update::sync>(update, cells);
+
+        if (not adapt_domain) {
+            return;
+        }
+
+        double area = std::accumulate(cells.begin(), cells.end(), 0.,
+                            [](const double& val, const auto& cell) {
+                                return val + cell->state.area_preferential; });
+
+        auto domain_size = vertex_model.get_space()->get_domain_size();
+        vertex_model.increase_domain_size(area - domain_size[0]*domain_size[1]);
+
+        return;
+    };
 
     return std::make_pair(operation, params);
 }

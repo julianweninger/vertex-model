@@ -177,27 +177,33 @@ increment_area_adapt:
 increment_domain:
   times: []
 
-  value: [0.1, 0.2]
+  value: [0.1, 0.2] # increment by values
+  compensate: false
+
+increment_domain_area:
+  times: []
+
+  value: 0.02 # increment by area value -- keep ratio
   compensate: false
 
 increment_domain_compensate:
   times: []
 
-  value: [0.1, 0.2]
+  value: 0.1
   compensate: true
   fix_hair_cell_area: false
 
 increment_domain_compensate_fix_hc:
   times: []
 
-  value: [0.1, 0.2]
+  value: 0.1
   compensate: true
   fix_hair_cell_area: true
 
 increment_domain_compensate_fix_sc:
   times: []
 
-  value: [0.1, 0.2]
+  value: 0.1
   compensate: true
   fix_support_cell_area: true
 
@@ -229,3 +235,29 @@ proliferate:
     num_repeat: 1
     jiggle_tolerance: 1000
     jiggle_intensity: 0.
+
+set_area:
+  times: []
+
+  progenitor: 2.
+  var_progenitor: 0.1
+  hair: 4.
+  var_hair: 0.2
+  support: 5.
+  var_support: 0.3
+
+set_area_partial:
+  times: []
+
+  hair: 0. # do not change areas of HCs
+  support: 6.
+  var_support: 0.2
+
+set_area_adapt:
+  times: []
+
+  hair: 4.
+  var_hair: 0.2
+  support: 5.
+  var_support: 0.3
+  adapt_domain: True

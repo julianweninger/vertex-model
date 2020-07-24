@@ -260,6 +260,11 @@ private:
                         build_proliferate(name, op_cfg,
                                             _minimization_params));
                 }
+                else if (name == "set_area") {
+                    _operations.push_back(
+                        build_set_area(name, op_cfg,
+                                       _minimization_params));
+                }
                 else {
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
@@ -274,6 +279,7 @@ private:
                             "increment_shape_index, "
                             "jiggle, "
                             "proliferate, "
+                            "set_area, "
                             "void."));
                 }
 
