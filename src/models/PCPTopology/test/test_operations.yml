@@ -246,6 +246,13 @@ set_area:
   support: 5.
   var_support: 0.3
 
+set_area_partial:
+  times: []
+
+  hair: 0. # do not change areas of HCs
+  support: 6.
+  var_support: 0.2
+
 set_area_adapt:
   times: []
 

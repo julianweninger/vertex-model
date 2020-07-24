@@ -943,15 +943,18 @@ OperationBundle build_jiggle (
 /** \details The following parameter are extracted from cfg 
  *           (besides those passed to `OperationParams`):
  *               - `progenitor` (double, default: 0.): new value for
- *                      cells of type progenitor
+ *                      cells of type progenitor. Value 0. is ignored and
+ *                      previous value of preferential area kept.
  *               - `var_progenitor` (double, default: 0.): variance for cells
  *                      of type progenitor; using normal distribution
  *               - `hair` (double, default: 0.): new value for cells
- *                      of type hair
+ *                      of type hair. Value 0. is ignored and
+ *                      previous value of preferential area kept.
  *               - `var_hair` (double, default: 0.): variance for cells
  *                      of type hair; using normal distribution
  *               - `support` (double, default: 0.): new value for cells
- *                      of type support
+ *                      of type support. Value 0. is ignored and
+ *                      previous value of preferential area kept.
  *               - `var_support` (double, default: 0.): variance for cells
  *                      of type support; using normal distribution
  *               - `adapt_domain` (bool, default: false): If true, the domain
@@ -994,14 +997,41 @@ OperationBundle build_set_area (
                 (const auto& cell) mutable
         {
             auto state = cell->state;
-            if (state.type == CellType::progenitor) {
+            if (state    .type == CellType::progenitor
+                     and dist_prog.mean() != 0.) {
                 state.area_preferential = dist_prog(*vertex_model.get_rng());
+                if (state.area_preferential <= 0.) {
+                    throw std::invalid_argument(fmt::format("Cannot set "
+                        "preferential area, as it is negative! The "
+                        "preferential area is {}, chosen from a normal "
+                        "distribution with mean {} and std {}",
+                        state.area_preferential,
+                        dist_hair.mean(), dist_hair.stddev()));
+                }
             }
-            else if (state.type == CellType::support) {
+            else if (    state.type == CellType::support
+                     and dist_support.mean() != 0.) {
                 state.area_preferential = dist_support(*vertex_model.get_rng());
+                if (state.area_preferential <= 0.) {
+                    throw std::invalid_argument(fmt::format("Cannot set "
+                        "preferential area, as it is negative! The "
+                        "preferential area is {}, chosen from a normal "
+                        "distribution with mean {} and std {}",
+                        state.area_preferential,
+                        dist_hair.mean(), dist_hair.stddev()));
+                }
             }
-            else if (state.type == CellType::hair) {
+            else if (    state.type == CellType::hair
+                     and dist_hair.mean() != 0.) {
                 state.area_preferential = dist_hair(*vertex_model.get_rng());
+                if (state.area_preferential <= 0.) {
+                    throw std::invalid_argument(fmt::format("Cannot set "
+                        "preferential area, as it is negative! The "
+                        "preferential area is {}, chosen from a normal "
+                        "distribution with mean {} and std {}",
+                        state.area_preferential,
+                        dist_hair.mean(), dist_hair.stddev()));
+                }
             }
             return state;
         };

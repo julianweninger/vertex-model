@@ -756,7 +756,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
         double init_area = domain[0] * domain[1];
 
-        const std::string name = "set_area";
+        std::string name = "set_area";
         auto [operation, params] = build_set_area(
             name, get_as<Config>(name, cfg), default_minim_params);
 
@@ -805,6 +805,43 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         std::tie(mean, stdev) = get_statistics(areas_SCs);
         BOOST_CHECK_CLOSE(mean, 5, 10);
         BOOST_CHECK_CLOSE(stdev, 0.3, 15);
+
+        domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
+
+
+        // change only the area of support cells
+        name = "set_area_partial";
+        auto [operation_partial, params_partial] = build_set_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+       
+        operation_partial(vertex_model);
+
+        std::vector<double> areas_HCs_partial;
+        areas_SCs.clear();
+        areas_HCs_partial.reserve(cells.size());
+        areas_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                areas_HCs_partial.push_back(cell->state.area_preferential);
+            }
+            else if (cell->state.type == CellType::support) {
+                areas_SCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_HCs_partial.shrink_to_fit();
+        areas_SCs.shrink_to_fit();
+        
+        std::tie(mean, stdev) = get_statistics(areas_HCs_partial);
+        BOOST_CHECK_CLOSE(mean, 4, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.2, 10);
+        BOOST_CHECK_EQUAL_COLLECTIONS(
+            areas_HCs_partial.begin(), areas_HCs_partial.end(), 
+            areas_HCs.begin(), areas_HCs.end());
+        
+        std::tie(mean, stdev) = get_statistics(areas_SCs);
+        BOOST_CHECK_CLOSE(mean, 6, 10);
+        BOOST_CHECK_CLOSE(stdev, 0.2, 15);
 
         domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
