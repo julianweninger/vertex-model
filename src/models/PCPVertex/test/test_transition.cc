@@ -38,23 +38,46 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         const auto& am = model.get_am();
 
-        const auto& cells = am.cells();
-        const auto& edges = am.edges();
-        const auto& vertices = am.vertices();
-
-        int num_cells = cells.size();
-        int num_edges = edges.size();
-        int num_vertices = vertices.size();
+        const auto cells = am.cells();
+        const auto edges = am.edges();
+        const auto vertices = am.vertices();
 
         auto cell = cells[cells.size() / 2];
+
+        // set arbitrary values and check inheritance
+        cell->state.area_preferential = 0.314;
+        cell->state.area_preferential_var = 0.;
+        cell->state.type = PCPVertex::CellType::support;
+        cell->state.shape_index_preferential = 4.;
+        cell->state.contractility = 0.114;
         model.divide_cell(cell, 0.);
 
-        BOOST_TEST(cells.size() == num_cells + 1);
-        BOOST_TEST(edges.size() == num_edges + 3);
-        BOOST_TEST(vertices.size() == num_vertices + 2);
+        const auto cells_new = am.cells();
+        const auto edges_new = am.edges();
+        const auto vertices_new = am.vertices();
+
+        BOOST_TEST(cells.size() + 1 == cells_new.size());
+        BOOST_TEST(edges.size() + 3 == edges_new.size());
+        BOOST_TEST(vertices.size() + 2 == vertices_new.size());
+
+        for (auto new_cell : {cells_new[cells_new.size() - 2],
+                              cells_new[cells_new.size() - 1]})
+        {
+            BOOST_TEST(new_cell->state.area_preferential
+                       ==  cell->state.area_preferential);
+            BOOST_TEST(new_cell->state.area_preferential_var
+                       ==  cell->state.area_preferential_var);
+            BOOST_TEST(new_cell->state.type
+                       ==  cell->state.type);
+            BOOST_TEST(new_cell->state.shape_index_preferential
+                       ==  cell->state.shape_index_preferential);
+            BOOST_TEST(new_cell->state.contractility
+                       ==  cell->state.contractility);
+        }
 
         test_custom_links(model);
-
+        
+        // check that it does not fail somewhere ...
         model.run();
     }
 

@@ -254,30 +254,8 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     }
 
     // create 2 new cells
-    DataIO::Config cell_cfg;
-    cell_cfg["area_preferential"] = cell->state.area_preferential;
-    cell_cfg["area_preferential_var"] = cell->state.area_preferential_var;
-    cell_cfg["shape_index_preferential"] = cell->state.shape_index_preferential;
-    cell_cfg["contractility"] = cell->state.contractility;
-    cell_cfg["protein_concentration"] = cell->state.protein_concentration;
-    
-    using CellType = typename Cell::State::CellType;
-    if (cell->state.type == CellType::progenitor) {
-        cell_cfg["cell_type"] = "progenitor";
-    }
-    else if (cell->state.type == CellType::hair) {
-        cell_cfg["cell_type"] = "hair";
-    }
-    else if (cell->state.type == CellType::support) {
-        cell_cfg["cell_type"] = "support";
-    }
-    else { 
-        cell_cfg["cell_type"] = "not implemented within division";
-    }
-    const auto new_cell_0 = this->add_cell(cell_center, new_edges_cell_0,
-                                           cell_cfg);
-    const auto new_cell_1 = this->add_cell(cell_center, new_edges_cell_1,
-                                           cell_cfg);
+    const auto new_cell_0 = this->add_cell(cell_center, new_edges_cell_0, cell);
+    const auto new_cell_1 = this->add_cell(cell_center, new_edges_cell_1, cell);
     
     // remove expired crosslinks
     for (const auto& new_c : {new_cell_0, new_cell_1}) {
