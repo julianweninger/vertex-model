@@ -100,6 +100,10 @@ cell_neighbourhood:
   file_ext: png
 
   only_type: all
+  
+  hist_plot_kwargs:
+    align: left
+    density: true
 
   helpers_frame_hist:
     set_labels:
