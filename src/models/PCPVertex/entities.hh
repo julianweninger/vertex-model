@@ -139,11 +139,47 @@ struct CellState {
     /// Whether this object is to be removed 
     bool remove;
 
+    /// Create a config from the cell's properties
+    DataIO::Config create_cfg_from_props () const {
+        DataIO::Config cfg;
+        cfg["area_preferential"] = area_preferential;
+        cfg["area_preferential_var"] = area_preferential_var;
+        cfg["shape_index_preferential"] = shape_index_preferential;
+        cfg["contractility"] = contractility;
+        cfg["protein_concentration"] = protein_concentration;
+        
+        if (type == CellType::progenitor) {
+            cfg["cell_type"] = "progenitor";
+        }
+        else if (type == CellType::hair) {
+            cfg["cell_type"] = "hair";
+        }
+        else if (type == CellType::support) {
+            cfg["cell_type"] = "support";
+        }
+        else { 
+            cfg["cell_type"] = "not implemented within division";
+        }
+
+        return cfg;
+    }
+
     /// Constructor of a cell
-    /** \param area_preferential    The preferential size of this cell
-     *  \param contractility        The contractility of the cell associated
-     *                              with contractility of the actin-myosin ring
-     *  \param cell_type            The type of cell
+    /** Construct a cell from a configuration
+     * 
+     *  \param cfg      The configuration
+     *      -  `area_preferential` (double): The preferential size of this cell
+     *      -  `area_preferential_var` (double, default: 0): The variation of
+     *              the preferential area in a normal distribution
+     *      -  `shape_index_preferential` (double):    The preferential shape 
+     *              index of this cell. 
+     *              p0 = Perimeter0 / sqrt(area preferential)
+     *      -  `contractility` (double): The contractility of the cell
+     *              associated with contractility of the actin-myosin ring
+     *      - `protein_concentration` (double, unused): Currently unused
+     *      -  `cell_type` (str): The type of cell. See CellState::setup_type.
+     * 
+     *  \param rng      A random number generator
      */
     template<class RNGType>
     CellState (const Utopia::DataIO::Config& cfg,
@@ -164,11 +200,35 @@ struct CellState {
             std::normal_distribution<> dist{area_preferential,
                                             area_preferential_var};
             area_preferential = dist(*rng);
+
+            // give it another try
+            if (area_preferential <= 0.) {
+                area_preferential = dist(*rng);
+            }
+        }
+
+        // give it another try, but negative area_preferential wont work ..
+        if (area_preferential <= 0.)
+        {
+            throw std::invalid_argument(fmt::format("Cannot construct a cell "
+                "with negative or 0 preferential area! Received preferential "
+                "area: {}", area_preferential));
+        }
+        if (shape_index_preferential <= 0.) {
+            throw std::invalid_argument(fmt::format("Cannot construct a cell "
+                "with negative or 0 preferential shape_index! Received "
+                "preferential shape_index: {}", shape_index_preferential));
         }
     }
 
 private:
     /// Setup the type of the cell from config
+    /** \param cfg      The configuration containing
+     *      - `cell_type` (str): Can be one of
+     *             - `progenitor`
+     *             - `hair`
+     *             - `support`
+     */
     CellType setup_type (const Utopia::DataIO::Config& cfg) {
         auto cell_type = get_as<std::string>("cell_type", cfg);
 

@@ -649,6 +649,16 @@ private:
         return c;
     }
 
+    /// Create a Cell with properties inherited from a parent cell
+    /** and associate it with the CellManager
+     */
+    auto add_cell(const SpaceVec& pos,
+                  AgentContainer<Edge> edges,
+                  const std::shared_ptr<Cell>& parent_cell)
+    {
+        return add_cell(pos, edges, parent_cell->state.create_cfg_from_props());
+    }
+
     /// Remove a vertex
     void remove_vertex (const std::shared_ptr<Vertex>& vertex) {
         _vertices_adjoint_edges.erase(vertex->id());
