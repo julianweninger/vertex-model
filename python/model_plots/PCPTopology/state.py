@@ -72,11 +72,25 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
         ax3.set_xlabel("Time of operations")
 
-def plot_neighbourhood(data, *, hlpr, only_type: str, 
+def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all', 
                        helpers_frame_hist: dict=None,
                        helpers_frame_area: dict=None,
-                       **plot_kwargs):
+                       hist_plot_kwargs: dict=None,
+                       area_plot_kwargs: dict=None):
     """ Helper function to plot the cell_neighbourhood
+
+    Args:
+        data: the data
+        hlpr (PlotHelper): The PlotHelper
+
+        only_type (str): If only a single type of cells should be used for 
+                         calculation. Can be 'all', 'hair', 'support'
+        helpers_frame_hist (dict, optional): Dict passed to helper within every 
+                                             frame
+        helpers_frame_area (dict, optional): Dict passed to helper within every 
+                                             frame
+        hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
+        area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
     """
     num_neighbors = data.sel(property='num_neighbors')
     area = data.sel(property='area')
@@ -112,7 +126,9 @@ def plot_neighbourhood(data, *, hlpr, only_type: str,
     hlpr.select_axis(col=0, row=0)
     hlpr.ax.clear()
 
-    hlpr.ax.hist(x=num_neighbors, bins=bins, density=True)
+    if (not hist_plot_kwargs):
+        hist_plot_kwargs = {}
+    hlpr.ax.hist(x=num_neighbors, bins=bins, **hist_plot_kwargs)
 
     if helpers_frame_hist:
         for name, args in helpers_frame_hist.items():
@@ -131,7 +147,9 @@ def plot_neighbourhood(data, *, hlpr, only_type: str,
                                 dims=['num_neighbors_std'],
                                 coords={'num_neighbors_std': bins})
     
-    hlpr.ax.errorbar(x=bins, y=area_mean, yerr=area_std)
+    if (not area_plot_kwargs):
+        area_plot_kwargs = {}
+    hlpr.ax.errorbar(x=bins, y=area_mean, yerr=area_std, **area_plot_kwargs)
 
     if helpers_frame_area:    
         for name, args in helpers_frame_area.items():
@@ -143,7 +161,9 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath = 'PCPTopology/Cells',
                        only_type: str='all',
                        helpers_frame_hist: dict=None,
-                       helpers_frame_area: dict=None):
+                       helpers_frame_area: dict=None,
+                       hist_plot_kwargs: dict=None,
+                       area_plot_kwargs: dict=None):
     """Performs a plot of the neighbourhood of the cells and the average area 
         per polygon class
     
@@ -158,6 +178,8 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                              frame
         helpers_frame_area (dict, optional): Dict passed to helper within every 
                                              frame
+        hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
+        area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
     """
 
     # Get the group that all datasets are in
@@ -175,7 +197,9 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         for time in grp:
             plot_neighbourhood(grp[time], hlpr=hlpr, only_type=only_type,
                                helpers_frame_hist=helpers_frame_hist,
-                               helpers_frame_area=helpers_frame_area)
+                               helpers_frame_area=helpers_frame_area,
+                               hist_plot_kwargs=hist_plot_kwargs, 
+                               area_plot_kwargs=area_plot_kwargs)
             
             hlpr.select_axis(col=0, row=0)
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
@@ -189,14 +213,17 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
                           only_type: str='all',
                           helpers_frame_hist: dict=None,
-                          helpers_frame_area: dict=None, **plot_kwargs):
+                          helpers_frame_area: dict=None,
+                          hist_plot_kwargs: dict=None,
+                          area_plot_kwargs: dict=None):
     """A creator-averse plot function using the data transformation
     framework and the plot helper framework.
 
     Args:
         data: The selected and transformed data, containing specified tags.
         hlpr: The associated plot helper.
-        **plot_kwargs: Passed on to matplotlib.pyplot.plot
+        hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
+        area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
     """
 
     # Prepare the figure ......................................................
@@ -206,4 +233,6 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
 
     plot_neighbourhood(data, hlpr=hlpr, only_type=only_type,
                        helpers_frame_hist=helpers_frame_hist,
-                       helpers_frame_area=helpers_frame_area)
+                       helpers_frame_area=helpers_frame_area,
+                       hist_plot_kwargs=hist_plot_kwargs, 
+                       area_plot_kwargs=area_plot_kwargs)
