@@ -209,7 +209,56 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
     }       
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_NotchDelta) {
+        using Utopia::Models::PCPVertex::PCPVertex;
         using Utopia::Models::NotchDelta::NotchDelta;
+
+        // Function to compare the correct mapping of cells
+        std::function<void(const PCPVertex&)> check_mapping = []
+                (const PCPVertex& vertex_model)
+        {
+            const auto& am = vertex_model.get_am();
+            const auto& cells = am.cells();
+
+            // test that all cells have been mapped
+            auto cnt = std::count_if(cells.begin(), cells.end(),
+                [](const auto& cell) {
+                    return cell->custom_links().nd_cell; });
+            BOOST_TEST(cnt == cells.size());
+
+            // test that links are correct
+            for (const auto& cell : cells) {
+                const auto& neighbors = am.neighbors_of(cell);
+                const auto& nd_cell = cell->custom_links().nd_cell;
+                const auto& nd_neighbors =  nd_cell->custom_links().neighbors;
+                
+                // have same number of neighbors
+                BOOST_TEST(neighbors.size() == nd_neighbors.size());
+
+                // the cell's neighbors appear in nd_cell's neighborhood
+                for (auto& n : neighbors) {
+                    const auto& nd_n = n->custom_links().nd_cell;
+                    bool found = (   std::find(nd_neighbors.begin(),
+                                            nd_neighbors.end(), nd_n)
+                                  != nd_neighbors.end());
+                    BOOST_TEST(found);
+                }
+
+                // the state's have been synchronized
+                auto type = cell->state.type;
+                if (type == PCPVertex::CellType::progenitor) {
+                    BOOST_TEST(   nd_cell->state.cell_type
+                               == NotchDelta::CellType::progenitor);
+                }
+                else if (type == PCPVertex::CellType::hair) {
+                    BOOST_TEST(   nd_cell->state.cell_type
+                               == NotchDelta::CellType::hair);
+                }
+                else if (type == PCPVertex::CellType::support) {
+                    BOOST_TEST(   nd_cell->state.cell_type
+                               == NotchDelta::CellType::support);
+                }
+            }
+        };
 
         std::string name = "differentiate_NotchDelta";
 
@@ -231,20 +280,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_TEST(notch_delta_prolog);
         BOOST_TEST(notch_delta->get_time() == 100);
 
-        const auto& cells = vertex_model.get_am().cells();
-        auto cnt = std::count_if(cells.begin(), cells.end(),
-            [](const auto& cell) {
-                return cell->custom_links().nd_cell; });
-        BOOST_TEST(cnt == cells.size());
+        check_mapping(vertex_model);
+
 
         // Continue iteration
         operation(vertex_model);
         BOOST_TEST(notch_delta->get_time() == 200);
-
-        cnt = std::count_if(cells.begin(), cells.end(),
-            [](const auto& cell) {
-                return cell->custom_links().nd_cell; });
-        BOOST_TEST(cnt == cells.size());
+        
+        check_mapping(vertex_model);
         
         
         // Continue iteration with new task
@@ -254,13 +297,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             notch_delta, notch_delta_prolog);
         
         new_operation(vertex_model);
-        
         BOOST_TEST(notch_delta->get_time() == 210);
-
-        cnt = std::count_if(cells.begin(), cells.end(),
-            [](const auto& cell) {
-                return cell->custom_links().nd_cell; });
-        BOOST_TEST(cnt == cells.size());
+        
+        check_mapping(vertex_model);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area) {
