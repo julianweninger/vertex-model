@@ -206,11 +206,10 @@ private:
     };
 
     /// The T1 transition rule
-    /** Tag cells using NotchDelta::tag_rosettes.
+    /** Tag cells using Differentiation::tag_rosettes.
      *  If tagges, it swaps state with a random non-hair cell typed neighbor
      * 
      *  \note This is an asynchronous rule! It cannot be applied synchronously.
-     *  \note This rule is deterministic
      */
     const RuleFunc T1_transition = [this](const auto& cell){
         auto state = tag_rosettes(cell);
@@ -220,7 +219,7 @@ private:
             return state;
         }
 
-        // remove the hair cells from neighbors
+        // a list of non hair neighbors
         auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
                 [](auto n) {
@@ -259,10 +258,19 @@ public:
         apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
         apply_rule<Update::sync>(transition, _cm.cells());
 
-        apply_rule<Update::async>(
-            T1_transition,
-            select_entities<SelectionMode::probability>(_cm, _rate_swap),
-            *this->_rng);
+        // pre-select only the fraction of non-rosette hair cells.
+        // NOTE because the selection is fixed, from pair of hair cells in
+        //      contact only one can migrate over the distance of a single cell.
+        auto T1_cells = _cm.cells();
+        T1_cells.erase(std::remove_if(T1_cells.begin(), T1_cells.end(),
+                [this, _prob_distr{std::move(_prob_distr)}]
+                (const auto& cell) mutable {
+                    return (   (cell->state.cell_type != CellType::hair)
+                            or (_prob_distr(*this->_rng) > this->_rate_swap)
+                            or this->tag_rosettes(cell).is_rosette);
+                }),
+            T1_cells.end());
+        apply_rule<Update::async>(T1_transition, T1_cells, *this->_rng);
     }
 
 
