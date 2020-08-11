@@ -219,14 +219,15 @@ protected:
             state.is_rosette = false;
             return state;
         }
-
-        state.is_rosette = true;
-        for (auto&& n : cell->custom_links().neighbors) {
-            if (n->state.cell_type == CellType::hair) {
-                state.is_rosette = false;
-                break;
-            }
-        }
+        
+        const auto& neighbors = cell->custom_links().neighbors;
+        state.is_rosette = (
+            std::find_if(
+                neighbors.begin(), neighbors.end(),
+                [](const auto& n) {
+                    return (n->state.cell_type == CellType::hair);
+                })
+            == neighbors.end());
 
         return state;
     };
