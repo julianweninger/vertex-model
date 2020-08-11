@@ -222,10 +222,28 @@ private:
         // a list of non hair neighbors
         auto neighbors = cell->custom_links().neighbors;
         neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
-                [](auto n) {
-                    return (n->state.cell_type == CellType::hair);
+                [cell](auto& n) {
+                    if (n->state.cell_type == CellType::hair) {
+                        return true;
+                    }
+                    for (auto& nn : n->custom_links().neighbors) {
+                        if (    nn != cell
+                            and nn->state.cell_type == CellType::hair) {
+                            return true;
+                        }
+                    }
+                    return false;
                 }),
             neighbors.end());
+
+        if (neighbors.empty()) {
+            neighbors = cell->custom_links().neighbors;
+            neighbors.erase(std::remove_if(neighbors.begin(), neighbors.end(),
+                    [](auto& n) {
+                        return (n->state.cell_type == CellType::hair);
+                    }),
+                neighbors.end());
+        }
 
         if (not neighbors.empty()) {
             // select a random neighbor
