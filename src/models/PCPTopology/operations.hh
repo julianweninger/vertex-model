@@ -437,15 +437,15 @@ OperationBundle build_differentiate_NotchDelta (
  *           (besides those passed to `OperationParams`):
  *               - `progenitor` (double, default: 0.): incremental value for
  *                      cells of type progenitor
- *               - `var_progenitor` (double, default: 0.): variance for cells
+ *               - `stddev_progenitor` (double, default: 0.): stddev for cells
  *                      of type progenitor; using normal distribution
  *               - `hair` (double, default: 0.): incremental value for cells
  *                      of type hair
- *               - `var_hair` (double, default: 0.): variance for cells
+ *               - `stddev_hair` (double, default: 0.): stddev for cells
  *                      of type hair; using normal distribution
  *               - `support` (double, default: 0.): incremental value for cells
  *                      of type support
- *               - `var_support` (double, default: 0.): variance for cells
+ *               - `stddev_support` (double, default: 0.): stddev for cells
  *                      of type support; using normal distribution
  *               - `adapt_support` (bool, default: false): If true, the total
  *                      area of hair and support cells remains constant, hence
@@ -461,11 +461,11 @@ OperationBundle build_increment_area (
     OperationParams params(name, cfg, default_minim_params);
 
     double incr_prog(get_as<double>("progenitor", cfg, 0.));
-    double var_prog(get_as<double>("var_progenitor", cfg, 0.));
+    double stddev_prog(get_as<double>("stddev_progenitor", cfg, 0.));
     double incr_hair(get_as<double>("hair", cfg, 0.));
-    double var_hair(get_as<double>("var_hair", cfg, 0.));
+    double stddev_hair(get_as<double>("stddev_hair", cfg, 0.));
     double incr_support(get_as<double>("support", cfg, 0.));
-    double var_support(get_as<double>("var_support", cfg, 0.));
+    double stddev_support(get_as<double>("stddev_support", cfg, 0.));
     bool adapt_support(get_as<bool>("adapt_support", cfg, false));
     
     if (adapt_support and incr_support != 0) {
@@ -475,9 +475,9 @@ OperationBundle build_increment_area (
             "`support` must be zero, but was {}!", name, incr_support));
     }
 
-    Operation operation = [incr_prog, var_prog,
-                           incr_hair, var_hair,
-                           incr_support, var_support, adapt_support]
+    Operation operation = [incr_prog, stddev_prog,
+                           incr_hair, stddev_hair,
+                           incr_support, stddev_support, adapt_support]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -485,8 +485,8 @@ OperationBundle build_increment_area (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        std::normal_distribution<> dist_prog{incr_prog, var_prog};
-        std::normal_distribution<> dist_hair{incr_hair, var_hair};
+        std::normal_distribution<> dist_prog{incr_prog, stddev_prog};
+        std::normal_distribution<> dist_hair{incr_hair, stddev_hair};
         std::normal_distribution<> dist_support;
         if (adapt_support) {
             double incr_support;
@@ -505,11 +505,11 @@ OperationBundle build_increment_area (
             }
             
             dist_support = std::normal_distribution<>(incr_support,
-                                                      var_support);
+                                                      stddev_support);
         }
         else {
             dist_support = std::normal_distribution<>(incr_support,
-                                                      var_support);
+                                                      stddev_support);
         }
 
         PCPVertex::RuleFuncCell update = [vertex_model,
@@ -945,18 +945,18 @@ OperationBundle build_jiggle (
  *               - `progenitor` (double, default: 0.): new value for
  *                      cells of type progenitor. Value 0. is ignored and
  *                      previous value of preferential area kept.
- *               - `var_progenitor` (double, default: 0.): variance for cells
- *                      of type progenitor; using normal distribution
+ *               - `stddev_progenitor` (double, default: 0.): stddev for cells
+ *                      of type progenitor; using lognormal distribution
  *               - `hair` (double, default: 0.): new value for cells
  *                      of type hair. Value 0. is ignored and
  *                      previous value of preferential area kept.
- *               - `var_hair` (double, default: 0.): variance for cells
- *                      of type hair; using normal distribution
+ *               - `stddev_hair` (double, default: 0.): stddev for cells
+ *                      of type hair; using lognormal distribution
  *               - `support` (double, default: 0.): new value for cells
  *                      of type support. Value 0. is ignored and
  *                      previous value of preferential area kept.
- *               - `var_support` (double, default: 0.): variance for cells
- *                      of type support; using normal distribution
+ *               - `stddev_support` (double, default: 0.): stddev for cells
+ *                      of type support; using lognormal distribution
  *               - `adapt_domain` (bool, default: false): If true, the domain
  *                      size is adapted to fit the cells as per preferential 
  *                      area.
@@ -968,16 +968,16 @@ OperationBundle build_set_area (
     OperationParams params(name, cfg, default_minim_params);
 
     double prog(get_as<double>("progenitor", cfg, 0.));
-    double var_prog(get_as<double>("var_progenitor", cfg, 0.));
+    double stddev_prog(get_as<double>("stddev_progenitor", cfg, 0.));
     double hair(get_as<double>("hair", cfg, 0.));
-    double var_hair(get_as<double>("var_hair", cfg, 0.));
+    double stddev_hair(get_as<double>("stddev_hair", cfg, 0.));
     double support(get_as<double>("support", cfg, 0.));
-    double var_support(get_as<double>("var_support", cfg, 0.));
+    double stddev_support(get_as<double>("stddev_support", cfg, 0.));
     bool adapt_domain(get_as<bool>("adapt_domain", cfg, false));
 
-    Operation operation = [prog, var_prog,
-                           hair, var_hair,
-                           support, var_support,
+    Operation operation = [prog, stddev_prog,
+                           hair, stddev_hair,
+                           support, stddev_support,
                            adapt_domain]
             (PCPVertex& vertex_model)
     {
@@ -986,52 +986,71 @@ OperationBundle build_set_area (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        std::normal_distribution<> dist_prog{prog, var_prog};
-        std::normal_distribution<> dist_hair{hair, var_hair};
-        std::normal_distribution<> dist_support{support, var_support};
+        std::function<std::pair<double, double>(double, double)> m_s = 
+            [](double mean, double stddev)
+        {
+            if (mean < 0.) {
+                throw std::invalid_argument(fmt::format("Cannot construct "
+                    "lognormal distribution with mean {} <= 0!", stddev));
+            }
+            if (stddev <= 0.) {
+                throw std::invalid_argument(fmt::format("Cannot construct "
+                    "lognormal distribution with stddev {} <= 0!", stddev));
+            }
+            double m = log(  std::pow(mean, 2)
+                           / sqrt(std::pow(stddev, 2) + std::pow(mean, 2)));
+            double s = sqrt(log(std::pow(stddev, 2) / std::pow(mean, 2) + 1));
+            return std::make_pair(m, s);
+        };
+
+        std::lognormal_distribution<> dist_prog, dist_hair, dist_support;
+        if (prog > 0.0 and stddev_prog > 0.) {
+            auto [m, s] = m_s(prog, stddev_prog);
+            dist_prog = std::lognormal_distribution<>(m, s);
+        }
+        if (hair > 0.0 and stddev_hair > 0.) {
+            auto [m, s] = m_s(hair, stddev_hair);
+            dist_hair = std::lognormal_distribution<>(m, s);
+        }
+        if (support > 0.0 and stddev_support > 0.) {
+            auto [m, s] = m_s(support, stddev_support);
+            dist_support = std::lognormal_distribution<> (m, s);            
+        }
 
         PCPVertex::RuleFuncCell update = [vertex_model,
                                           dist_prog{std::move(dist_prog)},
                                           dist_hair{std::move(dist_hair)},
-                                          dist_support{std::move(dist_support)}]
+                                          dist_support{std::move(dist_support)},
+                                          prog, stddev_prog,
+                                          hair, stddev_hair,
+                                          support, stddev_support]
                 (const auto& cell) mutable
         {
+            std::function<double(double, double,
+                                 std::lognormal_distribution<>&)> new_area = 
+                [vertex_model](double mean, double stddev,
+                               std::lognormal_distribution<>& distr)
+            {
+                if (stddev > 0.) {
+                    return distr(*vertex_model.get_rng());
+                }
+                else {
+                    return mean;
+                }
+            };
+
             auto state = cell->state;
-            if (state    .type == CellType::progenitor
-                     and dist_prog.mean() != 0.) {
-                state.area_preferential = dist_prog(*vertex_model.get_rng());
-                if (state.area_preferential <= 0.) {
-                    throw std::invalid_argument(fmt::format("Cannot set "
-                        "preferential area, as it is negative! The "
-                        "preferential area is {}, chosen from a normal "
-                        "distribution with mean {} and std {}",
-                        state.area_preferential,
-                        dist_hair.mean(), dist_hair.stddev()));
-                }
+            if (state.type == CellType::progenitor and prog > 0.) {
+                state.area_preferential = new_area(prog, stddev_prog,
+                                                   dist_prog);
             }
-            else if (    state.type == CellType::support
-                     and dist_support.mean() != 0.) {
-                state.area_preferential = dist_support(*vertex_model.get_rng());
-                if (state.area_preferential <= 0.) {
-                    throw std::invalid_argument(fmt::format("Cannot set "
-                        "preferential area, as it is negative! The "
-                        "preferential area is {}, chosen from a normal "
-                        "distribution with mean {} and std {}",
-                        state.area_preferential,
-                        dist_hair.mean(), dist_hair.stddev()));
-                }
+            else if (state.type == CellType::hair and hair > 0.) {
+                state.area_preferential = new_area(hair, stddev_hair,
+                                                   dist_hair);
             }
-            else if (    state.type == CellType::hair
-                     and dist_hair.mean() != 0.) {
-                state.area_preferential = dist_hair(*vertex_model.get_rng());
-                if (state.area_preferential <= 0.) {
-                    throw std::invalid_argument(fmt::format("Cannot set "
-                        "preferential area, as it is negative! The "
-                        "preferential area is {}, chosen from a normal "
-                        "distribution with mean {} and std {}",
-                        state.area_preferential,
-                        dist_hair.mean(), dist_hair.stddev()));
-                }
+            else if (state.type == CellType::support and support > 0.) {
+                state.area_preferential = new_area(support, stddev_support,
+                                                   dist_support);
             }
             return state;
         };

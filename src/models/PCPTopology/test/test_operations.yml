@@ -161,17 +161,17 @@ increment_area:
   times: []
 
   progenitor: 1.
-  var_progenitor: 0.1
+  stddev_progenitor: 0.1
   hair: 2.
-  var_hair: 0.2
+  stddev_hair: 0.2
   support: 3.
-  var_support: 0.3
+  stddev_support: 0.3
 
 increment_area_adapt:
   times: []
 
   hair: 1.
-  var_hair: 0.1
+  stddev_hair: 0.1
   adapt_support: True
 
 increment_domain:
@@ -240,24 +240,24 @@ set_area:
   times: []
 
   progenitor: 2.
-  var_progenitor: 0.1
+  stddev_progenitor: 0.1
   hair: 4.
-  var_hair: 0.2
+  stddev_hair: 0.2
   support: 5.
-  var_support: 0.3
+  stddev_support: 0.3
 
 set_area_partial:
   times: []
 
   hair: 0. # do not change areas of HCs
   support: 6.
-  var_support: 0.2
+  stddev_support: 0.2
 
 set_area_adapt:
   times: []
 
   hair: 4.
-  var_hair: 0.2
+  stddev_hair: 0.2
   support: 5.
-  var_support: 0.3
+  stddev_support: 0.3
   adapt_domain: True

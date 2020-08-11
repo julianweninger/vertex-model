@@ -59,9 +59,9 @@ std::pair<double, double> get_statistics (std::vector<double>& values)
 
     double sq_sum = std::inner_product(values.begin(), values.end(),
                                        values.begin(), 0.0);
-    double stdev = std::sqrt(sq_sum / values.size() - mean * mean);
+    double stddev = std::sqrt(sq_sum / values.size() - mean * mean);
 
-    return std::make_pair(mean, stdev);
+    return std::make_pair(mean, stddev);
 }
 
 BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
@@ -316,10 +316,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         for (const auto& cell : cells) {
             areas.push_back(cell->state.area_preferential);
         }
-        auto [mean, stdev] = get_statistics(areas);
+        auto [mean, stddev] = get_statistics(areas);
 
         BOOST_CHECK_CLOSE(mean, 2, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.1, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.1, 10);
 
                    
         auto [op_diff, params_diff] = build_differentiate_random(
@@ -333,10 +333,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         for (const auto& cell : cells) {
             areas.push_back(cell->state.area_preferential);
         }
-        std::tie(mean, stdev) = get_statistics(areas);
+        std::tie(mean, stddev) = get_statistics(areas);
 
         BOOST_CHECK_CLOSE(mean, 2, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.1, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.1, 10);
 
 
         operation(vertex_model);
@@ -356,15 +356,15 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs.shrink_to_fit();
         areas_SCs.shrink_to_fit();
         
-        std::tie(mean, stdev) = get_statistics(areas_HCs);
+        std::tie(mean, stddev) = get_statistics(areas_HCs);
 
         BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.2, 25);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         
-        std::tie(mean, stdev) = get_statistics(areas_SCs);
+        std::tie(mean, stddev) = get_statistics(areas_SCs);
 
         BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.3, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
         
     }
     
@@ -404,10 +404,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
         areas_HCs.shrink_to_fit();
         
-        auto [mean, stdev] = get_statistics(areas_HCs);
+        auto [mean, stddev] = get_statistics(areas_HCs);
 
         BOOST_CHECK_CLOSE(mean, 2, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.1, 25);
+        BOOST_CHECK_CLOSE(stddev, 0.1, 25);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain)
@@ -726,9 +726,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             shape_indices.push_back(cell->state.shape_index_preferential);
         }
         
-        auto [mean, stdev] = get_statistics(shape_indices);
+        auto [mean, stddev] = get_statistics(shape_indices);
         BOOST_CHECK_CLOSE(mean, 4.6, 10); // initially is 3.6
-        BOOST_CHECK_SMALL(stdev, 1e-6);
+        BOOST_CHECK_SMALL(stddev, 1e-6);
 
         auto [op_diff, params_diff] = build_differentiate_random(
             "differentiate_random", get_as<Config>("differentiate_random", cfg),
@@ -743,9 +743,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             shape_indices.push_back(cell->state.shape_index_preferential);
         }
 
-        std::tie(mean, stdev) = get_statistics(shape_indices);
+        std::tie(mean, stddev) = get_statistics(shape_indices);
         BOOST_CHECK_CLOSE(mean, 4.6, 10); // differentiation does not change
-        BOOST_CHECK_SMALL(stdev, 1e-6);
+        BOOST_CHECK_SMALL(stddev, 1e-6);
         
 
         operation(vertex_model);
@@ -765,13 +765,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         shape_indices_HCs.shrink_to_fit();
         shape_indices_SCs.shrink_to_fit();
         
-        std::tie(mean, stdev) = get_statistics(shape_indices_HCs);
+        std::tie(mean, stddev) = get_statistics(shape_indices_HCs);
         BOOST_CHECK_CLOSE(mean, 6.6, 10); // increment from 4.6
-        BOOST_CHECK_SMALL(stdev, 1e-6);
+        BOOST_CHECK_SMALL(stddev, 1e-6);
         
-        std::tie(mean, stdev) = get_statistics(shape_indices_SCs);
+        std::tie(mean, stddev) = get_statistics(shape_indices_SCs);
         BOOST_CHECK_CLOSE(mean, 7.6, 10); // increment from 4.6
-        BOOST_CHECK_SMALL(stdev, 1e-6);        
+        BOOST_CHECK_SMALL(stddev, 1e-6);        
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_proliferate)
@@ -808,10 +808,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         for (const auto& cell : cells) {
             areas.push_back(cell->state.area_preferential);
         }
-        auto [mean, stdev] = get_statistics(areas);
+        auto [mean, stddev] = get_statistics(areas);
 
         BOOST_CHECK_CLOSE(mean, 2, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.1, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.1, 15);
 
 
         // differentiate progenitor cells, test again                   
@@ -837,13 +837,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs.shrink_to_fit();
         areas_SCs.shrink_to_fit();
         
-        std::tie(mean, stdev) = get_statistics(areas_HCs);
+        std::tie(mean, stddev) = get_statistics(areas_HCs);
         BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.2, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 10);
         
-        std::tie(mean, stdev) = get_statistics(areas_SCs);
+        std::tie(mean, stddev) = get_statistics(areas_SCs);
         BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.3, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
 
         domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
@@ -871,16 +871,16 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs_partial.shrink_to_fit();
         areas_SCs.shrink_to_fit();
         
-        std::tie(mean, stdev) = get_statistics(areas_HCs_partial);
+        std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
         BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.2, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 10);
         BOOST_CHECK_EQUAL_COLLECTIONS(
             areas_HCs_partial.begin(), areas_HCs_partial.end(), 
             areas_HCs.begin(), areas_HCs.end());
         
-        std::tie(mean, stdev) = get_statistics(areas_SCs);
+        std::tie(mean, stddev) = get_statistics(areas_SCs);
         BOOST_CHECK_CLOSE(mean, 6, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.2, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 15);
 
         domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
@@ -917,20 +917,21 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs.shrink_to_fit();
         areas_SCs.shrink_to_fit();
         
-        auto [mean, stdev] = get_statistics(areas_HCs);
+        auto [mean, stddev] = get_statistics(areas_HCs);
 
         BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.2, 25);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         
-        std::tie(mean, stdev) = get_statistics(areas_SCs);
+        std::tie(mean, stddev) = get_statistics(areas_SCs);
 
         BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stdev, 0.3, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
 
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
         double cell_area = std::accumulate(areas_HCs.begin(),
-                                             areas_HCs.end(), 0.);
-        cell_area += std::accumulate(areas_SCs.begin(), areas_SCs.end(), 0.);
+                                           areas_HCs.end(), 0.);
+        cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
+                                    cell_area);
         BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
     }
     
