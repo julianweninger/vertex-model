@@ -946,17 +946,17 @@ OperationBundle build_jiggle (
  *                      cells of type progenitor. Value 0. is ignored and
  *                      previous value of preferential area kept.
  *               - `stddev_progenitor` (double, default: 0.): stddev for cells
- *                      of type progenitor; using normal distribution
+ *                      of type progenitor; using lognormal distribution
  *               - `hair` (double, default: 0.): new value for cells
  *                      of type hair. Value 0. is ignored and
  *                      previous value of preferential area kept.
  *               - `stddev_hair` (double, default: 0.): stddev for cells
- *                      of type hair; using normal distribution
+ *                      of type hair; using lognormal distribution
  *               - `support` (double, default: 0.): new value for cells
  *                      of type support. Value 0. is ignored and
  *                      previous value of preferential area kept.
  *               - `stddev_support` (double, default: 0.): stddev for cells
- *                      of type support; using normal distribution
+ *                      of type support; using lognormal distribution
  *               - `adapt_domain` (bool, default: false): If true, the domain
  *                      size is adapted to fit the cells as per preferential 
  *                      area.
@@ -986,52 +986,71 @@ OperationBundle build_set_area (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        std::normal_distribution<> dist_prog{prog, stddev_prog};
-        std::normal_distribution<> dist_hair{hair, stddev_hair};
-        std::normal_distribution<> dist_support{support, stddev_support};
+        std::function<std::pair<double, double>(double, double)> m_s = 
+            [](double mean, double stddev)
+        {
+            if (mean < 0.) {
+                throw std::invalid_argument(fmt::format("Cannot construct "
+                    "lognormal distribution with mean {} <= 0!", stddev));
+            }
+            if (stddev <= 0.) {
+                throw std::invalid_argument(fmt::format("Cannot construct "
+                    "lognormal distribution with stddev {} <= 0!", stddev));
+            }
+            double m = log(  std::pow(mean, 2)
+                           / sqrt(std::pow(stddev, 2) + std::pow(mean, 2)));
+            double s = sqrt(log(std::pow(stddev, 2) / std::pow(mean, 2) + 1));
+            return std::make_pair(m, s);
+        };
+
+        std::lognormal_distribution<> dist_prog, dist_hair, dist_support;
+        if (prog > 0.0 and stddev_prog > 0.) {
+            auto [m, s] = m_s(prog, stddev_prog);
+            dist_prog = std::lognormal_distribution<>(m, s);
+        }
+        if (hair > 0.0 and stddev_hair > 0.) {
+            auto [m, s] = m_s(hair, stddev_hair);
+            dist_hair = std::lognormal_distribution<>(m, s);
+        }
+        if (support > 0.0 and stddev_support > 0.) {
+            auto [m, s] = m_s(support, stddev_support);
+            dist_support = std::lognormal_distribution<> (m, s);            
+        }
 
         PCPVertex::RuleFuncCell update = [vertex_model,
                                           dist_prog{std::move(dist_prog)},
                                           dist_hair{std::move(dist_hair)},
-                                          dist_support{std::move(dist_support)}]
+                                          dist_support{std::move(dist_support)},
+                                          prog, stddev_prog,
+                                          hair, stddev_hair,
+                                          support, stddev_support]
                 (const auto& cell) mutable
         {
+            std::function<double(double, double,
+                                 std::lognormal_distribution<>&)> new_area = 
+                [vertex_model](double mean, double stddev,
+                               std::lognormal_distribution<>& distr)
+            {
+                if (stddev > 0.) {
+                    return distr(*vertex_model.get_rng());
+                }
+                else {
+                    return mean;
+                }
+            };
+
             auto state = cell->state;
-            if (state    .type == CellType::progenitor
-                     and dist_prog.mean() != 0.) {
-                state.area_preferential = dist_prog(*vertex_model.get_rng());
-                if (state.area_preferential <= 0.) {
-                    throw std::invalid_argument(fmt::format("Cannot set "
-                        "preferential area, as it is negative! The "
-                        "preferential area is {}, chosen from a normal "
-                        "distribution with mean {} and stddev {}",
-                        state.area_preferential,
-                        dist_hair.mean(), dist_hair.stddev()));
-                }
+            if (state.type == CellType::progenitor and prog > 0.) {
+                state.area_preferential = new_area(prog, stddev_prog,
+                                                   dist_prog);
             }
-            else if (    state.type == CellType::support
-                     and dist_support.mean() != 0.) {
-                state.area_preferential = dist_support(*vertex_model.get_rng());
-                if (state.area_preferential <= 0.) {
-                    throw std::invalid_argument(fmt::format("Cannot set "
-                        "preferential area, as it is negative! The "
-                        "preferential area is {}, chosen from a normal "
-                        "distribution with mean {} and stddev {}",
-                        state.area_preferential,
-                        dist_hair.mean(), dist_hair.stddev()));
-                }
+            else if (state.type == CellType::hair and hair > 0.) {
+                state.area_preferential = new_area(hair, stddev_hair,
+                                                   dist_hair);
             }
-            else if (    state.type == CellType::hair
-                     and dist_hair.mean() != 0.) {
-                state.area_preferential = dist_hair(*vertex_model.get_rng());
-                if (state.area_preferential <= 0.) {
-                    throw std::invalid_argument(fmt::format("Cannot set "
-                        "preferential area, as it is negative! The "
-                        "preferential area is {}, chosen from a normal "
-                        "distribution with mean {} and stddev {}",
-                        state.area_preferential,
-                        dist_hair.mean(), dist_hair.stddev()));
-                }
+            else if (state.type == CellType::support and support > 0.) {
+                state.area_preferential = new_area(support, stddev_support,
+                                                   dist_support);
             }
             return state;
         };
