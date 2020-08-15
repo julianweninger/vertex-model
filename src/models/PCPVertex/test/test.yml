@@ -3,8 +3,8 @@ PCPVertex:
   T1_barrier: 1000.
   T1_probability: 1.
   T1_threshold: 0.2
-  T2_threshold: 0.0075
-  T1_separation_factor: 3
+  T2_threshold: 0.2
+  T1_separation_factor: 1.05
   agent_manager:
     cell_manager:
       agent_params: 
@@ -41,7 +41,7 @@ PCPVertex:
     extent: [1.0, 1.0]
     periodic: false
   update_scheme: steepest_gradient
-log_levels: {core: debug, data_io: debug, data_mngr: debug, model: trace}
+log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 0
 output_path: test_data.h5

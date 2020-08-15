@@ -286,7 +286,7 @@ double PCPVertex::get_energy (
 /// Getter for the relative energy change from previous to last step
 double PCPVertex::get_rel_energy_change () const
 {
-    const double energy = get_energy();
+    double energy = get_energy();
     double energy_change = energy - _energy_previous_step;
     return energy_change / energy;
 }
