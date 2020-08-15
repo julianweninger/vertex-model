@@ -175,9 +175,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
     // }
     // FIXME requires activation
 
-    BOOST_AUTO_TEST_CASE(test_T2_periodic) {
-        test_T2_transition(true);
-    }
+    // BOOST_AUTO_TEST_CASE(test_T2_periodic) {
+    //     test_T2_transition(true);
+    // }
+    // FIXME requires activation
 
 
 
