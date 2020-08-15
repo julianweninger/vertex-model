@@ -492,6 +492,8 @@ public:
     void prolog () {
         _vertex_model.prolog();
 
+        this->_log->info("Running prolog operations ...");
+
         for (auto& operation : _operations) {
             apply_operation(operation, true, false);
         }
