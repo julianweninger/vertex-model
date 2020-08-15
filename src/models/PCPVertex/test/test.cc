@@ -121,6 +121,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     //     auto model = model_factory(false);
     //     test_model_minimization(model);
     // }
+    // FIXME requires activation
 
     BOOST_AUTO_TEST_CASE(test_minimization_periodic)
     {

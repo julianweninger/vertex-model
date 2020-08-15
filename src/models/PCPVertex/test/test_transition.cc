@@ -20,12 +20,12 @@ PCPVertex model_factory(bool periodic) {
     using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
     if (periodic) {
-        Utopia::PseudoParent pp("test_periodic.yml");
+        Utopia::PseudoParent pp("test_transitions_periodic.yml");
         return PCPVertex("PCPVertex", pp, {},
                          std::make_tuple(time_energy_adaptor));
     }
     else {
-        Utopia::PseudoParent pp("test.yml");
+        Utopia::PseudoParent pp("test_transitions.yml");
         return PCPVertex("PCPVertex", pp, {},
                          std::make_tuple(time_energy_adaptor));
     }
@@ -136,34 +136,39 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
     void test_T2_transition(bool periodic) {
         auto model = model_factory(periodic);
-        model.prolog();
         
-        const auto& am = model.get_am();
+        auto& am = model.get_am();
 
-        const auto& cells = am.cells();
-        const auto& edges = am.edges();
-        const auto& vertices = am.vertices();
+        auto& cells = am.cells();
+        auto& edges = am.edges();
+        auto& vertices = am.vertices();
 
         auto num_cells = cells.size();
         auto num_edges = edges.size();
         auto num_vertices = vertices.size();
 
-        auto cell = cells[cells.size() / 2];
-
-        cell->state.area_preferential = 0.;
+        auto cell = cells[cells.size() / 2 + 4];
+        cell->state.area_preferential = 0.1;
+        
+        model.prolog();
         for (int i = 0; i < 1000; i++) {
             model.iterate();
-            if (cells.size() > num_cells) { 
+            if (cells.size() < num_cells) {
                 break;
             }
         }
 
+        bool found = std::find(cells.begin(), cells.end(), cell) != cells.end();
+        BOOST_TEST(not found);
+
         BOOST_TEST(cell.use_count() == 1);
 
         BOOST_TEST(cells.size() == num_cells - 1);
-        BOOST_TEST(edges.size() == num_edges-cell->custom_links().edges.size());
-        BOOST_TEST(vertices.size() == 
-                   num_vertices - cell->custom_links().vertices.size() + 1);
+        BOOST_TEST(edges.size() == (  num_edges
+                                    - cell->custom_links().edges.size()));
+        BOOST_TEST(vertices.size() == (  num_vertices
+                                       - cell->custom_links().vertices.size()
+                                       + 1));
 
         test_custom_links(model);
     }
@@ -176,7 +181,5 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
     BOOST_AUTO_TEST_CASE(test_T2_periodic) {
         test_T2_transition(true);
     }
-
-
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -1,14 +1,17 @@
 ---
 PCPVertex:
-  T1_barrier: 0.02
-  T1_probability: 1.0
+  T1_barrier: 1000.
+  T1_probability: 1.
+  T1_threshold: 0.2
+  T2_threshold: 0.2
   T1_separation_factor: 1.05
-  T1_threshold: 0.03
-  T2_threshold: 0.0075
   agent_manager:
     cell_manager:
-      agent_params: {area_preferential: 1.0, area_preferential_var: 0.0, cell_type: progenitor,
-        contractility: 0.0, shape_index_preferential: 3.6}
+      agent_params: 
+        area_preferential: 1.0
+        shape_index_preferential: 3.6
+        contractility: 0.02
+        cell_type: progenitor
     edge_manager:
       agent_params: {contractility: 0.02, linetension: 0.1}
     setup_method: hexagonal
@@ -31,9 +34,9 @@ PCPVertex:
         args: {time: 0}
         type: once
   dt: 0.01
+  minimization_tolerance: 1e-8
   gamma: 0.0
   initial_jiggle: 0.05
-  minimization_tolerance: 1e-08
   space:
     extent: [1.0, 1.0]
     periodic: false

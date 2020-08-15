@@ -521,7 +521,8 @@ private:
     const RuleFuncCell set_grad_area_elasticity = [this](const auto& cell) {
         const auto state = cell->state;
 
-        const auto cell_area = this->_am.area_of(cell);
+        const auto rel_cell_area = (  this->_am.area_of(cell)
+                                    / state.area_preferential);
         const auto cell_center = this->_am.barycenter_of(cell);
         
         const auto& edges = cell->custom_links().edges;
@@ -564,9 +565,10 @@ private:
             double dA_dx = 0.5 * displ[1];
             double dA_dy = -0.5 * displ[0];
 
-            SpaceVec force = -1. * this->_area_elasticity * 
-                             (cell_area - state.area_preferential) * 
-                             SpaceVec({dA_dx, dA_dy});
+            SpaceVec force = (  -1. * this->_area_elasticity
+                              * (rel_cell_area - 1)
+                              * SpaceVec({dA_dx, dA_dy})
+                              / state.area_preferential);
 
             v_center->state.f += force;
         }
@@ -581,7 +583,8 @@ private:
     const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
     {
         auto state = cell->state;
-        double perimeter = this->_am.perimeter_of(cell);
+        double shape_index = (  this->_am.perimeter_of(cell)
+                              / sqrt(state.area_preferential));
 
         for (auto [e, flip] : cell->custom_links().edges) {
             auto a = e->custom_links().a;
@@ -591,8 +594,9 @@ private:
             SpaceVec displ = this->_am.displacement(a, b);
             double length = arma::norm(displ);
 
-            SpaceVec force = state.contractility * displ / length *
-                             (perimeter - state.perimeter_preferential());
+            SpaceVec force = (  state.contractility * displ / length
+                              / sqrt(state.area_preferential)
+                              * (shape_index - state.shape_index_preferential));
 
             a->state.f += force;
             b->state.f -= force;
@@ -878,7 +882,6 @@ public:
 
     void prolog () {
         this->init_minimization();
-        _energy = this->get_energy();
         return this->__prolog();
     }
     
