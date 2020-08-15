@@ -20,12 +20,12 @@ PCPVertex model_factory(bool periodic) {
     using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
     if (periodic) {
-        Utopia::PseudoParent pp("test_periodic.yml");
+        Utopia::PseudoParent pp("test_transitions_periodic.yml");
         return PCPVertex("PCPVertex", pp, {},
                          std::make_tuple(time_energy_adaptor));
     }
     else {
-        Utopia::PseudoParent pp("test.yml");
+        Utopia::PseudoParent pp("test_transitions.yml");
         return PCPVertex("PCPVertex", pp, {},
                          std::make_tuple(time_energy_adaptor));
     }
@@ -151,8 +151,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         cell->state.area_preferential = 0.1;
         
         model.prolog();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 1000; i++) {
             model.iterate();
+            if (cells.size() < num_cells) {
+                break;
+            }
         }
 
         bool found = std::find(cells.begin(), cells.end(), cell) != cells.end();
@@ -175,11 +178,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
     // }
     // FIXME requires activation
 
-    // BOOST_AUTO_TEST_CASE(test_T2_periodic) {
-    //     test_T2_transition(true);
-    // }
-    // FIXME requires activation
-
-
+    BOOST_AUTO_TEST_CASE(test_T2_periodic) {
+        test_T2_transition(true);
+    }
 
 BOOST_AUTO_TEST_SUITE_END()

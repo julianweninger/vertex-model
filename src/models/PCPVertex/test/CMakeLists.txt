@@ -13,5 +13,7 @@ add_model_tests(# Use consistent capitalization for the model name!
                 AUX_FILES
                     "space_test.yml"
                     "test.yml"
-                    "test_periodic.yml")
+                    "test_periodic.yml"
+                    "test_transitions.yml"
+                    "test_transitions_periodic.yml")
 
