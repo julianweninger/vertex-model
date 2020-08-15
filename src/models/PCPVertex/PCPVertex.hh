@@ -882,7 +882,6 @@ public:
 
     void prolog () {
         this->init_minimization();
-        _energy = this->get_energy();
         return this->__prolog();
     }
     
