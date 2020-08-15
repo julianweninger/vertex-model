@@ -65,7 +65,7 @@ cell_polarity_exclusion: 0.
 cell_initialisation_protein_level: 0.
 
 T1_threshold: 0.03
-T1_separation_factor: 3
+T1_separation_factor: 1.05
 T1_probability: 1.
 T1_barrier: 0.02
 T2_threshold: 0.0075
