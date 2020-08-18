@@ -253,6 +253,14 @@ set_area_partial:
   support: 6.
   stddev_support: 0.2
 
+set_area_fixed:
+  times: []
+
+  hair: 2. # do not change areas of HCs
+  # stddev_hair: 0. by default
+  support: 7.
+  stddev_support: 0.  # no variation
+
 set_area_adapt:
   times: []
 
