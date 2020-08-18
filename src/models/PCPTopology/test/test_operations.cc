@@ -884,6 +884,38 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
 
         domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
+
+
+        // set area of support 
+        name = "set_area_fixed";
+        auto [operation_fixed, params_fixed] = build_set_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+       
+        operation_fixed(vertex_model);
+
+        areas_HCs.clear();
+        areas_SCs.clear();
+        areas_HCs.reserve(cells.size());
+        areas_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                areas_HCs.push_back(cell->state.area_preferential);
+            }
+            else if (cell->state.type == CellType::support) {
+                areas_SCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_HCs.shrink_to_fit();
+        areas_SCs.shrink_to_fit();
+        
+        std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
+        BOOST_TEST(areas_HCs == std::vector<double>(areas_HCs.size(), 2.),
+                   boost::test_tools::per_element());
+        BOOST_TEST(areas_SCs == std::vector<double>(areas_SCs.size(), 7.),
+                   boost::test_tools::per_element());
+
+        domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
         
     }
     
