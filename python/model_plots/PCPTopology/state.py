@@ -1,6 +1,7 @@
 """PCPTopology-model specific plot function for the state / density"""
 
 import logging
+import warnings
 from typing import Tuple
 
 import numpy as np
@@ -152,7 +153,11 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
 
         if (not hist_plot_kwargs):
             hist_plot_kwargs = {}
-        hlpr.ax.hist(x=num_neighbors, bins=bins, **hist_plot_kwargs)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="invalid value encountered in "
+                                            "true_divide")
+            hlpr.ax.hist(x=num_neighbors, bins=bins, **hist_plot_kwargs)
 
         if helpers_frame_hist:
             for name, args in helpers_frame_hist.items():
@@ -164,14 +169,19 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
         hlpr.ax.clear()
         figure_index += 1
 
-        area_mean = xr.DataArray([area.where(num_neighbors==i)\
-                                        .mean().data for i in bins],
-                                    dims=['num_neighbors'],
-                                    coords={'num_neighbors': bins})
-        area_std = xr.DataArray([area.where(num_neighbors==i)\
-                                        .std().data for i in bins],
-                                    dims=['num_neighbors_std'],
-                                    coords={'num_neighbors_std': bins})
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Mean of empty slice")
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Degrees of freedom <= 0 for slice.")
+            area_mean = xr.DataArray([area.where(num_neighbors==i)\
+                                            .mean().data for i in bins],
+                                        dims=['num_neighbors'],
+                                        coords={'num_neighbors': bins})
+            area_std = xr.DataArray([area.where(num_neighbors==i)\
+                                            .std().data for i in bins],
+                                        dims=['num_neighbors_std'],
+                                        coords={'num_neighbors_std': bins})
         
         if (not area_plot_kwargs):
             area_plot_kwargs = {}
@@ -187,14 +197,19 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
         hlpr.ax.clear()
         figure_index += 1
 
-        shape_index_mean = xr.DataArray([shape_index.where(num_neighbors==i)\
-                                        .mean().data for i in bins],
-                                    dims=['num_neighbors'],
-                                    coords={'num_neighbors': bins})
-        shape_index_std = xr.DataArray([shape_index.where(num_neighbors==i)\
-                                        .std().data for i in bins],
-                                    dims=['num_neighbors_std'],
-                                    coords={'num_neighbors_std': bins})
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Mean of empty slice")
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Degrees of freedom <= 0 for slice.")
+            shape_index_mean = xr.DataArray([shape_index.where(num_neighbors==i)\
+                                            .mean().data for i in bins],
+                                        dims=['num_neighbors'],
+                                        coords={'num_neighbors': bins})
+            shape_index_std = xr.DataArray([shape_index.where(num_neighbors==i)\
+                                            .std().data for i in bins],
+                                        dims=['num_neighbors_std'],
+                                        coords={'num_neighbors_std': bins})
         
         if (not shape_index_plot_kwargs):
             shape_index_plot_kwargs = {}
