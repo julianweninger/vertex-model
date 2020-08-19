@@ -2,6 +2,8 @@
 #define UTOPIA_MODELS_PCPTOPOLOGY_OPERATIONS_HH
 
 #include <typeinfo>
+#include <algorithm>
+#include <iterator>
 
 #include <utopia/core/types.hh>
 
@@ -152,7 +154,7 @@ OperationBundle build_differentiate_random (
             params.iterations_epilog));
     }
 
-    std::uniform_real_distribution<double> prob_distr;
+    std::uniform_real_distribution<double> prob_distr(0., 1.);
 
     Operation operation = [probability, prob_distr{std::move(prob_distr)}]
             (PCPVertex& vertex_model) mutable
@@ -427,6 +429,97 @@ OperationBundle build_differentiate_NotchDelta (
                     "NotchDelta model not available in Vertex model!", type));
             }
         }
+    };
+
+    return std::make_pair(operation, params);
+}
+/// The operation to differentiate two hair cells in contact
+/** The remaining cells become type progenitor
+ * 
+ *  \note mainly for testing purposes, i.e. which mechanism can separate two
+ *        hair cells?
+ *  
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `num_seeds` (std::size_t): The number of seeds for new clusters
+ *      - `cluster_size` (std::size_t): How many next neighbours to add to the 
+ *              cluster
+ * 
+ *  \note The entities properties do not change during differentiation.
+ * 
+ *  \warning not continuously tested
+ */
+OperationBundle build_differentiate_hair_cluster (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+    
+    auto num_seeds(get_as<std::size_t>("num_seeds", cfg));
+    auto cluster_size(get_as<std::size_t>("cluster_size", cfg));
+    
+    if (params.iterations_prolog + params.iterations_epilog +
+        params.iterations * (params.times.size()) > 1)
+    {
+        throw std::invalid_argument(fmt::format(
+            "Differentiate can be applied only once, because terminal "
+            "process. Iterations in prolog: {}, in run {}, in epilog",
+            params.iterations_prolog,
+            params.iterations * (params.times.size()),
+            params.iterations_epilog));
+    }
+
+
+    Operation operation = [num_seeds, cluster_size](PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+        
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+        AgentContainer<PCPVertex::Cell> cluster_seeds{};
+        cluster_seeds.reserve(num_seeds);
+        std::sample(cells.begin(), cells.end(),
+                    std::back_inserter(cluster_seeds),
+                    num_seeds, *vertex_model.get_rng());
+
+        for (const auto& cell : cluster_seeds) {
+            AgentContainer<PCPVertex::Cell> cluster({cell});
+            std::size_t iterations = 0;
+            while (    (cluster.size() < cluster_size)
+                   and (iterations++ < 10 * cluster_size))
+            {
+                std::uniform_int_distribution<> int_distr(0, cluster.size() - 1);
+                const auto& n = cluster[int_distr(*vertex_model.get_rng())];
+                auto nbs = am.neighbors_of(n);
+                int_distr = std::uniform_int_distribution<>(0, nbs.size() - 1);
+                const auto& new_cell = nbs[int_distr(*vertex_model.get_rng())];
+
+                if ((   std::find(cluster.begin(), cluster.end(), new_cell)
+                     == cluster.end()))
+                {
+                    cluster.push_back(new_cell);
+                }
+            }
+
+            PCPVertex::RuleFuncCell differentiate = [](const auto& cell)
+            {
+                cell->state.type = CellType::hair;
+                return cell->state;
+            };
+
+            apply_rule<Update::sync>(differentiate, cluster);
+        }
+
+        PCPVertex::RuleFuncCell differentiate_others = [](const auto& cell)
+        {
+            auto state = cell->state;
+            if (state.type == CellType::progenitor) {
+                state.type = CellType::support;
+            }
+            return state;
+        };
+
+        apply_rule<Update::sync>(differentiate_others, cells);
     };
 
     return std::make_pair(operation, params);
