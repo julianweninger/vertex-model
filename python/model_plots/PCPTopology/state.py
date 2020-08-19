@@ -1,6 +1,7 @@
 """PCPTopology-model specific plot function for the state / density"""
 
 import logging
+import warnings
 from typing import Tuple
 
 import numpy as np
@@ -72,12 +73,19 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
         ax3.set_xlabel("Time of operations")
 
-def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all', 
+def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
+                       plot_hist: bool=True,
+                       plot_area: bool=True,
+                       plot_shape_index: bool=True,
                        helpers_frame_hist: dict=None,
                        helpers_frame_area: dict=None,
+                       helpers_frame_shape_index: dict=None,
                        hist_plot_kwargs: dict=None,
-                       area_plot_kwargs: dict=None):
-    """ Helper function to plot the cell_neighbourhood
+                       area_plot_kwargs: dict=None,
+                       shape_index_plot_kwargs: dict=None):
+    """ Helper function to plot the cell_neighbourhood.
+
+    Plots the properties averaged separately for the polygon classes
 
     Args:
         data: the data
@@ -85,15 +93,25 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
 
         only_type (str): If only a single type of cells should be used for 
                          calculation. Can be 'all', 'hair', 'support'
+
+        plot_hist (bool, default: True): Whether to plot the histogram
+        plot_area (bool, default: True): Whether to plot the mean area
+        plot_shape_index (bool, default: True): Whether to plot the mean shape
+                                                index
         helpers_frame_hist (dict, optional): Dict passed to helper within every 
                                              frame
         helpers_frame_area (dict, optional): Dict passed to helper within every 
                                              frame
+        helpers_frame_shape_index (dict, optional): Dict passed to helper within every 
+                                             frame
         hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
         area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
+        shape_index_plot_kwargs: passed on to matplotlib.errorbar
+                                 (shape_index plot)
     """
     num_neighbors = data.sel(property='num_neighbors')
     area = data.sel(property='area')
+    shape_index = data.sel(property='shape_index')
     cell_type = data.sel(property='cell_type')
 
     bins = range(3, 10)
@@ -101,19 +119,23 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
     if only_type == 'hair':
         num_neighbors = num_neighbors[cell_type == 1]
         area = area[cell_type == 1]
+        shape_index = shape_index[cell_type == 1]
     elif only_type == 'support':
         num_neighbors = num_neighbors[cell_type == 2]
         area = area[cell_type == 2]
+        shape_index = shape_index[cell_type == 2]
     elif only_type == 'support_hair':
         num_neighbors = data.sel(property='num_hair_neighbors')
         num_neighbors = num_neighbors[cell_type == 2]
         area = area[cell_type == 2]
+        shape_index = shape_index[cell_type == 2]
         bins = range(0, 7)
     elif only_type == 'support_support':
         num_neighbors = num_neighbors - \
                         data.sel(property='num_hair_neighbors')
         num_neighbors = num_neighbors[cell_type == 2]
         area = area[cell_type == 2]
+        shape_index = shape_index[cell_type == 2]
         bins = range(0, 7)
     elif only_type != 'all':
         raise ValueError("'only_type' unknown, was '{}', but must be "
@@ -121,49 +143,97 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
                     "".format(only_type, ['all', 'hair', 'support',
                                             'support_hair',
                                             'support_support']))
+    figure_index = 0
 
     # the histogram
-    hlpr.select_axis(col=0, row=0)
-    hlpr.ax.clear()
+    if plot_hist:
+        hlpr.select_axis(col=figure_index, row=0)
+        hlpr.ax.clear()
+        figure_index += 1
 
-    if (not hist_plot_kwargs):
-        hist_plot_kwargs = {}
-    hlpr.ax.hist(x=num_neighbors, bins=bins, **hist_plot_kwargs)
+        if (not hist_plot_kwargs):
+            hist_plot_kwargs = {}
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="invalid value encountered in "
+                                            "true_divide")
+            hlpr.ax.hist(x=num_neighbors, bins=bins, **hist_plot_kwargs)
 
-    if helpers_frame_hist:
-        for name, args in helpers_frame_hist.items():
-            hlpr.invoke_helper(name, **args)
+        if helpers_frame_hist:
+            for name, args in helpers_frame_hist.items():
+                hlpr.invoke_helper(name, **args)
 
     # the mean area per polygon class
-    hlpr.select_axis(col=1, row=0)
-    hlpr.ax.clear()
+    if plot_area:
+        hlpr.select_axis(col=figure_index, row=0)
+        hlpr.ax.clear()
+        figure_index += 1
 
-    area_mean = xr.DataArray([area.where(num_neighbors==i)\
-                                    .mean().data for i in bins],
-                                dims=['num_neighbors'],
-                                coords={'num_neighbors': bins})
-    area_std = xr.DataArray([area.where(num_neighbors==i)\
-                                    .std().data for i in bins],
-                                dims=['num_neighbors_std'],
-                                coords={'num_neighbors_std': bins})
-    
-    if (not area_plot_kwargs):
-        area_plot_kwargs = {}
-    hlpr.ax.errorbar(x=bins, y=area_mean, yerr=area_std, **area_plot_kwargs)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Mean of empty slice")
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Degrees of freedom <= 0 for slice.")
+            area_mean = xr.DataArray([area.where(num_neighbors==i)\
+                                            .mean().data for i in bins],
+                                        dims=['num_neighbors'],
+                                        coords={'num_neighbors': bins})
+            area_std = xr.DataArray([area.where(num_neighbors==i)\
+                                            .std().data for i in bins],
+                                        dims=['num_neighbors_std'],
+                                        coords={'num_neighbors_std': bins})
+        
+        if (not area_plot_kwargs):
+            area_plot_kwargs = {}
+        hlpr.ax.errorbar(x=bins, y=area_mean, yerr=area_std, **area_plot_kwargs)
 
-    if helpers_frame_area:    
-        for name, args in helpers_frame_area.items():
-            hlpr.invoke_helper(name, **args)
+        if helpers_frame_area:    
+            for name, args in helpers_frame_area.items():
+                hlpr.invoke_helper(name, **args)
+
+    # the mean shape index per polygon class
+    if plot_shape_index:
+        hlpr.select_axis(col=figure_index, row=0)
+        hlpr.ax.clear()
+        figure_index += 1
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Mean of empty slice")
+            warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                    message="Degrees of freedom <= 0 for slice.")
+            shape_index_mean = xr.DataArray([shape_index.where(num_neighbors==i)\
+                                            .mean().data for i in bins],
+                                        dims=['num_neighbors'],
+                                        coords={'num_neighbors': bins})
+            shape_index_std = xr.DataArray([shape_index.where(num_neighbors==i)\
+                                            .std().data for i in bins],
+                                        dims=['num_neighbors_std'],
+                                        coords={'num_neighbors_std': bins})
+        
+        if (not shape_index_plot_kwargs):
+            shape_index_plot_kwargs = {}
+        hlpr.ax.errorbar(x=bins, y=shape_index_mean, yerr=shape_index_std,
+                        **shape_index_plot_kwargs)
+
+        if helpers_frame_shape_index:    
+            for name, args in helpers_frame_shape_index.items():
+                hlpr.invoke_helper(name, **args)
 
 
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath = 'PCPTopology/Cells',
                        only_type: str='all',
+                       plot_hist: bool=True,
+                       plot_area: bool=True,
+                       plot_shape_index: bool=True,
                        helpers_frame_hist: dict=None,
                        helpers_frame_area: dict=None,
+                       helpers_frame_shape_index: dict=None,
                        hist_plot_kwargs: dict=None,
-                       area_plot_kwargs: dict=None):
+                       area_plot_kwargs: dict=None,
+                       shape_index_plot_kwargs: dict=None):
     """Performs a plot of the neighbourhood of the cells and the average area 
         per polygon class
     
@@ -174,12 +244,20 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         datapath (str): Path to the data
         only_type (str): If only a single type of cells should be used for 
                          calculation. Can be 'all', 'hair', 'support'
+
+        plot_hist (bool, default: True): Whether to plot the histogram
+        plot_area (bool, default: True): Whether to plot the mean area
+        plot_shape_index (bool, default: True): Whether to plot the mean shape
+                                                index
         helpers_frame_hist (dict, optional): Dict passed to helper within every 
                                              frame
         helpers_frame_area (dict, optional): Dict passed to helper within every 
                                              frame
+        helpers_frame_shape_index (dict, optional): Dict passed to helper within every 
+                                             frame
         hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
         area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
+        shape_index_plot_kwargs: passed on to matplotlib.errorbar (shape_index plot)
     """
 
     # Get the group that all datasets are in
@@ -190,16 +268,27 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     # Prepare the figure ......................................................
     # Prepare the figure to have as many columns as there are properties
-    hlpr.setup_figure(ncols=2)
+    num_subplots = 3
+    for prop in [plot_hist, plot_area, plot_shape_index]:
+        if not prop:
+            num_subplots -= 1
+    if num_subplots <= 0:
+        raise RuntimeError("Nothing to plot!")
+    hlpr.setup_figure(ncols=num_subplots)
+
 
     def update():
         # grp['cells'] is TimeSeriesGroup -> single dimension time
         for time in grp:
             plot_neighbourhood(grp[time], hlpr=hlpr, only_type=only_type,
+                               plot_hist=plot_hist, plot_area=plot_area,
+                               plot_shape_index=plot_shape_index,
                                helpers_frame_hist=helpers_frame_hist,
                                helpers_frame_area=helpers_frame_area,
+                               helpers_frame_shape_index=helpers_frame_shape_index,
                                hist_plot_kwargs=hist_plot_kwargs, 
-                               area_plot_kwargs=area_plot_kwargs)
+                               area_plot_kwargs=area_plot_kwargs,
+                               shape_index_plot_kwargs=shape_index_plot_kwargs)
             
             hlpr.select_axis(col=0, row=0)
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
@@ -212,18 +301,36 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 @is_plot_func(creator_type=MultiversePlotCreator, use_dag=True)
 def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
                           only_type: str='all',
+                          plot_hist: bool=True,
+                          plot_area: bool=True,
+                          plot_shape_index: bool=True,
                           helpers_frame_hist: dict=None,
                           helpers_frame_area: dict=None,
+                          helpers_frame_shape_index: dict=None,
                           hist_plot_kwargs: dict=None,
-                          area_plot_kwargs: dict=None):
-    """A creator-averse plot function using the data transformation
-    framework and the plot helper framework.
+                          area_plot_kwargs: dict=None,
+                          shape_index_plot_kwargs: dict=None):
+    """Plot properties of the cell averaged separately for different polygon
+    classes.
+    Average furthermore over the dimension seed of the data.
 
     Args:
-        data: The selected and transformed data, containing specified tags.
-        hlpr: The associated plot helper.
+        only_type (str): If only a single type of cells should be used for 
+                         calculation. Can be 'all', 'hair', 'support'
+
+        plot_hist (bool, default: True): Whether to plot the histogram
+        plot_area (bool, default: True): Whether to plot the mean area
+        plot_shape_index (bool, default: True): Whether to plot the mean shape
+                                                index
+        helpers_frame_hist (dict, optional): Dict passed to helper within every 
+                                             frame
+        helpers_frame_area (dict, optional): Dict passed to helper within every 
+                                             frame
+        helpers_frame_shape_index (dict, optional): Dict passed to helper within every 
+                                             frame
         hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
         area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
+        shape_index_plot_kwargs: passed on to matplotlib.errorbar (shape_index plot)
     """
 
     # Prepare the figure ......................................................
@@ -232,7 +339,11 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
     data = data['data'].stack(z=('seed', 'id')).squeeze()
 
     plot_neighbourhood(data, hlpr=hlpr, only_type=only_type,
+                       plot_hist=plot_hist, plot_area=plot_area,
+                       plot_shape_index=plot_shape_index,
                        helpers_frame_hist=helpers_frame_hist,
                        helpers_frame_area=helpers_frame_area,
+                       helpers_frame_shape_index=helpers_frame_shape_index,
                        hist_plot_kwargs=hist_plot_kwargs, 
-                       area_plot_kwargs=area_plot_kwargs)
+                       area_plot_kwargs=area_plot_kwargs,
+                       shape_index_plot_kwargs=shape_index_plot_kwargs)

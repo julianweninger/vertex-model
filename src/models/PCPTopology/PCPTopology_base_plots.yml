@@ -100,6 +100,9 @@ cell_neighbourhood:
   file_ext: png
 
   only_type: all
+  plot_hist: True
+  plot_area: True
+  plot_shape_index: True
   
   hist_plot_kwargs:
     align: left
@@ -115,6 +118,10 @@ cell_neighbourhood:
     set_labels:
       x: number of neighbours
       y: mean area
+  helpers_frame_shape_index:
+    set_labels:
+      x: number of neighbours
+      y: mean shape index
 
   animation:
     enabled: true
