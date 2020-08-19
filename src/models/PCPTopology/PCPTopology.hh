@@ -226,6 +226,11 @@ private:
                         build_differentiate_random(name, op_cfg,
                                                    _minimization_params));
                 }
+                else if (name == "differentiate_hair_cluster") {
+                    _operations.push_back(
+                        build_differentiate_hair_cluster(name, op_cfg,
+                                                         _minimization_params));
+                }
                 else if (name == "increment_area") {
                     _operations.push_back(
                         build_increment_area(name, op_cfg,
@@ -272,6 +277,7 @@ private:
                             "differentiate_Collier, "
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
+                            "differentiate_hair_cluster, "
                             "increment_area, "
                             "increment_domain, "
                             "increment_edge_contractility, "
