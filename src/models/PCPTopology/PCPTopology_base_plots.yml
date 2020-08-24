@@ -76,6 +76,7 @@ cellular_structure:
     set_labels:
       x: x [a.u.]
       y: y [a.u.]
+    save_figure: {bbox_inches: tight}
 
   animation:
     enabled: true
@@ -90,7 +91,13 @@ cellular_structure:
         saving:
           dpi: 300
 
-    animation_update_kwargs:  {}
+    animation_update_kwargs: {}
+
+  # Can use constrained layout, because axis labels don't change
+  style:
+    figure.constrained_layout.use: true
+    axes.grid: false
+
 
 cell_neighbourhood:
   module: model_plots.PCPTopology
