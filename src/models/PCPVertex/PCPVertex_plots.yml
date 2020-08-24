@@ -56,6 +56,6 @@ transitions:
   based_on: transitions
 
 cellular_structure:
-  based_on: cellular_structure
-  datapath: PCPVertex
-  cfgpath: PCPVertex
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure

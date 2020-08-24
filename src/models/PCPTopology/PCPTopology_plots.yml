@@ -38,7 +38,9 @@ cell_area:
   based_on: cell_area
       
 equilibrium_cellular_structure:
-  based_on: cellular_structure
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
 
 cellular_structure:
   based_on: cellular_structure

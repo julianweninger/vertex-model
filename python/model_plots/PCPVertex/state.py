@@ -227,11 +227,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             else:
                 hlpr.invoke_helper('set_limits', x=(-0.1,Lx+.2), y=(-0.1,Ly+.2))
             
-            ratio = Ly / Lx
-            xleft, xright = hlpr.ax.get_xlim()
-            ybottom, ytop = hlpr.ax.get_ylim()
-            hlpr.ax.set_aspect(abs((xright-xleft)/(ybottom-ytop))*ratio)
-            
+            hlpr.ax.set_aspect('equal')
+
             yield
 
 
