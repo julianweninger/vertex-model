@@ -36,15 +36,15 @@ def map_percolation_strentgh_to_density(*, cluster_id: xr.DataArray,
     the density at this coordinate.
     """
     
-    num_cells = cluster_id.count(dim={'x', 'y'})
+    num_cells = cluster_id.count(dim={'id'})
 
     clusters = dops.where(cluster_id, ">", 0)
-    cluster_sizes = dops.count_unique(clusters, dims=['x', 'y'])
+    cluster_sizes = dops.count_unique(clusters, dims=['id'])
     # the density of the biggest cluster 
     perc = cluster_sizes.max(dim='unique') / num_cells
     
     hair_cells = dops.where(cells, "==", 1)
-    num_hair_cells = hair_cells.count(dim={'x', 'y'})
+    num_hair_cells = hair_cells.count(dim={'id'})
     density = num_hair_cells / num_cells
 
     coords = dict()
@@ -72,10 +72,15 @@ def percolation_diagram(*, data: dict, hlpr: PlotHelper, map_dim: str=None,
             cells. Requires the dag_tag 'cells'.
         **plot_kwargs: Passed on to generic dantro plot function `facet_grid`
     """
-    num_cells = data['cluster_id'].count(dim={'x', 'y'})
+    if 'x' in data['cells'].dims:
+        data['cells'] = data['cells'].stack(id={'x', 'y'})
+    if 'x' in data['cluster_id'].dims:
+        data['cluster_id'] = data['cluster_id'].stack(id={'x', 'y'})
+    
+    num_cells = data['cluster_id'].count(dim={'id'})
 
     clusters = dops.where(data['cluster_id'], ">", 0)
-    cluster_sizes = dops.count_unique(clusters, dims=['x', 'y'])
+    cluster_sizes = dops.count_unique(clusters, dims=['id'])
     # the density of the biggest cluster 
     perc = cluster_sizes.max(dim='unique') / num_cells
 
@@ -86,7 +91,7 @@ def percolation_diagram(*, data: dict, hlpr: PlotHelper, map_dim: str=None,
                 f"dag_tags are {data.keys()}")
         
         hair_cells = dops.where(data['cells'], "==", 1)
-        num_hair_cells = hair_cells.count(dim={'x', 'y'})
+        num_hair_cells = hair_cells.count(dim={'id'})
         density = num_hair_cells / num_cells
 
         if len(perc.dims) > 1:
@@ -172,6 +177,11 @@ def percolation_bifurcation(*, data: dict, map_dim: str,
                                 dims=('param', ),
                                 coords={'param': ['theta', 'slope']})
 
+    if 'x' in data['cells'].dims:
+        data['cells'] = data['cells'].stack(id={'x', 'y'})
+    if 'x' in data['cluster_id'].dims:
+        data['cluster_id'] = data['cluster_id'].stack(id={'x', 'y'})
+    
     # The density of the biggest percolation cluster and the density of hair
     # cells
     perc = map_percolation_strentgh_to_density(

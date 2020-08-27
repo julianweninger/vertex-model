@@ -34,8 +34,69 @@ transitions_continuous:
   model_name: PCPTopology/PCPVertex
   map_to_discrete_time: True
 
-cell_area:
-  based_on: cell_area
+cell_area: &CELLAREA
+  based_on:
+    - .default_style_and_helpers
+    - cell_property
+
+  to_plot: 
+    cells:
+      label: all cells
+    hair_cells:
+      label: hair cells
+    support_cells:
+      label: support cells
+
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: area
+      tag: _property
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+      tag: _cell_kind
+
+    - .mean:
+      args: [!dag_tag _property, id]
+      tag: cells
+    - .std:
+      args: [!dag_tag _property, id]
+      tag: cells__std
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+cell_shape:
+  <<: *CELLAREA
+
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: shape_index
+      tag: _property
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+      tag: _cell_kind
+
+    - .mean:
+      args: [!dag_tag _property, id]
+      tag: cells
+    - .std:
+      args: [!dag_tag _property, id]
+      tag: cells__std
+
+  helpers:
+    set_labels:
+      x: time
+      y: average shape index
       
 equilibrium_cellular_structure:
   based_on:
