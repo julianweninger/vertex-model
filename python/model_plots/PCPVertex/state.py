@@ -75,16 +75,23 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     ax2.set_ylim(bottom=0)
     ax2.legend(loc='upper right')
 
+
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath: str='PCPVertex', cfgpath: str='PCPVertex',
-                       time: int=0, plot_vertices: bool=False):
+                       cell_marker_size: int=40,
+                       plot_vertices: bool=False):
     """Performs a plot of the cells, edges and vertices
     
     Args:
         dm (DataManager): The data manager from which to retrieve the data
         uni (int): The universe to use
         hlpr (PlotHelper): The PlotHelper
+        datapath (str): Path to the cell manager's data
+        cfgpath (str): Path to the vertex model's configuration
+        cell_marker_size (int, default 40): Marker size for the cell-centers.
+            Only used for HCs (red) and SCs (gray).
+        plot_vertices (bool, default: false): Whether to plot the vertices
     """
     def scatter_vertex(x, y, ax):
         ax.scatter(x, y, c='black')
@@ -207,10 +214,14 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 plot_arrow(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
                 if (cell_type.data == 1):
                     color = 'red'
-                    hlpr.ax.scatter(x, y, c=color, s=15, alpha=0.5)
+                    hlpr.ax.scatter(x, y,
+                                    c=color, s=cell_marker_size,
+                                    alpha=0.5)
                 elif (cell_type.data == 2):
                     color = 'gray'
-                    hlpr.ax.scatter(x, y, c=color, s=15, alpha=0.5)
+                    hlpr.ax.scatter(x, y,
+                                    c=color, s=cell_marker_size,
+                                    alpha=0.5)
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
 
