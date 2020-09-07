@@ -543,6 +543,9 @@ OperationBundle build_differentiate_hair_cluster (
  *               - `adapt_support` (bool, default: false): If true, the total
  *                      area of hair and support cells remains constant, hence
  *                      support cells compensate area changes from hair cells.
+ *               - `relax_domain` (bool, default: false): If true, the domain
+ *                      size is adapted to fit the cells as per preferential 
+ *                      area.
  * 
  *  \note This affects the current entities properties, it does not overwrite
  *        changes in the past.
@@ -560,6 +563,7 @@ OperationBundle build_increment_area (
     double incr_support(get_as<double>("support", cfg, 0.));
     double stddev_support(get_as<double>("stddev_support", cfg, 0.));
     bool adapt_support(get_as<bool>("adapt_support", cfg, false));
+    bool relax_domain(get_as<bool>("relax_domain", cfg, false));
     
     if (adapt_support and incr_support != 0) {
         throw std::invalid_argument(fmt::format(
@@ -568,9 +572,16 @@ OperationBundle build_increment_area (
             "`support` must be zero, but was {}!", name, incr_support));
     }
 
+    if (adapt_support and relax_domain) {
+        throw std::invalid_argument(fmt::format(
+            "In cfg {}: `adapt_support` and `adapt_domain` cannot both be "
+            "true!", name));
+    }
+
     Operation operation = [incr_prog, stddev_prog,
                            incr_hair, stddev_hair,
-                           incr_support, stddev_support, adapt_support]
+                           incr_support, stddev_support, adapt_support,
+                           relax_domain]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -625,6 +636,19 @@ OperationBundle build_increment_area (
         };
         
         apply_rule<Update::sync>(update, cells);
+
+        if (not relax_domain) {
+            return;
+        }
+
+        double area = std::accumulate(cells.begin(), cells.end(), 0.,
+                            [](const double& val, const auto& cell) {
+                                return val + cell->state.area_preferential; });
+
+        auto domain_size = vertex_model.get_space()->get_domain_size();
+        vertex_model.increase_domain_size(area - domain_size[0]*domain_size[1]);
+
+        return;
     };
 
     return std::make_pair(operation, params);
@@ -1050,7 +1074,7 @@ OperationBundle build_jiggle (
  *                      previous value of preferential area kept.
  *               - `stddev_support` (double, default: 0.): stddev for cells
  *                      of type support; using lognormal distribution
- *               - `adapt_domain` (bool, default: false): If true, the domain
+ *               - `relax_domain` (bool, default: false): If true, the domain
  *                      size is adapted to fit the cells as per preferential 
  *                      area.
  */
@@ -1066,12 +1090,12 @@ OperationBundle build_set_area (
     double stddev_hair(get_as<double>("stddev_hair", cfg, 0.));
     double support(get_as<double>("support", cfg, 0.));
     double stddev_support(get_as<double>("stddev_support", cfg, 0.));
-    bool adapt_domain(get_as<bool>("adapt_domain", cfg, false));
+    bool relax_domain(get_as<bool>("relax_domain", cfg, false));
 
     Operation operation = [prog, stddev_prog,
                            hair, stddev_hair,
                            support, stddev_support,
-                           adapt_domain]
+                           relax_domain]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1150,7 +1174,7 @@ OperationBundle build_set_area (
         
         apply_rule<Update::sync>(update, cells);
 
-        if (not adapt_domain) {
+        if (not relax_domain) {
             return;
         }
 
