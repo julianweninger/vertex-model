@@ -409,6 +409,63 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_CHECK_CLOSE(mean, 2, 10);
         BOOST_CHECK_CLOSE(stddev, 0.1, 25);
     }
+    
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_relax)
+    {
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+        const std::string name = "increment_area_relax";
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+        auto [operation, params] = build_increment_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        const auto& cells = vertex_model.get_am().cells();
+
+        // apply the differentiation and operation
+        op_diff(vertex_model);
+        operation(vertex_model);
+        
+        // check that the cells fit in the domain
+        double cell_area = 0.;
+        for (const auto& c : cells) {
+            cell_area += c->state.area_preferential;
+        }
+
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 2.e-1);
+
+        // check the statistics of HCs
+        std::vector<double> areas_HCs;
+        areas_HCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                areas_HCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_HCs.shrink_to_fit();
+        
+        auto [mean, stddev] = get_statistics(areas_HCs);
+
+        BOOST_CHECK_CLOSE(mean, 2, 10); // incremented by 1
+        BOOST_CHECK_CLOSE(stddev, 0.1, 25);
+
+        // check statistics of SCs
+        std::vector<double> areas_SCs;
+        areas_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::support) {
+                areas_SCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_SCs.shrink_to_fit();
+        
+        std::tie(mean, stddev) = get_statistics(areas_SCs);
+
+        BOOST_CHECK_CLOSE(mean, 3, 10); // incremented by 2
+        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
+    }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain)
     {
@@ -919,11 +976,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
     }
     
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_adapt)
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax)
     {
         using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        const std::string name = "set_area_adapt";
+        const std::string name = "set_area_relax";
         auto [op_diff, params_diff] = build_differentiate_random(
             "differentiate_random", get_as<Config>("differentiate_random", cfg),
             default_minim_params);
