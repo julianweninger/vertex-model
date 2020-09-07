@@ -30,7 +30,6 @@ cell_neighbourhood: !pspace
       - hair
       - support
       - support_hair
-      - support_support
 
 Collier_densities:
   based_on: .basic_uni.lineplots
