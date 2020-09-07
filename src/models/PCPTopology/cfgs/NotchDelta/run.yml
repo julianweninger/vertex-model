@@ -24,7 +24,7 @@ parameter_space:
 
       - proliferate:
           times: []
-          iterations_prolog: 64
+          iterations_prolog: 16
           num_increases: 0
           area_threshold: 0.
           minimization:
