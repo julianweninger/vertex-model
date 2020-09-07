@@ -31,6 +31,9 @@ cell_area: &CELLAREA
     - .default_style_and_helpers
     - cell_property
 
+  enabled: false
+  # WARNING: does not work with TimeSeriesGroup of flexible cell number
+
   to_plot: 
     cells:
       label: all cells
