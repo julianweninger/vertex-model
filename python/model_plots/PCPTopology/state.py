@@ -15,9 +15,11 @@ import matplotlib.patches as mpatches
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
 from utopya.plotting import MultiversePlotCreator
+from utopya.plot_funcs._basic import _errorbar
 
 from ..tools import save_and_close
 from ..PCPVertex.state import transitions as transitions_base
+
 
 # -----------------------------------------------------------------------------
 
@@ -114,7 +116,7 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
     shape_index = data.sel(property='shape_index')
     cell_type = data.sel(property='cell_type')
 
-    bins = range(3, 10)
+    bins = range(3, 12)
 
     if only_type == 'hair':
         num_neighbors = num_neighbors[cell_type == 1]
@@ -292,7 +294,7 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             
             hlpr.select_axis(col=0, row=0)
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
-            
+
             yield
 
     hlpr.register_animation_update(update)
@@ -347,3 +349,70 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
                        hist_plot_kwargs=hist_plot_kwargs, 
                        area_plot_kwargs=area_plot_kwargs,
                        shape_index_plot_kwargs=shape_index_plot_kwargs)
+
+
+@is_plot_func(use_dag=True)
+def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper,
+             cmap: str=None,**errorbar_kwargs):
+    """Perform errorbar plots from the selected multiverse data.
+    
+    This plot, ultimately, requires 1D data, where the remaining dimension is
+    plotted on the x-axis. The ``transform_data`` or ``lines_from`` arguments
+    can be used to work with higher-dimensional data.
+
+    Creates datasets hair_cells, hair_cells__std, support_cells,
+    and support_cells__std in data.
+    
+    Args:
+        data (dict): The data.
+        to_plot (dict): A dict of specifications of lines to plot. 
+            The keys must be available in data. If key + '__std' is available
+            in data, this data is used for errorbars, otherwise simple lineplot
+            performed.
+            The mapped values are passed on to plt.errorbar
+        cmap (str, optional): If given, the lines created from ``to_plot``
+            will be colored according to this color map.
+        **errorbar_kwargs: Passed on to plt.errorbar
+    """
+    num_lines = len(data.keys())
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                message="Mean of empty slice")
+        warnings.filterwarnings("ignore", category=RuntimeWarning,
+                                message="Degrees of freedom <= 0 for slice.")
+        data['_hair_cells'] = data['_property'].where(data['_cell_kind'] == 1)
+        data['hair_cells'] = data['_hair_cells'].mean('id')
+        data['hair_cells__std'] = data['_hair_cells'].std('id')
+
+        data['_support_cells'] = data['_property'].where(data['_cell_kind'] == 2)
+        data['support_cells'] = data['_support_cells'].mean('id')
+        data['support_cells__std'] = data['_support_cells'].std('id')
+
+    if num_lines > 1:
+        hlpr.provide_defaults('set_legend', use_legend=True)
+
+    # Determine whether there will be colours according to a color map
+    if cmap is not None:
+        cmap = mpl.cm.get_cmap(cmap)
+        colors = [cmap(i/max(num_lines-1, 1)) for i in range(num_lines)]
+    else:
+        colors = [None] * num_lines
+
+    # Iterate over the plot specifications
+    for (key, plot_spec), color in zip(to_plot.items(), colors):
+        # Prepare additional kwargs
+        add_kwargs = dict()
+
+        if color is not None and 'color' not in plot_spec:
+            add_kwargs['color'] = color
+
+        if 'label' not in plot_spec:
+            add_kwargs['label'] = key
+
+        std=None
+        if (key + '__std') in data:
+            std = data[key + '__std']
+   
+        _errorbar(hlpr=hlpr, data=data[key], std=std, **plot_spec,
+                  **add_kwargs, **errorbar_kwargs)

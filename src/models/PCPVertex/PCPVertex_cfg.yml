@@ -29,8 +29,8 @@ agent_manager:
       size: 0.62
     hexagonal:
       hexagon_size: 0.62
-      lattice_rows: 8
-      lattice_columns: 8
+      lattice_rows: 4
+      lattice_columns: 4
   vertex_manager:
     non_periodic_offset: [1, 1]
 

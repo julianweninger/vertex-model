@@ -32,7 +32,7 @@ parameter_space:
           iterations_epilog: 0
           emit_interval: 32
 
-          iterations: 64
+          iterations: 16
 
           num_increases: 0
           area_threshold: 0.
