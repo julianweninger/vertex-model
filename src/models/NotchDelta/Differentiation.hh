@@ -276,17 +276,26 @@ public:
     void monitor () {
         auto densities = this->get_densities();
 
-        this->_monitor.set_entry("density_progenitor",
-                                 densities[CellType::progenitor]);
         this->_monitor.set_entry("density_hair",
                                  densities[CellType::hair]);
         this->_monitor.set_entry("density_support",
                                  densities[CellType::support]);
+        this->_monitor.set_entry("num_non_rosettes",
+                                 (densities[CellType::hair] * get_num_cells()
+                                  - this->get_num_rosettes()));
     }
 
 
     // .. Getters and setters .................................................
     // Add getters and setters here to interface with other models
+    auto get_num_cells () const {
+        return std::count_if(
+            _cm.cells().begin(),  _cm.cells().end(),
+            [](const auto& cell) {
+                return (cell->state.cell_type != CellType::inactive);
+            });
+    }
+
     /// Getter for density of different cell types
     std::vector<double> get_densities () const {
         std::vector<int> count(CellType::num_states, 0.);

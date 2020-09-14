@@ -126,11 +126,11 @@ differentiate_Collier_second_task:
 
   # reusing the Collier model from `differentiate_Collier`
 
-differentiate_NotchDelta:
+differentiate_NotchDelta: &NotchDelta
   times: []
   steps: 100
   
-  NotchDelta:
+  NotchDelta: &NotchDelta
     log_level: info
     lambda: 40
     atoh1_suppression: {rate_0: 10.0, rate_1: 1.0}
@@ -150,6 +150,23 @@ differentiate_NotchDelta:
     rate_ps: 0.01
     rate_swap: 1.0
     space: {periodic: false}
+
+differentiate_NotchDelta_skip_init:
+  Random:
+    times: []
+    probability: 0.35
+    
+  NotchDelta:
+    times: []
+    steps: 0
+
+    discard_initialisation: True
+    
+    NotchDelta: *NotchDelta
+    
+  NotchDelta_2nd_task:
+    times: []
+    steps: 100
 
 differentiate_NotchDelta_second_task:
   times: []
