@@ -317,6 +317,9 @@ OperationBundle build_differentiate_Collier (
  *  (besides those passed to `OperationParams`):
  *      - `steps` (uint, default: 1): The numer of steps performed in the
  *              NotchDelta model without synchronisation to the Vertex model.
+ *      - `discard_initialisation` (bool, default: false): Discard the initial
+ *              state of the NotchDelta model. Overwrite it with the state of 
+ *              vertex-model cells.
  * 
  *  \note The entities properties do not change during differentiation.
  * 
@@ -341,9 +344,12 @@ OperationBundle build_differentiate_NotchDelta (
     
     OperationParams params(name, cfg, default_minim_params);
 
-    std::size_t steps(get_as<std::size_t>("steps", cfg, 1));
+    auto steps(get_as<std::size_t>("steps", cfg, 1));
+    auto discard_initialisation(get_as<bool>("discard_initialisation", cfg,
+                                             false));
 
-    Operation operation = [notch_delta, prolog, steps] (PCPVertex& vertex_model)
+    Operation operation = [notch_delta, prolog, steps,
+                           discard_initialisation] (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
         using NDCellType = typename NotchDelta::CellType;
@@ -366,7 +372,7 @@ OperationBundle build_differentiate_NotchDelta (
             cells[iterator]->custom_links().nd_cell = nd_cells[iterator];
             
             auto type = cells[iterator]->state.type;
-            if (not *prolog) {
+            if (not *prolog and not discard_initialisation) {
                 void(); // use initialization of ND Model
             }
             else if (type == CellType::hair) {
