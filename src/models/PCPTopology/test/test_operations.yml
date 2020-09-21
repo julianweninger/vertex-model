@@ -83,6 +83,10 @@ differentiate_random:
   times: []
   probability: 0.25
 
+differentiate_random_fraction:
+  times: []
+  fraction: 0.23
+
 differentiate_Collier:
   times: []
   steps: 100

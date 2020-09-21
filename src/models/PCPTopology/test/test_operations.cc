@@ -154,6 +154,28 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_TEST(cnt == 0);
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_random_fraction) {
+        const std::string name = "differentiate_random_fraction";
+        auto [operation, params] = build_differentiate_random(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+        auto cnt = std::count_if(cells.begin(), cells.end(),
+                                 [](const auto& cell) {
+                                        return cell->state.type == 
+                                               CellType::hair; });
+
+        BOOST_TEST(cnt == 14); // Rounded from 0.23 * 64 = 14.72 cells 
+
+        cnt = std::count_if(cells.begin(), cells.end(),
+                            [](const auto& cell) {
+                                return cell->state.type == 
+                                        CellType::progenitor; });
+        BOOST_TEST(cnt == 0);
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_Collier) {
         using Utopia::Models::Collier::Collier;
 
