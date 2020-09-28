@@ -40,31 +40,22 @@ cell_area: &CELLAREA
     - cell_property
 
   to_plot: 
-    cells:
+    data:
       label: all cells
+      plot_std: False
     hair_cells:
       label: hair cells
     support_cells:
       label: support cells
 
-  transform:
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: area
-      tag: _property
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-      tag: _cell_kind
-
-    - .mean:
-      args: [!dag_tag _property, id]
-      tag: cells
-    - .std:
-      args: [!dag_tag _property, id]
-      tag: cells__std
+  select:
+    _property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: area
 
   helpers:
     set_labels:
@@ -74,24 +65,14 @@ cell_area: &CELLAREA
 cell_shape:
   <<: *CELLAREA
 
-  transform:
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: shape_index
-      tag: _property
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-      tag: _cell_kind
-
-    - .mean:
-      args: [!dag_tag _property, id]
-      tag: cells
-    - .std:
-      args: [!dag_tag _property, id]
-      tag: cells__std
+  select:
+    _property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: shape_index
 
   helpers:
     set_labels:
