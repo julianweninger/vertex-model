@@ -516,6 +516,16 @@ auto cells_adaptor = std::make_tuple(
                     // "polarity_x",
                     // "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& cells = model.get_am().cells();
+        std::vector<std::size_t> ids{};
+        ids.reserve(cells.size());
+        std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
+                       [](const auto& c) { return c->id(); });
+        std::cout << ids << std::endl;
+        std::cout << cells.size() << std::endl;
+        hdfdataset->add_attribute("coords__id", ids);
+
         const auto domain = model.get_space()->get_domain_size();
         hdfdataset->add_attribute("Lx", domain[0]);
         hdfdataset->add_attribute("Ly", domain[1]);

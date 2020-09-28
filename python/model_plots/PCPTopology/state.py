@@ -369,25 +369,16 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper,
             The keys must be available in data. If key + '__std' is available
             in data, this data is used for errorbars, otherwise simple lineplot
             performed.
-            The mapped values are passed on to plt.errorbar
+            Mapped values can contain these kwargs
+                std (str, default: `<name>__std`): name of the std dataset
+                plot_std (bool, default: True): Plot the std dataset if
+                    available
+            The remaining mapped values are passed on to plt.errorbar.
         cmap (str, optional): If given, the lines created from ``to_plot``
             will be colored according to this color map.
         **errorbar_kwargs: Passed on to plt.errorbar
     """
     num_lines = len(data.keys())
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=RuntimeWarning,
-                                message="Mean of empty slice")
-        warnings.filterwarnings("ignore", category=RuntimeWarning,
-                                message="Degrees of freedom <= 0 for slice.")
-        data['_hair_cells'] = data['_property'].where(data['_cell_kind'] == 1)
-        data['hair_cells'] = data['_hair_cells'].mean('id')
-        data['hair_cells__std'] = data['_hair_cells'].std('id')
-
-        data['_support_cells'] = data['_property'].where(data['_cell_kind'] == 2)
-        data['support_cells'] = data['_support_cells'].mean('id')
-        data['support_cells__std'] = data['_support_cells'].std('id')
 
     if num_lines > 1:
         hlpr.provide_defaults('set_legend', use_legend=True)
@@ -410,8 +401,9 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper,
         if 'label' not in plot_spec:
             add_kwargs['label'] = key
 
-        std=None
-        if (key + '__std') in data:
+        std=plot_spec.pop('std', None)
+        plot_std = plot_spec.pop('plot_std', True)
+        if (key + '__std') in data and plot_std and std is None:
             std = data[key + '__std']
    
         _errorbar(hlpr=hlpr, data=data[key], std=std, **plot_spec,
