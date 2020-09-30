@@ -522,8 +522,6 @@ auto cells_adaptor = std::make_tuple(
         ids.reserve(cells.size());
         std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
                        [](const auto& c) { return c->id(); });
-        std::cout << ids << std::endl;
-        std::cout << cells.size() << std::endl;
         hdfdataset->add_attribute("coords__id", ids);
 
         const auto domain = model.get_space()->get_domain_size();
