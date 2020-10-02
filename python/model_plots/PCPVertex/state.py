@@ -93,18 +93,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             Only used for HCs (red) and SCs (gray).
         plot_vertices (bool, default: false): Whether to plot the vertices
     """
-    def scatter_vertex(x, y, ax):
-        ax.scatter(x, y, c='black')
-
-    def plot_edge(x0, y0, dx, dy, ax):
-        ax.arrow(x0, y0, dx, dy, head_width=0., head_length=0.,
-                 color='black')
-
-    def plot_arrow(x0, y0, dx, dy, ax):
-        ax.arrow(x0, y0, dx, dy, head_width=0.01, head_length=0.01,
-                 color='black')
-
-
     def adjustFigAspect(fig,aspect=1):
         '''
         Adjust the subplot parameters so that the figure has the correct
@@ -150,78 +138,93 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             Lx = v_data.attrs["Lx"][0]
             Ly = v_data.attrs["Ly"][0]
 
-            if plot_vertices:
-                for v_id in v_data.id:
-                    v = v_data.sel(id=v_id)
-                    x = v.sel(property="x")
-                    y = v.sel(property="y")
-                    scatter_vertex(x, y, hlpr.ax)
 
-            for e_id in e_data.id:
-                e = e_data.sel(id=e_id)
-                vertex_a = e.sel(property="vertex_a")
-                vertex_b = e.sel(property="vertex_b")
+            ### plot vertices
+            if plot_vertices:
+                ax.scatter(v_data.sel(property="x"), v_data.sel(property="y"),
+                           c="black")
+
+
+            ### plot edges
+            vertex_a = e_data.sel(property="vertex_a")
+            vertex_b = e_data.sel(property="vertex_b")
+
+            ax = v_data.sel(id=vertex_a, property='x')
+            ay = v_data.sel(id=vertex_a, property='y')
+            bx = v_data.sel(id=vertex_b, property='x')
+            by = v_data.sel(id=vertex_b, property='y')
+
+            dx = bx - ax
+            dy = by - ay
+
+            # map edges crossing periodic boundary
+            if (vertex_cfg['space']['periodic']):
+                mask = dx >= 0.5 * Lx
+                dx += mask * (-Lx)
+                mask = dx <= -0.5 * Lx
+                dx += mask * Lx
+                mask = dy >= 0.5 * Ly
+                dy += mask * (-Ly)
+                mask = dy <= -0.5 * Ly
+                dy += mask * (+Ly)
+            
+            quiverkwargs = dict(headlength=0., headaxislength=0., headwidth=0.,
+                                scale=1, scale_units='xy',
+                                color='black')
+            hlpr.ax.quiver(ax, ay, dx, dy, **quiverkwargs)
+
+            # need duplicates of periodic edges
+            if (vertex_cfg['space']['periodic']):
+                vertex_a = e_data.sel(property="vertex_a")
+                vertex_b = e_data.sel(property="vertex_b")
 
                 ax = v_data.sel(id=vertex_a, property='x')
                 ay = v_data.sel(id=vertex_a, property='y')
                 bx = v_data.sel(id=vertex_b, property='x')
                 by = v_data.sel(id=vertex_b, property='y')
 
-                if (vertex_cfg['space']['periodic']):
-                    dx = bx - ax
-                    dy = by - ay
-                    if (dx >= 0.5 * Lx and dy >= 0.5 * Ly):
-                        plot_edge(ax+Lx, ay+Ly, dx-Lx, dy-Ly, hlpr.ax)
-                        plot_edge(ax, ay, dx-Lx, dy-Ly, hlpr.ax)
-                    elif (dx <= -0.5 * Lx and dy <= -0.5 * Ly):
-                        plot_edge(ax-Lx, ay-Ly, dx+Lx, dy+Ly, hlpr.ax)
-                        plot_edge(ax, ay, dx+Lx, dy+Ly, hlpr.ax)
-                    elif (dx >= 0.5 * Lx and dy <= -0.5 * Ly):
-                        plot_edge(ax+Lx, ay-Ly, dx-Lx, dy+Ly, hlpr.ax)
-                        plot_edge(ax, ay, dx-Lx, dy+Ly, hlpr.ax)
-                    elif (dx <= -0.5 * Lx and dy >= 0.5 * Ly):
-                        plot_edge(ax-Lx, ay+Ly, dx+Lx, dy-Ly, hlpr.ax)
-                        plot_edge(ax, ay, dx+Lx, dy-Ly, hlpr.ax)
+                # use the inverse arrows
+                dx = ax - bx
+                dy = ay - by
 
-                    elif (dx >= 0.5 * Lx):
-                        plot_edge(ax+Lx, ay, dx-Lx, dy, hlpr.ax)
-                        plot_edge(ax, ay, dx-Lx, dy, hlpr.ax)
-                    elif (dx <= -0.5 * Lx):
-                        plot_edge(ax-Lx, ay, dx+Lx, dy, hlpr.ax)
-                        plot_edge(ax, ay, dx+Lx, dy, hlpr.ax)
-                    elif (dy >= 0.5 * Ly):
-                        plot_edge(ax, ay+Ly, dx, dy-Ly, hlpr.ax)
-                        plot_edge(ax, ay, dx, dy-Ly, hlpr.ax)
-                    elif (dy <= -0.5 * Ly):
-                        plot_edge(ax, ay-Ly, dx, dy+Ly, hlpr.ax)
-                        plot_edge(ax, ay, dx, dy+Ly, hlpr.ax)
-                    else:
-                        plot_edge(ax, ay, dx, dy, hlpr.ax)
+                # only those edges which cross the boundaries
+                # i.e. those which are not whithin the domain
+                mask = np.isnan(dx.where(dx <  0.5 * Lx).where(
+                                         dx > -0.5 * Lx).where(
+                                         dy <  0.5 * Ly).where(
+                                         dy > -0.5*Ly))                                         
+                bx = bx.where(mask)
+                by = by.where(mask)
+                dx = dx.where(mask)
+                dy = dy.where(mask)
+                
+                mask = dx >= 0.5 * Lx
+                dx += mask * (-Lx)
+                mask = dx <= -0.5 * Lx
+                dx += mask * Lx
+                mask = dy >= 0.5 * Ly
+                dy += mask * (-Ly)
+                mask = dy <= -0.5 * Ly
+                dy += mask * (+Ly)
+                
+                hlpr.ax.quiver(bx, by, dx, dy, **quiverkwargs)
 
-                    
-                else:
-                    plot_edge(ax, ay, bx-ax, by-ay, hlpr.ax)
 
-            for c_id in c_data.id:
-                c = c_data.sel(id=c_id)
-                cell_type = c.sel(property="cell_type")
-                x = c.sel(property="x")
-                y = c.sel(property="y")
-                pol_x = 0 # c.sel(property="polarity_x")
-                pol_y = 0 # c.sel(property="polarity_y")
-                dx = pol_x / 5.
-                dy = pol_y / 5.
-                plot_arrow(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
-                if (cell_type.data == 1):
-                    color = 'red'
-                    hlpr.ax.scatter(x, y,
-                                    c=color, s=cell_marker_size,
-                                    alpha=0.5)
-                elif (cell_type.data == 2):
-                    color = 'gray'
-                    hlpr.ax.scatter(x, y,
-                                    c=color, s=cell_marker_size,
-                                    alpha=0.5)
+            ### plot cells
+            cell_type = c_data.sel(property="cell_type")
+            x = c_data.sel(property="x")
+            y = c_data.sel(property="y")
+            color = ['red' if d == 1 else 'grey' for d in cell_type ]
+            hlpr.ax.scatter(x, y, c=color, s=cell_marker_size,
+                            alpha=0.5)
+
+            # # cell polarity plots
+            # pol_x = 0 # c_data.sel(property="polarity_x")
+            # pol_y = 0 # c_data.sel(property="polarity_y")
+            # dx = pol_x / 5.
+            # dy = pol_y / 5.
+            # hlpr.ax.quiver(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
+
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
 
