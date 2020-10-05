@@ -79,8 +79,10 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath: str='PCPVertex', cfgpath: str='PCPVertex',
-                       cell_marker_size: int=40,
-                       plot_vertices: bool=False):
+                       cell_marker_size: int=60,
+                       plot_vertices: bool=False,
+                       property=None, property_marker_size=30,
+                       property_cmap='autumn'):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -89,9 +91,15 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         hlpr (PlotHelper): The PlotHelper
         datapath (str): Path to the cell manager's data
         cfgpath (str): Path to the vertex model's configuration
-        cell_marker_size (int, default 40): Marker size for the cell-centers.
+        cell_marker_size (int, default 60): Marker size for the cell-centers.
             Only used for HCs (red) and SCs (gray).
         plot_vertices (bool, default: false): Whether to plot the vertices
+        property (str, optional): An additional cell property to plot. Data is 
+            cell data where property=property.
+        property_marker_size (int, default 30): The marker size for plot of
+            the cell's property
+        property_cmap (str, default 'autumn'): A colormap to use with the cells
+            properties.
     """
     def adjustFigAspect(fig,aspect=1):
         '''
@@ -224,6 +232,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # dx = pol_x / 5.
             # dy = pol_y / 5.
             # hlpr.ax.quiver(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
+            
+            if property:
+                data_copy = c_data
+
+                if property == "hexatic_order":
+                    # remove non hair cells
+                    # hexatic order of non hair cells is always 0
+                    data_copy = data_copy.where(cell_type == 1)
+
+                hlpr.ax.scatter(data_copy.sel(property='x'),
+                                data_copy.sel(property='y'),
+                                c=data_copy.sel(property=property),
+                                s=property_marker_size,
+                                cmap=property_cmap,
+                                alpha=0.5)
 
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))

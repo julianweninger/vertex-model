@@ -235,6 +235,21 @@ public:
         return _space->distance(position_of(a), position_of(b));
     }
 
+    /// The distance between two cells
+    /** \details see Utopia::Space::distance
+     */
+    auto distance (const Cell& a, const Cell& b) const {
+        return _space->distance(barycenter_of(a), barycenter_of(b));
+    }
+
+    /// The distance between two cells
+    /** \details see Utopia::Space::distance
+     */
+    auto distance (const std::shared_ptr<Cell>& a,
+                   const std::shared_ptr<Cell>& b) const {
+        return _space->distance(barycenter_of(a), barycenter_of(b));
+    }
+
     auto length_of (const std::shared_ptr<Edge>& edge) const {
         return distance(edge->custom_links().a, edge->custom_links().b);
     }
@@ -401,6 +416,36 @@ public:
         }
 
         return neighbors;
+    }
+
+    // The neighbors of a cell
+    AgentContainer<Cell> hair_neighbors_of(const std::shared_ptr<Cell>& cell) const
+    {
+        std::set<std::shared_ptr<Cell>> hair_neighbors;
+
+        auto neighbors = this->neighbors_of(cell);
+
+        for (const auto & nb : neighbors) {
+            if (nb->state.type == CellType::hair)
+            {
+                hair_neighbors.insert(nb);
+            }
+            else {
+                auto next_neighbors = this->neighbors_of(nb);
+                for (const auto& nn : next_neighbors) {
+                    if (nn->state.type == CellType::hair)
+                    {
+                        hair_neighbors.insert(nn);
+                    }
+                }
+            }
+        }
+
+        hair_neighbors.erase(cell);
+        hair_neighbors.erase(nullptr);
+
+        return AgentContainer<Cell>(hair_neighbors.begin(),
+                                    hair_neighbors.end());
     }
 
     /// Calculate to where a vertex would move
