@@ -1129,6 +1129,47 @@ OperationBundle build_jiggle (
     return std::make_pair(operation, params);
 }
 
+/// The operation to relax preferential area
+/** \details The following parameter are extracted from cfg 
+ *           (besides those passed to `OperationParams`):
+ *               - `factor` (double): incremental factor c. Should be in [0, 1].
+ * 
+ *  Preferential area is relaxed towards the actual cell area:
+ *  \f$ A^\prime_0  = A_0 + c (A - A_0) \f$
+ * 
+ *  Operation is applied to all cells with respective \f$A\f$ and \f$A_0\f$.
+ */
+OperationBundle build_relax_area (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double factor(get_as<double>("factor", cfg));
+
+    Operation operation = [factor]
+            (PCPVertex& vertex_model)
+    {
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+
+        PCPVertex::RuleFuncCell update = [factor, am](const auto& cell)
+        {
+            auto state = cell->state;
+            state.area_preferential += factor * (  am.area_of(cell)
+                                                 - state.area_preferential);
+
+            return state;
+        };
+        
+        apply_rule<Update::sync>(update, cells);
+
+        return;
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// The operation to set preferential area
 /** \details The following parameter are extracted from cfg 
  *           (besides those passed to `OperationParams`):

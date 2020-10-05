@@ -266,6 +266,11 @@ proliferate:
     jiggle_tolerance: 1000
     jiggle_intensity: 0.
 
+relax_area:
+  times: []
+
+  factor: 0.1
+
 set_area:
   times: []
 
