@@ -78,14 +78,47 @@ cell_shape:
     set_labels:
       x: time
       y: average shape index
+
+hexatic_order:
+  <<: *CELLAREA
+
+  to_plot: 
+    hair_cells:
+      label: hair cells
+
+  select:
+    _property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: hexatic_order
+
+  helpers:
+    set_labels:
+      x: time
+      y: average hexatic_order
       
 equilibrium_cellular_structure:
   based_on:
     - .default_style_and_helpers
     - cellular_structure
 
+equilibrium_cellular_structure__hexatic_order:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+
+  enabled: false
+
+  property: hexatic_order
+  property_marker_size: 60
+
 cellular_structure:
-  based_on: cellular_structure
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
   datapath: PCPTopology/PCPVertex
 
 cell_neighbourhood: !pspace

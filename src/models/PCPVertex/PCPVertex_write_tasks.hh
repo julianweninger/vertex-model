@@ -2,6 +2,8 @@
 #define UTOPIA_MODELS_PCPVERTEX_WRITETASKS_HH
 
 #include "utopia/data_io/hdfgroup.hh"
+#include <complex>
+#include <cmath>
 
 using namespace Utopia::DataIO;
 
@@ -422,9 +424,8 @@ auto cells_adaptor = std::make_tuple(
         
         std::vector<SpaceVec> centers;
         centers.reserve(cells.size());
-        for (const auto& c : cells) {
-            centers.push_back(am.barycenter_of(c));
-        }
+        std::transform(cells.begin(), cells.end(), std::back_inserter(centers),
+                       [am](const auto& c) { return am.barycenter_of(c); });
         dataset->write(centers.begin(), centers.end(),
                        [](auto&& pos) { return pos[0]; });
         dataset->write(centers.begin(), centers.end(),
@@ -432,16 +433,15 @@ auto cells_adaptor = std::make_tuple(
 
         std::vector<double> areas;
         areas.reserve(cells.size());
-        for (const auto& c : cells) { 
-            areas.push_back(am.area_of(c)); 
-        }
+        std::transform(cells.begin(), cells.end(), std::back_inserter(areas),
+                       [am](const auto& c) { return am.area_of(c); });
         dataset->write(areas);
         
         std::vector<double> perimeters;
         perimeters.reserve(cells.size());
-        for (const auto& c : cells) {
-            perimeters.push_back(am.perimeter_of(c));
-        }
+        std::transform(cells.begin(), cells.end(),
+                       std::back_inserter(perimeters),
+                       [am](const auto& c) { return am.perimeter_of(c); });
         dataset->write(perimeters);
         
         std::vector<double> shape_indices;
@@ -464,6 +464,37 @@ auto cells_adaptor = std::make_tuple(
                                     (n->state.type == CellType::hair);
                             }
                             return static_cast<double>(num_hair_neighbors);
+                       });
+
+        dataset->write(cells.begin(), cells.end(),
+                       [am](const auto& cell) {
+                            if (cell->state.type != CellType::hair) {
+                                return 0.;
+                            }
+
+                            auto hair_neighbors = am.hair_neighbors_of(cell);
+                            if (hair_neighbors.size() < 4) {
+                                return 0.;
+                            }
+
+                            using namespace std::complex_literals;
+                            std::complex<double> hex_order = std::accumulate(
+                                hair_neighbors.begin(), hair_neighbors.end(),
+                                std::complex<double>(0., 0.),
+                                [am, cell](std::complex<double> val,
+                                           const auto& nb)
+                                {
+                                    using namespace std::complex_literals;
+
+                                    double distance = am.distance(cell, nb);
+                                    double dx = am.displacement(cell, nb)[0];
+                                    double theta = acos(dx / distance);
+                                    return val + std::exp(1i * 6. * theta);
+                                }
+                            );
+
+                            std::complex<double> N(hair_neighbors.size());                            
+                            return std::norm(hex_order / N);
                        });
 
         // the polarity
@@ -492,7 +523,7 @@ auto cells_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {8, m.get_am().cells().size()});
+            {9, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -511,7 +542,8 @@ auto cells_adaptor = std::make_tuple(
                     "perimeter",
                     "shape_index",
                     "num_neighbors",
-                    "num_hair_neighbors"
+                    "num_hair_neighbors",
+                    "hexatic_order"
                 }));
                     // "polarity_x",
                     // "polarity_y"}));

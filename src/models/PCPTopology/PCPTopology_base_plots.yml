@@ -111,7 +111,7 @@ cellular_structure:
   cfgpath: PCPTopology/PCPVertex
 
   plot_vertices: false
-  cell_marker_size: 40
+  cell_marker_size: 60
 
   helpers:
     set_labels:
