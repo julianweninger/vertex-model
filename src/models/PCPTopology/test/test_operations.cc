@@ -1017,6 +1017,27 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         // NOTE the procedure of division itself is tested in PCPVertex
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_relax_area)
+    {
+        const std::string name = "relax_area";
+        auto [operation, params] = build_relax_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = vertex_model.get_am().cells();
+
+        // random cell for that A_0 is different from A
+        // A_0 / A = 2
+        auto cell = cells[0];
+        cell->state.area_preferential = 2. * am.area_of(cell);
+
+        operation(vertex_model);
+
+        // A_0' / A = 2 - 0.1 * (A_0 / A - 1) = 1.9
+        BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell), 1.9,
+                          1e-8);
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
         double init_area = domain[0] * domain[1];

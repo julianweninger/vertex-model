@@ -262,8 +262,11 @@ private:
                 }
                 else if (name == "proliferate") {
                     _operations.push_back(
-                        build_proliferate(name, op_cfg,
-                                            _minimization_params));
+                        build_proliferate(name, op_cfg, _minimization_params));
+                }
+                else if (name == "relax_area") {
+                    _operations.push_back(
+                        build_relax_area(name, op_cfg, _minimization_params));
                 }
                 else if (name == "set_area") {
                     _operations.push_back(
@@ -285,6 +288,7 @@ private:
                             "increment_shape_index, "
                             "jiggle, "
                             "proliferate, "
+                            "relax_area, "
                             "set_area, "
                             "void."));
                 }
