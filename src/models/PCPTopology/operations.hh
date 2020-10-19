@@ -54,6 +54,11 @@ struct OperationParams {
      */
     std::size_t iterations_epilog;
 
+    /// Whether to disable this operation
+    /** Iterate the operation, but as void function.
+     */
+    bool disable;
+
     /// When to minimize the energy
     /** \details default: every
      */
@@ -82,6 +87,7 @@ struct OperationParams {
         probability(get_as<double>("probability", cfg, 1)),
         iterations_prolog(get_as<std::size_t>("iterations_prolog", cfg, 0)),
         iterations_epilog(get_as<std::size_t>("iterations_epilog", cfg, 0)),
+        disable(get_as<bool>("disable", cfg, false)),
         minimization_mode(setup_minimization_mode(get_as<std::string>(
             "mode", get_as<Config>("minimization", cfg, Config()), "every"))),
         minimization_params(get_as<Config>("minimization", cfg, Config()),
@@ -727,6 +733,63 @@ OperationBundle build_increment_area (
     return std::make_pair(operation, params);
 }
 
+/// The operation to increment cell contractility
+/** \details The following parameter are extracted from cfg 
+ *           (besides those passed to `OperationParams`):
+ *               - `progenitor` (double, default: 0.): incremental value for
+ *                      cells of type progenitor
+ *               - `hair` (double, default: 0.): incremental value for cells
+ *                      of type hair
+ *               - `support` (double, default: 0.): incremental value for cells
+ *                      of type support
+ * 
+ *  \note This affects the current entities properties, it does not overwrite
+ *        changes in the past.
+ */
+OperationBundle build_increment_cell_contractility (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double incr_prog(get_as<double>("progenitor", cfg, 0.));
+    double incr_hair(get_as<double>("hair", cfg, 0.));
+    double incr_support(get_as<double>("support", cfg, 0.));
+
+    Operation operation = [incr_prog, incr_hair, incr_support]
+            (PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+        
+        PCPVertex::RuleFuncCell update = [incr_prog, incr_hair, incr_support]
+                (const auto& cell)
+        {
+            auto state = cell->state;
+
+            if (state.type == CellType::progenitor) {
+                state.contractility += incr_prog;
+            }
+            else if (state.type == CellType::hair) {
+                state.contractility += incr_hair;
+            }
+            else if (state.type == CellType::support) {
+                state.contractility += incr_support;
+            }
+
+            return state;
+        };
+        
+        apply_rule<Update::sync>(update, cells);
+
+        return;
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// The operation to increment the domain size
 /** The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
@@ -993,11 +1056,11 @@ OperationBundle build_increment_shape_index (
             if (state.type == CellType::progenitor) {
                 state.shape_index_preferential += incr_prog;
             }
-            else if (state.type == CellType::support) {
-                state.shape_index_preferential += incr_supp;
-            }
             else if (state.type == CellType::hair) {
                 state.shape_index_preferential += incr_hair;
+            }
+            else if (state.type == CellType::support) {
+                state.shape_index_preferential += incr_supp;
             }
             return state;
         };
@@ -1133,6 +1196,10 @@ OperationBundle build_jiggle (
 /** \details The following parameter are extracted from cfg 
  *           (besides those passed to `OperationParams`):
  *               - `factor` (double): incremental factor c. Should be in [0, 1].
+ *               - `minimum` (double, optional): Don't set preferential area 
+ *                                               below this value.
+ *               - `minimum` (double, optional): Don't set preferential area 
+ *                                               above this value.
  * 
  *  Preferential area is relaxed towards the actual cell area:
  *  \f$ A^\prime_0  = A_0 + c (A - A_0) \f$
@@ -1146,18 +1213,28 @@ OperationBundle build_relax_area (
     OperationParams params(name, cfg, default_minim_params);
 
     double factor(get_as<double>("factor", cfg));
+    double minimum(get_as<double>("minimum", cfg, 0.));
+    double maximum(get_as<double>("maximum", cfg, 0.));
 
-    Operation operation = [factor]
+    Operation operation = [factor, minimum, maximum]
             (PCPVertex& vertex_model)
     {
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        PCPVertex::RuleFuncCell update = [factor, am](const auto& cell)
+        PCPVertex::RuleFuncCell update = [factor,
+                                          minimum, maximum,
+                                          am](const auto& cell)
         {
             auto state = cell->state;
             state.area_preferential += factor * (  am.area_of(cell)
                                                  - state.area_preferential);
+            state.area_preferential = std::max(state.area_preferential,
+                                               minimum);
+            if (maximum > 0.) {
+                state.area_preferential = std::min(state.area_preferential,
+                                                   maximum);
+            }
 
             return state;
         };

@@ -636,6 +636,71 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_CHECK_CLOSE(stddev, 0.3, 25);
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_cell_contractility) {
+        const std::string name = "increment_cell_contractility";
+        auto [operation, params] = build_increment_cell_contractility(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+
+
+
+        std::vector<double> contractilities;
+        contractilities.reserve(cells.size());
+        for (const auto& cell : cells) {
+            contractilities.push_back(cell->state.contractility);
+        }
+
+        // increment by one
+        BOOST_TEST(   contractilities
+                   == std::vector<double>(contractilities.size(), 2.));
+
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+
+
+        op_diff(vertex_model);
+        
+        contractilities.clear();
+        contractilities.reserve(cells.size());
+        for (const auto& cell : cells) {
+            contractilities.push_back(cell->state.contractility);
+        }
+
+        // differentiation does not change
+        BOOST_TEST(   contractilities
+                   == std::vector<double>(contractilities.size(), 2.));
+        
+
+        operation(vertex_model);
+
+        // build statistics with different cell types
+        std::vector<double> contractilities_HCs;
+        std::vector<double> contractilities_SCs;
+        contractilities_HCs.reserve(cells.size());
+        contractilities_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                contractilities_HCs.push_back(cell->state.contractility);
+            }
+            else if (cell->state.type == CellType::support) {
+                contractilities_SCs.push_back(cell->state.contractility);
+            }
+        }
+        contractilities_HCs.shrink_to_fit();
+        contractilities_SCs.shrink_to_fit();
+
+        // increment by 2
+        BOOST_TEST(   contractilities_HCs
+                   == std::vector<double>(contractilities_HCs.size(), 4.));
+        // increment by 3
+        BOOST_TEST(   contractilities_SCs
+                   == std::vector<double>(contractilities_SCs.size(), 5.));   
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain)
     {
         const std::string name = "increment_domain";
@@ -1036,6 +1101,31 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         // A_0' / A = 2 - 0.1 * (A_0 / A - 1) = 1.9
         BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell), 1.9,
                           1e-8);
+
+        
+        // use minimum area preferential
+        cell->state.area_preferential = 100.;
+
+        const std::string name_min = "relax_area_minimum";
+        auto [operation_min, params_min] = build_relax_area(
+            name_min, get_as<Config>(name_min, cfg), default_minim_params);
+
+        operation_min(vertex_model);
+
+        // relax instantly, but only to minimum of 12
+        BOOST_CHECK_CLOSE(cell->state.area_preferential, 12., 1e-8);
+        
+        // use maximum area preferential
+        cell->state.area_preferential = 0.001;
+
+        const std::string name_max = "relax_area_maximum";
+        auto [operation_max, params_max] = build_relax_area(
+            name_max, get_as<Config>(name_max, cfg), default_minim_params);
+
+        operation_max(vertex_model);
+
+        // relax instantly, but only to maximum of 0.4
+        BOOST_CHECK_CLOSE(cell->state.area_preferential, 0.4, 1e-8);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {

@@ -236,6 +236,11 @@ private:
                         build_increment_area(name, op_cfg,
                                              _minimization_params));
                 }
+                else if (name == "increment_cell_contractility") {
+                    _operations.push_back(
+                        build_increment_cell_contractility(name, op_cfg,
+                            _minimization_params));
+                }
                 else if (name == "increment_domain") {
                     _operations.push_back(
                         build_increment_domain(name, op_cfg,
@@ -282,6 +287,7 @@ private:
                             "differentiate_random, "
                             "differentiate_hair_cluster, "
                             "increment_area, "
+                            "increment_cell_contractility, "
                             "increment_domain, "
                             "increment_edge_contractility, "
                             "increment_linetension, "
@@ -417,7 +423,10 @@ private:
         }
 
         for (std::size_t it = 0; it < iterates; it++) {
-            operation(_vertex_model);
+            if (not params.disable) {
+                operation(_vertex_model);
+            }
+            // else: skip 
 
             if (params.minimization_mode == MinimizationMode::Every) {
                 this->_log->debug("   Minimizing energy ...");
