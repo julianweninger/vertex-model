@@ -256,11 +256,11 @@ public:
 
     /// Calculate the perimeter of a cell
     double perimeter_of (const std::shared_ptr<Cell>& cell) const {
-        return this->perimeter_of_virtual(cell, 0.);
+        return this->get_perimeter_of_virtual(cell, 0.);
     }
 
     /// Calculate the perimeter of a cell
-    double perimeter_of_virtual (const std::shared_ptr<Cell>& cell,
+    double get_perimeter_of_virtual (const std::shared_ptr<Cell>& cell,
                                  double beta) const {
         double perimeter = 0.;
         for (auto [e, flip] : cell->custom_links().edges) {
@@ -270,9 +270,9 @@ public:
                     position_of(e->custom_links().b));
             }
             else {
-                const SpaceVec &a = displace_virtual(e->custom_links().a,
+                const SpaceVec &a = get_displace_virtual(e->custom_links().a,
                                                          beta);
-                const SpaceVec &b = displace_virtual(e->custom_links().b,
+                const SpaceVec &b = get_displace_virtual(e->custom_links().b,
                                                          beta);
                 perimeter += _space->distance(a, b);
             }
@@ -286,7 +286,7 @@ public:
      *          negative sign.
      */
     double area_of (const std::shared_ptr<Cell>& cell) const {
-        return this->area_of_virtual(cell, 0.);
+        return this->get_area_of_virtual(cell, 0.);
     }
 
     /// Calculate the area of a cell
@@ -294,7 +294,7 @@ public:
      *          If the edges are ordered clockwise, the area is correct but of 
      *          negative sign.
      */
-    double area_of_virtual (const std::shared_ptr<Cell>& cell,
+    double get_area_of_virtual (const std::shared_ptr<Cell>& cell,
                             double beta) const {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
@@ -313,7 +313,7 @@ public:
             ref = position_of(reference);
         }
         else {
-            ref = displace_virtual(reference, beta);
+            ref = get_displace_virtual(reference, beta);
         }
 
         double area = 0.;
@@ -324,8 +324,8 @@ public:
                 b = position_of(e->custom_links().b);
             }
             else {
-                a = displace_virtual(e->custom_links().a, beta);
-                b = displace_virtual(e->custom_links().b, beta);
+                a = get_displace_virtual(e->custom_links().a, beta);
+                b = get_displace_virtual(e->custom_links().b, beta);
             }
             // define the vertices positions relative to the reference
             /* this is important in periodic space to calculate with "real"
@@ -448,29 +448,53 @@ public:
                                     hair_neighbors.end());
     }
 
-    /// Calculate to where a vertex would move
+    /// Calculate to where vertices would move
     /** \details vertices move along the self-managed value Vertex::State::f
      * 
      *  \param beta     The step size along the direction of update
      */
-    const SpaceVec& displace_virtual (const std::shared_ptr<Vertex>& vertex,
-                               double beta) const {
-        if (std::get<double>(vertex->state.virtual_pos) == beta) {
-            return std::get<SpaceVec>(vertex->state.virtual_pos);
-        }
+    void displace_virtual (double beta) const {
+        double virtual_beta = std::get<double>(
+                    vertices().back()->state.virtual_pos);
+        // WARN not safe, but avoids a lot of computation
+        //      beta is checked at access of the virtual position!
 
-        SpaceVec pos = position_of(vertex) + beta * vertex->state.f;
-        
-        if (this->_space->periodic) {
-            pos = this->_space->map_into_space(pos);
+        if (beta == 0. or beta == virtual_beta) {
+            return;
         }
-        else {
-            if (not this->_space->contains(pos)) {
-                throw OutOfSpace(pos, this->_space, "Could not move agent!");
+        for (auto& vertex : this->vertices()) {
+            SpaceVec pos = position_of(vertex) + beta * vertex->state.f;
+            
+            if (this->_space->periodic) {
+                pos = this->_space->map_into_space(pos);
             }
+            else {
+                if (not this->_space->contains(pos)) {
+                    throw OutOfSpace(pos, this->_space,
+                                     "Could not move agent!");
+                }
+            }
+
+            vertex->state.virtual_pos = std::make_pair(beta, pos);
+        }
+    }
+
+    /// Access the virtually displaced position of the vertex
+    /** \details Accesses the virtual_pos state of the vertex and checks match
+     *           of values of beta with the last calculation of vertex virtual 
+     *           position
+     */
+    const SpaceVec get_displace_virtual (
+            const std::shared_ptr<Vertex>& vertex, double beta) const
+    {
+        if (beta == 0) {
+            return position_of(vertex);
         }
 
-        vertex->state.virtual_pos = std::make_pair(beta, pos);
+        if (std::get<double>(vertex->state.virtual_pos) != beta) {
+            throw std::runtime_error("Could not get displace virtual as beta "
+                                     "does not match!");
+        }
         return std::get<SpaceVec>(vertex->state.virtual_pos);
     }
 
