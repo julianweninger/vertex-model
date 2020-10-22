@@ -15,6 +15,9 @@ paths:
 
 parameter_space:
   num_steps: 2
+  
+  parallel_execution:
+    enabled: True
 
   PCPTopology:
     operations:
