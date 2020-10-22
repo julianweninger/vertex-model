@@ -69,15 +69,25 @@ public:
 
         // test the predictions
         BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
-                        precision);
+                          precision);
         BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
-                        precision);
+                          precision);
         BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
-                        precision);
+                          precision);
         BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
-                        precision);
+                          precision);
         BOOST_CHECK_CLOSE(new_energy, this->get_energy(),
-                        precision);
+                          precision);
+
+        // test that energy is deterministic value
+        std::vector<double> energies(100);
+        std::transform(energies.begin(), energies.end(), energies.begin(),
+                       [this](const auto&) {
+                           return this->get_energy();
+                       });
+
+        BOOST_TEST(   energies
+                   == std::vector<double>(energies.size(), new_energy));
     }
 };
 
