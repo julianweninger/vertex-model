@@ -50,6 +50,14 @@ struct VertexState {
  *  have only one.
  */
 struct EdgeState {
+    using SpaceVec = Utopia::SpaceVecType<2>;
+
+    /// The length of this edge
+    double length;
+
+    /// The vector from vertex a to b
+    SpaceVec displ;
+
     /// The linetension parameter property to this edge
     double linetension;
 
@@ -81,6 +89,8 @@ struct EdgeState {
      */
     EdgeState (const Utopia::DataIO::Config& cfg)
     :
+        length(0.),
+        displ(),
         linetension(get_as<double>("linetension", cfg)),
         contractility(get_as<double>("contractility", cfg)),
         last_T1_attempt(0),
@@ -94,6 +104,8 @@ struct EdgeState {
 
 /// The Cell defined by its id, its vertices and its area
 struct CellState {
+    using SpaceVec = Utopia::SpaceVecType<2>;
+
     /// The type of a cell
     enum CellType {
         progenitor,
@@ -101,6 +113,15 @@ struct CellState {
         support,
         num_cell_types,
     } type;
+
+    /// The area of this cell
+    double area;
+
+    /// The shape index of this cell
+    double shape_index;
+
+    /// The center of mass of this cell
+    SpaceVec center;
 
     /// The preferential area of the cell
     /** In absolute coordinates
@@ -186,6 +207,9 @@ struct CellState {
                const std::shared_ptr<RNGType>& rng)
     :
         type(setup_type(cfg)),
+        area(0.),
+        shape_index(0.),
+        center(),
         area_preferential(get_as<double>("area_preferential", cfg)),
         area_preferential_var(get_as<double>("area_preferential_var", cfg, 0.)),
         shape_index_preferential(get_as<double>("shape_index_preferential",

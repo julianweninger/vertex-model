@@ -256,8 +256,11 @@ public:
                 "the decay of the repressor protein NICD");
         }
 
-        apply_rule<Update::sync>(determine_cell_type, _cm.cells());
-        apply_rule<Update::sync>([](const auto& cell) {
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 determine_cell_type, _cm.cells());
+        apply_rule<Update::sync>(
+            Utopia::ExecPolicy::par,
+            [](const auto& cell) {
                 auto state = cell->state;
                 if (state.cell_type == CellType::inactive) {
                     state.notch = 0.;
@@ -266,7 +269,8 @@ public:
                 }
                 return state;
             },
-            _cm.cells());
+            _cm.cells()
+        );
 
         this->_log->debug("{} model fully set up.", this->_name);
     }
@@ -356,7 +360,7 @@ public:
      *      -# Collier::determine_cell_type
      */
     void perform_step () {
-        apply_rule<Update::sync>(update, _cm.cells());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par, update, _cm.cells());
 
         _minimum_notch = 1.e8;
         _maximum_notch = 0.;
@@ -369,7 +373,8 @@ public:
                            _notch_threshold_factor * 
                                 (_maximum_notch - _minimum_notch);
 
-        apply_rule<Update::sync>(determine_cell_type, _cm.cells());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par, 
+                                 determine_cell_type, _cm.cells());
     }
 
 

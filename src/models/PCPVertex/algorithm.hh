@@ -164,6 +164,7 @@ void PCPVertex::init_minimization ()
     }
 
     apply_rule<Update::sync>(
+        Utopia::ExecPolicy::par,
         [this](const auto& vertex) {
             auto state = vertex->state;
             state.g = state.f;
@@ -204,14 +205,10 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
         }
     }
  
-    apply_rule<Update::sync>(update_position, _am.vertices());
+    apply_rule<Update::sync>(Utopia::ExecPolicy::par, 
+                             update_position, _am.vertices());
 
-    if (not adaptive_step) {
-        return this->get_energy();
-    }
-    else {
-        return new_energy;
-    }
+    return this->get_energy();
 };
 
 /// Single step in direction of conjugate gradient
@@ -228,39 +225,44 @@ double PCPVertex::conjugate_gradient_step ()
     if (energy_change < -1e-14) {
         this->_log->trace("Updating with timestep {} at energy change {}",
                             _dt, energy_change);
-        apply_rule<Update::sync>(update_position, _am.vertices());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 update_position, _am.vertices());
+
+        // determine the conjugate gradient direction
+        set_gradient();
+        double gamma = 0.;
+        double g_square = 0.;
+
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                [](const auto& vertex) {
+                                    vertex->state.g = vertex->state.f;
+                                    return vertex->state;
+                                }, _am.vertices());
+        for (auto&& v : _am.vertices()) {
+            gamma += arma::norm(v->state.f);
+            g_square += arma::norm(v->state.g);
+        }
+        gamma /= g_square;
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                [gamma](const auto& vertex) {
+                                    auto state = vertex->state;
+                                    state.h = state.g + gamma * state.h;
+                                    state.f = state.h;
+                                    return state;
+                                }, _am.vertices());
     }
     else {
         this->_log->trace("NOT updating with step size {} along direction "
-                          "of update at energy change {}", _dt,
-                          energy_change);
-        return this->_energy;
+                          "of update at energy change {}", _dt, energy_change);
     }
 
-    // determine the conjugate gradient direction
-    set_gradient();
-    double gamma = 0.;
-    double g_square = 0.;
-    for (auto&& v : _am.vertices()) {
-        gamma += arma::norm(v->state.f);
-        g_square += arma::norm(v->state.g);
-
-        v->state.g = v->state.f;
-    }
-    gamma /= g_square;
-    for (auto&& v : _am.vertices()) {
-        v->state.h = v->state.g + gamma * v->state.h;
-        v->state.f = v->state.h;
-    }
-
-    return new_energy;
+    return this->get_energy();
 };
 
 /// Select the chosen update scheme
 /** \return the energy after upate
  */
-double PCPVertex::perform_update_step(
-        UpdateScheme update_scheme)
+double PCPVertex::perform_update_step(UpdateScheme update_scheme)
 {
     if (update_scheme == SteepestGradient) {
         return steepest_gradient_step(false);

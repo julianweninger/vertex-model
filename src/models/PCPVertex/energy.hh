@@ -7,65 +7,67 @@ namespace PCPVertex {
 
 
 /// The energy associated with linetension per edge
-/** \details \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
+/** \details \f$ E_{ij} = \lambda_{ij} l_{ij} \f$
  * 
  *  \param edge     The object
- *  \param 
+ *  \param beta     Predict energy for vetrex positions displaced by 
+ *                  \f$ - \beta * grad E \f$
  */
 double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    double length;
-    if (beta > 0) {
-        const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
-        const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
-        length = this->_space->distance(a, b);
-    }
-    else {
-        length = this->_space->distance(_am.position_of(edge->custom_links().a),
-                                        _am.position_of(edge->custom_links().b));
-    }
+    double length = this->_space->distance(
+        _am.get_displace_virtual(edge->custom_links().a, beta),
+        _am.get_displace_virtual(edge->custom_links().b, beta));
     
     return edge->state.linetension * length;
 };
 
+/// The energy associated with contractility per edge
+/** \details \f$ E_{ij} = \Gamma_{ij} l_{ij}^2 \f$
+ * 
+ *  \param edge     The object
+ *  \param beta     Predict energy for vetrex positions displaced by 
+ *                  \f$ - \beta * grad E \f$
+ */
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    double length;
-    if (beta > 0) {
-        const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
-        const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
-        length = this->_space->distance(a, b);
-    }
-    else {
-        length = this->_space->distance(_am.position_of(edge->custom_links().a),
-                                        _am.position_of(edge->custom_links().b));
-    }
+    double length = this->_space->distance(
+        _am.get_displace_virtual(edge->custom_links().a, beta),
+        _am.get_displace_virtual(edge->custom_links().b, beta));
     
     return 0.5 * edge->state.contractility * pow(length, 2);
 };
 
-/// The energy associated with area elasticity
-/** \f$ E = K/2 * (A - A0)**2 \f$
+/// The energy associated with area elasticity of a cell
+/** \details \f$ E_\alpha = K_A/2 * (A - A_0)**2 \f$
+ * 
+ *  \param cell     The object
+ *  \param beta     Predict energy for vetrex positions displaced by 
+ *                  \f$ - \beta * grad E \f$
  */
 double PCPVertex::area_elasticity_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
-    // for beta = 0, returns same as area_of(cell)
-    double rel_area = (  _am.area_of_virtual(cell, beta)
-                       / cell->state.area_preferential);
+    double rel_area = (  _am.get_area_of_virtual(cell, beta)
+                        / cell->state.area_preferential);
     return 0.5 * _area_elasticity * pow(rel_area - 1., 2);
 };
 
-/// The energy associated with cell contractility
+/// The energy associated with contractility of a cell
+/** \details \f$ E = \Gamma_\alpha /2 * (p - p_0)**2 \f$
+ * 
+ *  \param cell     The object
+ *  \param beta     Predict energy for vetrex positions displaced by 
+ *                  \f$ - \beta * grad E \f$
+ */
 double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     const auto state = cell->state;
-    // for beta = 0, returns same as perimeter_of(cell)
-    double shape_index = (  _am.perimeter_of_virtual(cell, beta)
-                          / sqrt(state.area_preferential));
+    double shape_index = (  _am.get_perimeter_of_virtual(cell, beta)
+                            / sqrt(state.area_preferential));
     return (  0.5 * state.contractility
             * std::pow(shape_index - state.shape_index_preferential, 2));
 };
@@ -177,44 +179,88 @@ double PCPVertex::cell_contractility_energy (
 double PCPVertex::get_energy_linetension(
         const AgentContainer<Edge>& es, double beta) const
 {
-    double energy = 0.;
-    for (const auto& e : es) {
-        energy += line_tension_energy(e, beta);
-    }
-    return energy;
+    this->_am.displace_virtual(beta);
+    
+    return Utopia::exec_parallel(
+        Utopia::ExecPolicy::par,
+        [](auto&& args_tpl) {
+            auto transform_reduce = [](auto&&... args) {
+                return std::transform_reduce(args...);
+            };
+            return std::apply(transform_reduce, args_tpl);
+        },
+        es.begin(), es.end(), 0.,
+        std::plus<>(), 
+        [beta, this](const auto& edge) {
+            return this->line_tension_energy(edge, beta);
+        }
+    );
 }
 
 /// Getter for energy associated with contractility of junctions
 double PCPVertex::get_energy_edge_contractility(
         const AgentContainer<Edge>& es, double beta) const
 {
-    double energy = 0.;
-    for (const auto& e : es) {
-        energy += edge_contractility_energy(e, beta);
-    }
-    return energy;
+    this->_am.displace_virtual(beta);
+    
+    return Utopia::exec_parallel(
+        Utopia::ExecPolicy::par,
+        [](auto&& args_tpl) {
+            auto transform_reduce = [](auto&&... args) {
+                return std::transform_reduce(args...);
+            };
+            return std::apply(transform_reduce, args_tpl);
+        },
+        es.begin(), es.end(), 0.,
+        std::plus<>(), 
+        [beta, this](const auto& edge) {
+            return this->edge_contractility_energy(edge, beta);
+        }
+    );
 }
 
 /// Getter for energy associated with area elasticity
 double PCPVertex::get_energy_areaelasticity (
         const AgentContainer<Cell>& cs, double beta) const
 {
-    double energy = 0.;
-    for (const auto& c : cs) {
-        energy += area_elasticity_energy(c, beta);
-    }
-    return energy;
+    this->_am.displace_virtual(beta);
+    
+    return Utopia::exec_parallel(
+        Utopia::ExecPolicy::par,
+        [](auto&& args_tpl) {
+            auto transform_reduce = [](auto&&... args) {
+                return std::transform_reduce(args...);
+            };
+            return std::apply(transform_reduce, args_tpl);
+        },
+        cs.begin(), cs.end(), 0.,
+        std::plus<>(), 
+        [beta, this](const auto& edge) {
+            return this->area_elasticity_energy(edge, beta);
+        }
+    );
 }
 
 /// Getter for energy associated with contractility of cells
 double PCPVertex::get_energy_cell_contractility(
         const AgentContainer<Cell>& cs, double beta) const
 {
-    double energy = 0.;
-    for (const auto& c : cs) {
-        energy += cell_contractility_energy(c, beta);
-    }
-    return energy;
+    this->_am.displace_virtual(beta);
+    
+    return Utopia::exec_parallel(
+        Utopia::ExecPolicy::par,
+        [](auto&& args_tpl) {
+            auto transform_reduce = [](auto&&... args) {
+                return std::transform_reduce(args...);
+            };
+            return std::apply(transform_reduce, args_tpl);
+        },
+        cs.begin(), cs.end(), 0.,
+        std::plus<>(), 
+        [beta, this](const auto& edge) {
+            return this->cell_contractility_energy(edge, beta);
+        }
+    );
 }
 
 

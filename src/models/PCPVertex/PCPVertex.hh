@@ -459,6 +459,41 @@ private:
         
         return state;
     };
+    
+    /// This function updates the properties of an edge
+    /** Updated properties are
+     *      - displacement
+     *      - length
+     */
+    const RuleFuncEdge set_edge_properties = [this](const auto& edge) {
+        auto state = edge->state;
+
+        const auto& a = edge->custom_links().a;
+        const auto& b = edge->custom_links().b;
+
+        state.displ = this->_am.displacement(a, b);
+        state.length = arma::norm(state.displ);
+        return state;
+    };
+
+    
+    /// This function updates the properties of a cell
+    /** Updated properties are
+     *      - area
+     *      - shape_index
+     *      - center
+     */
+    const RuleFuncCell set_cell_properties = [this](const auto& cell) {
+        auto state = cell->state;
+
+        state.area = (  this->_am.area_of(cell)
+                        / state.area_preferential);
+        state.shape_index = (  this->_am.perimeter_of(cell)
+                                / sqrt(state.area_preferential));
+        state.center = this->_am.barycenter_of(cell);
+
+        return state;
+    };
 
     /** Calculates the forces from linetension
      * 
@@ -470,19 +505,26 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
-        
-        SpaceVec displ = this->_am.displacement(a, b);
-        auto length = arma::norm(displ);
+    const RuleFuncVertex set_grad_linetension = [this](const auto& v) {
+        const auto es = this->_am.adjoint_edges_of(v);
 
-        SpaceVec force = edge->state.linetension * displ / length;
+        auto state = v->state;
 
-        a->state.f += force;
-        b->state.f -= force;
+        for (const auto& e : es) {
+            SpaceVec displ = e->state.displ;
+            double length = e->state.length;
 
-        return edge->state;
+            SpaceVec force = e->state.linetension * displ / length;
+
+            if (v == e->custom_links().a) {
+                state.f += force;
+            }
+            else {
+                state.f -= force;
+            }
+        }
+
+        return state;
     };
 
     /** Calculates the forces from edge contractility
@@ -495,17 +537,20 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
+    const RuleFuncVertex set_grad_edge_contractility = [this](const auto& v) {
+        auto state = v->state;
+        for (const auto& e : this->_am.adjoint_edges_of(v)) {
+            SpaceVec force = e->state.contractility * e->state.displ;
 
-        SpaceVec force = edge->state.contractility *
-                         this->_am.displacement(a, b);
+            if (v == e->custom_links().a) {
+                state.f += force;
+            }
+            else {
+                state.f -= force;
+            }
+        }
 
-        a->state.f += force;
-        b->state.f -= force;
-
-        return edge->state;
+        return state;
     };
 
     /** Calculates the forces from area elasticity
@@ -518,39 +563,34 @@ private:
      * 
      *  \return energy associated with this edge
      */
-    const RuleFuncCell set_grad_area_elasticity = [this](const auto& cell) {
-        const auto state = cell->state;
+    const RuleFuncVertex set_grad_area_elasticity = [this](const auto& vertex) {
+        auto state = vertex->state;
+        for (const auto& cell : this->_am.adjoint_cells_of(vertex)) {
+            std::shared_ptr<Vertex> v_prior, v_post, v_iterator;
+            for (const auto [e, flip] : cell->custom_links().edges) {
+                v_prior = v_iterator;
+                v_iterator = e->custom_links().a;
+                v_post = e->custom_links().b;
+                if (flip) {
+                    std::swap(v_iterator, v_post);
+                }
+                if (v_iterator == vertex) {
+                    break;
+                }
+            }
+            if (not v_prior) {
+                auto [e, flip] = cell->custom_links().edges.back();
+                if (not flip) {
+                    v_prior = e->custom_links().a;
+                }
+                else {
+                    v_prior = e->custom_links().b;
+                }
+            }
 
-        const auto rel_cell_area = (  this->_am.area_of(cell)
-                                    / state.area_preferential);
-        const auto cell_center = this->_am.barycenter_of(cell);
-        
-        const auto& edges = cell->custom_links().edges;
-        for (unsigned int edges_it = 0; edges_it < edges.size(); edges_it++) {
-            std::shared_ptr<Edge> e0; bool e0_flip;
-            if (edges_it > 0) { 
-                std::tie(e0, e0_flip) = edges[edges_it - 1];
-            }
-            else {
-                std::tie(e0, e0_flip) = edges.back();
-            }
-
-            const auto [e1, e1_flip] = edges[edges_it];
-            
-            // vertices in ordering
-            auto v_center = e0->custom_links().b;
-            auto v_prior = e0->custom_links().a;
-            if (e0_flip) {
-                std::swap(v_center, v_prior);
-            }
-
-            std::shared_ptr<Vertex> v_post;
-            if (not e1_flip) {
-                v_post = e1->custom_links().b;
-            }
-            else {
-                v_post = e1->custom_links().a;
-            }
+            SpaceVec cell_center = cell->state.center;
+            double rel_cell_area = (  cell->state.area
+                                    / cell->state.area_preferential);
 
             // get positions relative to cell center
             SpaceVec prior = cell_center + 
@@ -568,11 +608,11 @@ private:
             SpaceVec force = (  -1. * this->_area_elasticity
                               * (rel_cell_area - 1)
                               * SpaceVec({dA_dx, dA_dy})
-                              / state.area_preferential);
+                              / cell->state.area_preferential);
 
-            v_center->state.f += force;
+            state.f += force;
+            
         }
-        
         return state;
     };
 
@@ -580,26 +620,26 @@ private:
     /** Associated energy per cell is 
      *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
      */
-    const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
+    const RuleFuncVertex set_grad_cell_contractility = [this](const auto& vertex)
     {
-        auto state = cell->state;
-        double shape_index = (  this->_am.perimeter_of(cell)
-                              / sqrt(state.area_preferential));
+        auto state = vertex->state;
 
-        for (auto [e, flip] : cell->custom_links().edges) {
-            auto a = e->custom_links().a;
-            auto b = e->custom_links().b;
-            if (flip) { std::swap(a, b); }
+        for (const auto& e : this->_am.adjoint_edges_of(vertex)) {
+            auto [a, b] = this->_am.adjoints_of(e);
+            for (const auto& c : {a, b}) {
+                SpaceVec force = (  c->state.contractility * e->state.displ
+                                  / e->state.length
+                                  / sqrt(c->state.area_preferential)
+                                  * (  c->state.shape_index
+                                     - c->state.shape_index_preferential));
 
-            SpaceVec displ = this->_am.displacement(a, b);
-            double length = arma::norm(displ);
-
-            SpaceVec force = (  state.contractility * displ / length
-                              / sqrt(state.area_preferential)
-                              * (shape_index - state.shape_index_preferential));
-
-            a->state.f += force;
-            b->state.f -= force;
+                if (vertex == e->custom_links().a) {
+                    state.f += force;
+                }
+                else {
+                    state.f -= force;
+                }
+            }
         }
 
         return state;
@@ -711,17 +751,29 @@ private:
      */
     void set_gradient () {
         // reset forces
-        apply_rule<Update::sync>(reset_forces, _am.vertices());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par, 
+                                 reset_forces, _am.vertices());
+        
+        // update the properties of the entities
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 set_edge_properties, _am.edges());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 set_cell_properties, _am.cells());
 
         // apply new forces
-        apply_rule<Update::async, Shuffle::off>(set_grad_linetension,
-                                                _am.edges());
-        apply_rule<Update::async, Shuffle::off>(set_grad_edge_contractility,
-                                                _am.edges());
-        apply_rule<Update::async, Shuffle::off>(set_grad_area_elasticity,
-                                                _am.cells());
-        apply_rule<Update::async, Shuffle::off>(set_grad_cell_contractility,
-                                                _am.cells());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 set_grad_linetension,
+                                 _am.vertices());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 set_grad_edge_contractility,
+                                 _am.vertices());
+        
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 set_grad_area_elasticity,
+                                 _am.vertices());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 set_grad_cell_contractility,
+                                 _am.vertices());
     }
 
     /** The update of position
@@ -806,7 +858,7 @@ public:
                 this->_log->debug("Removing cell in T2 transition in step {}..",
                                  this->_time);
                 bool T2 = _am.remove_cell_T2(_am.cells()[i]);
-                transition_occurred = transition_occurred or T2;
+                transition_occurred = (transition_occurred or T2);
                 _num_T2s += T2;
             }
         }
@@ -836,7 +888,7 @@ public:
                 }
                 // else: edge was removed
 
-                transition_occurred = transition_occurred or T1;
+                transition_occurred = (transition_occurred or T1);
                 _num_T1s += T1;
                 _num_T1s_attempted++;
             }
@@ -859,7 +911,7 @@ public:
 
         _energy_previous_step = _energy;
         _energy = perform_update_step(_update_scheme);
-
+        
         // if (_gamma > 0) {
         //     throw std::logic_error("Polarity proteins update not implemented!");
         //     apply_rule<Update::sync>(reset_polarity_change, _am.edges());
@@ -954,7 +1006,7 @@ public:
         }
 
         this->_log->debug("Energy minimized within {} steps", 
-                          this->get_time() - time_0);
+                          this->get_time() - time_0);        
         return this->get_time() - time_0;
     }
 
@@ -1137,7 +1189,8 @@ public:
                 return state;
             };
 
-            apply_rule<Update::sync>(update, this->_am.edges());
+            apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                     update, this->_am.edges());
         }
     }
 
@@ -1174,7 +1227,8 @@ public:
                 return state;
             };
 
-            apply_rule<Update::sync>(update, this->_am.edges());
+            apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                     update, this->_am.edges());
         }
     }
 }; // class PCPVertex

@@ -272,9 +272,12 @@ public:
      *      -# NotchDelta::T1_transition
      */
     void perform_step () {
-        apply_rule<Update::sync>(accumulate_atoh1, _cm.cells());
-        apply_rule<Update::sync>(suppress_atoh1, _cm.cells());
-        apply_rule<Update::sync>(transition, _cm.cells());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 accumulate_atoh1, _cm.cells());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 suppress_atoh1, _cm.cells());
+        apply_rule<Update::sync>(Utopia::ExecPolicy::par,
+                                 transition, _cm.cells());
 
         // pre-select only the fraction of non-rosette hair cells.
         // NOTE because the selection is fixed, from pair of hair cells in
