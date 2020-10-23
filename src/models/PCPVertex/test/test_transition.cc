@@ -136,7 +136,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
     void test_T2_transition(bool periodic) {
         auto model = model_factory(periodic);
-        model.prolog();
         
         auto& am = model.get_am();
 
@@ -149,15 +148,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         auto num_vertices = vertices.size();
 
         auto cell = cells[cells.size() / 2 + 4];
-
-        // decrement area in small steps to avoid numerical errors!
-        for (int i = 0; i < 9; i++) {
-            if (not cell) { break; }
-
-            cell->state.area_preferential -= 0.1;
-            
-            for (int i = 0; i < 250; i++) {
-                model.iterate();
+        cell->state.area_preferential = 0.1;
+        
+        model.prolog();
+        for (int i = 0; i < 1000; i++) {
+            model.iterate();
+            if (cells.size() < num_cells) {
+                break;
             }
         }
 

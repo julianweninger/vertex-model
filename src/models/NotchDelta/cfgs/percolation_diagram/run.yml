@@ -6,10 +6,6 @@ paths:
 
 parameter_space:
   num_steps: 1000
-  
-  parallel_execution:
-    enabled: True
-    
   NotchDelta:
     rate_ph:
       rate_0: !sweep

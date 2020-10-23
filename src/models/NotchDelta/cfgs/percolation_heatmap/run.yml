@@ -6,7 +6,6 @@ paths:
 
 parameter_space:
   num_steps: 1000
-    
   NotchDelta:
     rate_ph:
       rate_0: !sweep

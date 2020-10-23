@@ -45,5 +45,4 @@ output_path: test_data.h5
 seed: 42
 write_every: 1
 write_start: 0
-parallel_execution: {enabled: true}
 
