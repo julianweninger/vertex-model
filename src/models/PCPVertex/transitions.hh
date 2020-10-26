@@ -408,10 +408,11 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
     double current_energy = get_energy({edge, adj_edge_a, adj_edge_b,
                                               adj_edge_c, adj_edge_d},
-                                             {adj_cell_a, adj_cell_b,
-                                              adj_cell_c, adj_cell_d});
+                                       {adj_cell_a, adj_cell_b,
+                                        adj_cell_c, adj_cell_d});
 
-    auto center = position_of(vertex_a) + displacement(vertex_a, vertex_b) / 2;
+    SpaceVec center = (  position_of(vertex_a)
+                       + 0.5 * displacement(vertex_a, vertex_b));
     auto new_v_a = add_vertex(SpaceVec(center - sep / 2.));
     auto new_v_b = add_vertex(SpaceVec(center + sep / 2.));
 
