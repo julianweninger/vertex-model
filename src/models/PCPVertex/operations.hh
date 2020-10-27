@@ -17,7 +17,7 @@ namespace PCPVertex {
 void PCPVertex::jiggle_vertices(double intensity)
 {
     auto num_cells = this->_am.cells().size();
-    const auto domain = this->_space->get_domain_size();    
+    const SpaceVec domain = this->_space->get_domain_size();    
     intensity *= sqrt(domain[0]*domain[1] / num_cells);
 
     this->_log->debug("Jiggling the vertices on a length scale of "
@@ -46,7 +46,7 @@ void PCPVertex::jiggle_vertices(double intensity)
  */
 void PCPVertex::increase_domain_size(double area)
 {
-    const auto domain = this->_space->get_domain_size();
+    const SpaceVec domain = this->_space->get_domain_size();
     if (-1. * area > domain[0] * domain[1]) {
         throw std::invalid_argument("Cannot decrease the domain size by "
                 "an area larger than the domain size. dA = " + 
@@ -85,7 +85,7 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
                       fix_sc_area ? "":"not ");
     
     this->_space->set_domain_size(this->_space->get_domain_size() + stretch);
-    auto domain = this->_space->get_domain_size();
+    SpaceVec domain = this->_space->get_domain_size();
 
     const double area_change = stretch[0]*domain[1] + stretch[1]*domain[0];
 

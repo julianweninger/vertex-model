@@ -43,10 +43,10 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     cell->state.remove = true;
     remove_cell(cell);
 
-    const auto cell_center = this->barycenter_of(cell);
+    const SpaceVec cell_center = this->barycenter_of(cell);
 
     // generate the axis of division
-    auto domain = this->_space->get_domain_size();
+    SpaceVec domain = this->_space->get_domain_size();
     const SpaceVec axis = SpaceVec({cos(division_angle), sin(division_angle)}) / 
                           domain;
 
@@ -56,9 +56,11 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     AgentContainer<Vertex> new_vertices;
     for (const auto& [e, flip] : cell->custom_links().edges) {
         // calculate the intersection
-        auto a = this->position_of(e->custom_links().a);
-        auto b = this->position_of(e->custom_links().b);
-        const auto [inter, success] = this->_space->intersection(
+        SpaceVec a = this->position_of(e->custom_links().a);
+        SpaceVec b = this->position_of(e->custom_links().b);
+        SpaceVec inter;
+        bool success;
+        std::tie(inter, success) = this->_space->intersection(
                 a, this->_space->displacement(a, b),
                 cell_center, axis,
                 true, false);
@@ -89,14 +91,14 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
             (axis + cell_center)[0], (axis + cell_center)[1]);
         this->_log->error("Edges of cell are:");
         for (const auto& [e, flip] : cell->custom_links().edges) {
-            auto a = this->position_of(e->custom_links().a);
-            auto b = this->position_of(e->custom_links().b);
+            SpaceVec a = this->position_of(e->custom_links().a);
+            SpaceVec b = this->position_of(e->custom_links().b);
             if (flip) { std::swap(a, b); }
             this->_log->error("   {}, {} -> {}, {}",a[0], a[1], b[0], b[1]);
         }
         this->_log->error("Intersections are:");
         for (const auto& v : new_vertices) {
-            auto pos = this->position_of(v);
+            SpaceVec pos = this->position_of(v);
             this->_log->error("   {}, {}", pos[0], pos[1]);
         }
         throw std::runtime_error("During cell division, expected 2 new "
@@ -413,8 +415,8 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
     SpaceVec center = (  position_of(vertex_a)
                        + 0.5 * displacement(vertex_a, vertex_b));
-    auto new_v_a = add_vertex(SpaceVec(center - sep / 2.));
-    auto new_v_b = add_vertex(SpaceVec(center + sep / 2.));
+    auto new_v_a = add_vertex(center - sep / 2.);
+    auto new_v_b = add_vertex(center + sep / 2.);
 
     _vertices_adjoint_edges[new_v_a->id()] = {adj_edge_a, adj_edge_c};
     _vertices_adjoint_edges[new_v_b->id()] = {adj_edge_b, adj_edge_d};

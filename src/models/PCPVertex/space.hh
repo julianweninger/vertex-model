@@ -205,7 +205,7 @@ public:
     }  
 
     /// Getter for the size of the domain
-    auto get_domain_size() const {
+    SpaceVec get_domain_size() const {
         return this->extent % _domain_scale;
     }
 
