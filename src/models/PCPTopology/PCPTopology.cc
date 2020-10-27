@@ -23,7 +23,7 @@ auto model_factory(ParentType parent) {
         // transition adaptors
         T1_adaptor, T1_attempted_adaptor, T2_adaptor,
         // the position adaptors
-        vertices_adaptor,
+        vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,
                       typename PCPTopology::CellType>,
         edges_adaptor,

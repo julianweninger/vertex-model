@@ -38,9 +38,11 @@ BOOST_FIXTURE_TEST_CASE(test_CustomSpace, Fixture)
 
     SpaceVec pos_1 = {0.1, 0.5};
     SpaceVec vec_1 = {0.1, 0.};
-    auto [intersection, success] = space.intersection(pos_0, vec_0, 
-                                                      pos_1, vec_1,
-                                                      false, false);
+    SpaceVec intersection;
+    bool success;
+    std::tie(intersection, success) = space.intersection(pos_0, vec_0, 
+                                                         pos_1, vec_1,
+                                                         false, false);
     BOOST_CHECK_CLOSE(intersection.at(0), 0.5, precision);
     BOOST_CHECK_CLOSE(intersection.at(1), 0.5, precision);
     BOOST_TEST(success);

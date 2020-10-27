@@ -343,6 +343,7 @@ auto lagrange_const_concentration_adaptor = std::make_tuple(
  *      -# Lx: Domain size in x coordinate
  *      -# Ly: Domain size in y coordinate
  */
+template <typename SpaceVec>
 auto vertices_adaptor = std::make_tuple(
     // name of the task
     "Vertices",
@@ -380,7 +381,7 @@ auto vertices_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__property", 
                                   std::vector<std::string>({"x", "y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
-        const auto domain = model.get_space()->get_domain_size();
+        const SpaceVec domain = model.get_space()->get_domain_size();
         hdfdataset->add_attribute("Lx", domain[0]);
         hdfdataset->add_attribute("Ly", domain[1]);
         // For ids, the dimensions are trivial
@@ -556,7 +557,7 @@ auto cells_adaptor = std::make_tuple(
                        [](const auto& c) { return c->id(); });
         hdfdataset->add_attribute("coords__id", ids);
 
-        const auto domain = model.get_space()->get_domain_size();
+        const SpaceVec domain = model.get_space()->get_domain_size();
         hdfdataset->add_attribute("Lx", domain[0]);
         hdfdataset->add_attribute("Ly", domain[1]);
     }    

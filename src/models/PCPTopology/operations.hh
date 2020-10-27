@@ -724,7 +724,8 @@ OperationBundle build_increment_area (
                             [](const double& val, const auto& cell) {
                                 return val + cell->state.area_preferential; });
 
-        auto domain_size = vertex_model.get_space()->get_domain_size();
+        PCPVertex::SpaceVec domain_size = 
+                vertex_model.get_space()->get_domain_size();
         vertex_model.increase_domain_size(area - domain_size[0]*domain_size[1]);
 
         return;
@@ -1373,7 +1374,8 @@ OperationBundle build_set_area (
                             [](const double& val, const auto& cell) {
                                 return val + cell->state.area_preferential; });
 
-        auto domain_size = vertex_model.get_space()->get_domain_size();
+        PCPVertex::SpaceVec domain_size = 
+                vertex_model.get_space()->get_domain_size();
         vertex_model.increase_domain_size(area - domain_size[0]*domain_size[1]);
 
         return;

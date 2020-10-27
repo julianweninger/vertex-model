@@ -174,6 +174,11 @@ public:
     /// The type of a rule function acting on cells of the agent manager
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
+    /// A matrix for properties depending on the state of 2 cells 
+    using CellCellPropertyMatrix = 
+            arma::Mat<double>::fixed<CellType::num_cell_types,
+                                     CellType::num_cell_types>;
+
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
@@ -215,8 +220,7 @@ private:
      *        surface tension between two cells from the previous edge.
      *  \note This is a symmetric matrix
      */
-    arma::Mat<double>::fixed<CellType::num_cell_types,
-                             CellType::num_cell_types> _linetension;
+    CellCellPropertyMatrix _linetension;
 
     /// Linetension constant Lambda
     /** The entries are contractility at interfaces between two cells of types
@@ -226,8 +230,7 @@ private:
      *        surface tension between two cells from the previous edge.
      *  \note This is a symmetric matrix
      */
-    arma::Mat<double>::fixed<CellType::num_cell_types,
-                             CellType::num_cell_types> _edge_contractility;
+    CellCellPropertyMatrix _edge_contractility;
 
     /// Edges shorter than this value are replaced in a T1 transition
     const double _T1_threshold;
@@ -386,32 +389,26 @@ private:
     }
 
     /// Setup up the linetension from config
-    arma::Mat<double>::fixed<CellType::num_cell_types,
-                             CellType::num_cell_types> setup_linetension(
-            const Config& cfg)
+    CellCellPropertyMatrix setup_linetension(const Config& cfg)
     {
         const auto edge_cfg = cfg["agent_manager"]["edge_manager"];
         const double linetension = get_as<double>("linetension",
                                                   edge_cfg["agent_params"]);
         // NOTE not checking paths, because happened in constructor of _am
         
-        arma::Mat<double>::fixed<CellType::num_cell_types,
-                                 CellType::num_cell_types> matrix;
+        CellCellPropertyMatrix matrix;
         return matrix.fill(linetension);
     }
 
     /// Setup up the edge contractility from config
-    arma::Mat<double>::fixed<CellType::num_cell_types,
-                             CellType::num_cell_types> setup_edge_contractility(
-            const Config& cfg)
+    CellCellPropertyMatrix setup_edge_contractility(const Config& cfg)
     {
         const auto edge_cfg = cfg["agent_manager"]["edge_manager"];
         const double contractility = get_as<double>("contractility",
                                                     edge_cfg["agent_params"]);
         // NOTE not checking paths, because happened in constructor of _am
         
-        arma::Mat<double>::fixed<CellType::num_cell_types,
-                                 CellType::num_cell_types> matrix;
+        CellCellPropertyMatrix matrix;
         return matrix.fill(contractility);
     }
 
@@ -523,7 +520,7 @@ private:
 
         const auto rel_cell_area = (  this->_am.area_of(cell)
                                     / state.area_preferential);
-        const auto cell_center = this->_am.barycenter_of(cell);
+        const SpaceVec cell_center = this->_am.barycenter_of(cell);
         
         const auto& edges = cell->custom_links().edges;
         for (unsigned int edges_it = 0; edges_it < edges.size(); edges_it++) {
@@ -1103,15 +1100,13 @@ public:
     }
     
     /// Get linetension matrix
-    const auto get_linetension () const {
+    CellCellPropertyMatrix get_linetension () const {
         return _linetension;
     }
     
     /// Set linetension matrix
-    void set_linetension (
-            arma::Mat<double>::fixed<CellType::num_cell_types,
-                                     CellType::num_cell_types> linetension,
-            bool update_edges)
+    void set_linetension (CellCellPropertyMatrix linetension,
+                          bool update_edges)
     {
         for (int i = 0; i < CellType::num_cell_types; i++) {
             for (int j = i + 1; j < CellType::num_cell_types; j++) {
@@ -1141,14 +1136,12 @@ public:
         }
     }
 
-    const auto get_edge_contractility () const {
+    CellCellPropertyMatrix get_edge_contractility () const {
         return _edge_contractility;
     }
 
-    void set_edge_contractility (
-            arma::Mat<double>::fixed<CellType::num_cell_types,
-                                     CellType::num_cell_types> contractility,
-            bool update_edges) 
+    void set_edge_contractility (CellCellPropertyMatrix contractility,
+                                 bool update_edges) 
     {
         for (int i = 0; i < CellType::num_cell_types; i++) {
             for (int j = i + 1; j < CellType::num_cell_types; j++) {

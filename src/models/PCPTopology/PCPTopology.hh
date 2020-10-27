@@ -156,7 +156,7 @@ public:
                 DataIO::T1_adaptor, DataIO::T1_attempted_adaptor,
                 DataIO::T2_adaptor,
                 // position adaptors
-                DataIO::vertices_adaptor,
+                DataIO::vertices_adaptor<SpaceVec>,
                 DataIO::cells_adaptor<SpaceVec, CellType>,
                 DataIO::edges_adaptor)),
         
