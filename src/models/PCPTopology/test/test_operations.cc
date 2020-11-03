@@ -1267,6 +1267,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         auto [operation, params] = build_set_area(
             name, get_as<Config>(name, cfg), default_minim_params);
 
+        SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
+
         op_diff(vertex_model);
         operation(vertex_model);
 
@@ -1302,6 +1304,72 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
                                     cell_area);
         BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
+
+        // Test no shear implied
+        BOOST_TEST(domain[0] / domain[1] == domain_0[0] / domain_0[1]);
+    }
+    
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax_PD_axis)
+    {
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+        const std::string name = "set_area_relax_PD_axis";
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+        auto [operation, params] = build_set_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
+
+        op_diff(vertex_model);
+        operation(vertex_model);
+
+        const auto& cells = vertex_model.get_am().cells();
+        std::vector<double> areas_HCs;
+        std::vector<double> areas_SCs;
+        areas_HCs.reserve(cells.size());
+        areas_SCs.reserve(cells.size());
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                areas_HCs.push_back(cell->state.area_preferential);
+            }
+            else if (cell->state.type == CellType::support) {
+                areas_SCs.push_back(cell->state.area_preferential);
+            }
+        }
+        areas_HCs.shrink_to_fit();
+        areas_SCs.shrink_to_fit();
+        
+        auto [mean, stddev] = get_statistics(areas_HCs);
+
+        BOOST_CHECK_CLOSE(mean, 4, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
+        
+        std::tie(mean, stddev) = get_statistics(areas_SCs);
+
+        BOOST_CHECK_CLOSE(mean, 5, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
+
+        SpaceVec domain = vertex_model.get_space()->get_domain_size();
+        double cell_area = std::accumulate(areas_HCs.begin(),
+                                           areas_HCs.end(), 0.);
+        cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
+                                    cell_area);
+        BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
+
+        // PD axis unchanged
+        BOOST_TEST(domain[1] == domain_0[1]);
+    }
+    
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax_PD_axis_FAIL)
+    {
+        const std::string name = "set_area_relax_PD_axis_FAIL";
+        BOOST_CHECK_THROW(
+            build_set_area(name, get_as<Config>(name, cfg),
+                           default_minim_params),
+            std::invalid_argument
+        );
     }
     
 BOOST_AUTO_TEST_SUITE_END()

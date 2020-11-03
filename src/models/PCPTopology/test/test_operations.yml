@@ -323,3 +323,24 @@ set_area_relax:
   support: 5.
   stddev_support: 0.3
   relax_domain: True
+
+set_area_relax_PD_axis:
+  times: []
+
+  hair: 4.
+  stddev_hair: 0.2
+  support: 5.
+  stddev_support: 0.3
+  relax_domain_PD_axis: True
+
+set_area_relax_PD_axis_FAIL:
+  times: []
+
+  hair: 4.
+  stddev_hair: 0.2
+  support: 5.
+  stddev_support: 0.3
+
+  # can't both be True
+  relax_domain_PD_axis: True
+  relax_domain: True

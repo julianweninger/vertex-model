@@ -1269,6 +1269,10 @@ OperationBundle build_relax_area (
  *               - `relax_domain` (bool, default: false): If true, the domain
  *                      size is adapted to fit the cells as per preferential 
  *                      area.
+ *               - `relax_domain_PD_axis` (bool, default: false): If true,
+ *                      the domain size is adapted to fit the cells as per
+ *                      preferential area. Domain size changes only in PD (x)
+ *                      axis.
  */
 OperationBundle build_set_area (
         std::string name, const Config& cfg,
@@ -1283,11 +1287,18 @@ OperationBundle build_set_area (
     double support(get_as<double>("support", cfg, 0.));
     double stddev_support(get_as<double>("stddev_support", cfg, 0.));
     bool relax_domain(get_as<bool>("relax_domain", cfg, false));
+    bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
+                                           cfg, false));
+
+    if (relax_domain and relax_domain_PD_axis) {
+        throw std::invalid_argument("In operation `set area` only one of cfgs "
+            "`relax_domain` and `relax_domain_PD_axis` can be true!");
+    }
 
     Operation operation = [prog, stddev_prog,
                            hair, stddev_hair,
                            support, stddev_support,
-                           relax_domain]
+                           relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1366,17 +1377,29 @@ OperationBundle build_set_area (
         
         apply_rule<Update::sync>(update, cells);
 
-        if (not relax_domain) {
-            return;
-        }
-
-        double area = std::accumulate(cells.begin(), cells.end(), 0.,
+        if (relax_domain) {
+            double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
                                 return val + cell->state.area_preferential; });
 
-        PCPVertex::SpaceVec domain_size = 
-                vertex_model.get_space()->get_domain_size();
-        vertex_model.increase_domain_size(area - domain_size[0]*domain_size[1]);
+            PCPVertex::SpaceVec domain_size = 
+                    vertex_model.get_space()->get_domain_size();
+            vertex_model.increase_domain_size(
+                    area - domain_size[0]*domain_size[1]
+            );
+        }
+        else if (relax_domain_PD_axis) {
+            double area = std::accumulate(cells.begin(), cells.end(), 0.,
+                            [](const double& val, const auto& cell) {
+                                return val + cell->state.area_preferential; });
+
+            PCPVertex::SpaceVec domain_size = 
+                    vertex_model.get_space()->get_domain_size();
+            double dA = area - domain_size[0]*domain_size[1];
+
+            vertex_model.stretch_domain({dA/domain_size[1], 0.},
+                                        false, false, false);
+        }
 
         return;
     };
