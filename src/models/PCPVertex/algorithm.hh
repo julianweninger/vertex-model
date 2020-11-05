@@ -258,13 +258,7 @@ double PCPVertex::conjugate_gradient_step ()
         this->_log->trace("Updating with timestep {} at energy change {}",
                             _dt, energy_change);
         
-        double pE = this->get_energy(_dt);
-        this->_log->trace("Predicted energy {}, difference {}", pE, pE - new_energy);
         apply_rule<Update::sync>(update_position, _am.vertices());
-
-        double E = this->get_energy();
-        this->_log->trace("Reached energy {}, with difference {}.",
-                          E, new_energy - E);
     }
     else {
         this->_log->trace("NOT updating with step size {} along direction "
