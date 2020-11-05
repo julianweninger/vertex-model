@@ -44,40 +44,71 @@ public:
         PCPVertex(name, parent_model, custom_cfg,
              std::make_tuple(Utopia::Models::PCPVertex::DataIO::time_energy_adaptor))
     {
-        test_energy_prediction();
-    }
-
-    void test_energy_prediction() {
         this->prolog();
 
+        // test the energy prediction throughout time
+        for (int i = 0; i < 1000; i++) {
+            test_energy_prediction(1e-9);
+            // NOTE involves iteration
+
+            if ((i % 100) == 0) {
+                this->jiggle_vertices(0.4);
+            }
+        }
+    }
+
+    /// Test that the predicted energy and that obtained by iteration are equal
+    /** Predicted energy: energy(beta = dt). Is compared to energy after
+     *  iteration with step size dt.
+     */
+    void test_energy_prediction(double precision = precision) {
         std::string update_scheme(get_as<std::string>("update_scheme",
                                                         this->_cfg));
         BOOST_TEST(update_scheme == "steepest_gradient",
             "Test of energy prediction relies on fixed step size!");
         
         const auto dt = get_as<double>("dt", this->_cfg);
-        const auto& am = this->get_am();
+
+        // set the gradient
+        this->init_minimization();
 
         // predict the energy terms
         auto new_energy = this->get_energy(dt);
-        auto linetension = this->get_energy_linetension(am.edges(), dt);
-        auto e_contr = this->get_energy_edge_contractility(am.edges(), dt);
-        auto area_elast = this->get_energy_areaelasticity(am.cells(), dt);
-        auto c_contr = this->get_energy_cell_contractility(am.cells(), dt);
+        auto linetension = this->get_energy_linetension(dt);
+        auto e_contr = this->get_energy_edge_contractility(dt);
+        auto area_elast = this->get_energy_areaelasticity(dt);
+        auto c_contr = this->get_energy_cell_contractility(dt);
         
         this->iterate();
 
+        // energy prediction does not work in case of topological transitions
+        if (this->get_num_T1s() > 0 or this->get_num_T2s() > 0) {
+            return;
+        }
+
         // test the predictions
-        BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
-                        precision);
-        BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
-                        precision);
-        BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
-                        precision);
-        BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
-                        precision);
         BOOST_CHECK_CLOSE(new_energy, this->get_energy(),
-                        precision);
+                          precision);
+        BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
+                          precision);
+        BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
+                          precision);
+        BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
+                          precision);
+        BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
+                          precision);
+
+        // test that energy is deterministic value
+        std::vector<bool> energies_equal(100);
+        std::transform(energies_equal.begin(), energies_equal.end(),
+                       energies_equal.begin(),
+                       [this, new_energy, precision](const auto&) {
+                           return (  std::abs(this->get_energy() - new_energy)
+                                   < precision);
+                       });
+
+        BOOST_TEST(   energies_equal
+                   == std::vector<bool>(energies_equal.size(), true));
     }
 };
 
