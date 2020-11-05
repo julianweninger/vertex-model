@@ -951,7 +951,7 @@ public:
         }
 
         this->_log->debug("Energy minimized within {} steps", 
-                          this->get_time() - time_0);        
+                          this->get_time() - time_0);
         return this->get_time() - time_0;
     }
 

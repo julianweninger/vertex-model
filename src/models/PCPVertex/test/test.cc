@@ -48,7 +48,7 @@ public:
 
         // test the energy prediction throughout time
         for (int i = 0; i < 1000; i++) {
-            test_energy_prediction(1e-9);
+            test_energy_prediction();
             // NOTE involves iteration
 
             if ((i % 100) == 0) {
@@ -61,7 +61,9 @@ public:
     /** Predicted energy: energy(beta = dt). Is compared to energy after
      *  iteration with step size dt.
      */
-    void test_energy_prediction(double precision = precision) {
+    void test_energy_prediction() {
+        const double precision = 1e-10;
+
         std::string update_scheme(get_as<std::string>("update_scheme",
                                                         this->_cfg));
         BOOST_TEST(update_scheme == "steepest_gradient",
