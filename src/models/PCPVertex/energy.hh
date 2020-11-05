@@ -287,8 +287,15 @@ double PCPVertex::get_energy (
 double PCPVertex::get_rel_energy_change () const
 {
     double energy = get_energy();
+
+    if (std::abs(_energy - energy) > 1e-12) {
+        throw std::runtime_error(fmt::format("Energy tracing failed at time {}!"
+            " Traced energy is {}, calculated energy is {}; difference of {}.",
+            _time, _energy, energy, _energy - energy));
+    }
+
     double energy_change = energy - _energy_previous_step;
-    return energy_change / energy;
+    return energy_change / (energy + 1e-14);
 }
 
 } // namespace PCPVertex

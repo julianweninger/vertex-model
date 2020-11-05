@@ -15,82 +15,97 @@ namespace PCPVertex {
  *  \return {step size to reach line minimum, energy at line minimum}
  */
 std::pair<double, double> PCPVertex::determine_timestep (
-        double dt, const double energy_0,
+        const double dt, const double energy_0,
         const double tolerance) const
 {
-    // Bracket the minimum
-    dt = std::max(std::min(2*dt, 2.), 1e-8);
-
-    // check that actually moving towards a minimum
+    // check that energy is actually decreasing in direction of update
     double tmp_energy = this->get_energy(1e-8);
     if (tmp_energy >= energy_0) {
-        this->_log->debug("Already in minimum. At step size of 1e-8 the energy "
+        this->_log->trace("Already in minimum. At step size of 1e-8 the energy "
             "along direction of update increased by {}.",
-            tmp_energy-energy_0);
+            tmp_energy - energy_0);
 
         return std::make_pair(0., energy_0);
     }
 
-    double pos_1 = 0.; // left boundary
-    double energy_1 = energy_0;
-    double pos_2 = dt; // right boundary
-    double energy_2 = this->get_energy(pos_2);
-    double pos_min = dt/2.;
-    double energy_min = this->get_energy(pos_min);
+    // find a minimum that is closer than a local maxima, i.e.
+    // E_2 (dt = pos_2) > E_0(dt = 0) > E_min (dt = pos_min)
+    // Start search with previous dt
+    double pos_2 = std::max(std::min(2*dt, 2.), 1e-8); // right boundary
+    double energy_2 = this->get_energy(pos_2); // energy at right boundary
+    double pos_min = pos_2 / 2.; // the minimum
+    double energy_min = this->get_energy(pos_min); // energy at minimum
     while (true) {
-        if (dt/2 > 3000.) {
-            if (fabs(energy_2 - energy_1) < tolerance) {
+        if (pos_min > 3000.) {
+            if (fabs(energy_2 - energy_0) < tolerance) {
                 // the energy function is flat
                 return std::make_pair(0., energy_0);
             }
             this->_log->error("At step of {} along direction of "
-                "update the energy is still decreasing by {}", dt/2, 
-                energy_2 - energy_1);
-            for (double dt = 1e-11; dt < 1000.; dt *= 2) {
+                "update the energy is still decreasing by {}", pos_min, 
+                energy_2 - energy_0);
+            for (double beta = 1e-11; beta < 1000.; beta *= 2) {
                 double max_displ = 0;
                 for (auto v : _am.vertices()) {
                     max_displ = std::max(max_displ,
-                                         arma::norm(v->state.f) * dt);
+                                         arma::norm(v->state.f) * beta);
                 }
                 this->_log->error("DEBUG At step of {} along direction of "
-                    "update the energy is changing by {} at max displacement of {}", dt, 
-                    this->get_energy(dt) - energy_0, max_displ);
+                    "update the energy is changing by {} at max displacement "
+                    "of {}", beta, this->get_energy(beta) - energy_0,
+                    max_displ);
             }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
             throw std::runtime_error("Unable to find bracket to "
                 "local energy minimum!");
         }
-        if (dt < 1e-10) {
+        if (pos_2 < 1e-10) {
             // the energy is increasing, hence already at local minimum
-            // NOTE only if energy_min > energy_1: dt -> dt / 2
+            // because only if energy_min > energy_2: pos_2 -> pos_2 / 2
+            this->_log->trace("Already in minimum. At step size of {} the "
+                "energy along direction of update increased by {}.",
+                pos_2, energy_2 - energy_0);
             return std::make_pair(0., energy_0);
         }
 
-        if (energy_2 < energy_1) {
-            dt *= 2.;
+        if (energy_2 < energy_0) {
+            // pos_2 is not a right boundary, since smaller than E_0
+            // Use pos_2 as new minimum
+            // and increase interval to find a right boundary
+            pos_min = pos_2;
             energy_min = energy_2;
-            energy_2 = this->get_energy(dt);
-            continue; // dt was not a right boundary to minimum
+
+            // increase interval
+            pos_2 *= 2.;
+            energy_2 = this->get_energy(pos_2);
+            continue;
         }
 
-        if (energy_min > energy_1) {
-            dt = dt/2;
+        if (energy_min > energy_0) {
+            // pos_min defines a closer right bracket than pos_2
+            // we know that close to pos_0 there is a minimum, keep looking
+            pos_2 = pos_min;
             energy_2 = energy_min;
-            energy_min = this->get_energy(dt/2);
-            continue; // we know that close to pos_1 there is a minimum
+
+            pos_min = pos_2 / 2.;
+            energy_min = this->get_energy(pos_min);
+            continue;
         }
 
         // Both conditions fulfilled!
         // there is a minimum within interval [0, pos_2]
-        pos_2 = dt;
-        pos_min = dt / 2.;
         break;
     }
 
+    // is minimum already good enough?
     if (fabs(energy_min - energy_0) < tolerance) {
-        // the found minimum fulfills our condition 
+        // the found minimum fulfills our condition
         return std::make_pair(pos_min, energy_min);
     }
+
+    // Improve knowledge of minimum by decreasing the interval size
+    double pos_1 = 0.; // the left boundary
+    double energy_1 = energy_0; // energy at left boundary
 
     // Find the minimum between brackets with parabolic interpolation
     while(true) {
@@ -98,58 +113,72 @@ std::pair<double, double> PCPVertex::determine_timestep (
         double term_4 = (pos_2 - pos_min)*(energy_2 - energy_1);
         double term_1 = (pos_2 - pos_1)*term_3;
         double term_2 = (pos_2 - pos_min)*term_4;
-        
+
         // the minimum of parabola through 1, 2, min
-        double pos_4 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
-        if (pos_4 < pos_1 or pos_4 > pos_2) {
+        double pos_3 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
+        if (pos_3 < pos_1 or pos_3 > pos_2) {
             this->_log->error("pos_1={}, pos_min={}, pos_2={}",
-                                pos_1, pos_min, pos_2);
+                              pos_1, pos_min, pos_2);
             this->_log->error("D_energy_1={}, D_energy_min={}, "
-                                "D_energy_2={}. wrt energy_0",
-                                energy_0-energy_1, energy_0-energy_min,
-                                energy_0-energy_2);
-            this->_log->error("Fitted minimum: x={}", pos_4);
+                              "D_energy_2={}. wrt energy_0",
+                              energy_0-energy_1, energy_0-energy_min,
+                              energy_0-energy_2);
+            this->_log->error("Fitted minimum: x={}", pos_3);
             throw std::runtime_error("Energy minimization failed! "
-                                        "Parabola fit outside brackets");
+                                     "Parabola fit outside brackets");
         }
 
-        double energy_4 = this->get_energy(pos_4);
-        if (fabs(energy_4 - energy_min) < tolerance) {
-            dt = pos_4;
-            break; // found the minimum with required precision
+        // if the found minimum is precise enough
+        double energy_3 = this->get_energy(pos_3);
+        if (fabs(energy_3 - energy_min) < tolerance) {
+            // found the minimum with required precision
+            if (energy_3 < energy_min) {
+                return std::make_pair(pos_3, energy_3);
+            }
+            else {
+                return std::make_pair(pos_min, energy_min);
+            }
         }
         
-        if (energy_4 - energy_0 > 0.) {
+        if (energy_3 > energy_0) {
             // there is a closer maximum. Retry with smaller step size
-            return determine_timestep(pos_4 / 2., energy_0, tolerance);
+            return determine_timestep(pos_3 / 2., energy_0, tolerance);
         }
 
-        // ** choose new brackets
-        // pos_4 is to the left of minimum and is smaller
-        // pos_4 becomes new minimum between 1 and 2->min
-        if (pos_4 - pos_min < 0. and energy_4 - energy_min < 0.) {
-            pos_2 = pos_min; energy_2 = energy_min;
-            pos_min = pos_4; energy_min = energy_4;
+        // Close brackets in on new minimum
+        if (energy_3 < energy_min) {
+            // pos_3 is to the left of minimum
+            if (pos_3 < pos_min) {
+                // minimum becomes right bracket
+                pos_2 = pos_min; energy_2 = energy_min;
+            }
+            // else is to the right of minimum
+            else {
+                // the new left bracket
+                pos_1 = pos_min; energy_1 = energy_min;
+            }
+
+            // the new minimum
+            pos_min = pos_3; energy_min = energy_3;
         }
-        // pos_4 is to the left of minimum but is larger
-        // pos_4 becomes new pos 1
-        else if (pos_4 - pos_min < 0.) {
-            pos_1 = pos_4; energy_1 = energy_4;
-        }
-        // pos_4 is to the right of minimum and is smaller
-        // pos_4 becomes new minimum between 1->min and 2
-        else if (energy_4 - energy_min < 0.) {
-            pos_1 = pos_min; energy_1 = energy_min;
-            pos_min = pos_4; energy_min = energy_4;
-        }
-        // pos_4 is to the right of minimum but is larger
-        // pos_4 becomes new pos 2
+        // the estimate is not a better minimum, use as new bracket
         else {
-            pos_2 = pos_4; energy_2 = energy_4;
-        }
-    }
+            // minimum stays as is
 
-    return std::make_pair(dt, energy_min);
+            // pos_3 to the left of minimum
+            if (pos_3 < pos_min) {
+                // pos_3 is a better left bracket
+                pos_1 = pos_3; energy_1 = energy_3;
+            }
+            // else to the right of minimum
+            else {
+                // pos_3 is a better right bracket
+                pos_2 = pos_3; energy_2 = energy_3;
+            }
+        }
+
+        // repeat with decreased brackets
+    }
 };
 
 /// Initialisation of the energy minisation process
@@ -228,7 +257,14 @@ double PCPVertex::conjugate_gradient_step ()
     if (energy_change < -1e-14) {
         this->_log->trace("Updating with timestep {} at energy change {}",
                             _dt, energy_change);
+        
+        double pE = this->get_energy(_dt);
+        this->_log->trace("Predicted energy {}, difference {}", pE, pE - new_energy);
         apply_rule<Update::sync>(update_position, _am.vertices());
+
+        double E = this->get_energy();
+        this->_log->trace("Reached energy {}, with difference {}.",
+                          E, new_energy - E);
     }
     else {
         this->_log->trace("NOT updating with step size {} along direction "
