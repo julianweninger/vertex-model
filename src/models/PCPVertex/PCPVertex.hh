@@ -803,7 +803,7 @@ public:
                 this->_log->debug("Removing cell in T2 transition in step {}..",
                                  this->_time);
                 bool T2 = _am.remove_cell_T2(_am.cells()[i]);
-                transition_occurred = transition_occurred or T2;
+                transition_occurred = (transition_occurred or T2);
                 _num_T2s += T2;
             }
         }
@@ -833,7 +833,7 @@ public:
                 }
                 // else: edge was removed
 
-                transition_occurred = transition_occurred or T1;
+                transition_occurred = (transition_occurred or T1);
                 _num_T1s += T1;
                 _num_T1s_attempted++;
             }
@@ -856,7 +856,7 @@ public:
 
         _energy_previous_step = _energy;
         _energy = perform_update_step(_update_scheme);
-
+        
         // if (_gamma > 0) {
         //     throw std::logic_error("Polarity proteins update not implemented!");
         //     apply_rule<Update::sync>(reset_polarity_change, _am.edges());
@@ -951,7 +951,7 @@ public:
         }
 
         this->_log->debug("Energy minimized within {} steps", 
-                          this->get_time() - time_0);
+                          this->get_time() - time_0);        
         return this->get_time() - time_0;
     }
 
