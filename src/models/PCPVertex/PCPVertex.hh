@@ -494,20 +494,11 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        auto& a = edge->custom_links().a;
-        auto& b = edge->custom_links().b;
+        auto a = edge->custom_links().a;
+        auto b = edge->custom_links().b;
 
-        SpaceVec displ = this->_am.displacement(a, b);
-        double angle = (  acos(  arma::dot(displ, SpaceVec({1., 0.}))
-                               / arma::norm(displ))
-                        / M_PI * 180.);
-
-        double contractility = 0.;
-        if (angle < 15 or 180 - angle < 15) {
-            contractility = edge->state.contractility;
-        }
-
-        SpaceVec force = contractility * this->_am.displacement(a, b);
+        SpaceVec force = edge->state.contractility *
+                         this->_am.displacement(a, b);
 
         a->state.f += force;
         b->state.f -= force;
