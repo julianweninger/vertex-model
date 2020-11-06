@@ -32,18 +32,28 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    double length;
+    SpaceVec a, b;
     if (beta > 0) {
-        const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
-        const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
-        length = this->_space->distance(a, b);
+        a = _am.displace_virtual(edge->custom_links().a, beta);
+        b = _am.displace_virtual(edge->custom_links().b, beta);
     }
     else {
-        length = this->_space->distance(_am.position_of(edge->custom_links().a),
-                                        _am.position_of(edge->custom_links().b));
+        a = _am.position_of(edge->custom_links().a);
+        b = _am.position_of(edge->custom_links().b);
     }
-    
-    return 0.5 * edge->state.contractility * pow(length, 2);
+    double length = this->_space->distance(a, b);
+
+    SpaceVec displ = this->_space->displacement(a, b);
+    double angle = (  acos(  arma::dot(displ, SpaceVec({1., 0.}))
+                           / arma::norm(displ))
+                    / M_PI * 180.);
+
+    double contractility = 0.;
+    if (angle < 15 or 180 - angle < 15) {
+        contractility = edge->state.contractility;
+    }
+
+    return 0.5 * contractility * pow(length, 2);
 };
 
 /// The energy associated with area elasticity
@@ -287,12 +297,6 @@ double PCPVertex::get_energy (
 double PCPVertex::get_rel_energy_change () const
 {
     double energy = get_energy();
-
-    if (std::abs(_energy - energy) > 1e-12) {
-        throw std::runtime_error(fmt::format("Energy tracing failed at time {}!"
-            " Traced energy is {}, calculated energy is {}; difference of {}.",
-            _time, _energy, energy, _energy - energy));
-    }
 
     double energy_change = energy - _energy_previous_step;
     return energy_change / (energy + 1e-14);

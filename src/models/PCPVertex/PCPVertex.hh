@@ -272,6 +272,7 @@ private:
     std::uniform_real_distribution<double> _prob_distr;
 
     // .. Temporary objects ...................................................
+protected:
     /// The total energy in the last step
     double _energy_previous_step;
 
@@ -493,11 +494,20 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
+        auto& a = edge->custom_links().a;
+        auto& b = edge->custom_links().b;
 
-        SpaceVec force = edge->state.contractility *
-                         this->_am.displacement(a, b);
+        SpaceVec displ = this->_am.displacement(a, b);
+        double angle = (  acos(  arma::dot(displ, SpaceVec({1., 0.}))
+                               / arma::norm(displ))
+                        / M_PI * 180.);
+
+        double contractility = 0.;
+        if (angle < 15 or 180 - angle < 15) {
+            contractility = edge->state.contractility;
+        }
+
+        SpaceVec force = contractility * this->_am.displacement(a, b);
 
         a->state.f += force;
         b->state.f -= force;
@@ -929,7 +939,8 @@ public:
                 _minimization_tolerance = tolerance;
                 this->iterate();
 
-                double energy_change = this->get_rel_energy_change();
+                double energy_change = (  (_energy - _energy_previous_step)
+                                        / (_energy + 1e-14));
                 minimum_reached = (fabs(energy_change) < tolerance);
                 
                 if (not minimum_reached 
