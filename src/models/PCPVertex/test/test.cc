@@ -75,7 +75,7 @@ public:
         this->init_minimization();
 
         // predict the energy terms
-        auto new_energy = this->get_energy(dt);
+        auto energy = this->get_energy(dt);
         auto linetension = this->get_energy_linetension(dt);
         auto e_contr = this->get_energy_edge_contractility(dt);
         auto area_elast = this->get_energy_areaelasticity(dt);
@@ -83,34 +83,35 @@ public:
         
         this->iterate();
 
+        // test the tracing of energy
+        BOOST_CHECK_CLOSE(this->_energy, this->get_energy(), precision);
+
         // energy prediction does not work in case of topological transitions
-        if (this->get_num_T1s() > 0 or this->get_num_T2s() > 0) {
-            return;
+        if (this->get_num_T1s() == 0 and this->get_num_T2s() == 0) {
+            // test the predictions
+            BOOST_CHECK_CLOSE(energy, this->get_energy(),
+                              precision);
+            BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
+                              precision);
+            BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
+                              precision);
+            BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
+                              precision);
+            BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
+                              precision);
+
+            // test that energy is deterministic value
+            std::vector<bool> energies_equal(100);
+            std::transform(energies_equal.begin(), energies_equal.end(),
+                        energies_equal.begin(),
+                        [this, energy, precision](const auto&) {
+                            return (  std::abs(this->get_energy() - energy)
+                                    < precision);
+                        });        
+
+            BOOST_TEST(   energies_equal
+                       == std::vector<bool>(energies_equal.size(), true));
         }
-
-        // test the predictions
-        BOOST_CHECK_CLOSE(new_energy, this->get_energy(),
-                          precision);
-        BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
-                          precision);
-        BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
-                          precision);
-        BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
-                          precision);
-        BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
-                          precision);
-
-        // test that energy is deterministic value
-        std::vector<bool> energies_equal(100);
-        std::transform(energies_equal.begin(), energies_equal.end(),
-                       energies_equal.begin(),
-                       [this, new_energy, precision](const auto&) {
-                           return (  std::abs(this->get_energy() - new_energy)
-                                   < precision);
-                       });
-
-        BOOST_TEST(   energies_equal
-                   == std::vector<bool>(energies_equal.size(), true));
     }
 };
 
