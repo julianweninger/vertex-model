@@ -1102,6 +1102,17 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell), 1.9,
                           1e-8);
 
+                          
+        // random cell for that A_0 is different from A
+        // A_0 / A = 2
+        cell->state.area_preferential = 0.5 * am.area_of(cell);
+
+        operation(vertex_model);
+
+        // A_0' / A = 0.5 - 0.1 * (A_0 / A - 1) = 0.55
+        BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell),
+                          0.55, 1e-8);
+
         
         // use minimum area preferential
         cell->state.area_preferential = 100.;
