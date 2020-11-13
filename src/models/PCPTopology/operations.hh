@@ -1201,6 +1201,14 @@ OperationBundle build_jiggle (
  *                                               below this value.
  *               - `minimum` (double, optional): Don't set preferential area 
  *                                               above this value.
+ *               - `minimum_hair` (double, optional): Limit to the preferential 
+ *                          area of hair cells.
+ *               - `maximum_hair` (double, optional): Limit to the preferential 
+ *                          area of hair cells.
+ *               - `minimum_support` (double, optional): Limit to the 
+ *                          preferential area of cells.
+ *               - `maximum_support` (double, optional): Limit to the 
+ *                          preferential area of cells.
  * 
  *  Preferential area is relaxed towards the actual cell area:
  *  \f$ A^\prime_0  = A_0 + c (A - A_0) \f$
@@ -1217,24 +1225,57 @@ OperationBundle build_relax_area (
     double minimum(get_as<double>("minimum", cfg, 0.));
     double maximum(get_as<double>("maximum", cfg, 0.));
 
-    Operation operation = [factor, minimum, maximum]
+
+    double minimum_HC(get_as<double>("minimum_hair", cfg, 0.));
+    double maximum_HC(get_as<double>("maximum_hair", cfg, 0.));
+
+    double minimum_SC(get_as<double>("minimum_support", cfg, 0.));
+    double maximum_SC(get_as<double>("maximum_support", cfg, 0.));
+
+    Operation operation = [factor, minimum, maximum, minimum_HC, maximum_HC,
+                           minimum_SC, maximum_SC]
             (PCPVertex& vertex_model)
     {
+        using CellType = PCPVertex::CellType;
+
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
         PCPVertex::RuleFuncCell update = [factor,
-                                          minimum, maximum,
+                                          minimum, maximum, 
+                                          minimum_HC, maximum_HC,
+                                          minimum_SC, maximum_SC,
                                           am](const auto& cell)
         {
             auto state = cell->state;
             state.area_preferential += factor * (  am.area_of(cell)
                                                  - state.area_preferential);
+
+            // general maximum and minimum
             state.area_preferential = std::max(state.area_preferential,
                                                minimum);
             if (maximum > 0.) {
                 state.area_preferential = std::min(state.area_preferential,
                                                    maximum);
+            }
+
+            // hair cell maximum and minimum 
+            if (state.type == CellType::hair) {
+                state.area_preferential = std::max(state.area_preferential,
+                                                   minimum_HC);
+                if (maximum_HC > 0.) {
+                    state.area_preferential = std::min(state.area_preferential,
+                                                       maximum_HC);
+                }
+            }
+            // hair cell maximum and minimum 
+            else if (state.type == CellType::support) {
+                state.area_preferential = std::max(state.area_preferential,
+                                                   minimum_SC);
+                if (maximum_SC > 0.) {
+                    state.area_preferential = std::min(state.area_preferential,
+                                                       maximum_SC);
+                }
             }
 
             return state;
