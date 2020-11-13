@@ -282,13 +282,20 @@ relax_area_minimum:
   times: []
 
   factor: 1.
+
+  # preferential areas initialised very large, then relaxed
   minimum: 12.
+  minimum_hair: 18.
+  minimum_support: 16.
 
 relax_area_maximum:
   times: []
 
   factor: 1.
+  # preferential areas initialised very small, then relaxed
   maximum: 0.4
+  maximum_hair: 0.3
+  maximum_support: 0.2
 
 set_area:
   times: []
