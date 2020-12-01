@@ -93,7 +93,7 @@ auto time_energy_adaptor = std::make_tuple(
     }
 ); // end time_energy_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for linetension energy
 auto linetension_adaptor = std::make_tuple(
 
     // name of the task
@@ -127,7 +127,7 @@ auto linetension_adaptor = std::make_tuple(
     }
 ); // end linetension_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for area elasticity energy
 auto areaelasticity_adaptor = std::make_tuple(
 
     // name of the task
@@ -161,7 +161,7 @@ auto areaelasticity_adaptor = std::make_tuple(
     }
 ); // end areaelasticity_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for contractility energy
 auto contractility_adaptor = std::make_tuple(
 
     // name of the task
@@ -197,7 +197,7 @@ auto contractility_adaptor = std::make_tuple(
     }
 ); // end contractility_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for cell-cell polarity energy
 auto cell_cell_polarity_adaptor = std::make_tuple(
 
     // name of the task
@@ -231,7 +231,7 @@ auto cell_cell_polarity_adaptor = std::make_tuple(
     }
 ); // end cell_cell_polarity_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for polarity exclusion energy
 auto polarity_exclusion_adaptor = std::make_tuple(
 
     // name of the task
@@ -265,7 +265,7 @@ auto polarity_exclusion_adaptor = std::make_tuple(
     }
 ); // end polarity_exclusion_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for lagrange net polarization energy
 auto lagrange_net_polarisation_adaptor = std::make_tuple(
 
     // name of the task
@@ -299,7 +299,7 @@ auto lagrange_net_polarisation_adaptor = std::make_tuple(
     }
 ); // end lagrange_net_polarisation_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for lagrange const concentration energy
 auto lagrange_const_concentration_adaptor = std::make_tuple(
 
     // name of the task
@@ -663,7 +663,7 @@ auto edges_adaptor = std::make_tuple(
     }    
 ); // end edge link adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for T1 cell intercalation counter
 auto T1_adaptor = std::make_tuple(
 
     // name of the task
@@ -695,7 +695,7 @@ auto T1_adaptor = std::make_tuple(
     }
 ); // end T1_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for attempted T1 cell intercalation counter
 auto T1_attempted_adaptor = std::make_tuple(
 
     // name of the task
@@ -727,7 +727,7 @@ auto T1_attempted_adaptor = std::make_tuple(
     }
 ); // end T1_attempted_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for T2 cell extrusion counter
 auto T2_adaptor = std::make_tuple(
 
     // name of the task
@@ -759,7 +759,7 @@ auto T2_adaptor = std::make_tuple(
     }
 ); // end T2_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for cell area statistics
 template <typename CellType>
 auto cell_area_adaptor = std::make_tuple(
 
@@ -815,7 +815,7 @@ auto cell_area_adaptor = std::make_tuple(
                                       "area_support_average"}));
 
     }
-); // end energy_adaptor
+); // end cell_area_adaptor
 
 /// Datamanager adaptor for timepoints
 auto statistics_time_adaptor = std::make_tuple(
