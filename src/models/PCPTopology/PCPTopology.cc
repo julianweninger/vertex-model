@@ -11,9 +11,9 @@ template<typename ParentType>
 auto model_factory(ParentType parent) {
     return PCPTopology("PCPTopology", parent, {}, std::make_tuple(
         // energy adaptors
-        continuous_time_adaptor, time_energy_adaptor,
-        energy_adaptor, linetension_adaptor,
-        areaelasticity_adaptor, contractility_adaptor,
+        continuous_time_adaptor, time_energy_adaptor, energy_adaptor,
+        linetension_adaptor, areaelasticity_adaptor,
+        cell_contractility_adaptor, edge_contractility_adaptor,
         cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
         lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // statistics

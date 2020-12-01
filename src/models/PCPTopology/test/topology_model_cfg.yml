@@ -37,7 +37,8 @@ PCPTopology:
         Edges: *id003
         Energy_areaelasticity: {active: false, decider: write_always, trigger: build_once}
         Energy_cell_cell_polarity: {active: false, decider: write_always, trigger: build_once}
-        Energy_contractility: {active: false, decider: write_always, trigger: build_once}
+        Energy_cell_contractility: {active: false, decider: write_always, trigger: build_once}
+        Energy_edge_contractility: {active: false, decider: write_always, trigger: build_once}
         Energy_lagrange_const_concentration: {active: false, decider: write_always,
           trigger: build_once}
         Energy_lagrange_net_polarisation: {active: false, decider: write_always, trigger: build_once}

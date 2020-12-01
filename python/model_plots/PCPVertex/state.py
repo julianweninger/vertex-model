@@ -48,7 +48,8 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Get the data
     energy = uni['data'][model_name]['Energy']['Total']
     linetension = uni['data'][model_name]['Energy']['Linetension']
-    contractility = uni['data'][model_name]['Energy']['Contractility']
+    cell_contractility = uni['data'][model_name]['Energy']['Cell_contractility']
+    edge_contractility = uni['data'][model_name]['Energy']['Edge_contractility']
     areaelasticity = uni['data'][model_name]['Energy']['Areaelasticity']
     num_T1s = uni['data'][model_name]['Statistics/num_T1s']
     num_T1s_attempted = uni['data'][model_name]['Statistics/num_T1s_attempted']
@@ -57,7 +58,10 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Create the line plot of energy
     hlpr.ax.plot(energy.time, energy, label='total')
     hlpr.ax.plot(linetension.time, linetension, label='linetension')
-    hlpr.ax.plot(contractility.time, contractility, label='contractility')
+    hlpr.ax.plot(cell_contractility.time, cell_contractility,
+                 label='cell contractility')
+    hlpr.ax.plot(edge_contractility.time, edge_contractility,
+                 label='edge contractility')
     hlpr.ax.plot(areaelasticity.time, areaelasticity, label='areaelasticity')
 
     hlpr.ax.set_xlabel("Time [steps]")

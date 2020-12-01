@@ -19,7 +19,9 @@ parameter_space:
           <<: *energy
         Energy_areaelasticity: 
           <<: *energy
-        Energy_contractility: 
+        Energy_cell_contractility: 
+          <<: *energy
+        Energy_edge_contractility: 
           <<: *energy
         Energy_cell_cell_polarity: 
           <<: *energy

@@ -27,7 +27,8 @@ def test_solver():
         assert 'Total' in data['PCPVertex']['Energy']
         assert 'Linetension' in data['PCPVertex']['Energy']
         assert 'Areaelasticity' in data['PCPVertex']['Energy']
-        assert 'Contractility' in data['PCPVertex']['Energy']
+        assert 'Cell_contractility' in data['PCPVertex']['Energy']
+        assert 'Edge_contractility' in data['PCPVertex']['Energy']
 
         assert 'Vertices' in data
         assert 'Edges' in data

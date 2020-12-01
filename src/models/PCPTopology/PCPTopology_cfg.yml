@@ -277,7 +277,8 @@ PCPVertex:
         decider: write_always
       Energy_linetension: *energy_continuous
       Energy_areaelasticity: *energy_continuous
-      Energy_contractility: *energy_continuous
+      Energy_cell_contractility: *energy_continuous
+      Energy_edge_contractility: *energy_continuous
       Energy_time: *energy_continuous
 
       # the polarity energies
@@ -332,23 +333,19 @@ data_manager:
       decider: write_always
     Energy_linetension: *energy
     Energy_areaelasticity: *energy
-    Energy_contractility: *energy
+    Energy_cell_contractility: *energy
+    Energy_edge_contractility: *energy
     Energy_time: *energy
     Continuous_time: *energy
 
     # the polarity energies
-    Energy_cell_cell_polarity: 
-      <<: *energy
+    Energy_cell_cell_polarity: &polarity_energy
       active: false
-    Energy_polarity_exclusion: 
-      <<: *energy
-      active: false
-    Energy_lagrange_net_polarisation: 
-      <<: *energy
-      active: false
-    Energy_lagrange_const_concentration: 
-      <<: *energy
-      active: false
+      trigger: build_once
+      decider: write_always
+    Energy_polarity_exclusion: *polarity_energy
+    Energy_lagrange_net_polarisation: *polarity_energy
+    Energy_lagrange_const_concentration: *polarity_energy
 
     num_T1s: *energy
     num_T1s_attempted: *energy
