@@ -27,9 +27,6 @@ struct VertexState {
     /// Whether to remove
     bool remove;
 
-    /// An id that identifies the vertex within the container
-    std::size_t current_id;
-
     /// Constructor
     VertexState ()
     :  

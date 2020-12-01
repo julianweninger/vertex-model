@@ -424,12 +424,20 @@ auto vertices_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "property");
         hdfdataset->add_attribute("coords__property", 
                                   std::vector<std::string>({"x", "y"}));
+
         hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& vertices = model.get_am().vertices();
+        std::vector<std::size_t> ids{};
+        ids.reserve(vertices.size());
+        std::transform(vertices.begin(), vertices.end(),
+                       std::back_inserter(ids),
+                       [](const auto& v) { return v->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+
         const SpaceVec domain = model.get_space()->get_domain_size();
         hdfdataset->add_attribute("Lx", domain[0]);
         hdfdataset->add_attribute("Ly", domain[1]);
-        // For ids, the dimensions are trivial
-        // hdfdataset->add_attribute("coords__coordinate", std::vector<std::size_t>{1, 1});
     }
     
 ); // end vertex position adaptor
@@ -620,22 +628,16 @@ auto edges_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& vertices = model.get_am().vertices();
-        int running_id = 0;
-        for (auto& v : vertices) {
-            v->state.current_id = running_id++; // set identity within container
-        }
-
         const auto& edges = model.get_am().edges();
         dataset->write(edges.begin(), edges.end(),
                        [](const auto& edge) {
                            return static_cast<int>(
-                                    edge->custom_links().a->state.current_id);
+                                    edge->custom_links().a->id());
                        });
         dataset->write(edges.begin(), edges.end(),
                        [](const auto& edge) {
                            return static_cast<int>(
-                                    edge->custom_links().b->state.current_id);
+                                    edge->custom_links().b->id());
                        });
     },
                 

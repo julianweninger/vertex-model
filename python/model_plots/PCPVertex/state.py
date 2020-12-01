@@ -158,13 +158,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
 
             ### plot edges
+            # the ids of the vertices a and b of the edges
             vertex_a = e_data.sel(property="vertex_a")
             vertex_b = e_data.sel(property="vertex_b")
 
+            # the coordinates of vertices a and b in the set of edges
             ax = v_data.sel(id=vertex_a, property='x')
             ay = v_data.sel(id=vertex_a, property='y')
             bx = v_data.sel(id=vertex_b, property='x')
             by = v_data.sel(id=vertex_b, property='y')
+
+            # assign the correct ids to the edges vertices a and b
+            ax = ax.assign_coords(id=vertex_a.id)
+            ay = ay.assign_coords(id=vertex_a.id)
+            bx = bx.assign_coords(id=vertex_b.id)
+            by = by.assign_coords(id=vertex_b.id)
 
             dx = bx - ax
             dy = by - ay
@@ -187,13 +195,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             # need duplicates of periodic edges
             if (vertex_cfg['space']['periodic']):
+                # the ids of the vertices a and b of the edges
                 vertex_a = e_data.sel(property="vertex_a")
                 vertex_b = e_data.sel(property="vertex_b")
 
+                # the coordinates of vertices a and b in the set of edges
                 ax = v_data.sel(id=vertex_a, property='x')
                 ay = v_data.sel(id=vertex_a, property='y')
                 bx = v_data.sel(id=vertex_b, property='x')
                 by = v_data.sel(id=vertex_b, property='y')
+
+                # assign the correct ids to the edges vertices a and b
+                ax = ax.assign_coords(id=vertex_a.id)
+                ay = ay.assign_coords(id=vertex_a.id)
+                bx = bx.assign_coords(id=vertex_b.id)
+                by = by.assign_coords(id=vertex_b.id)
 
                 # use the inverse arrows
                 dx = ax - bx
