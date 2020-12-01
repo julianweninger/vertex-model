@@ -306,6 +306,11 @@ PCPVertex:
         decider: write_interval
       Cells: *agents_continuous
       Edges: *agents_continuous
+      Cell_energies: &agent_energies_continuous
+        active: false
+        trigger: build_interval
+        decider: write_interval
+      Edge_energies: *agent_energies_continuous
 
 # plotting
 data_manager:
@@ -366,4 +371,10 @@ data_manager:
     Cells: *agents_equilibrium
     Edges: *agents_equilibrium
     Hair_cluster: *agents_equilibrium
+
+    Cell_energies: &agent_energies
+      active: false
+      trigger: build_interval
+      decider: write_interval
+    Edge_energies: *agent_energies
 

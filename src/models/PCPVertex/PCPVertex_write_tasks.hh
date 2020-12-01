@@ -607,6 +607,182 @@ auto cells_adaptor = std::make_tuple(
     }    
 ); // end cell position adaptor
 
+/// Datamanager adaptor for edges properties
+auto edges_adaptor = std::make_tuple(
+
+    // name of the task
+    "Edges",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Edges");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& vertices = model.get_am().vertices();
+        int running_id = 0;
+        for (auto& v : vertices) {
+            v->state.current_id = running_id++; // set identity within container
+        }
+
+        const auto& edges = model.get_am().edges();
+        dataset->write(edges.begin(), edges.end(),
+                       [](const auto& edge) {
+                           return static_cast<int>(
+                                    edge->custom_links().a->state.current_id);
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [](const auto& edge) {
+                           return static_cast<int>(
+                                    edge->custom_links().b->state.current_id);
+                       });
+    },
+                
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {2, m.get_am().edges().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "property");
+        hdfdataset->add_attribute("coords__property", 
+                                  std::vector<std::string>({"vertex_a",
+                                                            "vertex_b"}));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& edges = model.get_am().edges();
+        std::vector<std::size_t> ids{};
+        ids.reserve(edges.size());
+        std::transform(edges.begin(), edges.end(), std::back_inserter(ids),
+                       [](const auto& e) { return e->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+    }     
+); // end edge link adaptor
+
+/// Datamanager adaptor for cell energies
+/** Energies are
+ *      -# PCPVertex::get_energy_areaelasticity
+ *      -# PCPVertex::get_energy_cell_contractility
+ */
+auto cell_energies_adaptor = std::make_tuple(
+    // name of the task
+    "Cell_energies",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Cell_energies");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+
+        dataset->write(cells.begin(), cells.end(),
+                       [model](const auto& c) {
+                            return model.get_energy_areaelasticity({c});
+                       });
+        dataset->write(cells.begin(), cells.end(),
+                       [model](const auto& c) {
+                            return model.get_energy_cell_contractility({c});
+                       });
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {2, m.get_am().cells().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "energy_term");
+        hdfdataset->add_attribute("coords__energy_term", 
+                std::vector<std::string>({
+                    "area_elasticity",
+                    "contractility"
+                }));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& cells = model.get_am().cells();
+        std::vector<std::size_t> ids{};
+        ids.reserve(cells.size());
+        std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
+                       [](const auto& c) { return c->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+    }    
+); // end cell energy adaptor
+
+/// Datamanager adaptor for edge energies
+/** Energies are
+ *      -# PCPVertex::get_energy_linetension
+ *      -# PCPVertex::get_energy_edge_contractility
+ */
+auto edge_energies_adaptor = std::make_tuple(
+
+    // name of the task
+    "Edge_energies",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Edge_energies");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& edges = am.edges();
+
+        dataset->write(edges.begin(), edges.end(),
+                       [model](const auto& e) {
+                            return model.get_energy_linetension({e});
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [model](const auto& e) {
+                            return model.get_energy_edge_contractility({e});
+                       });
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {2, m.get_am().edges().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "energy_term");
+        hdfdataset->add_attribute("coords__energy_term", 
+                std::vector<std::string>({
+                    "linetension",
+                    "edge_contractility"
+                }));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& edges = model.get_am().edges();
+        std::vector<std::size_t> ids{};
+        ids.reserve(edges.size());
+        std::transform(edges.begin(), edges.end(), std::back_inserter(ids),
+                       [](const auto& e) { return e->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+    }    
+); // end edge energy adaptor
+
 /// Datamanager adaptor for the cluster of hair cells
 /** Attributes are:
  *      -# Lx: Domain size in x coordinate
@@ -652,60 +828,6 @@ auto hair_cluster_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "id");
     }    
 ); // end hair cluster adaptor
-
-/// Datamanager adaptor for edges properties
-auto edges_adaptor = std::make_tuple(
-
-    // name of the task
-    "Edges",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Edges");
-    },
-
-    // writer function
-    [](auto& dataset, auto& model) {
-        const auto& vertices = model.get_am().vertices();
-        int running_id = 0;
-        for (auto& v : vertices) {
-            v->state.current_id = running_id++; // set identity within container
-        }
-
-        const auto& edges = model.get_am().edges();
-        dataset->write(edges.begin(), edges.end(),
-                       [](const auto& edge) {
-                           return static_cast<int>(
-                                    edge->custom_links().a->state.current_id);
-                       });
-        dataset->write(edges.begin(), edges.end(),
-                       [](const auto& edge) {
-                           return static_cast<int>(
-                                    edge->custom_links().b->state.current_id);
-                       });
-    },
-
-    // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().edges().size()});
-    },
-
-    // attribute writer for basegroup
-    [](auto& grp, [[maybe_unused]] auto& m) {
-        grp->add_attribute("content", "time_series");},
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "property");
-        hdfdataset->add_attribute("coords__property", 
-                                  std::vector<std::string>({"vertex_a",
-                                                            "vertex_b"}));
-        hdfdataset->add_attribute("dim_name__1", "id");
-
-        
-    }    
-); // end edge link adaptor
 
 /// Datamanager adaptor for T1 cell intercalation counter
 auto T1_adaptor = std::make_tuple(

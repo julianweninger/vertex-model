@@ -963,13 +963,13 @@ public:
     // NOTE when adding energy terms remember to add them to get_energy(..)
 protected:
     double get_energy_linetension(const AgentContainer<Edge>& es,
-                                  double beta = 0.) const;
+                                  double beta) const;
     double get_energy_edge_contractility(const AgentContainer<Edge>& es,
-                                         double beta = 0.) const;
+                                         double beta) const;
     double get_energy_areaelasticity (const AgentContainer<Cell>& cs,
-                                      double beta = 0.) const;    
+                                      double beta) const;    
     double get_energy_cell_contractility (const AgentContainer<Cell>& cs,
-                                          double beta = 0.) const;
+                                          double beta) const;
     double get_energy(const AgentContainer<Edge>& es,
                       const AgentContainer<Cell>& cs,
                       double beta = 0.) const;
@@ -1030,23 +1030,76 @@ protected:
     }
 
 public:
+    /// Getter for energy associated with linetension
+    /** Sums PCPVertex::line_tension_energy for all entities
+     */
     double get_energy_linetension() const {
         return get_energy_linetension(_am.edges(), 0.);
     }
     
+    /// Getter for energy associated with contractility of junctions
+    /** Sums PCPVertex::edge_contractility_energy for all entities
+     */
     double get_energy_edge_contractility() const {
         return get_energy_edge_contractility(_am.edges(), 0.);
     }
     
+    /// Getter for energy associated with area elasticity
+    /** Sums PCPVertex::area_elasticity_energy for all entities
+     */
     double get_energy_areaelasticity () const {
         return get_energy_areaelasticity(_am.cells(), 0.);
     }
 
+    /// Getter for energy associated with contractility of cells
+    /** Sums PCPVertex::cell_contractility_energy for all entities
+     */
     double get_energy_cell_contractility () const {
         return get_energy_cell_contractility(_am.cells(), 0.);
     }
     double get_energy() const {
         return get_energy(_am.edges(), _am.cells(), 0.);
+    }
+
+    /// Getter for energy associated with linetension
+    /** Sums PCPVertex::line_tension_energy for provided entities
+     */
+    double get_energy_linetension(const AgentContainer<Edge>& es) const {
+        return get_energy_linetension(es, 0.);
+    }
+    
+    /// Getter for energy associated with contractility of junctions
+    /** Sums PCPVertex::edge_contractility_energy for provided entities
+     */
+    double get_energy_edge_contractility(const AgentContainer<Edge>& es) const {
+        return get_energy_edge_contractility(es, 0.);
+    }
+    
+    /// Getter for energy associated with area elasticity
+    /** Sums PCPVertex::area_elasticity_energy for provided entities
+     */
+    double get_energy_areaelasticity (const AgentContainer<Cell>& cs) const {
+        return get_energy_areaelasticity(cs, 0.);
+    }
+
+    /// Getter for energy associated with contractility of cells
+    /** Sums PCPVertex::cell_contractility_energy for provided entities
+     */
+    double get_energy_cell_contractility (const AgentContainer<Cell>& cs) const
+    {
+        return get_energy_cell_contractility(cs, 0.);
+    }
+
+    /// Getter for energy associated with contractility of cells
+    /** Sums the following energies for provided entities
+     *      -# PCPVertex::get_energy_linetension
+     *      -# PCPVertex::get_energy_edge_contractility
+     *      -# PCPVertex::get_energy_areaelasticity
+     *      -# PCPVertex
+     */
+    double get_energy(const AgentContainer<Edge>& es,
+                      const AgentContainer<Cell>& cs) const {
+        return get_energy(es, cs, 0.);
     }
 
     double get_rel_energy_change () const;

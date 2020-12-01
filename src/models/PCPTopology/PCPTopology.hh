@@ -49,6 +49,12 @@ public:
     /// Type of the config
     using typename Base::Config;
 
+    /// The type of a vertex
+    using Vertex = typename PCPVertex::Vertex;
+
+    /// The type of an edge
+    using Edge = typename PCPVertex::Edge;
+
     /// The type of a cell
     using Cell = typename PCPVertex::Cell;
 
@@ -159,7 +165,10 @@ public:
                 // position adaptors
                 DataIO::vertices_adaptor<SpaceVec>,
                 DataIO::cells_adaptor<SpaceVec, CellType>,
-                DataIO::edges_adaptor)),
+                DataIO::edges_adaptor,
+                DataIO::cell_energies_adaptor,
+                DataIO::edge_energies_adaptor
+                )),
         
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
@@ -565,22 +574,64 @@ public:
     std::size_t get_continuous_time() const {
         return _vertex_model.get_time();
     }
-
+    /// Getter for the total energy
+    /** See PCPVertex::get_energy
+     */
     double get_energy() const {
         return _vertex_model.get_energy();
     }
-    
+    /// Getter for the linetension energy
+    /** See PCPVertex::get_energy_linetension
+     */
     double get_energy_linetension() const {
         return _vertex_model.get_energy_linetension();
     }
+    /// Getter for the edge contractility energy
+    /** See PCPVertex::get_energy_edge_contractility
+     */
     double get_energy_edge_contractility() const {
         return _vertex_model.get_energy_edge_contractility();
     }
+    /// Getter for the areaelasticity energy
+    /** See PCPVertex::get_energy_areaelasticity
+     */
     double get_energy_areaelasticity () const {
         return _vertex_model.get_energy_areaelasticity();
     }
+    /// Getter for the areaelasticity energy
+    /** See PCPVertex::get_energy_cell_contractility
+     */
     double get_energy_cell_contractility () const {
         return _vertex_model.get_energy_cell_contractility();
+    }
+
+    /// Getter for the linetension energy on a set of entities
+    /** See PCPVertex::get_energy_linetension(const AgentContainer<Edge>& es) const
+     */
+    double get_energy_linetension(const AgentContainer<Edge>& es) const {
+        return _vertex_model.get_energy_linetension(es);
+    }
+
+    /// Getter for the edge contractility energy on a set of entities
+    /** See PCPVertex::get_energy_edge_contractility(const AgentContainer<Edge>& es) const
+     */
+    double get_energy_edge_contractility(const AgentContainer<Edge>& es) const {
+        return _vertex_model.get_energy_edge_contractility(es);
+    }
+
+    /// Getter for the areaelasticity energy on a set of entities
+    /** See PCPVertex::get_energy_areaelasticity(const AgentContainer<Cell>& cs) const
+     */
+    double get_energy_areaelasticity (const AgentContainer<Cell>& cs) const {
+        return _vertex_model.get_energy_areaelasticity(cs);
+    }
+
+    /// Getter for the areaelasticity energy on a set of entities
+    /** See PCPVertex::get_energy_cell_contractility(const AgentContainer<Cell>& cs) const
+     */
+    double get_energy_cell_contractility (const AgentContainer<Cell>& cs) const
+    {
+        return _vertex_model.get_energy_cell_contractility(cs);
     }
     
     // double get_energy_cell_cell_polarity() const {

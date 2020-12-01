@@ -27,6 +27,7 @@ auto model_factory(ParentType parent) {
         cells_adaptor<typename PCPVertex::Space::SpaceVec,
                       typename PCPTopology::CellType>,
         edges_adaptor,
+        cell_energies_adaptor, edge_energies_adaptor,
         hair_cluster_adaptor));
 }
 

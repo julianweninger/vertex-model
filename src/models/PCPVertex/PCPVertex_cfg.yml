@@ -147,7 +147,11 @@ data_manager:
       decider: write_interval
     Cells: *agents
     Edges: *agents
-
+    Cell_energies: &agent_energies
+      active: false
+      trigger: build_interval
+      decider: write_interval
+    Edge_energies: *agent_energies
     
     
 
