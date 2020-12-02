@@ -713,7 +713,7 @@ auto cell_energies_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__energy_term", 
                 std::vector<std::string>({
                     "area_elasticity",
-                    "contractility"
+                    "cell_contractility"
                 }));
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");

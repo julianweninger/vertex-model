@@ -1,0 +1,24 @@
+# A minimal configuration to test some plot functions
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: test_spatial_energy
+
+parameter_space:
+  num_steps: 2
+
+  PCPTopology:
+    data_manager:
+      tasks:
+        Cell_energies: &agent_energies
+          active: true
+          trigger: build_always
+          decider: write_always
+        Edge_energies: *agent_energies

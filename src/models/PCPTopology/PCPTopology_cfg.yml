@@ -34,7 +34,7 @@ operations:
       
   - proliferate:
       times: []
-      iterations_prolog: 5
+      iterations_prolog: 2
       iterations_epilog: 0
       emit_interval: 4
      
