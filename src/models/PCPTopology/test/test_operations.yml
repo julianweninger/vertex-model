@@ -277,6 +277,8 @@ relax_area:
   times: []
 
   factor: 0.1
+  minimum: 0.1
+  maximum: 15.
 
 relax_area_minimum:
   times: []
