@@ -1083,7 +1083,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_relax_area)
-    {
+    {        
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
         const std::string name = "relax_area";
         auto [operation, params] = build_relax_area(
             name, get_as<Config>(name, cfg), default_minim_params);
@@ -1094,13 +1096,26 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         // random cell for that A_0 is different from A
         // A_0 / A = 2
         auto cell = cells[0];
+        auto cell_hair = cells[1]; 
+        cell_hair->state.type = CellType::hair;
+        auto cell_support = cells[2];
+        cell_support->state.type = CellType::support;
+
         cell->state.area_preferential = 2. * am.area_of(cell);
+        cell_hair->state.area_preferential = 2. * am.area_of(cell_hair);
+        cell_support->state.area_preferential = 2. * am.area_of(cell_support);
 
         operation(vertex_model);
 
         // A_0' / A = 2 - 0.1 * (A_0 / A - 1) = 1.9
         BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell), 1.9,
                           1e-8);
+        BOOST_CHECK_CLOSE((cell_hair->state.area_preferential
+                           / am.area_of(cell_hair)),
+                          1.9, 1e-8);
+        BOOST_CHECK_CLOSE((  cell_support->state.area_preferential
+                           / am.area_of(cell_support)),
+                          1.9, 1e-8);
 
                           
         // random cell for that A_0 is different from A
@@ -1116,6 +1131,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         // use minimum area preferential
         cell->state.area_preferential = 100.;
+        cell_hair->state.area_preferential = 100.;
+        cell_support->state.area_preferential = 100.;
 
         const std::string name_min = "relax_area_minimum";
         auto [operation_min, params_min] = build_relax_area(
@@ -1123,11 +1140,15 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
 
         operation_min(vertex_model);
 
-        // relax instantly, but only to minimum of 12
+        // relax instantly, but only to minimum
         BOOST_CHECK_CLOSE(cell->state.area_preferential, 12., 1e-8);
+        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential, 18., 1e-8);
+        BOOST_CHECK_CLOSE(cell_support->state.area_preferential, 16., 1e-8);
         
         // use maximum area preferential
         cell->state.area_preferential = 0.001;
+        cell_hair->state.area_preferential = 0.001;
+        cell_support->state.area_preferential = 0.001;
 
         const std::string name_max = "relax_area_maximum";
         auto [operation_max, params_max] = build_relax_area(
@@ -1135,8 +1156,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
 
         operation_max(vertex_model);
 
-        // relax instantly, but only to maximum of 0.4
+        // relax instantly, but only to maximum
         BOOST_CHECK_CLOSE(cell->state.area_preferential, 0.4, 1e-8);
+        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential, 0.3, 1e-8);
+        BOOST_CHECK_CLOSE(cell_support->state.area_preferential, 0.2, 1e-8);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {
@@ -1175,6 +1198,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs.reserve(cells.size());
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
+        auto cell_hair = cells[0];
             if (cell->state.type == CellType::hair) {
                 areas_HCs.push_back(cell->state.area_preferential);
             }
