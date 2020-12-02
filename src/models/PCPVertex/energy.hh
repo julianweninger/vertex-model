@@ -7,10 +7,16 @@ namespace PCPVertex {
 
 
 /// The energy associated with linetension per edge
-/** \details \f$ E = \sum_{ij} \lambda_{ij} l_ij \f$
+/** \f$ E_{ij} = \lambda_{ij} l_{ij} \f$ for the edge connecting vertices
+ *  \f$ i \f$ and \f$ j \f$ with length \f$ l_{ij} \f$.
  * 
  *  \param edge     The object
- *  \param 
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
  */
 double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
@@ -29,6 +35,18 @@ double PCPVertex::line_tension_energy (
     return edge->state.linetension * length;
 };
 
+/// The energy associated with contractility per edge
+/** \f$ E_{ij} = \frac{1}{2} \Gamma{ij} l_{ij}^2 \f$ for the edge connecting
+ *  vertices \f$ i \f$ and \f$ j \f$ with length \f$ l_{ij} \f$.
+ * 
+ *  \param edge     The object
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
@@ -46,8 +64,17 @@ double PCPVertex::edge_contractility_energy (
     return 0.5 * edge->state.contractility * pow(length, 2);
 };
 
-/// The energy associated with area elasticity
-/** \f$ E = K/2 * (A - A0)**2 \f$
+/// The energy associated with area elasticity per cell
+/** \f$ E_i = K/2 * (A_i - A0_i)**2 \f$ for cell \f$ i \f$ with area \f$ A_i \f$
+ *  and preferential area \f$ A0_i \f$.
+ * 
+ *  \param edge     The object
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
  */
 double PCPVertex::area_elasticity_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
@@ -58,7 +85,20 @@ double PCPVertex::area_elasticity_energy (
     return 0.5 * _area_elasticity * pow(rel_area - 1., 2);
 };
 
-/// The energy associated with cell contractility
+/// The energy associated with contractility per cell
+/** \f$ E_i = \Gamma/2 * (p_i - p0_i)**2 \f$ for cell \f$ i \f$ with
+ *  shape index \f$ p_i \f$ and preferential shape index \f$ p0_i \f$.
+ *  Shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$,
+ *  analogous for the preferential shape index.
+ * 
+ *  \param edge     The object
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
 double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
@@ -174,6 +214,15 @@ double PCPVertex::cell_contractility_energy (
 // };
 
 /// Getter for energy associated with linetension
+/** Sums PCPVertex::line_tension_energy for all entities
+ * 
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
 double PCPVertex::get_energy_linetension(
         const AgentContainer<Edge>& es, double beta) const
 {
@@ -185,6 +234,15 @@ double PCPVertex::get_energy_linetension(
 }
 
 /// Getter for energy associated with contractility of junctions
+/** Sums PCPVertex::edge_contractility_energy for all entities
+ * 
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
 double PCPVertex::get_energy_edge_contractility(
         const AgentContainer<Edge>& es, double beta) const
 {
@@ -196,7 +254,16 @@ double PCPVertex::get_energy_edge_contractility(
 }
 
 /// Getter for energy associated with area elasticity
-double PCPVertex::get_energy_areaelasticity (
+/** Sums PCPVertex::area_elasticity_energy for all entities
+ * 
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
+double PCPVertex::get_energy_areaelasticity(
         const AgentContainer<Cell>& cs, double beta) const
 {
     double energy = 0.;
@@ -207,6 +274,15 @@ double PCPVertex::get_energy_areaelasticity (
 }
 
 /// Getter for energy associated with contractility of cells
+/** Sums PCPVertex::cell_contractility_energy for all entities
+ * 
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
 double PCPVertex::get_energy_cell_contractility(
         const AgentContainer<Cell>& cs, double beta) const
 {
@@ -268,6 +344,19 @@ double PCPVertex::get_energy_cell_contractility(
 // }
 
 /// Getter for energy
+/** Sums the following energies for provided entities
+ *      -# PCPVertex::get_energy_linetension
+ *      -# PCPVertex::get_energy_edge_contractility
+ *      -# PCPVertex::get_energy_areaelasticity
+ *      -# PCPVertex::get_energy_cell_contractility
+ * 
+ *  \param beta     If > 0. predicts the energy at this step size along
+ *                  direction of update. I.e. vertices are virtually moved in
+ *                  direction of update and on that configuration the energy is
+ *                  calculated.
+ *                  For beta = 0, returns the energy as in current vertex
+ *                  position.
+ */
 double PCPVertex::get_energy (
         const AgentContainer<Edge>& es,
         const AgentContainer<Cell>& cs,

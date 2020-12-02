@@ -105,15 +105,26 @@ equilibrium_cellular_structure:
     - .default_style_and_helpers
     - cellular_structure
 
-equilibrium_cellular_structure__hexatic_order:
+equilibrium_cellular_structure__property: !pspace
   based_on:
     - .default_style_and_helpers
     - cellular_structure
 
   enabled: false
 
-  property: hexatic_order
-  property_marker_size: 60
+  property: !sweep
+    default: area_elasticity
+    values: 
+      - area_elasticity
+      - cell_contractility
+      - linetension
+      - edge_contractility
+      - hexatic_order
+
+  property_interpolation_kwargs:
+    method: nearest
+  property_interpolation_plot_kwargs:
+    cmap: Reds
 
 cellular_structure:
   based_on:

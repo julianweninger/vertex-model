@@ -10,6 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import matplotlib.patches as mpatches
+from scipy.interpolate import griddata
 
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
@@ -48,7 +49,8 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Get the data
     energy = uni['data'][model_name]['Energy']['Total']
     linetension = uni['data'][model_name]['Energy']['Linetension']
-    contractility = uni['data'][model_name]['Energy']['Contractility']
+    cell_contractility = uni['data'][model_name]['Energy']['Cell_contractility']
+    edge_contractility = uni['data'][model_name]['Energy']['Edge_contractility']
     areaelasticity = uni['data'][model_name]['Energy']['Areaelasticity']
     num_T1s = uni['data'][model_name]['Statistics/num_T1s']
     num_T1s_attempted = uni['data'][model_name]['Statistics/num_T1s_attempted']
@@ -57,7 +59,10 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Create the line plot of energy
     hlpr.ax.plot(energy.time, energy, label='total')
     hlpr.ax.plot(linetension.time, linetension, label='linetension')
-    hlpr.ax.plot(contractility.time, contractility, label='contractility')
+    hlpr.ax.plot(cell_contractility.time, cell_contractility,
+                 label='cell contractility')
+    hlpr.ax.plot(edge_contractility.time, edge_contractility,
+                 label='edge contractility')
     hlpr.ax.plot(areaelasticity.time, areaelasticity, label='areaelasticity')
 
     hlpr.ax.set_xlabel("Time [steps]")
@@ -81,8 +86,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath: str='PCPVertex', cfgpath: str='PCPVertex',
                        cell_marker_size: int=60,
                        plot_vertices: bool=False,
-                       property=None, property_marker_size=30,
-                       property_cmap='autumn'):
+                       property: str=None,
+                       property_interpolation_kwargs: dict={},
+                       property_interpolation_plot_kwargs: dict={}):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -96,10 +102,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         plot_vertices (bool, default: false): Whether to plot the vertices
         property (str, optional): An additional cell property to plot. Data is 
             cell data where property=property.
-        property_marker_size (int, default 30): The marker size for plot of
-            the cell's property
-        property_cmap (str, default 'autumn'): A colormap to use with the cells
-            properties.
+        property_interpolation_kwargs (dict, optional): Kwargs passed on to 
+            scipy.interpolate.griddata.
+        property_interpolation_plot_kwargs (dict, optional): Kwargs passed on to
+            imshow on interpolated griddata,
     """
     def adjustFigAspect(fig,aspect=1):
         '''
@@ -136,7 +142,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     def update():
         for time in grp['Vertices']:
-            hlpr.ax.clear()
+            hlpr.ax.clear()            
             hlpr.ax.set_aspect('auto')
 
             v_data = grp['Vertices'][time]
@@ -154,13 +160,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
 
             ### plot edges
+            # the ids of the vertices a and b of the edges
             vertex_a = e_data.sel(property="vertex_a")
             vertex_b = e_data.sel(property="vertex_b")
 
+            # the coordinates of vertices a and b in the set of edges
             ax = v_data.sel(id=vertex_a, property='x')
             ay = v_data.sel(id=vertex_a, property='y')
             bx = v_data.sel(id=vertex_b, property='x')
             by = v_data.sel(id=vertex_b, property='y')
+
+            # assign the correct ids to the edges vertices a and b
+            ax = ax.assign_coords(id=vertex_a.id)
+            ay = ay.assign_coords(id=vertex_a.id)
+            bx = bx.assign_coords(id=vertex_b.id)
+            by = by.assign_coords(id=vertex_b.id)
 
             dx = bx - ax
             dy = by - ay
@@ -183,46 +197,54 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             # need duplicates of periodic edges
             if (vertex_cfg['space']['periodic']):
+                # the ids of the vertices a and b of the edges
                 vertex_a = e_data.sel(property="vertex_a")
                 vertex_b = e_data.sel(property="vertex_b")
 
-                ax = v_data.sel(id=vertex_a, property='x')
-                ay = v_data.sel(id=vertex_a, property='y')
-                bx = v_data.sel(id=vertex_b, property='x')
-                by = v_data.sel(id=vertex_b, property='y')
+                # the coordinates of vertices a and b in the set of edges
+                ax_tmp = v_data.sel(id=vertex_a, property='x')
+                ay_tmp = v_data.sel(id=vertex_a, property='y')
+                bx_tmp = v_data.sel(id=vertex_b, property='x')
+                by_tmp = v_data.sel(id=vertex_b, property='y')
+
+                # assign the correct ids to the edges vertices a and b
+                ax_tmp = ax.assign_coords(id=vertex_a.id)
+                ay_tmp = ay.assign_coords(id=vertex_a.id)
+                bx_tmp = bx.assign_coords(id=vertex_b.id)
+                by_tmp = by.assign_coords(id=vertex_b.id)
 
                 # use the inverse arrows
-                dx = ax - bx
-                dy = ay - by
+                dx_tmp = ax_tmp - bx_tmp
+                dy_tmp = ay_tmp - by_tmp
 
                 # only those edges which cross the boundaries
                 # i.e. those which are not whithin the domain
-                mask = np.isnan(dx.where(dx <  0.5 * Lx).where(
-                                         dx > -0.5 * Lx).where(
-                                         dy <  0.5 * Ly).where(
-                                         dy > -0.5*Ly))                                         
-                bx = bx.where(mask)
-                by = by.where(mask)
-                dx = dx.where(mask)
-                dy = dy.where(mask)
+                mask = np.isnan(dx_tmp.where(dx_tmp <  0.5 * Lx).where(
+                                         dx_tmp > -0.5 * Lx).where(
+                                         dy_tmp <  0.5 * Ly).where(
+                                         dy_tmp > -0.5*Ly))                                         
+                bx_tmp = bx_tmp.where(mask)
+                by_tmp = by_tmp.where(mask)
+                dx_tmp = dx_tmp.where(mask)
+                dy_tmp = dy_tmp.where(mask)
                 
-                mask = dx >= 0.5 * Lx
-                dx += mask * (-Lx)
-                mask = dx <= -0.5 * Lx
-                dx += mask * Lx
-                mask = dy >= 0.5 * Ly
-                dy += mask * (-Ly)
-                mask = dy <= -0.5 * Ly
-                dy += mask * (+Ly)
+                mask = dx_tmp >= 0.5 * Lx
+                dx_tmp += mask * (-Lx)
+                mask = dx_tmp <= -0.5 * Lx
+                dx_tmp += mask * Lx
+                mask = dy_tmp >= 0.5 * Ly
+                dy_tmp += mask * (-Ly)
+                mask = dy_tmp <= -0.5 * Ly
+                dy_tmp += mask * (+Ly)
                 
-                hlpr.ax.quiver(bx, by, dx, dy, **quiverkwargs)
+                hlpr.ax.quiver(bx_tmp, by_tmp, dx_tmp, dy_tmp, **quiverkwargs)
 
 
             ### plot cells
             cell_type = c_data.sel(property="cell_type")
             x = c_data.sel(property="x")
             y = c_data.sel(property="y")
-            color = ['red' if d == 1 else 'grey' for d in cell_type ]
+            color = ['red' if d == 1 else 'grey' for d in cell_type]
             hlpr.ax.scatter(x, y, c=color, s=cell_marker_size,
                             alpha=0.5)
 
@@ -233,20 +255,55 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # dy = pol_y / 5.
             # hlpr.ax.quiver(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
             
-            if property:
-                data_copy = c_data
+            # gather the data for property interpolation
+            # for the energies of the cells
+            if (   property == 'area_elasticity'
+                or property == 'cell_contractility'):
+                prop_data = grp['Cell_energies'][time]
+                prop_data = prop_data.sel(energy_term=property)
+                prop_data = prop_data.assign_coords({'x': x, 'y': y})
+
+                grid_x, grid_y = np.mgrid[0:Lx:1000j, 0:Ly:1000j]
+                grid_z1 = griddata((x.data, y.data), prop_data.data,
+                                   (grid_x, grid_y))
+
+                hlpr.ax.imshow(grid_z1.T, extent=(0,Lx,0,Ly), origin='lower')
+            
+            # for the energies of the edges
+            elif (   property == 'linetension'
+                or property == 'edge_contractility'):
+                prop_data = grp['Edge_energies'][time]
+                prop_data = prop_data.sel(energy_term=property)
+                prop_data = prop_data.assign_coords({'x': (ax + dx / 2.),
+                                                     'y': (ay + dy / 2.)})
+
+
+            # for other cell data
+            elif property:
+                prop_data = c_data.sel(property=property)
+                prop_data = prop_data.assign_coords({'x': x, 'y': y})
 
                 if property == "hexatic_order":
                     # remove non hair cells
                     # hexatic order of non hair cells is always 0
-                    data_copy = data_copy.where(cell_type == 1)
+                    prop_data = prop_data.where(cell_type == 1)
 
-                hlpr.ax.scatter(data_copy.sel(property='x'),
-                                data_copy.sel(property='y'),
-                                c=data_copy.sel(property=property),
-                                s=property_marker_size,
-                                cmap=property_cmap,
-                                alpha=0.5)
+            # perform the interpolation
+            if property:
+                num_data_points = len(prop_data) * 10j
+                grid_x, grid_y = np.mgrid[0:Lx:num_data_points,
+                                        0:Ly:num_data_points]
+                grid_z1 = griddata((prop_data.x, prop_data.y), prop_data,
+                                    (grid_x, grid_y),
+                                    **property_interpolation_kwargs)
+
+                interpol = hlpr.ax.imshow(grid_z1.T, extent=(0,Lx,0,Ly),
+                                          origin='lower',
+                                          **property_interpolation_plot_kwargs)
+                
+                cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
+                cbar.set_label(label=property)
+                cbar.minorticks_on()
 
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
@@ -266,7 +323,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             
             hlpr.ax.set_aspect('equal')
 
+            # end update here
             yield
+
+            # remove colorbar
+            if property:
+                cbar.remove()
 
 
     hlpr.register_animation_update(update)

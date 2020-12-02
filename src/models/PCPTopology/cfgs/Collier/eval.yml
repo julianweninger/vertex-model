@@ -6,16 +6,6 @@ energy:
 energy_continuous:
   based_on: energy
   model_name: PCPTopology/PCPVertex
-
-  to_plot:
-    Energy/Total:
-      label: TOTAL
-    Energy/Linetension:
-      label: line-tension
-    Energy/Areaelasticity:
-      label: area-elasticity
-    Energy/Contractility:
-      label: contractility
       
 equilibrium_cellular_structure:
   based_on: cellular_structure

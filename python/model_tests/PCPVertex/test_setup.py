@@ -101,7 +101,8 @@ def test_output():
     assert 'Total' in data['Energy']
     assert 'Linetension' in data['Energy']
     assert 'Areaelasticity' in data['Energy']
-    assert 'Contractility' in data['Energy']
+    assert 'Cell_contractility' in data['Energy']
+    assert 'Edge_contractility' in data['Energy']
 
     # assert that initial state was written
     assert len(data['Energy']['Time'].data) == 4
@@ -126,7 +127,8 @@ def test_output():
     # assert 'Total' in data['Energy']
     # assert 'Linetension' in data['Energy']
     # assert 'Areaelasticity' in data['Energy']
-    # assert 'Contractility' in data['Energy']
+    # assert 'Cell_contractility' in data['Energy']
+    # assert 'Edge_contractility' in data['Energy']
     # assert 'Cell_cell_polarity' in data['Energy']
     # assert 'Polarity_exclusion' in data['Energy']
     # assert 'Lagrange_net_polarisation' in data['Energy']

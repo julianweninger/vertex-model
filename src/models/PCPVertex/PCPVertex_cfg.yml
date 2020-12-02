@@ -118,7 +118,8 @@ data_manager:
       decider: write_always
     Energy_linetension: *energy
     Energy_areaelasticity: *energy
-    Energy_contractility: *energy
+    Energy_cell_contractility: *energy
+    Energy_edge_contractility: *energy
     Energy_time: *energy
 
     # The polarity energies
@@ -146,7 +147,11 @@ data_manager:
       decider: write_interval
     Cells: *agents
     Edges: *agents
-
+    Cell_energies: &agent_energies
+      active: false
+      trigger: build_interval
+      decider: write_interval
+    Edge_energies: *agent_energies
     
     
 

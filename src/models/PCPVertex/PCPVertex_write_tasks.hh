@@ -7,15 +7,14 @@
 
 using namespace Utopia::DataIO;
 
-namespace Utopia::Models::PCPVertex::DataIO{
-
 /** Available datatree:
  *      - Energy
  *          - Energy_total
- *          - Energy_time
+ *          - Energy_time (the linkded time for all energy adaptors)
  *          - Energy_linetension
  *          - Energy_areaelasticity
- *          - Energy_contractility
+ *          - Energy_cell_contractility
+ *          - Energy_edge_contractility
  *          - Energy_cell_cell_polarity
  *          - Energy_polarity_exclusion
  *          - Energy_lagrange_net_polarisation
@@ -30,8 +29,11 @@ namespace Utopia::Models::PCPVertex::DataIO{
  *          - Cell_area
  *          - Statistics_time
  */
+namespace Utopia::Models::PCPVertex::DataIO{
 
 /// Datamanager adaptor for total energy
+/** PCPVertex::get_energy() normalized to number of cells
+ */
 auto energy_adaptor = std::make_tuple(
 
     // name of the task
@@ -64,6 +66,8 @@ auto energy_adaptor = std::make_tuple(
 ); // end energy_adaptor
 
 /// Datamanager adaptor for timepoints
+/** The dataset to which the other energy adaptors link their coordinate time
+ */
 auto time_energy_adaptor = std::make_tuple(
 
     // name of the task
@@ -93,7 +97,9 @@ auto time_energy_adaptor = std::make_tuple(
     }
 ); // end time_energy_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for linetension energy
+/** PCPVertex::get_energy_linetension() normalized to number of cells
+ */
 auto linetension_adaptor = std::make_tuple(
 
     // name of the task
@@ -127,7 +133,9 @@ auto linetension_adaptor = std::make_tuple(
     }
 ); // end linetension_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for area elasticity energy
+/** PCPVertex::get_energy_areaelasticity() normalized to number of cells
+ */
 auto areaelasticity_adaptor = std::make_tuple(
 
     // name of the task
@@ -161,11 +169,13 @@ auto areaelasticity_adaptor = std::make_tuple(
     }
 ); // end areaelasticity_adaptor
 
-/// Datamanager adaptor for total energy
-auto contractility_adaptor = std::make_tuple(
+/// Datamanager adaptor for cell contractility energy
+/** PCPVertex::get_energy_cell_contractility() normalized to number of cells
+ */
+auto cell_contractility_adaptor = std::make_tuple(
 
     // name of the task
-    "Energy_contractility",
+    "Energy_cell_contractility",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
@@ -174,15 +184,13 @@ auto contractility_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy_edge_contractility() / 
-                       model.get_am().cells().size() + 
-                       model.get_energy_cell_contractility() / 
-                       model.get_am().cells().size());
+        dataset->write(  model.get_energy_cell_contractility()
+                       / model.get_am().cells().size());
     },
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Contractility");
+        return group->open_dataset("Cell_contractility");
     },
     
     // attribute writer for basegroup
@@ -195,9 +203,45 @@ auto contractility_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
     }
-); // end contractility_adaptor
+); // end cell_contractility_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for edge contractility energy
+/** PCPVertex::get_energy_edge_contractility() normalized to number of cells
+ */
+auto edge_contractility_adaptor = std::make_tuple(
+
+    // name of the task
+    "Energy_edge_contractility",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Energy");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(  model.get_energy_edge_contractility()
+                       / model.get_am().cells().size());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Edge_contractility");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end edge_contractility_adaptor
+
+/// Datamanager adaptor for cell-cell polarity energy
 auto cell_cell_polarity_adaptor = std::make_tuple(
 
     // name of the task
@@ -231,7 +275,7 @@ auto cell_cell_polarity_adaptor = std::make_tuple(
     }
 ); // end cell_cell_polarity_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for polarity exclusion energy
 auto polarity_exclusion_adaptor = std::make_tuple(
 
     // name of the task
@@ -265,7 +309,7 @@ auto polarity_exclusion_adaptor = std::make_tuple(
     }
 ); // end polarity_exclusion_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for lagrange net polarization energy
 auto lagrange_net_polarisation_adaptor = std::make_tuple(
 
     // name of the task
@@ -299,7 +343,7 @@ auto lagrange_net_polarisation_adaptor = std::make_tuple(
     }
 ); // end lagrange_net_polarisation_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for lagrange const concentration energy
 auto lagrange_const_concentration_adaptor = std::make_tuple(
 
     // name of the task
@@ -380,12 +424,20 @@ auto vertices_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "property");
         hdfdataset->add_attribute("coords__property", 
                                   std::vector<std::string>({"x", "y"}));
+
         hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& vertices = model.get_am().vertices();
+        std::vector<std::size_t> ids{};
+        ids.reserve(vertices.size());
+        std::transform(vertices.begin(), vertices.end(),
+                       std::back_inserter(ids),
+                       [](const auto& v) { return v->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+
         const SpaceVec domain = model.get_space()->get_domain_size();
         hdfdataset->add_attribute("Lx", domain[0]);
         hdfdataset->add_attribute("Ly", domain[1]);
-        // For ids, the dimensions are trivial
-        // hdfdataset->add_attribute("coords__coordinate", std::vector<std::size_t>{1, 1});
     }
     
 ); // end vertex position adaptor
@@ -563,6 +615,176 @@ auto cells_adaptor = std::make_tuple(
     }    
 ); // end cell position adaptor
 
+/// Datamanager adaptor for edges properties
+auto edges_adaptor = std::make_tuple(
+
+    // name of the task
+    "Edges",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Edges");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& edges = model.get_am().edges();
+        dataset->write(edges.begin(), edges.end(),
+                       [](const auto& edge) {
+                           return static_cast<int>(
+                                    edge->custom_links().a->id());
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [](const auto& edge) {
+                           return static_cast<int>(
+                                    edge->custom_links().b->id());
+                       });
+    },
+                
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {2, m.get_am().edges().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "property");
+        hdfdataset->add_attribute("coords__property", 
+                                  std::vector<std::string>({"vertex_a",
+                                                            "vertex_b"}));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& edges = model.get_am().edges();
+        std::vector<std::size_t> ids{};
+        ids.reserve(edges.size());
+        std::transform(edges.begin(), edges.end(), std::back_inserter(ids),
+                       [](const auto& e) { return e->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+    }     
+); // end edge link adaptor
+
+/// Datamanager adaptor for cell energies
+/** Energies are
+ *      -# PCPVertex::get_energy_areaelasticity
+ *      -# PCPVertex::get_energy_cell_contractility
+ */
+auto cell_energies_adaptor = std::make_tuple(
+    // name of the task
+    "Cell_energies",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Cell_energies");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+
+        dataset->write(cells.begin(), cells.end(),
+                       [model](const auto& c) {
+                            return model.get_energy_areaelasticity({c});
+                       });
+        dataset->write(cells.begin(), cells.end(),
+                       [model](const auto& c) {
+                            return model.get_energy_cell_contractility({c});
+                       });
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {2, m.get_am().cells().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "energy_term");
+        hdfdataset->add_attribute("coords__energy_term", 
+                std::vector<std::string>({
+                    "area_elasticity",
+                    "cell_contractility"
+                }));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& cells = model.get_am().cells();
+        std::vector<std::size_t> ids{};
+        ids.reserve(cells.size());
+        std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
+                       [](const auto& c) { return c->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+    }    
+); // end cell energy adaptor
+
+/// Datamanager adaptor for edge energies
+/** Energies are
+ *      -# PCPVertex::get_energy_linetension
+ *      -# PCPVertex::get_energy_edge_contractility
+ */
+auto edge_energies_adaptor = std::make_tuple(
+
+    // name of the task
+    "Edge_energies",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Edge_energies");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& edges = am.edges();
+
+        dataset->write(edges.begin(), edges.end(),
+                       [model](const auto& e) {
+                            return model.get_energy_linetension({e});
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [model](const auto& e) {
+                            return model.get_energy_edge_contractility({e});
+                       });
+    },
+
+    // builder function
+    [](auto& group, auto& m) -> decltype(auto) {
+        return group->open_dataset(std::to_string(m.get_time()), 
+            {2, m.get_am().edges().size()});
+    },
+
+    // attribute writer for basegroup
+    [](auto& grp, [[maybe_unused]] auto& m) {
+        grp->add_attribute("content", "time_series");},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "energy_term");
+        hdfdataset->add_attribute("coords__energy_term", 
+                std::vector<std::string>({
+                    "linetension",
+                    "edge_contractility"
+                }));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& edges = model.get_am().edges();
+        std::vector<std::size_t> ids{};
+        ids.reserve(edges.size());
+        std::transform(edges.begin(), edges.end(), std::back_inserter(ids),
+                       [](const auto& e) { return e->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+    }    
+); // end edge energy adaptor
+
 /// Datamanager adaptor for the cluster of hair cells
 /** Attributes are:
  *      -# Lx: Domain size in x coordinate
@@ -609,61 +831,7 @@ auto hair_cluster_adaptor = std::make_tuple(
     }    
 ); // end hair cluster adaptor
 
-/// Datamanager adaptor for edges properties
-auto edges_adaptor = std::make_tuple(
-
-    // name of the task
-    "Edges",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Edges");
-    },
-
-    // writer function
-    [](auto& dataset, auto& model) {
-        const auto& vertices = model.get_am().vertices();
-        int running_id = 0;
-        for (auto& v : vertices) {
-            v->state.current_id = running_id++; // set identity within container
-        }
-
-        const auto& edges = model.get_am().edges();
-        dataset->write(edges.begin(), edges.end(),
-                       [](const auto& edge) {
-                           return static_cast<int>(
-                                    edge->custom_links().a->state.current_id);
-                       });
-        dataset->write(edges.begin(), edges.end(),
-                       [](const auto& edge) {
-                           return static_cast<int>(
-                                    edge->custom_links().b->state.current_id);
-                       });
-    },
-
-    // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().edges().size()});
-    },
-
-    // attribute writer for basegroup
-    [](auto& grp, [[maybe_unused]] auto& m) {
-        grp->add_attribute("content", "time_series");},
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "property");
-        hdfdataset->add_attribute("coords__property", 
-                                  std::vector<std::string>({"vertex_a",
-                                                            "vertex_b"}));
-        hdfdataset->add_attribute("dim_name__1", "id");
-
-        
-    }    
-); // end edge link adaptor
-
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for T1 cell intercalation counter
 auto T1_adaptor = std::make_tuple(
 
     // name of the task
@@ -695,7 +863,7 @@ auto T1_adaptor = std::make_tuple(
     }
 ); // end T1_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for attempted T1 cell intercalation counter
 auto T1_attempted_adaptor = std::make_tuple(
 
     // name of the task
@@ -727,7 +895,7 @@ auto T1_attempted_adaptor = std::make_tuple(
     }
 ); // end T1_attempted_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for T2 cell extrusion counter
 auto T2_adaptor = std::make_tuple(
 
     // name of the task
@@ -759,7 +927,7 @@ auto T2_adaptor = std::make_tuple(
     }
 ); // end T2_adaptor
 
-/// Datamanager adaptor for total energy
+/// Datamanager adaptor for cell area statistics
 template <typename CellType>
 auto cell_area_adaptor = std::make_tuple(
 
@@ -815,7 +983,7 @@ auto cell_area_adaptor = std::make_tuple(
                                       "area_support_average"}));
 
     }
-); // end energy_adaptor
+); // end cell_area_adaptor
 
 /// Datamanager adaptor for timepoints
 auto statistics_time_adaptor = std::make_tuple(

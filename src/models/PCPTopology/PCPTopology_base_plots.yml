@@ -14,8 +14,10 @@ energy:
       label: line-tension
     Energy/Areaelasticity:
       label: area-elasticity
-    Energy/Contractility:
-      label: contractility
+    Energy/Cell_contractility:
+      label: cell contractility
+    Energy/Edge_contractility:
+      label: edge contractility
 
   helpers:
     set_labels:

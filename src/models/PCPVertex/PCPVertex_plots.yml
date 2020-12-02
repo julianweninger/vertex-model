@@ -13,8 +13,10 @@ energy:
       label: line-tension
     Energy/Areaelasticity:
       label: area-elasticity
-    Energy/Contractility:
-      label: contractility
+    Energy/Cell_contractility:
+      label: cell contractility
+    Energy/Edge_contractility:
+      label: edge contractility
     # Energy/Cell_cell_polarity: 
     #   label: cell-cell-polarity
     # Energy/Polarity_exclusion: 
@@ -35,8 +37,10 @@ energy_mechanics:
       label: line-tension
     Energy/Areaelasticity:
       label: area-elasticity
-    Energy/Contractility:
-      label: contractility
+    Energy/Cell_contractility:
+      label: cell contractility
+    Energy/Edge_contractility:
+      label: edge contractility
 
 energy_polarity:
   based_on: energy

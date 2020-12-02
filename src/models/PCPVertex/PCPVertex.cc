@@ -15,8 +15,9 @@ template<typename ParentType>
 auto model_factory(ParentType &parent) {
     return PCPVertex("PCPVertex", parent, {}, std::make_tuple(
         // the energy adaptors
-        time_energy_adaptor, energy_adaptor, linetension_adaptor,
-        areaelasticity_adaptor, contractility_adaptor,
+        time_energy_adaptor, energy_adaptor,
+        linetension_adaptor, areaelasticity_adaptor,
+        cell_contractility_adaptor, edge_contractility_adaptor,
         cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
         lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // transition adaptors
@@ -26,7 +27,9 @@ auto model_factory(ParentType &parent) {
         vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,
                       typename PCPVertex::CellType>,
-        edges_adaptor));
+        edges_adaptor,
+        cell_energies_adaptor, edge_energies_adaptor
+        ));
 }
 
 int main (int, char** argv) {
