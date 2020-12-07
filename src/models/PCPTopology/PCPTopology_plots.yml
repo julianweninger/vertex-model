@@ -62,6 +62,23 @@ cell_area: &CELLAREA
       x: time
       y: average area
 
+cell_pref_area:
+  <<: *CELLAREA
+
+  select:
+    _property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: area_preferential
+
+  helpers:
+    set_labels:
+      x: time
+      y: average pref. area
+
 cell_shape:
   <<: *CELLAREA
 
@@ -110,7 +127,7 @@ equilibrium_cellular_structure__property: !pspace
     - .default_style_and_helpers
     - cellular_structure
 
-  enabled: false
+  enabled: true
 
   property: !sweep
     default: area_elasticity
