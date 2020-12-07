@@ -653,7 +653,7 @@ OperationBundle build_increment_area (
 
     if (adapt_support and relax_domain) {
         throw std::invalid_argument(fmt::format(
-            "In cfg {}: `adapt_support` and `adapt_domain` cannot both be "
+            "In cfg {}: `adapt_support` and `relax_domain` cannot both be "
             "true!", name));
     }
 
