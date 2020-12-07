@@ -373,7 +373,7 @@ data_manager:
     Hair_cluster: *agents_equilibrium
 
     Cell_energies: &agent_energies
-      active: false
+      active: true
       trigger: build_interval
       decider: write_interval
     Edge_energies: *agent_energies

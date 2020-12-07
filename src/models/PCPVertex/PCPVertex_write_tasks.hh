@@ -489,6 +489,14 @@ auto cells_adaptor = std::make_tuple(
         std::transform(cells.begin(), cells.end(), std::back_inserter(areas),
                        [am](const auto& c) { return am.area_of(c); });
         dataset->write(areas);
+
+        std::vector<double> area_preferentials;
+        area_preferentials.reserve(cells.size());
+        std::transform(cells.begin(), cells.end(),
+                       std::back_inserter(area_preferentials),
+                       [](const auto& c) { 
+                            return c->state.area_preferential; });
+        dataset->write(area_preferentials);
         
         std::vector<double> perimeters;
         perimeters.reserve(cells.size());
@@ -576,7 +584,7 @@ auto cells_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {9, m.get_am().cells().size()});
+            {10, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -592,6 +600,7 @@ auto cells_adaptor = std::make_tuple(
                     "x",
                     "y",
                     "area",
+                    "area_preferential",
                     "perimeter",
                     "shape_index",
                     "num_neighbors",
