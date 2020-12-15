@@ -10,7 +10,7 @@ PCPVertex:
       agent_params: {area_preferential: 1.0, area_preferential_var: 0.0, cell_type: progenitor,
         contractility: 1.0, shape_index_preferential: 3.6}
     edge_manager:
-      agent_params: {contractility: 0.1, linetension: 0.1}
+      agent_params: {contractility: 1.0, linetension: 1.0}
     setup_method: hexagonal
     setup_params:
       hexagonal: {hexagon_size: 0.62, lattice_columns: 4, lattice_rows: 4}

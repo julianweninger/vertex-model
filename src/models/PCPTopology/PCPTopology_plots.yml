@@ -149,6 +149,28 @@ cellular_structure:
     - cellular_structure
   datapath: PCPTopology/PCPVertex
 
+cellular_structure__property: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+  datapath: PCPTopology/PCPVertex
+
+  enabled: false
+
+  property: !sweep
+    default: area_elasticity
+    values: 
+      - area_elasticity
+      - cell_contractility
+      - linetension
+      - edge_contractility
+      - hexatic_order
+
+  property_interpolation_kwargs:
+    method: nearest
+  property_interpolation_plot_kwargs:
+    cmap: Reds
+
 cell_neighbourhood: !pspace
   based_on: cell_neighbourhood
   

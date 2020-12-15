@@ -161,6 +161,15 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             }
         }
 
+        if (cell) {
+            cell->state.area_preferential -= 0.075;
+            
+            for (int i = 0; i < 10; i++) {
+                model.iterate();
+                std::cout << am.area_of(cell) <<std::endl;
+            }
+        }
+
         bool found = std::find(cells.begin(), cells.end(), cell) != cells.end();
         BOOST_TEST(not found);
 

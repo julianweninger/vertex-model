@@ -19,3 +19,14 @@ parameter_space:
           active: false
         Energy_lagrange_const_concentration: 
           active: false
+        Vertices: &agents
+          active: true
+          trigger: build_always
+          decider: write_always
+        Cells: *agents
+        Edges: *agents
+        Cell_energies: &agent_energies
+          active: false
+          trigger: build_always
+          decider: write_always
+        Edge_energies: *agent_energies

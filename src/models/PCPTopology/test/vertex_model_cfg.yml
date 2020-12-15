@@ -1,5 +1,6 @@
 ---
 PCPVertex:
+  log_level: debug
   T1_barrier: 1000.
   T1_probability: 1.
   T1_threshold: 0.2

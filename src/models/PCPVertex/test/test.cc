@@ -5,6 +5,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "utils.hh"
+#include <utopia/core/apply.hh>
 
 #include "../PCPVertex.hh"
 #include "../energy.hh"
@@ -52,8 +53,14 @@ public:
             // NOTE involves iteration
 
             if ((i % 100) == 0) {
-                this->jiggle_vertices(0.4);
+                this->jiggle_vertices(0.2);
             }
+        }
+        
+        // compare dE with energy prediction
+        this->jiggle_vertices(0.02);
+        for (std::size_t i = 0; i < 500; i++) {
+            test_energy_gradient();
         }
     }
 
@@ -112,6 +119,45 @@ public:
             BOOST_TEST(   energies_equal
                        == std::vector<bool>(energies_equal.size(), true));
         }
+    }
+
+    void test_energy_gradient() {
+        const double precision = 1.e-2; // relative error in percent
+        // NOTE only doing linear estimation here
+        
+        // chose a step size in steepest gradient update
+        double dt = 0.00001;
+        // NOTE error is expected to be smaller with small step size
+
+        std::string update_scheme(get_as<std::string>("update_scheme",
+                                                        this->_cfg));
+        BOOST_TEST(update_scheme == "steepest_gradient",
+            "Test of energy prediction relies on fixed step size!");
+        
+        // set the gradient
+        this->init_minimization();
+
+        // the current energy
+        auto energy = this->get_energy();
+
+        const auto& am = this->get_am();
+
+        // A [0,N]-range uniform distribution used for evaluating probabilities
+        std::uniform_int_distribution<> prob_distr(0, am.vertices().size()-1);
+
+        // move a random vertex
+        const auto& random_vertex = am.vertices()[prob_distr(*this->_rng)];
+        const SpaceVec pos = am.position_of(random_vertex);
+        this->get_am().move_by(random_vertex, random_vertex->state.f * dt);
+
+        const SpaceVec d_pos = this->get_space()->displacement(
+            pos, am.position_of(random_vertex));
+
+        // integrate the gradient to obtain the energy change
+        double dE = arma::dot(-1. * random_vertex->state.f, d_pos);
+
+        // compare to the change in energy
+        BOOST_CHECK_CLOSE(dE, this->get_energy() - energy, precision);
     }
 };
 

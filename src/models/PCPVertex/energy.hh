@@ -103,9 +103,7 @@ double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     const auto state = cell->state;
-    // for beta = 0, returns same as perimeter_of(cell)
-    double shape_index = (  _am.perimeter_of_virtual(cell, beta)
-                          / sqrt(state.area_preferential));
+    double shape_index = _am.shape_index_of_virtual(cell, beta);
     return (  0.5 * state.contractility
             * std::pow(shape_index - state.shape_index_preferential, 2));
 };
@@ -362,14 +360,10 @@ double PCPVertex::get_energy (
         const AgentContainer<Cell>& cs,
         double beta) const
 {
-    return get_energy_linetension(es, beta) +
-        get_energy_edge_contractility(es, beta) +
-        get_energy_areaelasticity(cs, beta) +
-        get_energy_cell_contractility(cs, beta);
-        // get_energy_cell_cell_polarity({}) +
-        // get_energy_polarity_exclusion({}) +
-        // get_energy_lagrange_net_polarisation({}) +
-        // get_energy_lagrange_const_concentration({});
+   return (  get_energy_linetension(es, beta)
+           + get_energy_edge_contractility(es, beta)
+           + get_energy_areaelasticity(cs, beta)
+           + get_energy_cell_contractility(cs, beta));
 }
 
 /// Getter for the relative energy change from previous to last step

@@ -40,6 +40,16 @@ public:
     /// The type of the managed edges
     using Edge = Utopia::Agent<EdgeTraits, Space>;
 
+    /// A container of edges associated with a flip boolean
+    /** Every edge within the container has associated vertices a and b.
+     *  The ordering is such that one can iterate the edges vertices a_i to b_i,
+     *  where b_i the same vertex as a_{i+1} and b_N = a_0.
+     *  If the edge's associated flip boolean is True, the ordering is possible
+     *  with a_i and 
+     */
+    using OrderedEdgeContainer = std::vector<std::pair<std::shared_ptr<Edge>,
+                                                       bool>>;
+
     /// The links of a Cell
     template <class CellContainer>
     struct CellLinks {
@@ -281,19 +291,30 @@ public:
     }
 
     /// Calculate the area of a cell
-    /** \note   It is assumed that the edges are ordered anti-clockwise.
-     *          If the edges are ordered clockwise, the area is correct but of 
-     *          negative sign.
+    /** \tparam get_sign    If false the area can have a sign. It will be
+     *                      negative when the cell's edges are ordered clockwise
+     *                      instead of anti-clockwise.
+     *                      If true, throws on counter-clockwise ordering
+     * 
+     *  \note Does not check whether the edges are ordered and in which
+     *        orientation they are ordered.
      */
+    template <bool get_sign = false>
     double area_of (const std::shared_ptr<Cell>& cell) const {
-        return this->area_of_virtual(cell, 0.);
+        return this->area_of_virtual<get_sign>(cell, 0.);
     }
 
     /// Calculate the area of a cell
-    /** \note   It is assumed that the edges are ordered anti-clockwise.
-     *          If the edges are ordered clockwise, the area is correct but of 
-     *          negative sign.
+    /** \param beta     The update step length at which to predict the area
+     *  \tparam get_sign    If false the area can have a sign. It will be
+     *                      negative when the cell's edges are ordered clockwise
+     *                      instead of anti-clockwise.
+     *                      If true, throws on counter-clockwise ordering
+     * 
+     *  \note Does not check whether the edges are ordered and in which
+     *        orientation they are ordered.
      */
+    template <bool get_sign = false>
     double area_of_virtual (const std::shared_ptr<Cell>& cell,
                             double beta) const {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
@@ -338,8 +359,41 @@ public:
             area += a[0] * b[1] - b[0] * a[1];
         }
 
-        // since the edges have to be ordered anti-clockwise 
-        return 0.5 * area;
+        area *= 0.5;
+
+        if constexpr (not get_sign) {
+            // With beta = 0, negative area not allowed
+            if (area < 0. and beta == 0.) {
+                throw std::runtime_error(fmt::format(
+                    "Negative area ({}) of cell {}!", area, cell->id()));
+            }
+            else if (area < 0.) {
+                return std::nan("1");
+            }
+        }
+
+        return area;
+    }
+
+    /// Calculate the shape index of a cell
+    /** shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$
+     *  and area \f$ A \f$.
+     */ 
+    double shape_index_of (const std::shared_ptr<Cell>& cell) const {
+        return this->shape_index_of_virtual(cell, 0.);
+    }
+
+    /// Calculate the shape index of a cell
+    /** shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$
+     *  and area \f$ A \f$.
+     * 
+     *  \param beta     The update step length at which to predict the area
+     */ 
+    double shape_index_of_virtual (const std::shared_ptr<Cell>& cell,
+                                   double beta) const
+    {
+        return (  perimeter_of_virtual(cell, beta)
+                / sqrt( area_of_virtual(cell, beta) ));
     }
     
     /// Returns the barycenter of the given cell
@@ -648,22 +702,18 @@ private:
                    AgentContainer<Edge> edges,
                    const Config& custom_cfg = {})
     {
-        auto c = _cell_manager.add_agent(_prepare_pos(pos), custom_cfg);
-        c->custom_links().edges = this->order_edges(edges);
+        auto cell = _cell_manager.add_agent(_prepare_pos(pos), custom_cfg);
+        cell->custom_links().edges = this->order_edges(edges);
 
         // check that edges are anti-clockwise
-        if (area_of(c) < 0.) {
-            // they are clockwise -> flip all edges and start from back
-            auto& edges = c->custom_links().edges;
-            const auto tmp_edges = c->custom_links().edges;
-            edges.clear();
-            for (const auto& [e, flip] : tmp_edges) {
-                edges.insert(edges.begin(), std::make_pair(e, not flip));
-            }
+        if (area_of<true>(cell) < 0.) {
+            // they are clockwise -> reverse ordering
+            cell->custom_links().edges = reverse_edge_ordering(
+                    cell->custom_links().edges);
         }
         
         AgentContainer<Vertex> vertices;
-        for (auto [e, flip] : c->custom_links().edges) {
+        for (auto [e, flip] : cell->custom_links().edges) {
             if (not flip) {
                 vertices.push_back(e->custom_links().a);
             }
@@ -671,27 +721,27 @@ private:
                 vertices.push_back(e->custom_links().b);
             }
         }
-        c->custom_links().vertices = vertices;
+        cell->custom_links().vertices = vertices;
 
         // Create the required weak links
         for (const auto& v : vertices) {
-            _vertices_adjoint_cells[v->id()].push_back(c);
+            _vertices_adjoint_cells[v->id()].push_back(cell);
         }
-        for (const auto& [e, flip] : c->custom_links().edges) {
+        for (const auto& [e, flip] : cell->custom_links().edges) {
             auto [adj_cell_a, adj_cell_b] = _edges_adjoint_cells[e->id()];
 
             if (not adj_cell_a) {
-                adj_cell_a = c;
+                adj_cell_a = cell;
             }
             else if (not adj_cell_b) {
-                adj_cell_b = c;
+                adj_cell_b = cell;
             }
 
             _edges_adjoint_cells[e->id()] = std::make_pair(adj_cell_a,
                                                            adj_cell_b);
         }
 
-        return c;
+        return cell;
     }
 
     /// Create a Cell with properties inherited from a parent cell
@@ -731,7 +781,7 @@ private:
      *  \warning    It fails if the edges do not form a closed boundary
      */
     std::vector<std::pair<std::shared_ptr<Edge>, bool>> order_edges (
-            AgentContainer<Edge> edges)
+            AgentContainer<Edge> edges) const
     {
         std::vector<std::pair<std::shared_ptr<Edge>, bool>> ordered_edges;
        
@@ -791,6 +841,20 @@ private:
         }
 
         return ordered_edges;        
+    }
+
+    /// Reverse the ordering of an ordered edge container
+    std::vector<std::pair<std::shared_ptr<Edge>, bool>> reverse_edge_ordering (
+            std::vector<std::pair<std::shared_ptr<Edge>,bool>> ordered_edges)
+            const
+    {
+        std::vector<std::pair<std::shared_ptr<Edge>, bool>> new_edges;
+        // they are clockwise -> flip all edges and inverse order
+        for (const auto& [e, flip] : ordered_edges) {
+            new_edges.insert(new_edges.begin(), std::make_pair(e, not flip));
+        }
+
+        return new_edges;
     }
 
     /// Depending on periodicity, return the function to prepare positions of

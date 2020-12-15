@@ -560,12 +560,11 @@ private:
 
             SpaceVec displ = post - prior;
 
-            double dA_dx = 0.5 * displ[1];
-            double dA_dy = -0.5 * displ[0];
+            // derivative of A to x_i, i.e. the position of v_center 
+            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
 
             SpaceVec force = (  -1. * this->_area_elasticity
-                              * (rel_cell_area - 1)
-                              * SpaceVec({dA_dx, dA_dy})
+                              * (rel_cell_area - 1) * dA_dx
                               / state.area_preferential);
 
             v_center->state.f += force;
@@ -574,30 +573,70 @@ private:
         return state;
     };
 
-    /// Contractility of the cell perimeter
-    /** Associated energy per cell is 
-     *  \Gamma / 2 L_cell^2, with L_cell the cell perimeter
-     */
+    /// Constriction on the cell's shape index
     const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
     {
         auto state = cell->state;
-        double shape_index = (  this->_am.perimeter_of(cell)
-                              / sqrt(state.area_preferential));
+        const double area = _am.area_of(cell);
+        const double perimeter = this->_am.perimeter_of(cell);
+        const double shape_index = perimeter / sqrt(area);
 
-        for (auto [e, flip] : cell->custom_links().edges) {
-            auto a = e->custom_links().a;
-            auto b = e->custom_links().b;
-            if (flip) { std::swap(a, b); }
+        const SpaceVec cell_center = this->_am.barycenter_of(cell);
+        
+        const auto& edges = cell->custom_links().edges;
+        for (unsigned int edges_it = 0; edges_it < edges.size(); edges_it++) {
+            std::shared_ptr<Edge> e0; bool e0_flip;
+            if (edges_it > 0) { 
+                std::tie(e0, e0_flip) = edges[edges_it - 1];
+            }
+            else {
+                std::tie(e0, e0_flip) = edges.back();
+            }
 
-            SpaceVec displ = this->_am.displacement(a, b);
-            double length = arma::norm(displ);
+            const auto [e1, e1_flip] = edges[edges_it];
+            
+            // vertices in ordering
+            auto v_center = e0->custom_links().b;
+            auto v_prior = e0->custom_links().a;
+            if (e0_flip) {
+                std::swap(v_center, v_prior);
+            }
 
-            SpaceVec force = (  state.contractility * displ / length
-                              / sqrt(state.area_preferential)
-                              * (shape_index - state.shape_index_preferential));
+            std::shared_ptr<Vertex> v_post;
+            if (not e1_flip) {
+                v_post = e1->custom_links().b;
+            }
+            else {
+                v_post = e1->custom_links().a;
+            }
 
-            a->state.f += force;
-            b->state.f -= force;
+            // get positions relative to cell center
+            SpaceVec center = cell_center + 
+                              this->_space->displacement(cell_center,
+                                                    _am.position_of(v_center));
+            SpaceVec prior = cell_center + 
+                             this->_space->displacement(cell_center,
+                                                    _am.position_of(v_prior));
+            SpaceVec post = cell_center + 
+                            this->_space->displacement(cell_center,
+                                                    _am.position_of(v_post));
+
+            // calculate dA / dx_i
+            SpaceVec displ = post - prior;
+            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
+
+            // calculate dP / dx_i
+            SpaceVec displ_2 = this->_space->displacement(prior, center);
+            SpaceVec displ_3 = this->_space->displacement(center, post);
+            SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
+                              - displ_3 / arma::norm(displ_3));
+
+            SpaceVec dE_dx = (  state.contractility
+                              * (shape_index - state.shape_index_preferential)
+                              * (  dP_dx / sqrt(area)
+                                 - 0.5 * dA_dx * shape_index / area));
+
+            v_center->state.f -= dE_dx;
         }
 
         return state;
@@ -906,13 +945,22 @@ public:
      */
     std::size_t minimize_energy(const MinimizationParams& params)
     {
-        const auto time_0 = this->get_time();
+        this->increment_time();
+        this->_datamanager(*this);            
+        this->_log->debug("Incremented time (initial condition after external "
+                          "perturbation): {:7d} / {:d}",
+                          this->_time, this->_time_max);
 
+        const auto time_0 = this->get_time();
         this->_log->debug("Minimizing energy from step {}", time_0);
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
             this->jiggle_vertices(params.jiggle_intensity);
+            this->increment_time();
+            this->_datamanager(*this);            
+            this->_log->debug("Finished jiggling: {:7d} / {:d}",
+                              this->_time, this->_time_max);
 
             double tolerance;
             if (i+1 == params.num_repeat) {
