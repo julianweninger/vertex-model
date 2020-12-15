@@ -43,9 +43,7 @@ parameter_space:
       - jiggle:
           times: [2]
           iterations_prolog: 0
-
-          minimization:
-            num_repeat: 5
+          
       - proliferate:
           times: !listgen [3, 1000]
           iterations_prolog: 0
@@ -56,16 +54,6 @@ parameter_space:
 
           num_increases: 0
           area_threshold: 0.
-
-          minimization:
-            mode: manual
-
-      - jiggle:
-          times: !listgen [3, 1000]
-          iterations_prolog: 0
-
-          minimization:
-            num_repeat: 5
 
     PCPVertex:
       log_level: info

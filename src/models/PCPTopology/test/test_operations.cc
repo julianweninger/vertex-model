@@ -81,9 +81,13 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
         name, get_as<Config>(name, cfg), default_minim_params));
     model.prolog();
     time = model.get_continuous_time();
-    BOOST_TEST(time - prev_time == 8); // 4 iterations, minimize every
-    prev_time = time;
+    BOOST_TEST(time - prev_time == 20);
 
+    // 5 steps per minimization
+    // 2 repeats
+    // jiggle + step each repeat,
+    // 1 for initial condition per minimization
+    // 2 x 2 + 1 = 5 iterations
     std::function<std::size_t(Models::PCPVertex::PCPTopology&,
                               std::string)> apply = 
         [cfg, default_minim_params]
@@ -97,29 +101,30 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
         return (model.get_continuous_time() - time);
     };
 
-    BOOST_TEST(apply(model, "apply_operation") == 10);
+    BOOST_TEST(apply(model, "apply_operation") == 25);
     // NOTE 5 iterations, minimize every
 
-    BOOST_TEST(apply(model, "apply_operation_every") == 10);
+    BOOST_TEST(apply(model, "apply_operation_every") == 25);
     // NOTE 5 iterations, minimize every
 
-    BOOST_TEST(apply(model, "apply_operation_once") == 2);
+    BOOST_TEST(apply(model, "apply_operation_once") == 5);
     // NOTE 5 iterations, minimize once
 
     BOOST_TEST(apply(model, "apply_operation_manual") == 0);
-    // NOTE 5 iterations, minimize every
+    // NOTE 5 iterations, no minimization
 
-    BOOST_TEST(apply(model, "apply_operation_repeat") == 15);
-    // NOTE 5 iterations, minimize every 3 times
+    BOOST_TEST(apply(model, "apply_operation_repeat") == 35);
+    // NOTE 5 iterations, jiggle 3 times (2x3 + 1)
         
     name = "apply_operation_epilog";
     model.register_operation(build_jiggle(
         name, get_as<Config>(name, cfg), default_minim_params));
+    
     prev_time = model.get_continuous_time();
     model.epilog();
+    
     time = model.get_continuous_time();
-    BOOST_TEST(time - prev_time == 8); // 4 iterations, minimize every
-    prev_time = time;
+    BOOST_TEST(time - prev_time == 20);
 }
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)

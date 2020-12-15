@@ -44,10 +44,10 @@ agent_manager:
       area_preferential: 1.
       area_preferential_var: 0.
       shape_index_preferential: 3.6
-      contractility: 0.
+      contractility: 1.
       cell_type: progenitor
 
-initial_jiggle: 0.05
+initial_jiggle: 0.2
 
 # --- Dynamics
 # damping factor
@@ -81,7 +81,7 @@ data_manager:
       type: interval
       args:
         intervals:
-          - [0, 1000000, 1]
+          - [0, 1000000, 5]
 
     write_at_last:
       type: once

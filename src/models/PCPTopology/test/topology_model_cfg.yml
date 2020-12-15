@@ -2,7 +2,7 @@
 PCPTopology:
   log_level: debug
   PCPVertex:
-    log_level: info
+    log_level: debug
     T1_barrier: 0.02
     T1_probability: 0.
     T1_separation_factor: 3

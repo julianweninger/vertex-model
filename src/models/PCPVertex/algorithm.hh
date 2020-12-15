@@ -18,8 +18,17 @@ std::pair<double, double> PCPVertex::determine_timestep (
         const double dt, const double energy_0,
         const double tolerance) const
 {
+    /// Capture nan energy values
+    const std::function<double(double)> get_energy = [this](double beta) {
+        double energy = this->get_energy(beta);
+        if (isnan(energy)) {
+            return std::numeric_limits<double>::max();
+        }
+        return energy;
+    };
+
     // check that energy is actually decreasing in direction of update
-    double tmp_energy = this->get_energy(1e-8);
+    double tmp_energy = get_energy(1e-8);
     if (tmp_energy >= energy_0) {
         this->_log->trace("Already in minimum. At step size of 1e-8 the energy "
             "along direction of update increased by {}.",
@@ -32,9 +41,9 @@ std::pair<double, double> PCPVertex::determine_timestep (
     // E_2 (dt = pos_2) > E_0(dt = 0) > E_min (dt = pos_min)
     // Start search with previous dt
     double pos_2 = std::max(std::min(2*dt, 2.), 1e-8); // right boundary
-    double energy_2 = this->get_energy(pos_2); // energy at right boundary
+    double energy_2 = get_energy(pos_2); // energy at right boundary
     double pos_min = pos_2 / 2.; // the minimum
-    double energy_min = this->get_energy(pos_min); // energy at minimum
+    double energy_min = get_energy(pos_min); // energy at minimum
     while (true) {
         if (pos_min > 3000.) {
             if (fabs(energy_2 - energy_0) < tolerance) {
@@ -52,7 +61,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
                 }
                 this->_log->error("DEBUG At step of {} along direction of "
                     "update the energy is changing by {} at max displacement "
-                    "of {}", beta, this->get_energy(beta) - energy_0,
+                    "of {}", beta, get_energy(beta) - energy_0,
                     max_displ);
             }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
@@ -77,7 +86,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
 
             // increase interval
             pos_2 *= 2.;
-            energy_2 = this->get_energy(pos_2);
+            energy_2 = get_energy(pos_2);
             continue;
         }
 
@@ -88,7 +97,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
             energy_2 = energy_min;
 
             pos_min = pos_2 / 2.;
-            energy_min = this->get_energy(pos_min);
+            energy_min = get_energy(pos_min);
             continue;
         }
 
@@ -129,7 +138,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
         }
 
         // if the found minimum is precise enough
-        double energy_3 = this->get_energy(pos_3);
+        double energy_3 = get_energy(pos_3);
         if (fabs(energy_3 - energy_min) < tolerance) {
             // found the minimum with required precision
             if (energy_3 < energy_min) {
@@ -184,7 +193,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
 /// Initialisation of the energy minisation process
 void PCPVertex::init_minimization ()
 {
-    _energy = this->get_energy();
+    _energy = get_energy();
 
     set_gradient();
 
@@ -236,7 +245,7 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
     apply_rule<Update::sync>(update_position, _am.vertices());
 
     if (not adaptive_step) {
-        return this->get_energy();
+        return get_energy();
     }
     else {
         return new_energy;

@@ -110,13 +110,6 @@ struct CellState {
     /// The reference shape index
     double shape_index_preferential;
 
-    /// The preferential perimeter of the cell
-    /** \f$ p_0 = shape_index_preferential * \sqrt{area_preferential} \f$
-     */
-    double perimeter_preferential () const {
-        return shape_index_preferential * sqrt(area_preferential);
-    }
-
     /// The contractility of the cell
     double contractility;
 
