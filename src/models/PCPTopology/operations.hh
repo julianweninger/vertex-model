@@ -1136,17 +1136,6 @@ OperationBundle build_proliferate (
             0, current_generation.size() - 1);
         
         auto cell = current_generation[int_dist(*vertex_model.get_rng())];
-        if (not vertex_model.get_space()->periodic) {
-            for (auto [e, flip] : cell->custom_links().edges) {
-                const auto [adj_cell_a, adj_cell_b] = am.adjoints_of(e);
-                if (not adj_cell_a or not adj_cell_b) {
-                    throw std::runtime_error(
-                        "Cannot divide randomly chosen cell, because it is a "
-                        "boundary cell. Division of boundary cells in "
-                        "non-periodic boundary conditions is not implemented.");
-                }
-            }
-        }
 
         double area_preferential = cell->state.area_preferential;
         if (num_increases > 0) {
