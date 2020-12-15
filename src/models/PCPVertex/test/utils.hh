@@ -2,6 +2,7 @@
 #define UTOPIA_MODELS_PCPVERTEX_TEST_UTILS_HH
 
 #include <assert.h>
+#include <math.h>
 #include <iostream>
 #include <boost/test/unit_test.hpp>
 
@@ -54,23 +55,31 @@ struct ModelFixture {
  *           This order is not maintained through some transitions.
  */
 template <class PCPVertex>
-void test_custom_links(PCPVertex& model) {
+void test_custom_links_periodic(PCPVertex& model) {
     const auto& am = model.get_am();
 
     for (auto v : am.vertices()) {
+        BOOST_TEST(not v->state.remove);
+
+        // test the adjacent edges
         auto adj_edges = am.adjoint_edges_of(v);
         BOOST_TEST(adj_edges.size() == 3);
         for (auto e : adj_edges) {
             BOOST_TEST(e);
         }
 
+        // test the adjacent cells
         auto adj_cells = am.adjoint_cells_of(v);
         BOOST_TEST(adj_cells.size() == 3);
         for (auto c : adj_cells) {
             BOOST_TEST(c);
         }
     }
+
     for (auto e : am.edges()) {
+        BOOST_TEST(not e->state.remove);
+
+        // test the vertices
         BOOST_TEST(e->custom_links().a);
         BOOST_TEST(e->custom_links().b);
 
@@ -81,22 +90,32 @@ void test_custom_links(PCPVertex& model) {
         BOOST_TEST((std::find(adj_edges.begin(), adj_edges.end(), e) != 
                     adj_edges.end()));
 
-        auto [adj_a, adj_b] = am.adjoints_of(e);
-        BOOST_TEST(adj_a);
-        BOOST_TEST(adj_b);
+        // test the adjoint cells
+        const auto [a, b] = am.adjoints_of(e);
+        BOOST_TEST((a and b));
     }
-    for (auto c : am.cells()) {
-        BOOST_TEST(am.area_of(c) > 0);
 
-        const auto& vertices = c->custom_links().vertices;
+    for (auto c : am.cells()) {
+        // test the cell
+        BOOST_TEST(not c->state.remove);
+
+        double area = am.area_of(c);
+        BOOST_TEST(not isnan(area));
+        BOOST_TEST(area > 0);
+
+        BOOST_TEST(am.perimeter_of(c) > 0.);
+        
         const auto& edges = c->custom_links().edges;
+        const auto& vertices = c->custom_links().vertices;
+        
+        // test vertices
+        BOOST_TEST(vertices.size() == edges.size());
+        BOOST_TEST(vertices.size() >= 3);
         for (auto v : vertices) {
             BOOST_TEST(v);
         }
 
-        BOOST_TEST(vertices.size() == edges.size());
-        BOOST_TEST(vertices.size() >= 3);
-        
+        // test edges        
         auto [e, flip] = edges[0];
         auto first = e->custom_links().a;
         auto iterator = e->custom_links().b;
@@ -118,6 +137,151 @@ void test_custom_links(PCPVertex& model) {
             }
         }
         BOOST_TEST(iterator == first);
+
+        // test cell neighbors
+        BOOST_TEST(am.neighbors_of(c).size() == edges.size());
+    }
+}
+
+
+/// This tests the custom_links of all agents living in the model
+/** \details Tested are the neighborhood information stored in custom_links.
+ *           These must be correct at all times.
+ *  \note    Not tested is currently the order of vertices associated to a cell.
+ *           This order is not maintained through some transitions.
+ */
+template <class PCPVertex>
+void test_custom_links_non_periodic(PCPVertex& model) {
+    const auto& am = model.get_am();
+
+    for (auto v : am.vertices()) {
+        BOOST_TEST(not v->state.remove);
+
+        // test the adjacent edges
+        auto adj_edges = am.adjoint_edges_of(v);
+        if (am.is_2_fold_boundary_vertex(v)) {
+            BOOST_TEST(adj_edges.size() == 2);
+        }
+        else {
+            BOOST_TEST(adj_edges.size() == 3);
+        }
+        for (auto e : adj_edges) {
+            BOOST_TEST(e);
+        }
+
+        // test the adjacent cells
+        auto adj_cells = am.adjoint_cells_of(v);        
+        if (am.is_2_fold_boundary_vertex(v)) {
+            BOOST_TEST(adj_cells.size() == 1);
+        }
+        else if (am.is_3_fold_boundary_vertex(v)) {
+            BOOST_TEST(adj_cells.size() == 2);
+        }
+        else {
+            BOOST_TEST(adj_cells.size() == 3);
+        }
+        for (auto c : adj_cells) {
+            BOOST_TEST(c);
+        }
+    }
+
+    for (auto e : am.edges()) {
+        BOOST_TEST(not e->state.remove);
+
+        // test the vertices
+        BOOST_TEST(e->custom_links().a);
+        BOOST_TEST(e->custom_links().b);
+
+        auto adj_edges = am.adjoint_edges_of(e->custom_links().a);
+        BOOST_TEST((std::find(adj_edges.begin(), adj_edges.end(), e) != 
+                    adj_edges.end()));
+        adj_edges = am.adjoint_edges_of(e->custom_links().b);
+        BOOST_TEST((std::find(adj_edges.begin(), adj_edges.end(), e) != 
+                    adj_edges.end()));
+
+        // test the adjoint cells
+        const auto [a, b] = am.adjoints_of(e);
+        if (am.is_1_cell_boundary_edge(e)) {
+            BOOST_TEST((a or b));
+            if (not a) {
+                BOOST_TEST(b);
+            }
+            else if (not b) {
+                BOOST_TEST(a);
+            }
+        }
+        else {
+            BOOST_TEST((a and b));
+        }
+    }
+
+    for (auto c : am.cells()) {
+        BOOST_TEST(not c->state.remove);
+
+        const auto& edges = c->custom_links().edges;
+        const auto& vertices = c->custom_links().vertices;
+        
+        // test the cell
+        double area = am.area_of(c);
+        BOOST_TEST(not isnan(area));
+        BOOST_TEST(area > 0);
+
+        BOOST_TEST(am.perimeter_of(c) > 0.);
+
+        // test vertices
+        BOOST_TEST(vertices.size() == edges.size());
+        BOOST_TEST(vertices.size() >= 3);
+        for (auto v : vertices) {
+            BOOST_TEST(v);
+        }
+        
+        // test edges        
+        auto [e, flip] = edges[0];
+        auto first = e->custom_links().a;
+        auto iterator = e->custom_links().b;
+        if (flip) {
+            std::swap(first, iterator);
+        }
+
+        for (unsigned int i = 1; i < edges.size(); i++) {
+            auto [e, flip] = edges[i];
+            BOOST_TEST(e);
+
+            if (not flip) {
+                BOOST_TEST(iterator == e->custom_links().a);
+                iterator = e->custom_links().b;
+            }
+            else {
+                BOOST_TEST(iterator == e->custom_links().b);
+                iterator = e->custom_links().a;
+            }
+        }
+        BOOST_TEST(iterator == first);
+
+        // test cell neighbors
+        if (not am.is_boundary(c)) {
+            BOOST_TEST(am.neighbors_of(c).size() == edges.size());
+        }
+        else {
+            BOOST_TEST(am.neighbors_of(c).size() < edges.size());
+        }
+    }
+}
+
+
+/// This tests the custom_links of all agents living in the model
+/** \details Tested are the neighborhood information stored in custom_links.
+ *           These must be correct at all times.
+ *  \note    Not tested is currently the order of vertices associated to a cell.
+ *           This order is not maintained through some transitions.
+ */
+template <class PCPVertex>
+void test_custom_links(PCPVertex& model) {
+    if (model.get_space()->periodic) {
+        return test_custom_links_periodic(model);
+    }
+    else {
+        return test_custom_links_non_periodic(model);
     }
 }
 

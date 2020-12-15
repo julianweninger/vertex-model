@@ -33,6 +33,16 @@ PCPVertex model_factory(bool periodic) {
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
+    BOOST_AUTO_TEST_CASE(test_weak_links_periodic) {
+        auto model = model_factory(true);
+        test_custom_links(model);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_weak_links_non_periodic) {
+        auto model = model_factory(false);
+        test_custom_links(model);
+    }
+
     void test_divide_cell(bool periodic) {
         auto model = model_factory(periodic);
 
@@ -42,7 +52,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         const auto edges = am.edges();
         const auto vertices = am.vertices();
 
-        auto cell = cells[cells.size() / 2];
+        auto cell = cells[5];
+        // NOTE this is a bulk cell
 
         // set arbitrary values and check inheritance
         cell->state.area_preferential = 0.314;
@@ -81,13 +92,12 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         model.run();
     }
 
-    // BOOST_AUTO_TEST_CASE(test_divide_cell_non_periodic) {
-    //     test_divide_cell(false);
-    // }
-    // FIXME requires activation
-
     BOOST_AUTO_TEST_CASE(test_divide_cell_periodic) {
         test_divide_cell(true);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_divide_cell_non_periodic) {
+        test_divide_cell(false);
     }
 
     void test_T1_transition(bool periodic) {
@@ -125,13 +135,12 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         test_custom_links(model);
     }
 
-    // BOOST_AUTO_TEST_CASE(test_T1_non_periodic) {
-    //     test_T1_transition(false);
-    // }
-    // FIXME requires activation
-
     BOOST_AUTO_TEST_CASE(test_T1_periodic) {
         test_T1_transition(true);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_T1_non_periodic) {
+        test_T1_transition(false);
     }
 
     void test_T2_transition(bool periodic) {
@@ -148,7 +157,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         auto num_edges = edges.size();
         auto num_vertices = vertices.size();
 
-        auto cell = cells[cells.size() / 2 + 4];
+        auto cell = cells[5];
+        // NOTE this is a bulk cell
 
         // decrement area in small steps to avoid numerical errors!
         for (int i = 0; i < 9; i++) {
@@ -166,7 +176,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             
             for (int i = 0; i < 10; i++) {
                 model.iterate();
-                std::cout << am.area_of(cell) <<std::endl;
             }
         }
 
@@ -185,13 +194,12 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         test_custom_links(model);
     }
 
-    // BOOST_AUTO_TEST_CASE(test_T2_non_periodic) {
-    //     test_T2_transition(false);
-    // }
-    // FIXME requires activation
-
     BOOST_AUTO_TEST_CASE(test_T2_periodic) {
         test_T2_transition(true);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_T2_non_periodic) {
+        test_T2_transition(false);
     }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -112,9 +112,10 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         }
         offset = get_as_SpaceVec<2>("non_periodic_offset",
                                     this->_cfg["vertex_manager"]);
-        _space->set_domain_size(SpaceVec({num_columns + 1.,
-                                           0.75 * (num_rows + 1)}) % 
-                                           cell_shape + 2 * offset);
+        _space->set_domain_size(arma::max(_space->get_domain_size(),
+                                          (  SpaceVec({num_columns + 1.,
+                                                       0.75 * (num_rows + 1)})
+                                           % cell_shape + 2 * offset)));
     }
 
     // Add vertices
@@ -303,16 +304,26 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         }
 
         for (const auto& v : vertices_remove) {
-            _vertex_manager.remove_agent(v);
+            v->state.remove = true;
+            this->remove_vertex(v);
         }
         for (const auto& e : edges_remove) {
-            _edge_manager.remove_agent(e);
-        }
-    }
+            e->state.remove = true;
 
-    for (const auto& e : this->edges()) {
-        position_of(e->custom_links().a);
-        position_of(e->custom_links().b);
+            // remove the edge from weak links
+            for (const auto& v : {e->custom_links().a, e->custom_links().b}) {
+                if (not v->state.remove) {
+                    auto adjoints = _vertices_adjoint_edges.at(v->id());
+                    adjoints.erase(std::remove(adjoints.begin(), adjoints.end(),
+                                               e),
+                                   adjoints.end());
+                    _vertices_adjoint_edges.erase(v->id());
+                    _vertices_adjoint_edges[v->id()] = adjoints;
+                }
+            }
+            
+            this->remove_edge(e);
+        }
     }
 
     this->_log->info("Initialised hexagonal cells.");

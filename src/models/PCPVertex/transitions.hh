@@ -32,12 +32,13 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         double division_angle,
         EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility)
 {
-    this->_log->debug("Dividing cell ...");
- 
-    if (not _space->periodic) {
-        throw std::runtime_error("Cell division not implemented in "
-            "non-periodic boundary condition!");
+    if (this->is_boundary(cell)) {
+        this->_log->error("Not dividing cell {}, because cell division of "
+                          "boundary cells not defined!", cell->id());
+        return;
     }
+
+    this->_log->info("Dividing cell ...");
 
     // The cell to be divided
     cell->state.remove = true;
@@ -309,10 +310,14 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number)
 {
-    if (not _space->periodic) {
-        throw std::runtime_error("T1 transition not implemented in "
-            "non-periodic boundary condition!");
+    if (this->is_boundary(edge)) {
+        this->_log->error("Not removing edge {}, because cell intercation "
+                          "(T1 transition on an edge) division of boundary "
+                          "edges not defined!", edge->id());
+        return false;
     }
+
+    this->_log->debug("Removing edge {} in T1 transition ...", edge->id());
 
     auto vertex_a = edge->custom_links().a;
     auto vertex_b = edge->custom_links().b;
@@ -341,7 +346,6 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
                 "is removed, rather than performing a T1 transition!",
                 area_of(c));
             return false;
-            // TODO check algorithm at this point
         }
     }
 
@@ -587,11 +591,20 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 template<class Model>
 bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
 {
+    if (this->is_boundary(cell)) {
+        this->_log->error("Not removing cell {}, because cell extrusion "
+                          "(T2 transition) of boundary cells not defined!",
+                          cell->id());
+        return false;
+    }
+
     if (cell->custom_links().edges.size() != 3) {
         this->_log->debug("Delaying T2 transition, because the cell has more "
             "3 vertices (has {} vertices).", cell->custom_links().edges.size());
         return false;
     }
+
+    this->_log->debug("Removing cell in T2 transition ...");
 
     cell->state.remove = true;
     for (auto &v : cell->custom_links().vertices) {

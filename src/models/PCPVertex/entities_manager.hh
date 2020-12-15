@@ -8,6 +8,7 @@ namespace Utopia::Models::PCPVertex {
 
 template<class Model>
 struct EntitiesManager {
+
 public:
     /// The type of the space
     using Space = typename Model::Space;
@@ -101,6 +102,7 @@ public:
     using RuleFuncCell = std::function<typename Cell::State(
                                                const std::shared_ptr<Cell>&)>;
 
+
 private:
     /// The logger (same as the model this manager resides in)
     const std::shared_ptr<spdlog::logger> _log;
@@ -124,10 +126,10 @@ private:
     std::unordered_map<int, std::pair<
             std::shared_ptr<Cell>, std::shared_ptr<Cell>>> _edges_adjoint_cells;
 
-    /// The container of adjoint edges to a every vertex
+    /// The container of adjoint edges to every vertex
     std::unordered_map<int, AgentContainer<Edge>> _vertices_adjoint_edges;
 
-    /// The container of adjoint edges to a every vertex
+    /// The container of adjoint edges to every vertex
     std::unordered_map<int, AgentContainer<Cell>> _vertices_adjoint_cells;
 
     /// Function that will be used to prepare positions for adding an agent
@@ -136,7 +138,8 @@ private:
 public:
     EntitiesManager (Model& model, const Config& custom_cfg = {})
     :
-        _log(model.get_logger()),
+        _log(spdlog::stdout_color_mt(  model.get_logger()->name()
+                                     + ".entities_manager")),
         _cfg(setup_cfg(model, custom_cfg)),
         _space(model.get_space()),
         _vertex_manager(model, setup_vertex_cfg()),
@@ -144,6 +147,18 @@ public:
         _cell_manager(model, setup_cell_cfg()),
         _prepare_pos(setup_prepare_pos_func())
     {
+        // Set this model instance's log level
+        if (_cfg["log_level"]) {
+            // Via value given in configuration
+            const auto lvl = get_as<std::string>("log_level", _cfg);
+            _log->debug("Setting log level to '{}' ...", lvl);
+            _log->set_level(spdlog::level::from_str(lvl));
+        }
+        else {
+            // No config value given; use the level of the parent's logger
+            _log->set_level(model.get_logger()->level());
+        }
+
         setup_agents();
         _log->info("EntitiesManager is all set up.");
     }
@@ -198,6 +213,34 @@ public:
                  const SpaceVec& move_vec) const
     {
         return move_by(*vertex, move_vec);
+    }
+
+    /// Calculate to where a vertex would move
+    /** Vertices move along the self-managed value Vertex::State::f.
+     * 
+     *  The result is also stored in vertex->state.virtual_position.
+     * 
+     *  \param beta     The step size along the direction of update
+     */
+    const SpaceVec& displace_virtual (const std::shared_ptr<Vertex>& vertex,
+                                      double beta) const {
+        if (std::get<double>(vertex->state.virtual_pos) == beta) {
+            return std::get<SpaceVec>(vertex->state.virtual_pos);
+        }
+
+        SpaceVec pos = position_of(vertex) + beta * vertex->state.f;
+        
+        if (this->_space->periodic) {
+            pos = this->_space->map_into_space(pos);
+        }
+        else {
+            if (not this->_space->contains(pos)) {
+                throw OutOfSpace(pos, this->_space, "Could not move agent!");
+            }
+        }
+
+        vertex->state.virtual_pos = std::make_pair(beta, pos);
+        return std::get<SpaceVec>(vertex->state.virtual_pos);
     }
 
     /// The displacement between two vertices
@@ -399,6 +442,8 @@ public:
     /// Returns the barycenter of the given cell
     /** \note   It is assumed that the edges are ordered anti-clockwise or 
      *          clock-wise
+     * 
+     *  \param cell     The considered cell
      */
     SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) const {
         static_assert(Space::dim == 2, "Center of a cell is only implemented "
@@ -435,12 +480,22 @@ public:
         return _space->map_into_space(center / (6 * area));
     }
 
+    /// The adjoint edges of a vertex
+    /** The container of edges starting or ending in this vertex
+     * 
+     *  \param vertex   The considered vertex
+     */
     AgentContainer<Edge> adjoint_edges_of(
             const std::shared_ptr<Vertex>& vertex) const
     {
         return _vertices_adjoint_edges.at(vertex->id());
     }
 
+    /// The adjoint cells of a vertex
+    /** The container of cells that include this vertex in their boundary
+     * 
+     *  \param vertex   The considered vertex
+     */
     AgentContainer<Cell> adjoint_cells_of(
             const std::shared_ptr<Vertex>& vertex) const
     {
@@ -448,13 +503,22 @@ public:
     }
 
     /// The adjoint cells of an edge
+    /** The cells on either side of this edge, i.e. those that include the edge
+     *  in their boundary
+     * 
+     *  \param edge   The considered edge
+     */
     std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell>> adjoints_of(
             const std::shared_ptr<Edge>& edge) const
     {
         return _edges_adjoint_cells.at(edge->id());
     }
 
-    /// The neighbors of a cell
+    /// The neighboring cells to a cell
+    /** The cells that are separated from this cell by a common edge
+     * 
+     *  \param cell   The considered cell
+     */
     AgentContainer<Cell> neighbors_of(const std::shared_ptr<Cell>& cell) const
     {
         AgentContainer<Cell> neighbors;
@@ -472,8 +536,13 @@ public:
         return neighbors;
     }
 
-    // The neighbors of a cell
-    AgentContainer<Cell> hair_neighbors_of(const std::shared_ptr<Cell>& cell) const
+    /// The neighboring cells to a cell of type `hair`
+    /** The neighbors and next neighbors of cell that are of CellType::hair.
+     * 
+     *  \param cell   The considered cell
+     */
+    AgentContainer<Cell> hair_neighbors_of(
+            const std::shared_ptr<Cell>& cell) const
     {
         std::set<std::shared_ptr<Cell>> hair_neighbors;
 
@@ -502,36 +571,12 @@ public:
                                     hair_neighbors.end());
     }
 
-    /// Calculate to where a vertex would move
-    /** \details vertices move along the self-managed value Vertex::State::f
-     * 
-     *  \param beta     The step size along the direction of update
-     */
-    const SpaceVec& displace_virtual (const std::shared_ptr<Vertex>& vertex,
-                               double beta) const {
-        if (std::get<double>(vertex->state.virtual_pos) == beta) {
-            return std::get<SpaceVec>(vertex->state.virtual_pos);
-        }
-
-        SpaceVec pos = position_of(vertex) + beta * vertex->state.f;
-        
-        if (this->_space->periodic) {
-            pos = this->_space->map_into_space(pos);
-        }
-        else {
-            if (not this->_space->contains(pos)) {
-                throw OutOfSpace(pos, this->_space, "Could not move agent!");
-            }
-        }
-
-        vertex->state.virtual_pos = std::make_pair(beta, pos);
-        return std::get<SpaceVec>(vertex->state.virtual_pos);
-    }
-
+    // see transitions.hh
     template <typename EdgeParamMatrix>
     void divide_cell(const std::shared_ptr<Cell> cell, double division_angle,
             EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility);
 
+    // see transitions.hh
     template <typename EdgeParamMatrix>
     bool remove_edge_T1 (const std::shared_ptr<Edge> edge,
         EdgeParamMatrix linetension, EdgeParamMatrix contractility,
@@ -539,11 +584,132 @@ public:
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number);
 
-        
+    // see transitions.hh
     bool remove_cell_T2 (const std::shared_ptr<Cell> cell);
+
+
+    // -- Identifiers for objects at a non-periodic boundary ------------------
+    
+    /// Whether the vertex is a boundary vertex with 3 adjoint edges
+    /** Such cells have only 2 adjoint cells, but 3 adjoint edges
+     * 
+     *  \param vertex   The considered vertex
+     */
+    bool is_3_fold_boundary_vertex(const std::shared_ptr<Vertex>& vertex) const
+    {
+        if (adjoint_cells_of(vertex).size() == 2) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    /// Whether the vertex is a boundary vertex with 2 adjoint edges
+    /** Such cells have only 1 adjoint cells and 2 adjoint edges
+     * 
+     *  \param vertex   The considered vertex
+     */
+    bool is_2_fold_boundary_vertex(const std::shared_ptr<Vertex>& vertex) const
+    {
+        if (adjoint_cells_of(vertex).size() == 1) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    
+    /// Whether a vertex is part of the tissue boundary
+    /** This can either be a is_3_fold_boundary_vertex() or
+     *  a is_2_fold_boundary_vertex() vertex.
+     */
+    bool is_boundary(const std::shared_ptr<Vertex>& vertex) const {
+        if (   is_3_fold_boundary_vertex(vertex)
+            or is_2_fold_boundary_vertex(vertex))
+        {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    /// Whether an edge ends at a vertex part of the tissue boundary
+    /** Such an edge starts (ends) at a vertex that is part of the boundary
+     * 
+     *  \tparam safe    Whether to distinguish from is_1_cell_boundary_edge().
+     *                  A 1 cell boundary edge fullfills the condition, but is
+     *                  considered different. If false, the difference is not
+     *                  made.
+     *  \param edge     The considered edge
+     */
+    template<bool safe = true>
+    bool is_2_cell_boundary_edge(const std::shared_ptr<Edge>& edge) const {
+        // exclude the is_1_cell_boundary_edge() edges.
+        if constexpr (safe) {
+            const auto [a, b] = adjoints_of(edge);
+            if (not a or not b) {
+                return true;
+            }
+        }
+
+        // is one vertex part of boundary?
+        for (const auto& v : {edge->custom_links().a, edge->custom_links().b}) {
+            if (is_boundary(v)) {
+                return true;
+            }
+        }
+
+        // bulk edge
+        return false;
+    }
+
+    /// Whether an edge is part of the tissue boundary
+    /** Such an edge has only 1 adjoint cell. Both adjoint vertices are boundary
+     *  vertices.
+     */
+    bool is_1_cell_boundary_edge(const std::shared_ptr<Edge>& edge) const {
+        const auto [a, b] = adjoints_of(edge);
+        if (not a or not b) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    /// Whether the edge is part of the tissue boundary
+    /** This can be a is_2_cell_boundary_edge() or is_1_cell_boundary_edge()
+     *  edge.
+     */
+    bool is_boundary(const std::shared_ptr<Edge>& edge) const {
+        if (   is_1_cell_boundary_edge(edge)
+            or is_2_cell_boundary_edge<false>(edge))
+        {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    /// Whether a cell is part of the tissue boundary
+    /** Such a cell has at least one edge that is part of the boundary.
+     */
+    bool is_boundary(const std::shared_ptr<Cell>& cell) const {
+        for (const auto& e_pair : cell->custom_links().edges) {
+            if (is_boundary(std::get<0>(e_pair))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
 private:
     // -- Setup functions -----------------------------------------------------
+    
     /// Set up the custom agent manager configuration member
     /** \details This function determines whether to use a custom configuration
       *         or the one provided by the model this AgentManager belongs to
@@ -622,17 +788,34 @@ private:
         return cfg;
     }
 
+    /// Setup the agents following a specified method
+    /** Extracts the `setup_method` from _cfg
+     * 
+     *  The `setup_method` can be:
+     *      - `hexagonal`: Initialize the agents in a hexagonal lattice using
+     *                     setup_agents_hexagonal_structure().
+     *      - `single`: Initialize a single hexagon using
+     *                  setup_agents_single_hexagon().
+     * 
+     *  The parameters for the setup method have to be passed in
+     *  `setup_params/<method>`.
+     */
     void setup_agents() {
+        // extract the method of how to arrange the initial agents
         auto method = get_as<std::string>("setup_method", _cfg);
+
+        // check that the appropriate params have been passed
         if (not _cfg["setup_params"]) {
             throw KeyError ("setup_params", _cfg, "No parameters provided "
-                            "for the setup of agent manager!");
+                            "for the setup of the agent manager!");
         }
         if (not _cfg["setup_params"][method]) {
             throw KeyError (method, _cfg["setup_params"], "No parameters "
                             "provided for the setup of agent manager with the "
                             "specified method!");
         }
+        
+        // call the requested method
         if (method == "hexagonal") {
             this->setup_agents_hexagonal_structure(
                     _cfg["setup_params"]["hexagonal"]);
@@ -640,16 +823,20 @@ private:
         else if (method == "single") {
             this->setup_agents_single_hexagon(_cfg["setup_params"]["single"]);
         }
+        // method not found!
         else {
             throw KeyError(method, _cfg, "Method not implemented to setup agent "
                            "manager! Please choose one of the following setup "
-                           "methods: 'hexagonal'");
+                           "methods: 'hexagonal', 'single'.");
         }
     }
 
+    // see initialisation.hh
     void setup_agents_hexagonal_structure(const Config& cfg);
 
     /// Setup a single cell of hexagonal shape in center of space
+    /** Requires the config entry `size`, the length of an edge of the hexagon.
+     */
     void setup_agents_single_hexagon(const Config& cfg) {
         double size = get_as<double>("size", cfg);   
         double width = sqrt(3) * size;
@@ -682,6 +869,15 @@ private:
     }
 
     /// Create a Edge and associate it with the EdgeManager
+    /** Creates an edge between vertices a and b. The newly created edge is
+     *  added to the adjoint edges of the involved vertices.
+     * 
+     *  \param a    The start vertex of the new edge
+     *  \param b    The end vertex of the new edge
+     *  \param custom_cfg   (optional) A custom cfg used to initialize the
+     *                      edge's state. If not provided the agent manager's
+     *                      default is used.
+     */
     auto add_edge (std::shared_ptr<Vertex> a, std::shared_ptr<Vertex> b,
                    const Config& custom_cfg = {})
     {
@@ -698,6 +894,16 @@ private:
     }
 
     /// Create a Cell and associate it with the CellManager
+    /** Creates a cell using edges as the cell's boundary.
+     *  The adjoint objects of the involved edges and vertices are updated.
+     * 
+     *  \param pos  Where to place the cell
+     *  \param edges    The (unordered) container of edges defining the boundary
+     *                  of the cell
+     *  \param custom_cfg   (optional) A custom cfg used to initialize the
+     *                      cell's state. If not provided the agent manager's
+     *                      default is used.
+     */
     auto add_cell (const SpaceVec& pos,
                    AgentContainer<Edge> edges,
                    const Config& custom_cfg = {})
@@ -744,8 +950,20 @@ private:
         return cell;
     }
 
-    /// Create a Cell with properties inherited from a parent cell
-    /** and associate it with the CellManager
+    /// Create a cell and associate it with the CellManager
+    /** See add_cell()
+     */
+    auto add_cell(AgentContainer<Edge> edges,
+                  const std::shared_ptr<Cell>& parent_cell)
+    {
+        return add_cell(SpaceVec({0., 0.}), edges,
+                        parent_cell->state.create_cfg_from_props());
+    }
+
+    /// Create a cell with properties inherited from a parent cell
+    /** Arguments passed on to add_cell() without precising the pos. The cell's
+     *  barycenter will be calculated from the positions of the vertices
+     *  defining the boundary.
      */
     auto add_cell(const SpaceVec& pos,
                   AgentContainer<Edge> edges,
@@ -755,6 +973,9 @@ private:
     }
 
     /// Remove a vertex
+    /** \warning This does not remove the vertex from other entities adjoint
+     *           objects
+     */
     void remove_vertex (const std::shared_ptr<Vertex>& vertex) {
         _vertices_adjoint_edges.erase(vertex->id());
         _vertices_adjoint_cells.erase(vertex->id());
@@ -762,22 +983,33 @@ private:
     }
 
     /// Remove an edge
+    /** \warning This does not remove the edge from other entities adjoint
+     *           objects
+     */
     void remove_edge (const std::shared_ptr<Edge>& edge) {
         _edges_adjoint_cells.erase(edge->id());
         _edge_manager.remove_agent(edge);
     }
 
     /// Remove an edge
+    /** \warning This does not remove the cell from other entities adjoint
+     *           objects
+     */
     void remove_cell (const std::shared_ptr<Cell>& cell) {
         if (cell->custom_links().nd_cell) {
             cell->custom_links().nd_cell->state.cell_type = 
                 Utopia::Models::NotchDelta::CellState::StateType::inactive;
         }
+        if (cell->custom_links().c_cell) {
+            cell->custom_links().c_cell->state.cell_type = 
+                Utopia::Models::Collier::CellState::StateType::inactive;
+        }
         _cell_manager.remove_agent(cell);
     }
 
     /// Order a container of Edges
-    /** \details    The established order is either anti-clockwise or clockwise.
+    /** The established order is either anti-clockwise or clockwise.
+     * 
      *  \warning    It fails if the edges do not form a closed boundary
      */
     std::vector<std::pair<std::shared_ptr<Edge>, bool>> order_edges (
@@ -859,13 +1091,11 @@ private:
 
     /// Depending on periodicity, return the function to prepare positions of
     /// agents before they are added
-    /** \details The function that is used to prepare a position before an
-     *          agent is added (if passed explicitly) depends on whether the
-     *          space is periodic or not.
-     *          In the case of a periodic space the position is automatically
-     *          mapped into space again across the borders.
-     *          For a nonperiodic space a position outside of the borders will
-     *          throw an error.
+    /** The function that is used to prepare a position before an agent is
+     *  added (if passed explicitly) depends on whether the space is periodic or
+     *  not. In the case of a periodic space the position is automatically
+     *  mapped into space again across the borders. For a nonperiodic space a
+     *  position outside of the borders will throw an error.
      */
     std::function<SpaceVec(const SpaceVec&)> setup_prepare_pos_func() const {
         for (size_t i = 0; i < this->_space->dim; i++) {

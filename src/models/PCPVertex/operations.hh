@@ -17,8 +17,18 @@ namespace PCPVertex {
 void PCPVertex::jiggle_vertices(double intensity)
 {
     auto num_cells = this->_am.cells().size();
-    const SpaceVec domain = this->_space->get_domain_size();    
-    intensity *= sqrt(domain[0]*domain[1] / num_cells);
+    const SpaceVec domain = this->_space->get_domain_size();
+    double domain_area;
+    if (this->_space->periodic) {
+        domain_area = domain[0]*domain[1];
+    }
+    else {
+        domain_area = 0.;
+        for (const auto& c : this->_am.cells()) {
+            domain_area += c->state.area_preferential;
+        }
+    }
+    intensity *= sqrt(domain_area / num_cells);
 
     this->_log->debug("Jiggling the vertices on a length scale of "
                       "{} ..", intensity);
