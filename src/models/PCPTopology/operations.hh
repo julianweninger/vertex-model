@@ -1119,9 +1119,10 @@ OperationBundle build_proliferate (
         AgentContainer<Cell> current_generation(cells.size());
         auto it = std::copy_if (cells.begin(), cells.end(),
                                 current_generation.begin(),
-                                [generation_max_id](const auto& cell){
-                                    return cell->id() <
-                                        *generation_max_id; } );
+                                [generation_max_id, am](const auto& cell){
+                                    return (    cell->id() < *generation_max_id
+                                            and not am.is_boundary(cell));
+                                } );
         current_generation.resize(
             std::distance(current_generation.begin(), it));
         if (current_generation.size() == 0) {

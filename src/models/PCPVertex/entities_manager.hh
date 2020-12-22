@@ -64,7 +64,7 @@ public:
          *           The boolian indicates whether the edge starts at
          *           vertex a or b. 
          */
-        std::vector<std::pair<std::shared_ptr<Edge>, bool>> edges;
+        OrderedEdgeContainer edges;
         
         /// A cell in the NotchDelta model
         std::shared_ptr<Utopia::Models::NotchDelta::NotchDelta::Cell> nd_cell;
@@ -648,9 +648,8 @@ public:
     bool is_2_cell_boundary_edge(const std::shared_ptr<Edge>& edge) const {
         // exclude the is_1_cell_boundary_edge() edges.
         if constexpr (safe) {
-            const auto [a, b] = adjoints_of(edge);
-            if (not a or not b) {
-                return true;
+            if (is_1_cell_boundary_edge(edge)) {
+                return false;
             }
         }
 
@@ -665,9 +664,9 @@ public:
         return false;
     }
 
-    /// Whether an edge is part of the tissue boundary
+    /// Whether an edge is the interface of a cell with the void
     /** Such an edge has only 1 adjoint cell. Both adjoint vertices are boundary
-     *  vertices.
+     *  vertices. The adjoint vertices can be 2 or 3 fold each.
      */
     bool is_1_cell_boundary_edge(const std::shared_ptr<Edge>& edge) const {
         const auto [a, b] = adjoints_of(edge);
@@ -695,11 +694,11 @@ public:
     }
 
     /// Whether a cell is part of the tissue boundary
-    /** Such a cell has at least one edge that is part of the boundary.
+    /** Such a cell has at least one vertex that is part of the boundary.
      */
     bool is_boundary(const std::shared_ptr<Cell>& cell) const {
-        for (const auto& e_pair : cell->custom_links().edges) {
-            if (is_boundary(std::get<0>(e_pair))) {
+        for (const auto& v : cell->custom_links().vertices) {
+            if (is_boundary(v)) {
                 return true;
             }
         }
@@ -862,6 +861,9 @@ private:
         auto cell = add_cell(pos, this->edges());
     }
 
+
+    // -- Agent creation -----------------------------------------------------
+
     /// Create a Vertex and associate it with the VertexManager
     auto add_vertex (const SpaceVec& pos, const Config& custom_cfg = {})
     {
@@ -991,6 +993,12 @@ private:
         _edge_manager.remove_agent(edge);
     }
 
+    // see transitions.hh
+    bool remove_boundary_edge(const std::shared_ptr<Edge> edge,
+        std::function<double(const AgentContainer<Edge>&,
+                             const AgentContainer<Cell>&)> get_energy,
+        double T1_barrier, double random_number);
+
     /// Remove an edge
     /** \warning This does not remove the cell from other entities adjoint
      *           objects
@@ -1012,10 +1020,9 @@ private:
      * 
      *  \warning    It fails if the edges do not form a closed boundary
      */
-    std::vector<std::pair<std::shared_ptr<Edge>, bool>> order_edges (
-            AgentContainer<Edge> edges) const
+    OrderedEdgeContainer order_edges (AgentContainer<Edge> edges) const
     {
-        std::vector<std::pair<std::shared_ptr<Edge>, bool>> ordered_edges;
+        OrderedEdgeContainer ordered_edges;
        
         auto e_it = edges.begin();
         auto first_vertex = (*e_it)->custom_links().a;
@@ -1076,11 +1083,11 @@ private:
     }
 
     /// Reverse the ordering of an ordered edge container
-    std::vector<std::pair<std::shared_ptr<Edge>, bool>> reverse_edge_ordering (
-            std::vector<std::pair<std::shared_ptr<Edge>,bool>> ordered_edges)
+    OrderedEdgeContainer reverse_edge_ordering (
+            OrderedEdgeContainer ordered_edges)
             const
     {
-        std::vector<std::pair<std::shared_ptr<Edge>, bool>> new_edges;
+        OrderedEdgeContainer new_edges;
         // they are clockwise -> flip all edges and inverse order
         for (const auto& [e, flip] : ordered_edges) {
             new_edges.insert(new_edges.begin(), std::make_pair(e, not flip));

@@ -1,0 +1,36 @@
+# The evaluation of default_proliferation_minimal__non_periodic
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+energy:
+  based_on: energy
+
+energy_continuous:
+  based_on: energy
+  model_name: PCPTopology/PCPVertex
+
+transitions:
+  based_on: transitions
+  map_to_continuous_time: True
+
+transitions_continuous:
+  based_on: transitions
+  model_name: PCPTopology/PCPVertex
+  map_to_discrete_time: True
+
+cell_area:
+  based_on: cell_property
+
+  enabled: false
+  # WARNING: does not work with TimeSeriesGroup of flexible cell number
+      
+equilibrium_cellular_structure:
+  based_on: cellular_structure
+
+cellular_structure:
+  based_on: cellular_structure
+  datapath: PCPTopology/PCPVertex
+
+cell_neighbourhood:
+  based_on: cell_neighbourhood

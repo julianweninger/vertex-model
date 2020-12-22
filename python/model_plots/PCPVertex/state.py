@@ -155,7 +155,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             ### plot vertices
             if plot_vertices:
-                ax.scatter(v_data.sel(property="x"), v_data.sel(property="y"),
+                hlpr.ax.scatter(v_data.sel(property="x"), v_data.sel(property="y"),
                            c="black")
 
 

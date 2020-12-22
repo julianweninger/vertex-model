@@ -6,6 +6,7 @@ PCPVertex:
   T2_threshold: 0.2
   T1_separation_factor: 1.05
   agent_manager:
+    log_level: trace
     cell_manager:
       agent_params: 
         area_preferential: 1.0
