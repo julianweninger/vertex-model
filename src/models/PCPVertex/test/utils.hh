@@ -154,7 +154,8 @@ template <class PCPVertex>
 void test_custom_links_non_periodic(PCPVertex& model) {
     const auto& am = model.get_am();
 
-    for (auto v : am.vertices()) {
+    for (const auto& v : am.vertices()) {
+        BOOST_TEST(v);
         BOOST_TEST(not v->state.remove);
 
         // test the adjacent edges
@@ -186,11 +187,14 @@ void test_custom_links_non_periodic(PCPVertex& model) {
     }
 
     for (auto e : am.edges()) {
+        BOOST_TEST(e);
         BOOST_TEST(not e->state.remove);
 
         // test the vertices
         BOOST_TEST(e->custom_links().a);
         BOOST_TEST(e->custom_links().b);
+        BOOST_TEST(not e->custom_links().a->state.remove);
+        BOOST_TEST(not e->custom_links().b->state.remove);
 
         auto adj_edges = am.adjoint_edges_of(e->custom_links().a);
         BOOST_TEST((std::find(adj_edges.begin(), adj_edges.end(), e) != 
@@ -216,6 +220,7 @@ void test_custom_links_non_periodic(PCPVertex& model) {
     }
 
     for (auto c : am.cells()) {
+        BOOST_TEST(c);
         BOOST_TEST(not c->state.remove);
 
         const auto& edges = c->custom_links().edges;
@@ -237,8 +242,14 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         
         // test edges        
         auto [e, flip] = edges[0];
+        BOOST_TEST(e);
+        BOOST_TEST(e);
         auto first = e->custom_links().a;
         auto iterator = e->custom_links().b;
+        BOOST_TEST(first);
+        BOOST_TEST(iterator);
+        BOOST_TEST(not first->state.remove);
+        BOOST_TEST(not iterator->state.remove);
         if (flip) {
             std::swap(first, iterator);
         }
@@ -246,6 +257,10 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         for (unsigned int i = 1; i < edges.size(); i++) {
             auto [e, flip] = edges[i];
             BOOST_TEST(e);
+            BOOST_TEST(e->custom_links().a);
+            BOOST_TEST(e->custom_links().b);
+            BOOST_TEST(not e->custom_links().a->state.remove);
+            BOOST_TEST(not e->custom_links().b->state.remove);
 
             if (not flip) {
                 BOOST_TEST(iterator == e->custom_links().a);

@@ -11,12 +11,16 @@
 # ../PCPTopology_cfg.yml
 ---
 paths:
-  model_note: default_proliferation_quick_and_dirty
+  model_note: default_proliferation_non_periodic
 
 parameter_space:
   num_steps: 2
 
   PCPTopology:
+    space: &SPACE
+      periodic: false
+      extent: [30, 30]
+
     operations:
       - jiggle:
           times: []
@@ -32,7 +36,7 @@ parameter_space:
           iterations_epilog: 0
           emit_interval: 32
 
-          iterations: 16
+          iterations: 4
 
           num_increases: 0
           area_threshold: 0.
@@ -43,9 +47,27 @@ parameter_space:
       - jiggle:
           times: [2]
           iterations_prolog: 0
+
+      - proliferate:
+          times: [3]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 8
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+
+      - jiggle:
+          times: [3]
+          iterations_prolog: 0
           
       - proliferate:
-          times: !listgen [3, 1000]
+          times: !listgen [4, 1000]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -65,6 +87,21 @@ parameter_space:
     PCPVertex:
       log_level: info
 
+      space: *SPACE
+
+      # --- Initialization parameters
+      agent_manager:
+        setup_method: hexagonal
+        setup_params:
+          single:
+            size: 0.62
+          hexagonal:
+            hexagon_size: 0.62
+            lattice_rows: 4
+            lattice_columns: 4
+        vertex_manager:
+          non_periodic_offset: [10, 10]
+
       data_manager:
         deciders:
           write_interval: &interval_continuous
@@ -74,7 +111,7 @@ parameter_space:
                 - [100, 800, 100]
         triggers:
           build_interval: *interval_continuous
-          
+
     data_manager:
       deciders:
         write_interval: &interval
