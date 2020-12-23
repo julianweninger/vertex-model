@@ -1,9 +1,10 @@
 ---
 PCPVertex:
+  log_level: trace
   T1_barrier: 1000.
   T1_probability: 1.
-  T1_threshold: 0.2
-  T2_threshold: 0.2
+  T1_threshold: 0.3
+  T2_threshold: 0.4
   T1_separation_factor: 1.05
   agent_manager:
     log_level: trace
@@ -20,7 +21,7 @@ PCPVertex:
       hexagonal: {hexagon_size: 0.62, lattice_columns: 4, lattice_rows: 4}
       single: {size: 0.62}
     vertex_manager:
-      non_periodic_offset: [1, 1]
+      non_periodic_offset: [20, 20]
   area_elasticity: 1.0
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0
@@ -39,7 +40,7 @@ PCPVertex:
   gamma: 0.0
   initial_jiggle: 0.05
   space:
-    extent: [1.0, 1.0]
+    extent: [10., 10.]
     periodic: false
   update_scheme: steepest_gradient
 log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}

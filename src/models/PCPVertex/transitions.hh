@@ -38,7 +38,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         return;
     }
 
-    this->_log->info("Dividing cell ...");
+    this->_log->debug("Dividing cell ...");
 
     // The cell to be divided
     cell->state.remove = true;
@@ -294,6 +294,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
  *  \param linetension  The linetension of the new edge
  *  \param contractility  The contractility of the new edge
  *  \param get_energy   Calculate the energy for container of edges and cells
+ *  \param separation   The separation of the new vertices 
  *  \param T1_barrier   The height of the energy barrier
  *  \param random_number    A random number in [0, 1]
  * 
@@ -325,6 +326,17 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
                           "T1 transition ...", edge->id());
     }
     else if (is_2_cell_boundary_edge<false>(edge)) {
+        if (    is_3_fold_boundary_vertex(vertex_a)
+            and is_3_fold_boundary_vertex(vertex_b))
+        {
+            this->_log->error("Cannot remove edge {} with two 3-fold boundary "
+                              "vertices {} and {}. This would separate the "
+                              "tissue into two non-connected parts. Not "
+                              "implemented!", edge->id(), vertex_a->id(),
+                              vertex_b->id());
+            return false;
+        }
+
         this->_log->debug("Remodelling 2 cell boundary edge {} in "
                           "T1 transition ...", edge->id());
     }
@@ -666,7 +678,6 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
  * 
  *  \param edge         The edge to remodel
  *  \param get_energy   Calculate the energy for container of edges and cells
- *  \param separation   The separation of the new vertices 
  *  \param T1_barrier   The height of the energy barrier
  *  \param random_number    A random number in [0, 1]
  * 
@@ -901,20 +912,20 @@ bool EntitiesManager<Model>::remove_boundary_edge(
 template<class Model>
 bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
 {
-    if (this->is_boundary(cell)) {
-        this->_log->error("Not removing cell {}, because cell extrusion "
-                          "(T2 transition) of boundary cells not defined!",
-                          cell->id());
-        return false;
-    }
-
     if (cell->custom_links().edges.size() != 3) {
-        this->_log->debug("Delaying T2 transition, because the cell has more "
-            "3 vertices (has {} vertices).", cell->custom_links().edges.size());
+        this->_log->debug("Delaying T2 transition, because the cell {} has "
+            "more than 3 vertices (has {} vertices).",
+            cell->id(), cell->custom_links().edges.size());
         return false;
     }
 
-    this->_log->debug("Removing cell in T2 transition ...");
+    if (not this->is_boundary(cell)) {
+        this->_log->debug("Removing cell {} in T2 transition ...", cell->id());
+    }
+    else {
+        this->_log->debug("Removing boundary cell {} in T2 transition ...",
+                          cell->id());
+    }
 
     cell->state.remove = true;
     for (auto &v : cell->custom_links().vertices) {

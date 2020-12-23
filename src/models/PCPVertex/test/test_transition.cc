@@ -664,19 +664,72 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             }
         }
 
-        bool found = std::find(cells.begin(), cells.end(), cell) != cells.end();
-        BOOST_TEST(not found);
+        BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
+                    == cells.end()));
 
         BOOST_TEST(cell.use_count() == 1);
 
         BOOST_TEST(cells.size() == num_cells - 1);
-        BOOST_TEST(edges.size() == (  num_edges
-                                    - cell->custom_links().edges.size()));
-        BOOST_TEST(vertices.size() == (  num_vertices
-                                       - cell->custom_links().vertices.size()
-                                       + 1));
+        BOOST_TEST(edges.size() == num_edges - 3);
+        BOOST_TEST(vertices.size() == num_vertices - 2);
 
         test_custom_links(model);
+    } // test T2 cell removal
+
+    BOOST_AUTO_TEST_CASE(test_T2_boundary) {
+        Fixture<false> fixture;
+        auto& model = fixture.vertex_model;
+        model.prolog();
+        
+        auto& am = model.get_am();
+
+        auto& cells = am.cells();
+        auto& edges = am.edges();
+        auto& vertices = am.vertices();
+
+        auto num_cells = cells.size();
+        auto num_edges = edges.size();
+        auto num_vertices = vertices.size();
+
+        for (int i = 0; i < 5; i++) {
+            // find the first cell that is not a boundary cell
+            auto cell = *std::find_if(cells.begin(), cells.end(),
+                                    [am](const auto& cell) {
+                                        return am.is_boundary(cell);
+                                    });
+            BOOST_TEST(am.is_boundary(cell));
+
+            // decrement area in small steps to avoid numerical errors!
+            for (int i = 0; i < 9; i++) {
+                if (not cell) { break; }
+
+                cell->state.area_preferential -= 0.1;
+                
+                for (int i = 0; i < 250; i++) {
+                    model.iterate();
+                }
+            }
+
+            if (cell) {
+                cell->state.area_preferential -= 0.075;
+                
+                for (int i = 0; i < 10; i++) {
+                    model.iterate();
+                }
+            }
+
+            BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
+                        == cells.end()));
+
+            BOOST_TEST(cell.use_count() == 1);
+
+            BOOST_TEST(cells.size() == num_cells - 1*(i+1));
+            BOOST_TEST(edges.size() <= num_edges - 3*(i+1));
+            BOOST_TEST(vertices.size() <= num_vertices - 2*(i+1));
+            // NOTE T1 boundary edge removal possible
+
+            test_custom_links(model);
+        }
     }
 
 BOOST_AUTO_TEST_SUITE_END()

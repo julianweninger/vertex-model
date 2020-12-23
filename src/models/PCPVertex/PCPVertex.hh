@@ -837,12 +837,14 @@ public:
 
         // T2 transitions -- cell extrusion
         _num_T2s = 0;
-        for (int i = _am.cells().size() - 1; i >= 0; i--) {
-            double area = _am.area_of(_am.cells()[i]);
+        auto cells = _am.cells();
+        std::shuffle(cells.begin(), cells.end(), *this->_rng);
+        for (int i = cells.size() - 1; i >= 0; i--) {
+            double area = _am.area_of(cells[i]);
             if (area < _T2_threshold) {
                 this->_log->debug("Removing cell in T2 transition in step {}..",
-                                 this->_time);
-                bool T2 = _am.remove_cell_T2(_am.cells()[i]);
+                                  this->_time);
+                bool T2 = _am.remove_cell_T2(cells[i]);
                 transition_occurred = (transition_occurred or T2);
                 _num_T2s += T2;
             }
@@ -850,9 +852,11 @@ public:
 
         // T1 transition -- neighborhood change
         _num_T1s = 0;
-        _num_T1s_attempted = 0;
-        for (int i = _am.edges().size() - 1; i >= 0; i--) {
-            auto& edge = _am.edges()[i];
+        _num_T1s_attempted = 0;        
+        auto edges = _am.edges();
+        std::shuffle(edges.begin(), edges.end(), *this->_rng);
+        for (int i = edges.size() - 1; i >= 0; i--) {
+            auto& edge = edges[i];
             double length = _am.length_of(edge);
             if (length < _T1_threshold
                 and _prob_distr(*this->_rng) < _T1_probability
@@ -879,8 +883,8 @@ public:
             }
         }
         if (_num_T2s > 0 or _num_T1s > 0 or _num_T1s_attempted > 0) {
-            this->_log->info("Removed {} cell{} and {} edge{} ({} aborted) in "
-                             "step {}",
+            this->_log->info("Removed {} cell{} and {} edge{} ({} attempted) "
+                             "in step {}",
                             _num_T2s, _num_T2s != 1 ? "s":"", 
                             _num_T1s, _num_T1s != 1 ? "s":"",
                             _num_T1s_attempted, this->_time);

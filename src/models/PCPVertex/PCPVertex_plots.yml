@@ -59,6 +59,64 @@ energy_polarity:
 transitions:
   based_on: transitions
 
+
+cell_area: &CELLAREA
+  based_on:
+    - .default_style_and_helpers
+    - cell_property
+
+  to_plot: 
+    data:
+      label: all cells
+
+  select:
+    _property:
+      path: data/PCPVertex/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: area
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+cell_pref_area:
+  <<: *CELLAREA
+
+  select:
+    _property:
+      path: data/PCPVertex/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: area_preferential
+
+  helpers:
+    set_labels:
+      x: time
+      y: average pref. area
+
+cell_shape:
+  <<: *CELLAREA
+
+  select:
+    _property:
+      path: data/PCPVertex/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: shape_index
+
+  helpers:
+    set_labels:
+      x: time
+      y: average shape index
+
 cellular_structure:
   based_on:
     - .default_style_and_helpers

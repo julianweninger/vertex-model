@@ -2,10 +2,11 @@
 PCPVertex:
   T1_barrier: 1000.
   T1_probability: 1.
-  T1_threshold: 0.2
+  T1_threshold: 0.3
   T2_threshold: 0.4
   T1_separation_factor: 1.05
   agent_manager:
+    log_level: trace
     cell_manager:
       agent_params:
         area_preferential: 1.0
@@ -16,7 +17,7 @@ PCPVertex:
       agent_params: {contractility: 0.0, linetension: 0.}
     setup_method: hexagonal
     setup_params:
-      hexagonal: {hexagon_size: 0.62, lattice_columns: 8, lattice_rows: 8}
+      hexagonal: {hexagon_size: 0.62, lattice_columns: 4, lattice_rows: 4}
       single: {size: 0.62}
     vertex_manager:
       non_periodic_offset: [1, 1]
