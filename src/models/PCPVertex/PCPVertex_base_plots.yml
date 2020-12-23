@@ -20,6 +20,77 @@ transitions:
   plot_func: transitions
   file_ext: png
 
+
+cell_property:
+  module: model_plots.PCPTopology
+  plot_func: errorbars
+  creator: universe
+  universes: all
+  file_ext: png
+
+  select:
+    _cells: data/PCPVertex/Cells
+    
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+    - .rename:
+      args: [!dag_prev , cell_types]
+      tag: _cell_kind
+    - create_mask:
+      args: [!dag_tag _cell_kind, ==, 1]
+      tag: _hair_cells
+    - create_mask:
+      args: [!dag_tag _cell_kind, ==, 2]
+      tag: _support_cells
+
+    - .mean:
+      args: [!dag_tag _property , id]
+      kwargs:
+        skipna: True
+      tag: data
+    - .std:
+      args: [!dag_tag _property, id]
+      kwargs:
+        skipna: True
+      tag: data__std
+
+    - .where:
+      args: [!dag_tag _property, !dag_tag _hair_cells]
+    - .mean:
+      args: [!dag_prev ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells
+    - .where:
+      args: [!dag_tag _property, !dag_tag _hair_cells]
+    - .std:
+      args: [!dag_prev ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells__std
+
+    - .where:
+      args: [!dag_tag _property, !dag_tag _support_cells]
+    - .mean:
+      args: [!dag_prev ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells
+    - .where:
+      args: [!dag_tag _property, !dag_tag _support_cells]
+    - .std:
+      args: [!dag_prev ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells__std
+
+  helpers:
+    set_labels:
+      x: time
+
 cellular_structure:
   creator: universe
   universes: all
