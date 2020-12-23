@@ -7,16 +7,43 @@ paths:
   model_note: test_solvers
 
 parameter_space:
-  num_steps: 2
+  num_steps: 5
 
   PCPTopology: !model
     model_name: PCPTopology
+    
+    minimization:
+      tolerance: 1.e-6
+      max_steps: 15000
+      num_repeat: 3
+      jiggle_tolerance: 1.e-5
+      jiggle_intensity: 0.01
+
+    periodic_BC: !sweep
+      default: True
+      values: [False, True]
+      name: periodic_BC
+    space:
+      periodic: !coupled-sweep
+        target_name: periodic_BC
+      extent: !coupled-sweep
+        target_name: periodic_BC
+        default: [1., 1.]
+        values: [[40., 40.], [1., 1.]]
 
     PCPVertex:
       log_level: trace
       update_scheme: !sweep
         default: steepest_gradient
         values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
+      
+      space:
+        periodic: !coupled-sweep
+          target_name: periodic_BC
+        extent: !coupled-sweep
+          target_name: periodic_BC
+          default: [1., 1.]
+          values: [[40., 40.], [1., 1.]]
     
     operations:
       - jiggle:
@@ -30,7 +57,40 @@ parameter_space:
       - proliferate:
           times: [1]
 
-          iterations: 64
+          iterations: 4
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+
+      - proliferate:
+          times: [3]
+
+          iterations: 8
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+
+      - proliferate:
+          times: [4]
+
+          iterations: 8
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+
+      - proliferate:
+          times: !listgen [5, 20]
+
+          iterations: 16
 
           num_increases: 0
           area_threshold: 0.
@@ -39,8 +99,4 @@ parameter_space:
             mode: manual
 
       - jiggle:
-          times: [2]
-          minimization:
-            num_repeat: 1
-            tolerance: 1e-5
-            jiggle_tolerance: 1e-5
+          times: !listgen [2, 20]

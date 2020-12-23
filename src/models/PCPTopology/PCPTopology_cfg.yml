@@ -220,7 +220,7 @@ PCPVertex:
         lattice_rows: 4
         lattice_columns: 4
     vertex_manager:
-      non_periodic_offset: [1, 1]
+      non_periodic_offset: [15, 15]
 
     edge_manager:
       agent_params:

@@ -1127,6 +1127,7 @@ OperationBundle build_proliferate (
             std::distance(current_generation.begin(), it));
         if (current_generation.size() == 0) {
             for (const auto& c : cells) {
+                if (am.is_boundary(c)) { continue; }
                 *generation_max_id = std::max(*generation_max_id, c->id());
             }
             *generation_max_id = *generation_max_id + 1;
