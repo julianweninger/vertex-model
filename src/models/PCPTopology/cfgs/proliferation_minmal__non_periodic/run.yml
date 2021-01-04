@@ -31,7 +31,7 @@ parameter_space:
             jiggle_intensity: 1.e-3
 
       - proliferate:
-          times: [1]
+          times: [1, 3]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -43,13 +43,12 @@ parameter_space:
 
           minimization:
             mode: manual
+      # 20 / 24 cells
 
-      - jiggle:
-          times: [2]
-          iterations_prolog: 0
+      # NOTE time 2: jiggle (see last operation)
 
       - proliferate:
-          times: [3]
+          times: [4]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -61,13 +60,10 @@ parameter_space:
 
           minimization:
             mode: manual
+      # 32 cells
 
-      - jiggle:
-          times: [3]
-          iterations_prolog: 0
-          
       - proliferate:
-          times: !listgen [4, 1000]
+          times: [5, 6]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -79,9 +75,69 @@ parameter_space:
 
           minimization:
             mode: manual
+      # 64 cells
+      
+      - proliferate:
+          times: [7, 8]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 32
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+      # 128 cells
+      
+      - proliferate:
+          times: [9, 10]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 64
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+      # 256 cells
+      
+      - proliferate:
+          times: [11, 12]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 128
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+      # 512 cells
+      
+      - proliferate:
+          times: !listgen [13, 100]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 256
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
 
       - jiggle:
-          times: !listgen [3, 1000]
+          times: !listgen [2, 1000]
           iterations_prolog: 0
 
     PCPVertex:
@@ -118,8 +174,8 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 12, 1]
-              - [12, 32, 4]
-              - [32, 128, 8]
+              - [0, 6, 1]
+              - [6, 18, 2]
+              - [18, 1000, 2]
       triggers:
         build_interval: *interval

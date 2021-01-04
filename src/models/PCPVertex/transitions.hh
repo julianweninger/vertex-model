@@ -32,12 +32,6 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         double division_angle,
         EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility)
 {
-    if (this->is_boundary(cell)) {
-        this->_log->warn("Not dividing cell {}, because cell division of "
-                          "boundary cells not defined!", cell->id());
-        return;
-    }
-
     this->_log->debug("Dividing cell ...");
 
     // The cell to be divided
@@ -72,7 +66,12 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         // create a new vertex at the intersection site
         auto new_v = this->add_vertex(inter);
         const auto [adj_cell_a, adj_cell_b] = this->adjoints_of(e);
-        _vertices_adjoint_cells[new_v->id()] = {adj_cell_a, adj_cell_b};
+        
+        AgentContainer<Cell> adjoint_cells;
+        if (adj_cell_a) { adjoint_cells.push_back(adj_cell_a); }
+        if (adj_cell_b) { adjoint_cells.push_back(adj_cell_b); }
+        
+        _vertices_adjoint_cells[new_v->id()] = adjoint_cells;
         _vertices_adjoint_edges[new_v->id()] = {e};
         // NOTE the edge link is used later and removed thereafter
         
@@ -163,6 +162,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         // update the crosslinks in the adjoint cell
         const auto [adj_cell_a, adj_cell_b] = adjoints_of(edge);
         for (const auto& c : {adj_cell_a, adj_cell_b}) {
+            if (not c) { continue; }
             if (c == cell) { continue; }
 
             auto& adj_edges = c->custom_links().edges;
