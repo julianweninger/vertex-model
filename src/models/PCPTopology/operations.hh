@@ -1131,7 +1131,17 @@ OperationBundle build_proliferate (
                 *generation_max_id = std::max(*generation_max_id, c->id());
             }
             *generation_max_id = *generation_max_id + 1;
-            current_generation = cells;
+            
+            current_generation.clear();
+            current_generation.resize(cells.size());
+            auto it = std::copy_if (cells.begin(), cells.end(),
+                                    current_generation.begin(),
+                                    [generation_max_id, am](const auto& cell){
+                                        return (cell->id() < *generation_max_id
+                                            and not am.is_boundary(cell));
+                                    } );
+            current_generation.resize(
+                std::distance(current_generation.begin(), it));
         }
 
         std::uniform_int_distribution<> int_dist(
