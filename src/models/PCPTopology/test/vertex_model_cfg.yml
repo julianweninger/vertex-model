@@ -19,8 +19,7 @@ PCPVertex:
     setup_params:
       hexagonal: {hexagon_size: 0.62, lattice_columns: 8, lattice_rows: 8}
       single: {size: 0.62}
-    vertex_manager:
-      non_periodic_offset: [1, 1]
+    vertex_manager: ~
   area_elasticity: 1.0
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0

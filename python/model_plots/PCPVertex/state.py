@@ -140,6 +140,27 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure()
 
+    # the domain extent for non periodic boundaries (centered on (0., 0.))
+    domain_size_min_x = 0.
+    domain_size_max_x = 0.
+    domain_size_min_y = 0.
+    domain_size_max_y = 0.
+
+    if (not vertex_cfg['space']['periodic']):
+        for time in grp['Vertices']:
+            domain_size_min_x = min(
+                domain_size_min_x,
+                grp['Vertices'][time].sel(property="x").min())
+            domain_size_max_x = max(
+                domain_size_max_x,
+                grp['Vertices'][time].sel(property="x").max())
+            domain_size_min_y = min(
+                domain_size_min_y,
+                grp['Vertices'][time].sel(property="y").min())
+            domain_size_max_y = max(
+                domain_size_max_y,
+                grp['Vertices'][time].sel(property="y").max())
+
     def update():
         for time in grp['Vertices']:
             hlpr.ax.clear()            
@@ -155,8 +176,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             ### plot vertices
             if plot_vertices:
-                hlpr.ax.scatter(v_data.sel(property="x"), v_data.sel(property="y"),
-                           c="black")
+                hlpr.ax.scatter(v_data.sel(property="x"),
+                                v_data.sel(property="y"),
+                                c="black")
 
 
             ### plot edges
@@ -319,7 +341,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 hlpr.ax.axhline(y=Ly, xmin=-0.1, xmax = Lx+.05, c='gray', 
                                 linestyle=':')
             else:
-                hlpr.invoke_helper('set_limits', x=(-0.1,Lx+.2), y=(-0.1,Ly+.2))
+                hlpr.invoke_helper('set_limits',
+                                   x=(domain_size_min_x, domain_size_max_x),
+                                   y=(domain_size_min_y, domain_size_max_y))
             
             hlpr.ax.set_aspect('equal')
 

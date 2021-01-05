@@ -18,7 +18,7 @@
 # --- Space
 # The physical space this model is embedded in
 space: &SPACE
-  extent: [1., 1.]
+  extent: [1., 1.]  # NOTE this is ignored in vertex model
   periodic: true
 
 # --- Operations
@@ -219,8 +219,7 @@ PCPVertex:
         hexagon_size: 0.62
         lattice_rows: 4
         lattice_columns: 4
-    vertex_manager:
-      non_periodic_offset: [15, 15]
+    vertex_manager: ~
 
     edge_manager:
       agent_params:
