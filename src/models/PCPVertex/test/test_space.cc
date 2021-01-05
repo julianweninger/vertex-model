@@ -89,9 +89,19 @@ BOOST_FIXTURE_TEST_CASE(test_CustomSpace, Fixture)
                       precision);
     BOOST_CHECK_CLOSE(space.map_to_relative_space({0.2, 0.1}).at(0), 0.1, 
                       precision);
-
-    BOOST_CHECK_CLOSE(space.map_into_space({1.2, 0.1}).at(0), 1.2, precision);
-    BOOST_CHECK_CLOSE(space.map_into_space({2.2, 0.1}).at(0), 0.2, precision);
+    
+    if (space.bound) {
+        BOOST_CHECK_CLOSE(space.map_into_space({1.2, 0.1}).at(0), 1.2,
+                          precision);
+        BOOST_CHECK_CLOSE(space.map_into_space({2.2, 0.1}).at(0), 0.2,
+                          precision);
+    }
+    else {
+        BOOST_CHECK_CLOSE(space.map_into_space({1.2, 0.1}).at(0), 1.2,
+                          precision);
+        BOOST_CHECK_CLOSE(space.map_into_space({2.2, 0.1}).at(0), 2.2,
+                          precision);
+    }
 
     BOOST_CHECK_CLOSE(space.distance({0.1, 0.1}, {1.1, 0.1}), 1., precision);
     BOOST_CHECK_CLOSE(space.distance({0.1, 0.1}, {1.9, 0.1}), 1.8, precision);

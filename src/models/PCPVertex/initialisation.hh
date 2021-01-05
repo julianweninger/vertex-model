@@ -101,22 +101,6 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         _space->set_domain_size(SpaceVec({double(num_columns),
                                            0.75 * num_rows}) % cell_shape);
     }
-    else {
-        if (not this->_cfg["vertex_manager"]["non_periodic_offset"]) {
-            throw KeyError("non_periodic_offset", this->_cfg["vertex_manager"],
-                           "Vertex manager requires offset in non-periodic "
-                           "boundary conditions. This is due to the impermeable "
-                           "boundary walls. The offset should be such that "
-                           "vertices never cross the boundary; the simulation "
-                           "will throw otherwise!");
-        }
-        offset = get_as_SpaceVec<2>("non_periodic_offset",
-                                    this->_cfg["vertex_manager"]);
-        _space->set_domain_size(arma::max(_space->get_domain_size(),
-                                          (  SpaceVec({num_columns + 1.,
-                                                       0.75 * (num_rows + 1)})
-                                           % cell_shape + 2 * offset)));
-    }
 
     // Add vertices
     // NOTE one more row and column of vertices initialized in

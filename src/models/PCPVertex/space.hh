@@ -21,6 +21,9 @@ public:
     /// The type of a vector in space
     using SpaceVec = typename Space::SpaceVec;
 
+    /// whether the space is bound by the extent
+    const bool bound;
+
 private:
     /// The scaling of the domain
     /** A remapping vector to a space extend in absolute coordinates.
@@ -33,8 +36,15 @@ public:
     CustomSpace(const DataIO::Config& cfg)
     :
         Space(cfg),
+        bound(this->periodic),
         _domain_scale(arma::fill::ones)
-    { }
+    {
+        if (bound != this->periodic) {
+            throw std::invalid_argument("The space can only be unbound in "
+                "non-periodic boundary conditions! If the space is non-periodic"
+                "the Vertex model relies on unbound space configuration.");
+        }
+    }
 
     /// Constructor without any arguments, i.e. constructing a default space
     /** \details The default space is non-periodic and has default extent of 1.
@@ -43,8 +53,15 @@ public:
     CustomSpace()
     :
         Space(),
+        bound(this->periodic),
         _domain_scale(arma::fill::ones)
-    { }
+    {
+        if (bound != this->periodic) {
+            throw std::invalid_argument("The space can only be unbound in "
+                "non-periodic boundary conditions! If the space is non-periodic"
+                "the Vertex model relies on unbound space configuration.");
+        }
+    }
 
     /// Whether this space contains the given coordinate (without mapping it)
     /** \details Checks whether the given coordinate is within this space's
@@ -60,7 +77,12 @@ public:
       */
     template<bool include_high_value_boundary=true>
     bool contains(const SpaceVec& pos) const {
-        return Space::contains(this->map_to_relative_space(pos));
+        if (not bound) {
+            return true;
+        }
+        else {
+            return Space::contains(this->map_to_relative_space(pos));
+        }
     }
 
     /// Map a position (potentially outside space's extent) back into space
@@ -72,8 +94,13 @@ public:
       *         boundary, such that all points are well-defined.
       */
     SpaceVec map_into_space(const SpaceVec& pos) const {
-        return this->map_to_absolute_space(Space::map_into_space(
-                this->map_to_relative_space(pos)));
+        if (not bound) {
+            return pos;
+        }
+        else {
+            return this->map_to_absolute_space(Space::map_into_space(
+                    this->map_to_relative_space(pos)));
+        }
     }
     
     /// The displacement between 2 coordinates
