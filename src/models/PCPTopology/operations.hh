@@ -123,6 +123,41 @@ struct OperationParams {
                 mode, "'every', 'once', 'manual', 'off'"));
         }
     }
+
+    /// Get the number of minimizations triggered for this operations
+    std::size_t get_num_minimizations(std::size_t time_max) const {
+        std::size_t iters;
+        if (minimization_mode == MinimizationMode::Manual) {
+            iters = 0;
+        }
+        else if (minimization_mode == MinimizationMode::Once) {
+            iters = std::accumulate(times.begin(), times.end(), 0,
+                                    [time_max](auto val, auto t) {
+                                        return val + (t <= time_max);
+                                    });
+            if (iterations_prolog > 0) {
+                iters++;
+            }
+            if (iterations_epilog > 0) {
+                iters++;
+            }
+        }
+        else if (minimization_mode == MinimizationMode::Every) {
+            iters = std::accumulate(times.begin(), times.end(), 0,
+                                    [time_max](auto val, auto t) {
+                                        return val + (t <= time_max);
+                                    });
+            iters *= iterations;
+            iters += iterations_prolog + iterations_epilog;
+        }
+        else {
+            throw std::invalid_argument(fmt::format("Cannot estimate "
+                "iterations on unknown MinimizationMode {}",
+                minimization_mode));
+        }
+
+        return iters * minimization_params.num_repeat;
+    }
 };
 
 using Operation = std::function<void(PCPVertex& vertex_model)>;

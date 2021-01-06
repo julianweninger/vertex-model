@@ -389,6 +389,8 @@ protected:
     /// The total number of T2 transitions
     std::size_t _num_T2s_total;
 
+    std::size_t _num_minimizations;
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
@@ -435,7 +437,8 @@ public:
         _num_T1s_attempted(0),
         _num_T1s_attempted_total(0),
         _num_T2s(0),
-        _num_T2s_total(0)
+        _num_T2s_total(0),
+        _num_minimizations(0)
     {
         // this->initialise_polarity_random(get_as<double>(
         //         "cell_initialisation_protein_level", this->_cfg));
@@ -998,9 +1001,11 @@ public:
     
     /// Monitor model information
     void monitor () {
+        this->_monitor.set_entry("time", this->_time);
         this->_monitor.set_entry("energy", _energy);
         this->_monitor.set_entry("energy_change",
-                                 _energy - _energy_previous_step);
+                                 (  (_energy - _energy_previous_step)
+                                  / (_energy + 1e-14)));
     }
 
     /// Minimize the energy
@@ -1017,7 +1022,9 @@ public:
      * 
      *  \return num steps performed
      */
-    std::size_t minimize_energy(const MinimizationParams& params)
+    std::size_t minimize_energy(const MinimizationParams& params,
+                                std::function<void()> monitor_mngr = [](){ 
+                                    return; })
     {
         this->increment_time();
         this->_datamanager(*this);            
@@ -1064,6 +1071,7 @@ public:
                                   params.num_steps);
                 for (std::size_t step = 0; step < params.num_steps; step++) {
                     this->iterate();
+                    monitor_mngr();
 
                     if (stop_now.load()) {
                         this->_log->warn("Was told to stop. Not iterating "
@@ -1079,10 +1087,12 @@ public:
             // iterate until minimum reached
             while (not minimum_reached) {
                 this->iterate();
+                monitor_mngr();
 
                 double energy_change = (  (_energy - _energy_previous_step)
                                         / (_energy + 1e-14));
                 minimum_reached = (fabs(energy_change) < tolerance);
+                this->_log->trace("Energy changed by {}.", energy_change);
                 
                 if (not minimum_reached 
                     and this->get_time() - time_start >= params.max_steps)
@@ -1100,6 +1110,8 @@ public:
                     throw GotSignal(received_signum.load());
                 }
             }
+
+            _num_minimizations++;
         }
 
         this->_log->debug("Energy minimized within {} steps", 
@@ -1297,6 +1309,10 @@ public:
 
     std::size_t get_num_T2s_total() const {
         return _num_T2s_total;
+    }
+
+    std::size_t get_num_minimizations() const {
+        return _num_minimizations;
     }
 
     /// The entities manager - vertices, edges, cells

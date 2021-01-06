@@ -31,39 +31,7 @@ parameter_space:
             jiggle_intensity: 1.e-3
 
       - proliferate:
-          times: [1, 3]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 4
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
-      # 20 / 24 cells
-
-      # NOTE time 2: jiggle (see last operation)
-
-      - proliferate:
-          times: [4]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 8
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
-      # 32 cells
-
-      - proliferate:
-          times: [5, 6]
+          times: [1]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -75,10 +43,12 @@ parameter_space:
 
           minimization:
             mode: manual
-      # 64 cells
-      
+      # 32 cells
+
+      # NOTE time 2: jiggle (see last operation)
+
       - proliferate:
-          times: [7, 8]
+          times: [4]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -90,10 +60,10 @@ parameter_space:
 
           minimization:
             mode: manual
-      # 128 cells
-      
+      # 64 cells
+
       - proliferate:
-          times: [9, 10]
+          times: [5]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -105,10 +75,10 @@ parameter_space:
 
           minimization:
             mode: manual
-      # 256 cells
+      # 128 cells
       
       - proliferate:
-          times: [11, 12]
+          times: [6]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -120,10 +90,10 @@ parameter_space:
 
           minimization:
             mode: manual
-      # 512 cells
+      # 256 cells
       
       - proliferate:
-          times: !listgen [13, 100]
+          times: [7]
           iterations_prolog: 0
           iterations_epilog: 0
           emit_interval: 32
@@ -135,10 +105,40 @@ parameter_space:
 
           minimization:
             mode: manual
+      # 512 cells
+      
+      - proliferate:
+          times: [8]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 512
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+      # 1024 cells
+      
+      - proliferate:
+          times: [9]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 1024
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+      # 2048 cells 
 
       - jiggle:
           times: !listgen [2, 1000]
-          iterations_prolog: 0
 
     PCPVertex:
       log_level: info

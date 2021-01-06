@@ -132,6 +132,8 @@ private:
     /// The total number of T2 transitions
     std::size_t _num_T2s_total;
 
+    std::size_t _estimate_minimizations;
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPTopology model
@@ -179,7 +181,8 @@ public:
         _num_T1s_attempted(0),
         _num_T1s_attempted_total(0),
         _num_T2s(0),
-        _num_T2s_total(0)
+        _num_T2s_total(0),
+        _estimate_minimizations(0)
     {
         this->_space = _vertex_model.get_space();
 
@@ -310,6 +313,9 @@ private:
                 }
 
                 this->_log->debug("Added '{}' operation.", name);
+                const auto& params = std::get<1>(_operations.back());
+                _estimate_minimizations += params.get_num_minimizations(
+                                                        this->_time_max);
             }
         }
     }
@@ -432,6 +438,12 @@ private:
             emit_interval = iterates + 1;
         }
 
+        std::function<void()> monitor_mngr = [this](){
+            this->_monitor.get_monitor_manager()->check_timer();
+            this->__monitor();
+            this->_monitor.get_monitor_manager()->emit_if_enabled();
+        };
+
         for (std::size_t it = 0; it < iterates; it++) {
             if (not params.disable) {
                 operation(_vertex_model);
@@ -440,7 +452,8 @@ private:
 
             if (params.minimization_mode == MinimizationMode::Every) {
                 this->_log->debug("   Minimizing energy ...");
-                _vertex_model.minimize_energy(params.minimization_params);
+                _vertex_model.minimize_energy(params.minimization_params,
+                                              monitor_mngr);
                 
                 // write data during epilog
                 if (epilog) {
@@ -465,7 +478,8 @@ private:
             params.minimization_mode == MinimizationMode::Once)
         {
             this->_log->debug("   Minimizing energy ...");
-            _vertex_model.minimize_energy(params.minimization_params);
+            _vertex_model.minimize_energy(params.minimization_params,
+                                          monitor_mngr);
                 
             // write data during epilog
             if (epilog) {
@@ -502,6 +516,12 @@ public:
 
     /// Monitor model information
     void monitor () {
+        // overwrite the progress with progress estimate
+        this->_monitor.get_monitor_manager()->set_time_entries(
+            _vertex_model.get_num_minimizations(),
+            std::max(_estimate_minimizations,
+                     _vertex_model.get_num_minimizations() + 1));
+
         this->_monitor.set_entry("num_cells",
                                  _vertex_model.get_am().cells().size());
         this->_monitor.set_entry("num_T1_transitions",
@@ -510,6 +530,12 @@ public:
                                  _vertex_model.get_num_T1s_attempted_total());
         this->_monitor.set_entry("num_T2_transitions",
                                  _vertex_model.get_num_T2s_total());
+
+        this->_monitor.set_entry("time", this->get_time());
+        this->_monitor.set_entry("progress",   float(this->get_time())
+                                             / float(this->get_time_max()));
+
+        _vertex_model.monitor();
     }
 
     /// The prolog
@@ -669,6 +695,9 @@ public:
         _operations.push_back(op_bundle);
         auto [_, params] = op_bundle;
         this->_log->trace("Registered operation '{}'", params.name);
+
+        _estimate_minimizations += params.get_num_minimizations(
+                                                this->_time_max);
     }
 };
 

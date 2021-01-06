@@ -17,6 +17,16 @@ parameter_space:
   num_steps: 2
 
   PCPTopology:
+    minimization:
+      update_scheme: conjugate_gradient
+      dt: 0.01
+
+      tolerance: 1.e-8
+      max_steps: 15000
+      num_repeat: 50
+      jiggle_tolerance: 1.e-6
+      jiggle_intensity: 0.1
+
     operations:
       - jiggle:
           times: []
@@ -42,7 +52,6 @@ parameter_space:
 
       - jiggle:
           times: [2]
-          iterations_prolog: 0
           
       - proliferate:
           times: !listgen [3, 1000]
@@ -60,10 +69,9 @@ parameter_space:
 
       - jiggle:
           times: !listgen [3, 1000]
-          iterations_prolog: 0
 
     PCPVertex:
-      log_level: info
+      log_level: warn
 
       data_manager:
         deciders:

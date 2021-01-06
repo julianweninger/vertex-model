@@ -88,7 +88,6 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     int num_columns = get_as<int>("lattice_columns", cfg);
 
     SpaceVec cell_shape = SpaceVec({sqrt(3), 2}) * size;
-    SpaceVec offset(arma::fill::zeros);
 
     if (_space->periodic) {
         if (num_rows % 2 != 0) {
@@ -119,22 +118,20 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         for (int q = 0; q < lim_columns; ++q) {
             SpaceVec position = SpaceVec({double(q),
                                          (.75*r + .25)}) % cell_shape;
-            this->add_vertex(position + offset);
-            // NOTE the vertices have an offset in non-periodic boundary
-            //      condition to avoid collision with boundary wall
+            this->add_vertex(position);
             
             position = SpaceVec({q + 0.5, 0.75 * r}) % cell_shape;
-            this->add_vertex(position + offset);
+            this->add_vertex(position);
         }
         }
         // impair rows
         else {
         for (int q = 0; q < lim_columns; ++q) {
             SpaceVec position = SpaceVec({double(q), r * 0.75}) % cell_shape;
-            this->add_vertex(position + offset);
+            this->add_vertex(position);
             
             position = SpaceVec({q + 0.5, r * 0.75 + 0.25}) % cell_shape;
-            this->add_vertex(position + offset);
+            this->add_vertex(position);
         }
         }
     }
