@@ -198,7 +198,10 @@ NotchDelta:
 
 # --- Dynamics
 # Minimization parameter
-minimization:
+minimization: &Minimization
+  update_scheme: conjugate_gradient
+  dt: 0.01
+
   tolerance: &Tolerance 1.e-8
   max_steps: 15000
   num_repeat: 50
@@ -235,10 +238,7 @@ PCPVertex:
         cell_type: progenitor
 
   # --- Dynamics
-  # damping factor
-  dt: 1.e-2
-  minimization_tolerance: *Tolerance
-  update_scheme: conjugate_gradient
+  minimization: *Minimization
 
   area_elasticity: 1.
 

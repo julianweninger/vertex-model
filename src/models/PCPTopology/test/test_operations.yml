@@ -1,10 +1,15 @@
 ---
 default_minimization:
+  update_scheme: steepest_gradient
+  dt: 0.01
+
   tolerance: 1.e-8
   max_steps: 5
+  num_steps: 0
   num_repeat: 5
   jiggle_tolerance: 1.e-6
   jiggle_intensity: 0.01
+  temperature: 0.
 
 apply_operation_prolog:
   times: []

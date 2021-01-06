@@ -30,8 +30,27 @@ struct MinimizationParams {
     /// The tolerance in energy change 
     double tolerance;
 
+    enum UpdateScheme {
+        SteepestGradient,
+        SteepestGradientAdaptive,
+        ConjugateGradient
+    } update_scheme;
+
+    /// The default timestep
+    double dt;
+
     /// The maximum number of steps per minimization
     std::size_t max_steps;
+
+    /// Iterate for a fixed number of steps
+    /** If num_steps = 0, energy minimized for tolerance
+     */
+    std::size_t num_steps;
+
+    /// The temperature for random brownian motion
+    /** With mean 0 and variance \f$ \sigma^2 = 2 T dt \f$.
+     */
+    std::normal_distribution<double> temperature;
 
     /// The number of jiggling the vertices
     /** \details The first jiggle is applied before the first minimization,
@@ -61,10 +80,14 @@ struct MinimizationParams {
     MinimizationParams(const Config& cfg)
     :
         tolerance(get_as<double>("tolerance", cfg)),
+        update_scheme(setup_update_scheme(cfg)),
+        dt(get_as<double>("dt", cfg)),
         max_steps(get_as<std::size_t>("max_steps", cfg)),
-        num_repeat(get_as<std::size_t>("num_repeat", cfg)),
+        num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
+        temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.) * dt)),
+        num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg, tolerance)),
-        jiggle_intensity(get_as<double>("jiggle_intensity", cfg))
+        jiggle_intensity(get_as<double>("jiggle_intensity", cfg, 0.))
     {
         if (num_repeat == 0) {
             throw Utopia::KeyError("num_repeat", cfg, fmt::format(
@@ -75,6 +98,17 @@ struct MinimizationParams {
                 "Value must be larger or equal to 'tolerance', but was {} < {}",
                 jiggle_tolerance, tolerance));
         }
+
+        if (    temperature.param().stddev() > 0
+            and update_scheme != UpdateScheme::SteepestGradient)
+        {
+            throw Utopia::KeyError("temperature", cfg, fmt::format("Random "
+                "brownian motion from temperature ({} > 0) is only allowed in "
+                "fixed stepsize update scheme, such as `SteepestGradient`. "
+                "Either set temperature to 0 or select a fixed stepsize update "
+                "scheme (selected scheme: {}).", temperature.param().stddev(),
+                get_update_scheme(update_scheme)));
+        }
     }
 
     /// Initialize from config and inherit not defined values from default
@@ -82,7 +116,14 @@ struct MinimizationParams {
     MinimizationParams(const Config& cfg, const MinimizationParams& defaults)
     :
         tolerance(get_as<double>("tolerance", cfg, defaults.tolerance)),
+        update_scheme(
+            setup_update_scheme(cfg,
+                                get_update_scheme(defaults.update_scheme))),
+        dt(get_as<double>("dt", cfg, defaults.dt)),
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
+        num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
+        temperature(0., sqrt(2* get_as<double>("temperature", cfg,
+                                    defaults.temperature.param().stddev()) * dt)),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
                                         defaults.jiggle_tolerance)),
@@ -100,7 +141,53 @@ struct MinimizationParams {
         }
     }
 
+    /// Setup function for the update scheme
+    /** Currently implemented update schemes:
+     *      -# steepest_gradient : Steepest gradient update at fixed step size
+     *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
+     *              step size. Step size is to next minimum of energy in the 
+     *              direction of steepest gradient
+     *      -# conjugate_gradient : Conjugate gradient update method
+     */
+    template <typename Config>
+    UpdateScheme setup_update_scheme(const Config& cfg,
+                                     std::string default_scheme = "") {
+        const auto update_scheme = get_as<std::string>("update_scheme", cfg,
+                                                       default_scheme);
 
+        if (update_scheme == "steepest_gradient") {
+            return SteepestGradient;
+        }
+        if (update_scheme == "steepest_gradient_adaptive") {
+            return SteepestGradientAdaptive;
+        }
+        if (update_scheme == "conjugate_gradient") {
+            return ConjugateGradient;
+        }
+
+        throw KeyError("update_scheme", cfg, 
+            "Update scheme must be one of the following: "
+                "'steepest_gradient', "
+                "'steepest_gradient_adaptive', "
+                "'conjugate_gradient'.");
+    }
+    
+    /// Transform the update scheme into a human readable string
+    std::string get_update_scheme(UpdateScheme scheme) const {
+        if (scheme == SteepestGradient) {
+            return "steepest_gradient";
+        }
+        if (scheme == SteepestGradientAdaptive) {
+            return "steepest_gradient_adaptive";
+        }
+        if (scheme == ConjugateGradient) {
+            return "conjugate_gradient";
+        }
+        else {
+            throw std::runtime_error(fmt::format("Unknown update scheme {}!",
+                                                 scheme));
+        }
+    }
 };
 
 /// Type helper to define types used by the model
@@ -179,6 +266,8 @@ public:
             arma::Mat<double>::fixed<CellType::num_cell_types,
                                      CellType::num_cell_types>;
 
+    using UpdateScheme = MinimizationParams::UpdateScheme;
+
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
@@ -189,6 +278,8 @@ private:
     AgentManager _am;
 
     // PARAMETERS
+    MinimizationParams _default_minimization_params;
+
     /// timestep scaling
     double _dt;
 
@@ -200,14 +291,15 @@ private:
      *              direction of steepest gradient
      *      -# conjugate_gradient : Conjugate gradient update method
      */
-    const enum UpdateScheme {
-        SteepestGradient,
-        SteepestGradientAdaptive,
-        ConjugateGradient
-    } _update_scheme;
+    UpdateScheme _update_scheme;
     
     /// The tolerance during minimization
     double _minimization_tolerance;
+
+    /// The temperature for random brownian motion
+    /** With mean 0 and variance \f$ \sigma^2 = 2 T dt \f$.
+     */
+    std::normal_distribution<double> _distr_temperature;
 
     /// timestep scaling for polarity
     double _gamma;
@@ -314,10 +406,12 @@ public:
         _am(*this),
         
         // Get member paramters from cfg
-        _dt(get_as<double>("dt", this->_cfg)),
-        _update_scheme(this->setup_update_scheme(this->_cfg)),
-        _minimization_tolerance(get_as<double>(
-            "minimization_tolerance", this->_cfg)),
+        _default_minimization_params(get_as<Config>("minimization",
+                                                    this->_cfg)),
+        _dt(_default_minimization_params.dt),
+        _update_scheme(_default_minimization_params.update_scheme),
+        _minimization_tolerance(_default_minimization_params.tolerance),
+        _distr_temperature(_default_minimization_params.temperature),
         _gamma(get_as<double>("gamma", this->_cfg)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
@@ -357,38 +451,6 @@ public:
 
 private:
     // .. Setup functions .....................................................
-    /// Setup function for the update scheme
-    /** Currently implemented update schemes:
-     *      -# steepest_gradient : Steepest gradient update at fixed step size
-     *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
-     *              step size. Step size is to next minimum of energy in the 
-     *              direction of steepest gradient
-     *      -# conjugate_gradient : Conjugate gradient update method
-     */
-    UpdateScheme setup_update_scheme(const Config& cfg) {
-        const auto update_scheme = get_as<std::string>("update_scheme", cfg);
-
-        if (update_scheme == "steepest_gradient") {
-            this->_log->info("Steepest gradient chosen as update scheme.");
-            return SteepestGradient;
-        }
-        if (update_scheme == "steepest_gradient_adaptive") {
-            this->_log->info("Steepest gradient with adaptive step size "
-                             "chosen as update scheme.");
-            return SteepestGradientAdaptive;
-        }
-        if (update_scheme == "conjugate_gradient") {
-            this->_log->info("Conjugate gradient chosen as update scheme.");
-            return ConjugateGradient;
-        }
-
-        throw KeyError("update_scheme", cfg, 
-            "Update scheme must be one of the following: "
-                "'steepest_gradient', "
-                "'steepest_gradient_adaptive', "
-                "'conjugate_gradient'.");
-    }
-
     /// Setup up the linetension from config
     CellCellPropertyMatrix setup_linetension(const Config& cfg)
     {
@@ -772,6 +834,14 @@ private:
         return vertex->state;
     };
 
+    const RuleFuncVertex update_brownian_motion = [this](const auto& vertex) {
+        SpaceVec temp = {_distr_temperature(*this->_rng),
+                         _distr_temperature(*this->_rng)};
+        _am.move_by(vertex, temp);
+        
+        return vertex->state;
+    };
+
     /** The update of polarity protein levels
      * 
      *  Change polarity level proportional to the gradient of energy (force)
@@ -960,11 +1030,24 @@ public:
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
-            this->jiggle_vertices(params.jiggle_intensity);
-            this->increment_time();
-            this->_datamanager(*this);            
-            this->_log->debug("Finished jiggling: {:7d} / {:d}",
-                              this->_time, this->_time_max);
+            // jiggle vertices if required
+            if (params.jiggle_intensity > 0) {
+                this->jiggle_vertices(params.jiggle_intensity);
+                this->increment_time();
+                this->_datamanager(*this);            
+                this->_log->debug("Finished jiggling: {:7d} / {:d}",
+                                  this->_time, this->_time_max);
+            }
+
+            // initialize minimization
+            const auto time_start = this->get_time();
+            bool minimum_reached = false;
+
+            this->init_minimization();
+
+            _update_scheme = params.update_scheme;
+            _dt = params.dt;
+            _distr_temperature = params.temperature;
 
             double tolerance;
             if (i+1 == params.num_repeat) {
@@ -973,13 +1056,28 @@ public:
             else {
                 tolerance = params.jiggle_tolerance;
             }
-            const auto time_start = this->get_time();
-            bool minimum_reached = false;
+            _minimization_tolerance = tolerance;
 
-            this->init_minimization();
+            // iterate a fixed number of steps
+            if (params.num_steps > 0) {
+                this->_log->debug("Iterating vertex model for {} steps",
+                                  params.num_steps);
+                for (std::size_t step = 0; step < params.num_steps; step++) {
+                    this->iterate();
 
+                    if (stop_now.load()) {
+                        this->_log->warn("Was told to stop. Not iterating "
+                            "further ...");
+                        throw GotSignal(received_signum.load());
+                    }
+                }
+
+                // end here after fixed number of steps
+                minimum_reached = true;
+            }
+
+            // iterate until minimum reached
             while (not minimum_reached) {
-                _minimization_tolerance = tolerance;
                 this->iterate();
 
                 double energy_change = (  (_energy - _energy_previous_step)
