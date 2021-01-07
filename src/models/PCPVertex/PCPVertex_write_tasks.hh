@@ -2,6 +2,7 @@
 #define UTOPIA_MODELS_PCPVERTEX_WRITETASKS_HH
 
 #include "utopia/data_io/hdfgroup.hh"
+#include <utopia/data_io/data_manager/defaults.hh>
 #include <complex>
 #include <cmath>
 
@@ -1023,6 +1024,21 @@ auto statistics_time_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "time");
     }
 ); // end statistics_time_adaptor
+
+
+
+/// The Datamanager decider on equilibrium condition
+template<typename VertexModel>
+struct DeciderEquilibriumCondition
+:
+    Utopia::DataIO::Default::Decider<VertexModel>
+{
+    bool operator()(VertexModel& m) override {
+        return m.equilibrium_condition();
+    }
+
+    void set_from_cfg(const Config&) override { }
+};
 
 } // namespace Utopia::Models::PCPVertex::DataIO
 

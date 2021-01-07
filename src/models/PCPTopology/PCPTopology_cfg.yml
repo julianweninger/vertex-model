@@ -262,6 +262,8 @@ PCPVertex:
         args:
           intervals:
             - [0, 100, 25]
+      write_at_equilibrium:
+        type: equilibrium_decider
     triggers:
       build_interval: *interval_continuous
       build_once:
@@ -292,7 +294,7 @@ PCPVertex:
         active: false
       Energy_lagrange_const_concentration: 
         <<: *energy_continuous
-        active: false
+        active: true
 
       Statistics_time: *energy_continuous
       num_T1s: *energy_continuous

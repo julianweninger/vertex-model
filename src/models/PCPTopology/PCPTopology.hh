@@ -9,6 +9,7 @@
 // Utopia-related includes
 #include <utopia/core/model.hh>
 #include <utopia/core/types.hh>
+#include <utopia/data_io/data_manager/defaults.hh>
 
 // model for energy minimization
 #include "../PCPVertex/PCPVertex.hh"
@@ -149,7 +150,8 @@ public:
         Base(name, parent_model, custom_cfg, writer_args),
         
         // construct the vertex model with an external maximum time stamp
-        _vertex_model("PCPVertex", *this, {}, std::make_tuple(
+        _vertex_model("PCPVertex", *this, {},
+            std::make_tuple(
                 // energy adaptors
                 DataIO::time_energy_adaptor, DataIO::energy_adaptor,
                 DataIO::areaelasticity_adaptor,
@@ -170,7 +172,8 @@ public:
                 DataIO::edges_adaptor,
                 DataIO::cell_energies_adaptor,
                 DataIO::edge_energies_adaptor
-                )),
+                ),
+            this->setup_deciders()),
         
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
@@ -194,6 +197,18 @@ public:
 
 private:
     // .. Setup functions .....................................................
+    /// Add equilibrium_decider to default_deciders
+    auto setup_deciders () {
+        auto deciders = Utopia::DataIO::Default::default_deciders< PCPVertex >;
+        deciders["equilibrium_decider"] =
+        []() -> std::shared_ptr<Utopia::DataIO::Default::Decider<PCPVertex>> {
+            return std::make_shared<
+                        DataIO::DeciderEquilibriumCondition<PCPVertex>>();
+        };
+
+        return deciders;
+    }
+    
     void setup_operations(const Config& cfg) {
         this->_log->info("Setting up operations from {} configuration entr{} "
                          "...", cfg.size(), cfg.size() != 1 ? "ies" : "y");

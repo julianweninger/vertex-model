@@ -90,6 +90,9 @@ data_manager:
       args: 
         time: 3000
 
+    write_at_equilibrium:
+      type: equilibrium_decider
+      
   # this builds the triggers, here deciders are used
   triggers:
     build_interval: *interval

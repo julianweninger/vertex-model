@@ -1,5 +1,7 @@
 #include <iostream>
 
+#include <utopia/data_io/data_manager/defaults.hh>
+
 #include "PCPVertex.hh"
 #include "energy.hh"
 #include "algorithm.hh"
@@ -13,6 +15,11 @@ using Utopia::get_as;
 /// Factory for model 
 template<typename ParentType>
 auto model_factory(ParentType &parent) {
+    auto deciders = Utopia::DataIO::Default::default_deciders< PCPVertex >;
+    deciders["equilibrium_decider"] =
+    []() -> std::shared_ptr<Utopia::DataIO::Default::Decider<PCPVertex>> {
+        return std::make_shared<DeciderEquilibriumCondition<PCPVertex>>();
+    };
     return PCPVertex("PCPVertex", parent, {}, std::make_tuple(
         // the energy adaptors
         time_energy_adaptor, energy_adaptor,
@@ -29,7 +36,8 @@ auto model_factory(ParentType &parent) {
                       typename PCPVertex::CellType>,
         edges_adaptor,
         cell_energies_adaptor, edge_energies_adaptor
-        ));
+        ),
+        deciders);
 }
 
 int main (int, char** argv) {
