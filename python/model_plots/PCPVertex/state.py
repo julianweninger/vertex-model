@@ -147,6 +147,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     domain_size_max_y = 0.
 
     if (not vertex_cfg['space']['periodic']):
+        domain_size_min_x =  1000000.
+        domain_size_max_x = -1000000.
+        domain_size_min_y =  1000000.
+        domain_size_max_y = -1000000.
         for time in grp['Vertices']:
             domain_size_min_x = min(
                 domain_size_min_x,

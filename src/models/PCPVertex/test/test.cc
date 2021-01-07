@@ -4,7 +4,11 @@
 #include <iostream>
 #include <boost/test/unit_test.hpp>
 
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+
 #include "utils.hh"
+
 #include <utopia/core/apply.hh>
 
 #include "../PCPVertex.hh"
@@ -18,20 +22,37 @@ using namespace Utopia::Models::PCPVertex;
 
 const double precision = 1e-12;
 
-PCPVertex model_factory(bool periodic) {
-    using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
+template<bool periodic>
+struct Fixture {    
+    Models::PCPVertex::PCPVertex vertex_model;
 
-    if (periodic) {
-        Utopia::PseudoParent pp("test_periodic.yml");
-        return PCPVertex("PCPVertex", pp, {},
-                         std::make_tuple(time_energy_adaptor));
+    Fixture ()
+    :
+        vertex_model(model_factory())
+    { }
+
+    ~Fixture()
+    {
+        vertex_model.get_logger()->info("Tearing down ...");
+        std::remove("test_data.h5");
+        spdlog::drop_all();
     }
-    else {
-        Utopia::PseudoParent pp("test.yml");
-        return PCPVertex("PCPVertex", pp, {},
-                         std::make_tuple(time_energy_adaptor));
+    
+    PCPVertex model_factory() {
+        using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
+
+        if constexpr (periodic) {
+            Utopia::PseudoParent pp("test_periodic.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
+        else {
+            Utopia::PseudoParent pp("test.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
     }
-}
+};
 
 class TEST_PCPVertex_energy_prediction : public PCPVertex
 {
@@ -71,12 +92,13 @@ public:
     void test_energy_prediction() {
         const double precision = 1e-10;
 
+        auto minim_cfg = get_as<Config>("minimization", this->_cfg);
         std::string update_scheme(get_as<std::string>("update_scheme",
-                                                        this->_cfg));
+                                                      minim_cfg));
         BOOST_TEST(update_scheme == "steepest_gradient",
             "Test of energy prediction relies on fixed step size!");
         
-        const auto dt = get_as<double>("dt", this->_cfg);
+        const auto dt = get_as<double>("dt", minim_cfg);
 
         // set the gradient
         this->init_minimization();
@@ -129,8 +151,9 @@ public:
         double dt = 0.00001;
         // NOTE error is expected to be smaller with small step size
 
+        auto minim_cfg = get_as<Config>("minimization", this->_cfg);
         std::string update_scheme(get_as<std::string>("update_scheme",
-                                                        this->_cfg));
+                                                      minim_cfg));
         BOOST_TEST(update_scheme == "steepest_gradient",
             "Test of energy prediction relies on fixed step size!");
         
@@ -161,58 +184,70 @@ public:
     }
 };
 
+typedef boost::mpl::vector<Fixture<false>, Fixture<true>> Fixtures;
+
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
-    void test_model_initialization (PCPVertex& model) {
-        test_custom_links(model);
+    BOOST_AUTO_TEST_CASE_TEMPLATE(test_model_initialization, F, Fixtures) {
+        F fixture;
+        test_custom_links(fixture.vertex_model);
     }
 
-    // BOOST_AUTO_TEST_CASE(test_initialization_non_periodic) {
-    //     auto model = model_factory(false);
-    //     test_model_initialization(model);
-    // }
-    // FIXME requires activation
-
-    BOOST_AUTO_TEST_CASE(test_initialization_periodic) {
-        auto model = model_factory(true);
-        test_model_initialization(model);
-    }
-
-
-    void test_model_minimization (PCPVertex& model)
-    {
+    BOOST_AUTO_TEST_CASE_TEMPLATE(test_minimization, F, Fixtures) {
+        F fixture;
+        auto& model = fixture.vertex_model;
         model.prolog();
 
         Utopia::DataIO::Config minimization_cfg;
+
         minimization_cfg["tolerance"] = 1e-6;
+        minimization_cfg["update_scheme"] = "steepest_gradient";
+        minimization_cfg["dt"] = 1e-2;
         minimization_cfg["max_steps"] = 10000;
-        minimization_cfg["num_repeat"] = 1;
+        minimization_cfg["num_repeat"] = 2;
         minimization_cfg["jiggle_tolerance"] = 5e-6;
         minimization_cfg["jiggle_intensity"] = 0.01;
         MinimizationParams minimization(minimization_cfg);
+
         model.minimize_energy(minimization);
 
-        BOOST_TEST(model.get_time() > 0);
+        BOOST_TEST(model.get_time() >= 5);
         BOOST_TEST(model.get_rel_energy_change() < minimization.tolerance);
+
+        auto time_start = model.get_time();
+
+        minimization_cfg["update_scheme"] = "steepest_gradient";
+        minimization_cfg["num_steps"] = 100;
+        minimization_cfg["temperature"] = 0.0001;
+
+        minimization = MinimizationParams(minimization_cfg);
+        model.minimize_energy(minimization);
+
+        BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
+
+        time_start = model.get_time();
+
+        minimization_cfg["update_scheme"] = "conjugate_gradient";
+        minimization_cfg["num_steps"] = 0;
+        minimization_cfg["temperature"] = 0.;
+
+        minimization = MinimizationParams(minimization_cfg);
+        model.minimize_energy(minimization);
+
+        BOOST_TEST(model.get_time() - time_start >= 5);
+        BOOST_TEST(model.get_rel_energy_change() < minimization.tolerance);
+
     }
 
-    // BOOST_AUTO_TEST_CASE(test_minimization_non_periodic)
-    // {
-    //     auto model = model_factory(false);
-    //     test_model_minimization(model);
-    // }
-    // FIXME requires activation
-
-    BOOST_AUTO_TEST_CASE(test_minimization_periodic)
-    {
-        auto model = model_factory(true);
-        test_model_minimization(model);
-    }
-
-    /// Test the energy calculation
-    BOOST_AUTO_TEST_CASE(test_energy_prediction)
+    BOOST_AUTO_TEST_CASE(test_energy_prediction_periodic)
     {
         Utopia::PseudoParent pp("test_periodic.yml");
+        TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_energy_prediction)
+    {
+        Utopia::PseudoParent pp("test.yml");
         TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
     }
 

@@ -197,7 +197,7 @@ void PCPVertex::init_minimization ()
 
     set_gradient();
 
-    if (this->_update_scheme != ConjugateGradient) {
+    if (this->_update_scheme != UpdateScheme::ConjugateGradient) {
         return;
     }
 
@@ -243,6 +243,10 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
     }
  
     apply_rule<Update::sync>(update_position, _am.vertices());
+
+    if (not adaptive_step and _distr_temperature.param().stddev() > 0) {
+        apply_rule<Update::sync>(update_brownian_motion, _am.vertices());        
+    }
 
     if (not adaptive_step) {
         return get_energy();
@@ -301,13 +305,13 @@ double PCPVertex::conjugate_gradient_step ()
 double PCPVertex::perform_update_step(
         UpdateScheme update_scheme)
 {
-    if (update_scheme == SteepestGradient) {
+    if (update_scheme == UpdateScheme::SteepestGradient) {
         return steepest_gradient_step(false);
     }
-    else if (update_scheme == SteepestGradientAdaptive) {
+    else if (update_scheme == UpdateScheme::SteepestGradientAdaptive) {
         return steepest_gradient_step(true);
     }
-    else if (update_scheme == ConjugateGradient) {
+    else if (update_scheme == UpdateScheme::ConjugateGradient) {
         return conjugate_gradient_step();
     }
     else {

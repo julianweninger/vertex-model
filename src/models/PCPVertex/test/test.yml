@@ -29,14 +29,19 @@ PCPVertex:
       build_once:
         args: {time: 0}
         type: once
-  dt: 0.01
+  minimization: &Minimization
+    update_scheme: steepest_gradient
+    dt: 0.01
+    jiggle_intensity: 0.01
+    jiggle_tolerance: 1e-06
+    max_steps: 15000
+    num_repeat: 5
+    tolerance: 1e-08
   gamma: 0.0
   initial_jiggle: 0.05
-  minimization_tolerance: 1e-08
   space:
     extent: [1.0, 1.0]
     periodic: false
-  update_scheme: steepest_gradient
 log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 0

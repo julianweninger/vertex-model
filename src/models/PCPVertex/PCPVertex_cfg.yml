@@ -46,13 +46,16 @@ agent_manager:
       contractility: 1.
       cell_type: progenitor
 
-initial_jiggle: 0.2
+initial_jiggle: 0.01
 
 # --- Dynamics
 # damping factor
-dt: 0.01                      # only used with fixed step size
-minimization_tolerance: 1e-8  # only used with adaptive steps size
-update_scheme: steepest_gradient
+minimization:
+  dt: 0.01                      # only used with fixed step size
+  tolerance: 1e-8               # only used with adaptive steps size
+  update_scheme: steepest_gradient
+  max_steps: 10000000000000
+  temperature: 0.001
 # can be steepest_gradient, steepest_gradient_adaptive, conjugate_gradient
 
 area_elasticity: 1.

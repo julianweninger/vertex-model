@@ -1,6 +1,14 @@
 ---
 PCPTopology:
   log_level: debug
+  minimization: &Minimization
+    update_scheme: steepest_gradient_adaptive
+    dt: 0.01
+    jiggle_intensity: 0.01
+    jiggle_tolerance: 1e-06
+    max_steps: 15000
+    num_repeat: 5
+    tolerance: 1e-08
   PCPVertex:
     log_level: debug
     T1_barrier: 0.02
@@ -58,13 +66,11 @@ PCPTopology:
         build_once:
           args: {time: 0}
           type: once
-    dt: 0.01
     gamma: 0.0
-    minimization_tolerance: 1e-08
+    minimization: *Minimization
     space: &id008
       extent: [1.0, 1.0]
       periodic: true
-    update_scheme: steepest_gradient_adaptive
   data_manager:
     deciders:
       write_always: {type: always}
@@ -75,8 +81,6 @@ PCPTopology:
       build_once:
         args: {time: 0}
         type: once
-  minimization: {jiggle_intensity: 0.01, jiggle_tolerance: 1e-06, max_steps: 15000,
-    num_repeat: 5, tolerance: 1e-08}
   operations: ~
   space: *id008
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: info}
