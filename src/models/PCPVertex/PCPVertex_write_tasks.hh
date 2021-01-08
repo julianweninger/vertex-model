@@ -1040,6 +1040,23 @@ struct DeciderEquilibriumCondition
     void set_from_cfg(const Config&) override { }
 };
 
+/// Create a Decidermap of custom deciders, including defaults
+template <typename VertexModel>
+Utopia::DataIO::Default::DefaultDecidermap< VertexModel >
+build_custom_deciders ()
+{
+    auto deciders = Utopia::DataIO::Default::default_deciders< VertexModel >;
+
+    // add custom deciders
+    deciders["equilibrium_decider"] =
+    []() -> decltype(auto) {
+        return std::make_shared<
+                    DataIO::DeciderEquilibriumCondition< VertexModel >>();
+    };
+
+    return deciders;
+}
+
 } // namespace Utopia::Models::PCPVertex::DataIO
 
 

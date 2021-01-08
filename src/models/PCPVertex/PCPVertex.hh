@@ -390,7 +390,20 @@ protected:
     /// The total number of T2 transitions
     std::size_t _num_T2s_total;
 
+    /// A counter for the completed minimizations
     std::size_t _num_minimizations;
+
+    /// The status of the model in minimize_energy for datamanager
+    enum Status {
+        /// In minimization
+        Minimization,
+
+        /// Has been externally perturbed
+        Perturbed,
+
+        /// Has been jiggled
+        Jiggled
+    } _status;
 
 public:
     // -- Model Setup ---------------------------------------------------------
@@ -1033,6 +1046,7 @@ public:
                                 std::function<void()> monitor_mngr = [](){ 
                                     return; })
     {
+        _status = Status::Perturbed;
         this->increment_time();
         this->_datamanager(*this);            
         this->_log->debug("Incremented time (initial condition after external "
@@ -1041,16 +1055,21 @@ public:
 
         const auto time_0 = this->get_time();
         this->_log->debug("Minimizing energy from step {}", time_0);
+        _status = Status::Minimization;
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
             // jiggle vertices if required
             if (params.jiggle_intensity > 0) {
+                _status = Status::Jiggled;
                 this->jiggle_vertices(params.jiggle_intensity);
                 this->increment_time();
                 this->_datamanager(*this);            
                 this->_log->debug("Finished jiggling: {:7d} / {:d}",
                                   this->_time, this->_time_max);
+                
+                // reset status
+                _status = Status::Minimization;
             }
 
             // initialize minimization
@@ -1295,9 +1314,12 @@ public:
     // }
 
     bool equilibrium_condition() const {
-        double energy = get_energy();
-        double energy_change = (  (energy - _energy_previous_step)
-                                / (energy + 1e-14));
+        if (_status != Status::Minimization) {
+            return false;
+        }
+
+        double energy_change = (  (_energy - _energy_previous_step)
+                                / (_energy + 1e-14));
         return (fabs(energy_change) < _minimization_tolerance);
     }
 
