@@ -1362,8 +1362,10 @@ public:
             {
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.linetension = this->_linetension(a->state.type,
-                                                         b->state.type);
+                if (a and b) {
+                    state.linetension = this->_linetension(a->state.type,
+                                                           b->state.type);
+                }
                 return state;
             };
 
@@ -1397,8 +1399,10 @@ public:
             {
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.contractility = this->_edge_contractility(a->state.type,
-                                                                b->state.type);
+                if (a and b) {
+                    state.contractility = this->_edge_contractility(
+                        a->state.type, b->state.type);
+                }
                 return state;
             };
 
