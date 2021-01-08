@@ -12,6 +12,7 @@
 #include <utopia/core/apply.hh>
 #include <utopia/core/types.hh>
 #include <utopia/core/agent_manager.hh>
+#include <utopia/data_io/data_manager/defaults.hh>
 
 #include "space.hh"
 #include "entities.hh"
@@ -398,12 +399,18 @@ public:
      *  \param parent   The parent model this model instance resides in
      */
     template<class ParentModel, typename... WriterArgs>
-    PCPVertex (const std::string name, ParentModel &parent_model,
-               const DataIO::Config& custom_cfg = {},
-               std::tuple<WriterArgs...> &&writer_args = {})
+    PCPVertex (const std::string name,
+        ParentModel &parent_model,
+        const DataIO::Config& custom_cfg = {},
+        std::tuple<WriterArgs...> &&writer_args = {},
+        const DataIO::Default::DefaultDecidermap< PCPVertex >&
+            w_deciders = Utopia::DataIO::Default::default_deciders< PCPVertex >,
+        const DataIO::Default::DefaultTriggermap< PCPVertex >&
+            w_triggers = Utopia::DataIO::Default::default_triggers< PCPVertex >)
     :
         // Initialize first via base model
-        Base(name, parent_model, custom_cfg, writer_args),
+        Base(name, parent_model, custom_cfg,
+             writer_args, w_deciders, w_triggers),
 
         _am(*this),
         
@@ -1287,6 +1294,13 @@ public:
     //     return get_energy_lagrange_const_concentration(_cells);
     // }
 
+    bool equilibrium_condition() const {
+        double energy = get_energy();
+        double energy_change = (  (energy - _energy_previous_step)
+                                / (energy + 1e-14));
+        return (fabs(energy_change) < _minimization_tolerance);
+    }
+
     std::size_t get_num_T1s() const {
         return _num_T1s;
     }
@@ -1348,8 +1362,10 @@ public:
             {
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.linetension = this->_linetension(a->state.type,
-                                                         b->state.type);
+                if (a and b) {
+                    state.linetension = this->_linetension(a->state.type,
+                                                           b->state.type);
+                }
                 return state;
             };
 
@@ -1383,8 +1399,10 @@ public:
             {
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
-                state.contractility = this->_edge_contractility(a->state.type,
-                                                                b->state.type);
+                if (a and b) {
+                    state.contractility = this->_edge_contractility(
+                        a->state.type, b->state.type);
+                }
                 return state;
             };
 
