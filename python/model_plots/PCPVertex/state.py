@@ -3,6 +3,7 @@
 import logging
 from typing import Tuple
 
+from math import floor, ceil
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -140,32 +141,32 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure()
 
-    # the domain extent for non periodic boundaries (centered on (0., 0.))
-    domain_size_min_x = 0.
-    domain_size_max_x = 0.
-    domain_size_min_y = 0.
-    domain_size_max_y = 0.
-
-    if (not vertex_cfg['space']['periodic']):
-        domain_size_min_x =  1000000.
-        domain_size_max_x = -1000000.
-        domain_size_min_y =  1000000.
-        domain_size_max_y = -1000000.
-        for time in grp['Vertices']:
-            domain_size_min_x = min(
-                domain_size_min_x,
-                grp['Vertices'][time].sel(property="x").min())
-            domain_size_max_x = max(
-                domain_size_max_x,
-                grp['Vertices'][time].sel(property="x").max())
-            domain_size_min_y = min(
-                domain_size_min_y,
-                grp['Vertices'][time].sel(property="y").min())
-            domain_size_max_y = max(
-                domain_size_max_y,
-                grp['Vertices'][time].sel(property="y").max())
-
     def update():
+        # the domain extent for non periodic boundaries (centered on (0., 0.))
+        domain_size_min_x = 0.
+        domain_size_max_x = 0.
+        domain_size_min_y = 0.
+        domain_size_max_y = 0.
+
+        if (not vertex_cfg['space']['periodic']):
+            domain_size_min_x =  1000000.
+            domain_size_max_x = -1000000.
+            domain_size_min_y =  1000000.
+            domain_size_max_y = -1000000.
+            for time in grp['Vertices']:
+                domain_size_min_x = min(
+                    domain_size_min_x,
+                    grp['Vertices'][time].sel(property="x").min())
+                domain_size_max_x = max(
+                    domain_size_max_x,
+                    grp['Vertices'][time].sel(property="x").max())
+                domain_size_min_y = min(
+                    domain_size_min_y,
+                    grp['Vertices'][time].sel(property="y").min())
+                domain_size_max_y = max(
+                    domain_size_max_y,
+                    grp['Vertices'][time].sel(property="y").max())
+
         for time in grp['Vertices']:
             hlpr.ax.clear()            
             hlpr.ax.set_aspect('auto')
@@ -176,6 +177,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             
             Lx = v_data.attrs["Lx"][0]
             Ly = v_data.attrs["Ly"][0]
+            if (vertex_cfg['space']['periodic']):
+                domain_size_max_x = Lx
+                domain_size_max_y = Ly
 
 
             ### plot vertices
@@ -288,12 +292,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 prop_data = grp['Cell_energies'][time]
                 prop_data = prop_data.sel(energy_term=property)
                 prop_data = prop_data.assign_coords({'x': x, 'y': y})
-
-                grid_x, grid_y = np.mgrid[0:Lx:1000j, 0:Ly:1000j]
-                grid_z1 = griddata((x.data, y.data), prop_data.data,
-                                   (grid_x, grid_y))
-
-                hlpr.ax.imshow(grid_z1.T, extent=(0,Lx,0,Ly), origin='lower')
             
             # for the energies of the edges
             elif (   property == 'linetension'
@@ -317,13 +315,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # perform the interpolation
             if property:
                 num_data_points = len(prop_data) * 10j
-                grid_x, grid_y = np.mgrid[0:Lx:num_data_points,
-                                        0:Ly:num_data_points]
+                min_x = floor(domain_size_min_x)
+                max_x = ceil(domain_size_max_x)
+                min_y = floor(domain_size_min_y)
+                max_y = ceil(domain_size_max_y)
+                grid_x, grid_y = np.mgrid[min_x:max_x:num_data_points,
+                                          min_y:max_y:num_data_points]
                 grid_z1 = griddata((prop_data.x, prop_data.y), prop_data,
                                     (grid_x, grid_y),
                                     **property_interpolation_kwargs)
 
-                interpol = hlpr.ax.imshow(grid_z1.T, extent=(0,Lx,0,Ly),
+                interpol = hlpr.ax.imshow(grid_z1.T,
+                                          extent=(min_x,
+                                                  max_x,
+                                                  min_y,
+                                                  max_y),
                                           origin='lower',
                                           **property_interpolation_plot_kwargs)
                 
