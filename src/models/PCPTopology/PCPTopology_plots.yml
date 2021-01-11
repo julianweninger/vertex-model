@@ -127,7 +127,7 @@ equilibrium_cellular_structure__property: !pspace
     - .default_style_and_helpers
     - cellular_structure
 
-  enabled: true
+  enabled: false
 
   property: !sweep
     default: area_elasticity

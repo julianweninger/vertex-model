@@ -3,6 +3,7 @@
 import logging
 from typing import Tuple
 
+from math import floor, ceil
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -140,32 +141,32 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure()
 
-    # the domain extent for non periodic boundaries (centered on (0., 0.))
-    domain_size_min_x = 0.
-    domain_size_max_x = 0.
-    domain_size_min_y = 0.
-    domain_size_max_y = 0.
-
-    if (not vertex_cfg['space']['periodic']):
-        domain_size_min_x =  1000000.
-        domain_size_max_x = -1000000.
-        domain_size_min_y =  1000000.
-        domain_size_max_y = -1000000.
-        for time in grp['Vertices']:
-            domain_size_min_x = min(
-                domain_size_min_x,
-                grp['Vertices'][time].sel(property="x").min())
-            domain_size_max_x = max(
-                domain_size_max_x,
-                grp['Vertices'][time].sel(property="x").max())
-            domain_size_min_y = min(
-                domain_size_min_y,
-                grp['Vertices'][time].sel(property="y").min())
-            domain_size_max_y = max(
-                domain_size_max_y,
-                grp['Vertices'][time].sel(property="y").max())
-
     def update():
+        # the domain extent for non periodic boundaries (centered on (0., 0.))
+        domain_size_min_x = 0.
+        domain_size_max_x = 0.
+        domain_size_min_y = 0.
+        domain_size_max_y = 0.
+
+        if (not vertex_cfg['space']['periodic']):
+            domain_size_min_x =  1000000.
+            domain_size_max_x = -1000000.
+            domain_size_min_y =  1000000.
+            domain_size_max_y = -1000000.
+            for time in grp['Vertices']:
+                domain_size_min_x = min(
+                    domain_size_min_x,
+                    grp['Vertices'][time].sel(property="x").min())
+                domain_size_max_x = max(
+                    domain_size_max_x,
+                    grp['Vertices'][time].sel(property="x").max())
+                domain_size_min_y = min(
+                    domain_size_min_y,
+                    grp['Vertices'][time].sel(property="y").min())
+                domain_size_max_y = max(
+                    domain_size_max_y,
+                    grp['Vertices'][time].sel(property="y").max())
+
         for time in grp['Vertices']:
             hlpr.ax.clear()            
             hlpr.ax.set_aspect('auto')
@@ -176,6 +177,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             
             Lx = v_data.attrs["Lx"][0]
             Ly = v_data.attrs["Ly"][0]
+            if (vertex_cfg['space']['periodic']):
+                domain_size_max_x = Lx
+                domain_size_max_y = Ly
 
 
             ### plot vertices
@@ -207,13 +211,13 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             # map edges crossing periodic boundary
             if (vertex_cfg['space']['periodic']):
-                mask = dx >= 0.5 * Lx
+                mask = (dx >= 0.5 * Lx)
                 dx += mask * (-Lx)
-                mask = dx <= -0.5 * Lx
+                mask = (dx <= -0.5 * Lx)
                 dx += mask * Lx
-                mask = dy >= 0.5 * Ly
+                mask = (dy >= 0.5 * Ly)
                 dy += mask * (-Ly)
-                mask = dy <= -0.5 * Ly
+                mask = (dy <= -0.5 * Ly)
                 dy += mask * (+Ly)
             
             quiverkwargs = dict(headlength=0., headaxislength=0., headwidth=0.,
@@ -238,32 +242,71 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 ay_tmp = ay.assign_coords(id=vertex_a.id)
                 bx_tmp = bx.assign_coords(id=vertex_b.id)
                 by_tmp = by.assign_coords(id=vertex_b.id)
+                bx_tmp_prime = bx_tmp
+                by_tmp_prime = by_tmp
 
                 # use the inverse arrows
                 dx_tmp = ax_tmp - bx_tmp
                 dy_tmp = ay_tmp - by_tmp
+                dx_tmp_prime = dx_tmp
+                dy_tmp_prime = dy_tmp
 
                 # only those edges which cross the boundaries
                 # i.e. those which are not whithin the domain
-                mask = np.isnan(dx_tmp.where(dx_tmp <  0.5 * Lx).where(
-                                         dx_tmp > -0.5 * Lx).where(
-                                         dy_tmp <  0.5 * Ly).where(
-                                         dy_tmp > -0.5*Ly))                                         
+                mask = np.isnan(dx_tmp.where(abs(dx_tmp) <  0.5 * Lx)\
+                                      .where(abs(dy_tmp) <  0.5 * Ly))
                 bx_tmp = bx_tmp.where(mask)
                 by_tmp = by_tmp.where(mask)
                 dx_tmp = dx_tmp.where(mask)
                 dy_tmp = dy_tmp.where(mask)
                 
-                mask = dx_tmp >= 0.5 * Lx
+                mask = (dx_tmp >= 0.5 * Lx)
                 dx_tmp += mask * (-Lx)
-                mask = dx_tmp <= -0.5 * Lx
+                mask = (dx_tmp <= -0.5 * Lx)
                 dx_tmp += mask * Lx
-                mask = dy_tmp >= 0.5 * Ly
+                mask = (dy_tmp >= 0.5 * Ly)
                 dy_tmp += mask * (-Ly)
-                mask = dy_tmp <= -0.5 * Ly
+                mask = (dy_tmp <= -0.5 * Ly)
                 dy_tmp += mask * (+Ly)
                 
                 hlpr.ax.quiver(bx_tmp, by_tmp, dx_tmp, dy_tmp, **quiverkwargs)
+
+                # only those edges which cross both boundaries
+                # i.e. those which are not whithin the domain
+                bx_tmp = bx_tmp_prime
+                by_tmp = by_tmp_prime
+                dx_tmp = dx_tmp_prime
+                dy_tmp = dy_tmp_prime
+                # crossing both boundaries
+                mask = np.invert(np.isnan(dx_tmp.where(abs(dx_tmp) >  0.5 * Lx)\
+                                                .where(abs(dy_tmp) >  0.5 * Ly))
+                                )
+                mask = (abs(dx_tmp) >  0.5 * Lx)
+                mask = (mask.where(abs(dy_tmp) >  0.5 * Ly) == 1)
+
+                bx_tmp = bx_tmp.where(mask)
+                by_tmp = by_tmp.where(mask)
+                dx_tmp = dx_tmp.where(mask)
+                dy_tmp = dy_tmp.where(mask)
+                
+                mask = (dx_tmp >= 0.5 * Lx)
+                dx_tmp += mask * (-Lx)
+                mask = (dx_tmp <= -0.5 * Lx)
+                dx_tmp += mask * Lx
+                mask = (dy_tmp >= 0.5 * Ly)
+                dy_tmp += mask * (-Ly)
+                mask = (dy_tmp <= -0.5 * Ly)
+                dy_tmp += mask * (+Ly)
+                
+                mask_1 = (bx_tmp < 0.5 * Lx)
+                mask_2 = (bx_tmp > 0.5 * Lx)
+                mask_3 = (by_tmp < 0.5 * Ly)
+                mask_4 = (by_tmp > 0.5 * Ly)
+
+                hlpr.ax.quiver(bx_tmp + mask_1 * Lx - mask_2 * Lx, by_tmp,
+                               dx_tmp, dy_tmp, **quiverkwargs)
+                hlpr.ax.quiver(bx_tmp, by_tmp + mask_3 * Ly - mask_4 * Ly,
+                               dx_tmp, dy_tmp, **quiverkwargs)
 
 
             ### plot cells
@@ -288,12 +331,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 prop_data = grp['Cell_energies'][time]
                 prop_data = prop_data.sel(energy_term=property)
                 prop_data = prop_data.assign_coords({'x': x, 'y': y})
-
-                grid_x, grid_y = np.mgrid[0:Lx:1000j, 0:Ly:1000j]
-                grid_z1 = griddata((x.data, y.data), prop_data.data,
-                                   (grid_x, grid_y))
-
-                hlpr.ax.imshow(grid_z1.T, extent=(0,Lx,0,Ly), origin='lower')
             
             # for the energies of the edges
             elif (   property == 'linetension'
@@ -317,13 +354,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # perform the interpolation
             if property:
                 num_data_points = len(prop_data) * 10j
-                grid_x, grid_y = np.mgrid[0:Lx:num_data_points,
-                                        0:Ly:num_data_points]
+                min_x = floor(domain_size_min_x)
+                max_x = ceil(domain_size_max_x)
+                min_y = floor(domain_size_min_y)
+                max_y = ceil(domain_size_max_y)
+                grid_x, grid_y = np.mgrid[min_x:max_x:num_data_points,
+                                          min_y:max_y:num_data_points]
                 grid_z1 = griddata((prop_data.x, prop_data.y), prop_data,
                                     (grid_x, grid_y),
                                     **property_interpolation_kwargs)
 
-                interpol = hlpr.ax.imshow(grid_z1.T, extent=(0,Lx,0,Ly),
+                interpol = hlpr.ax.imshow(grid_z1.T,
+                                          extent=(min_x,
+                                                  max_x,
+                                                  min_y,
+                                                  max_y),
                                           origin='lower',
                                           **property_interpolation_plot_kwargs)
                 
