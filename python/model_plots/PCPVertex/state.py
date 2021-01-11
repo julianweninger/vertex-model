@@ -211,13 +211,13 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             # map edges crossing periodic boundary
             if (vertex_cfg['space']['periodic']):
-                mask = dx >= 0.5 * Lx
+                mask = (dx >= 0.5 * Lx)
                 dx += mask * (-Lx)
-                mask = dx <= -0.5 * Lx
+                mask = (dx <= -0.5 * Lx)
                 dx += mask * Lx
-                mask = dy >= 0.5 * Ly
+                mask = (dy >= 0.5 * Ly)
                 dy += mask * (-Ly)
-                mask = dy <= -0.5 * Ly
+                mask = (dy <= -0.5 * Ly)
                 dy += mask * (+Ly)
             
             quiverkwargs = dict(headlength=0., headaxislength=0., headwidth=0.,
@@ -242,32 +242,71 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 ay_tmp = ay.assign_coords(id=vertex_a.id)
                 bx_tmp = bx.assign_coords(id=vertex_b.id)
                 by_tmp = by.assign_coords(id=vertex_b.id)
+                bx_tmp_prime = bx_tmp
+                by_tmp_prime = by_tmp
 
                 # use the inverse arrows
                 dx_tmp = ax_tmp - bx_tmp
                 dy_tmp = ay_tmp - by_tmp
+                dx_tmp_prime = dx_tmp
+                dy_tmp_prime = dy_tmp
 
                 # only those edges which cross the boundaries
                 # i.e. those which are not whithin the domain
-                mask = np.isnan(dx_tmp.where(dx_tmp <  0.5 * Lx).where(
-                                         dx_tmp > -0.5 * Lx).where(
-                                         dy_tmp <  0.5 * Ly).where(
-                                         dy_tmp > -0.5*Ly))                                         
+                mask = np.isnan(dx_tmp.where(abs(dx_tmp) <  0.5 * Lx)\
+                                      .where(abs(dy_tmp) <  0.5 * Ly))
                 bx_tmp = bx_tmp.where(mask)
                 by_tmp = by_tmp.where(mask)
                 dx_tmp = dx_tmp.where(mask)
                 dy_tmp = dy_tmp.where(mask)
                 
-                mask = dx_tmp >= 0.5 * Lx
+                mask = (dx_tmp >= 0.5 * Lx)
                 dx_tmp += mask * (-Lx)
-                mask = dx_tmp <= -0.5 * Lx
+                mask = (dx_tmp <= -0.5 * Lx)
                 dx_tmp += mask * Lx
-                mask = dy_tmp >= 0.5 * Ly
+                mask = (dy_tmp >= 0.5 * Ly)
                 dy_tmp += mask * (-Ly)
-                mask = dy_tmp <= -0.5 * Ly
+                mask = (dy_tmp <= -0.5 * Ly)
                 dy_tmp += mask * (+Ly)
                 
                 hlpr.ax.quiver(bx_tmp, by_tmp, dx_tmp, dy_tmp, **quiverkwargs)
+
+                # only those edges which cross both boundaries
+                # i.e. those which are not whithin the domain
+                bx_tmp = bx_tmp_prime
+                by_tmp = by_tmp_prime
+                dx_tmp = dx_tmp_prime
+                dy_tmp = dy_tmp_prime
+                # crossing both boundaries
+                mask = np.invert(np.isnan(dx_tmp.where(abs(dx_tmp) >  0.5 * Lx)\
+                                                .where(abs(dy_tmp) >  0.5 * Ly))
+                                )
+                mask = (abs(dx_tmp) >  0.5 * Lx)
+                mask = (mask.where(abs(dy_tmp) >  0.5 * Ly) == 1)
+
+                bx_tmp = bx_tmp.where(mask)
+                by_tmp = by_tmp.where(mask)
+                dx_tmp = dx_tmp.where(mask)
+                dy_tmp = dy_tmp.where(mask)
+                
+                mask = (dx_tmp >= 0.5 * Lx)
+                dx_tmp += mask * (-Lx)
+                mask = (dx_tmp <= -0.5 * Lx)
+                dx_tmp += mask * Lx
+                mask = (dy_tmp >= 0.5 * Ly)
+                dy_tmp += mask * (-Ly)
+                mask = (dy_tmp <= -0.5 * Ly)
+                dy_tmp += mask * (+Ly)
+                
+                mask_1 = (bx_tmp < 0.5 * Lx)
+                mask_2 = (bx_tmp > 0.5 * Lx)
+                mask_3 = (by_tmp < 0.5 * Ly)
+                mask_4 = (by_tmp > 0.5 * Ly)
+
+                hlpr.ax.quiver(bx_tmp + mask_1 * Lx - mask_2 * Lx, by_tmp,
+                               dx_tmp, dy_tmp, **quiverkwargs)
+                hlpr.ax.quiver(bx_tmp, by_tmp + mask_3 * Ly - mask_4 * Ly,
+                               dx_tmp, dy_tmp, **quiverkwargs)
 
 
             ### plot cells
