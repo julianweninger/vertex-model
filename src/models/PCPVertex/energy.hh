@@ -21,6 +21,10 @@ namespace PCPVertex {
 double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
+    if (edge->state.linetension == 0.) {
+        return 0.;
+    }
+
     double length;
     if (beta > 0) {
         const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
@@ -50,6 +54,10 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
+    if (edge->state.contractility == 0.) {
+        return 0.;
+    }
+
     double length;
     if (beta > 0) {
         const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);

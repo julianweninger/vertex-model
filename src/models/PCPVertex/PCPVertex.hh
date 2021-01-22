@@ -554,6 +554,10 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
+        if (edge->state.linetension == 0.) {
+            return edge->state;
+        }
+
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
         
@@ -579,6 +583,10 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
+        if (edge->state.contractility == 0.) {
+            return edge->state;
+        }
+
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
