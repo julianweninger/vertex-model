@@ -88,7 +88,7 @@ double PCPVertex::area_elasticity_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     // for beta = 0, returns same as area_of(cell)
-    double rel_area = (  _am.area_of_virtual(cell, beta)
+    double rel_area = (  _am.area_of(cell, beta)
                        / cell->state.area_preferential);
     return 0.5 * _area_elasticity * pow(rel_area - 1., 2);
 };
@@ -111,7 +111,7 @@ double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     const auto state = cell->state;
-    double shape_index = _am.shape_index_of_virtual(cell, beta);
+    double shape_index = _am.shape_index_of(cell, beta);
     return (  0.5 * state.contractility
             * std::pow(shape_index - state.shape_index_preferential, 2));
 };
