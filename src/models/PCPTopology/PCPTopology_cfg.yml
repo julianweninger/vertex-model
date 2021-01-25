@@ -212,6 +212,12 @@ minimization: &Minimization
 PCPVertex:
   space: *SPACE
 
+  boundary_parameter:
+    area_elasticity: 0.
+    area_preferential: 0.
+    shape_elasticity: 0.
+    shape_index_preferential: 0.
+
   # --- Initialization parameters
   agent_manager:
     setup_method: hexagonal
@@ -280,6 +286,8 @@ PCPVertex:
       Energy_areaelasticity: *energy_continuous
       Energy_cell_contractility: *energy_continuous
       Energy_edge_contractility: *energy_continuous
+      Energy_boundary_area_elasticity: *energy_continuous
+      Energy_boundary_shape_elasticity: *energy_continuous
       Energy_time: *energy_continuous
 
       # the polarity energies
@@ -341,6 +349,8 @@ data_manager:
     Energy_areaelasticity: *energy
     Energy_cell_contractility: *energy
     Energy_edge_contractility: *energy
+    Energy_boundary_area_elasticity: *energy
+    Energy_boundary_shape_elasticity: *energy
     Energy_time: *energy
     Continuous_time: *energy
 

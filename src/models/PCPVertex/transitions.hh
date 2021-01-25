@@ -283,6 +283,8 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         }
     }
 
+    this->_log->trace("Done.");
+
     return;
 } // divide cell
 

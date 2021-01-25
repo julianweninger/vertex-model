@@ -15,21 +15,14 @@ parameter_space:
           active: true
           trigger: build_once
           decider: write_always
-        Energy_linetension: 
-          <<: *energy
-        Energy_areaelasticity: 
-          <<: *energy
-        Energy_cell_contractility: 
-          <<: *energy
-        Energy_edge_contractility: 
-          <<: *energy
-        Energy_cell_cell_polarity: 
-          <<: *energy
-        Energy_polarity_exclusion: 
-          <<: *energy
-        Energy_lagrange_net_polarisation: 
-          <<: *energy
-        Energy_lagrange_const_concentration: 
-          <<: *energy
-        Energy_time:
-          <<: *energy
+        Energy_linetension: *energy
+        Energy_areaelasticity: *energy
+        Energy_cell_contractility: *energy
+        Energy_edge_contractility: *energy
+        Energy_boundary_area_elasticity: *energy
+        Energy_boundary_shape_elasticity: *energy
+        Energy_cell_cell_polarity: *energy
+        Energy_polarity_exclusion: *energy
+        Energy_lagrange_net_polarisation: *energy
+        Energy_lagrange_const_concentration: *energy
+        Energy_time: *energy

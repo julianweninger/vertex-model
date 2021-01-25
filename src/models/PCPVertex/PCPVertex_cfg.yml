@@ -60,6 +60,12 @@ minimization:
 
 area_elasticity: 1.
 
+boundary_parameter:
+  area_elasticity: 0.
+  area_preferential: 0.
+  shape_elasticity: 0.
+  shape_index_preferential: 0.
+
 # Polarity interaction
 gamma: 0.
 cell_cell_polarity_interaction: 0.
@@ -125,6 +131,8 @@ data_manager:
     Energy_areaelasticity: *energy
     Energy_cell_contractility: *energy
     Energy_edge_contractility: *energy
+    Energy_boundary_area_elasticity: *energy
+    Energy_boundary_shape_elasticity: *energy
     Energy_time: *energy
 
     # The polarity energies

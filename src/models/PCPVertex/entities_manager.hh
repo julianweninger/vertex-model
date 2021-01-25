@@ -727,6 +727,72 @@ public:
         return false;
     }
 
+    OrderedEdgeContainer get_boundary_edges () const {
+        if (_space->periodic) {
+            return OrderedEdgeContainer{};
+        }
+
+        const auto& cells = this->cells();
+        const auto& edges = this->edges();
+
+        OrderedEdgeContainer boundary{};
+        boundary.reserve(cells.size());
+
+        auto edge = *std::find_if(
+            edges.begin(), edges.end(),
+            [this](const auto& edge) {
+                return this->is_1_cell_boundary_edge(edge);
+            });
+
+        const auto start = edge->custom_links().a;
+        auto iter = edge->custom_links().b;
+        boundary.push_back(std::make_pair(edge, false));
+
+        while (iter != start) {
+            const auto tmp_edges = adjoint_edges_of(iter);
+            edge = *std::find_if(
+                tmp_edges.begin(), tmp_edges.end(),
+                [this, edge](const auto& e_it) {
+                    if (e_it == edge) {
+                        return false;
+                    }
+                    return this->is_1_cell_boundary_edge(e_it);
+                });
+
+            if (iter == edge->custom_links().a) {
+                boundary.push_back(std::make_pair(edge, false));
+                iter = edge->custom_links().b;
+            }
+            else {
+                boundary.push_back(std::make_pair(edge, true));
+                iter = edge->custom_links().a;
+            }
+        }
+
+        double area = std::accumulate(
+            boundary.begin(), boundary.end(), 0.,
+            [this](double val, const auto e_pair) {
+                const auto [e, flip] = e_pair;
+                
+                SpaceVec a = this->position_of(e->custom_links().a);
+                SpaceVec b = this->position_of(e->custom_links().b);
+
+                if (flip) { std::swap(a, b); }
+
+                return val + (a[0] * b[1] - b[0] * a[1]);
+            });
+        area /= 2.;
+
+        if (area < 0.) {
+            boundary = this->reverse_edge_ordering(boundary);
+            area = fabs(area);
+        }
+
+        boundary.shrink_to_fit();
+
+        return boundary;
+    }
+
 
 private:
     // -- Setup functions -----------------------------------------------------

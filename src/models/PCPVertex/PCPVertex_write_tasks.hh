@@ -34,6 +34,8 @@ namespace Utopia::Models::PCPVertex::DataIO{
 
 /// Datamanager adaptor for total energy
 /** PCPVertex::get_energy() normalized to number of cells
+ * 
+ *  \note excludes boundary energy
  */
 auto energy_adaptor = std::make_tuple(
 
@@ -47,7 +49,9 @@ auto energy_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_energy() / model.get_am().cells().size());
+        dataset->write(
+            (model.get_energy() - model.get_boundary_energy())
+            / model.get_am().cells().size());
     },
 
     // builder function
@@ -241,6 +245,78 @@ auto edge_contractility_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__time", "Time");
     }
 ); // end edge_contractility_adaptor
+
+/// Datamanager adaptor for the boundary area elasticity energy
+/** PCPVertex::get_boundary_area_energy() normalized to number of cells
+ */
+auto boundary_area_elasticity_adaptor = std::make_tuple(
+
+    // name of the task
+    "Energy_boundary_area_elasticity",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Energy");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(model.get_boundary_area_energy() /
+                       model.get_am().cells().size());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Boundary_area_elasticity");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end areaelasticity_adaptor
+
+/// Datamanager adaptor for boundary shape elasticity energy
+/** PCPVertex::get_boundary_shape_energy() normalized to number of cells
+ */
+auto boundary_shape_elasticity_adaptor = std::make_tuple(
+
+    // name of the task
+    "Energy_boundary_shape_elasticity",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Energy");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        dataset->write(  model.get_boundary_shape_energy()
+                       / model.get_am().cells().size());
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Boundary_shape_elasticity");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end cell_contractility_adaptor
 
 /// Datamanager adaptor for cell-cell polarity energy
 auto cell_cell_polarity_adaptor = std::make_tuple(

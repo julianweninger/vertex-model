@@ -109,6 +109,8 @@ public:
         auto e_contr = this->get_energy_edge_contractility(dt);
         auto area_elast = this->get_energy_areaelasticity(dt);
         auto c_contr = this->get_energy_cell_contractility(dt);
+        auto b_area_elast = this->get_boundary_area_energy(dt);
+        auto b_shape_elast = this->get_boundary_shape_energy(dt);
         
         this->iterate();
 
@@ -128,15 +130,21 @@ public:
                               precision);
             BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
                               precision);
+            
+            BOOST_CHECK_CLOSE(b_area_elast, this->get_boundary_area_energy(),
+                              precision);
+            BOOST_CHECK_CLOSE(b_shape_elast, this->get_boundary_shape_energy(),
+                              precision);
 
             // test that energy is deterministic value
             std::vector<bool> energies_equal(100);
-            std::transform(energies_equal.begin(), energies_equal.end(),
-                        energies_equal.begin(),
-                        [this, energy, precision](const auto&) {
-                            return (  std::abs(this->get_energy() - energy)
-                                    < precision);
-                        });        
+            std::transform(
+                energies_equal.begin(), energies_equal.end(),
+                energies_equal.begin(),
+                [this, energy, precision](const auto&) {
+                    return (  std::abs(this->get_energy() - energy)
+                            < precision);
+                });        
 
             BOOST_TEST(   energies_equal
                        == std::vector<bool>(energies_equal.size(), true));

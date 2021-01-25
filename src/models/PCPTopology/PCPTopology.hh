@@ -158,6 +158,8 @@ public:
                 DataIO::linetension_adaptor,
                 DataIO::cell_contractility_adaptor,
                 DataIO::edge_contractility_adaptor,
+                DataIO::boundary_area_elasticity_adaptor,
+                DataIO::boundary_shape_elasticity_adaptor,
                 DataIO::cell_cell_polarity_adaptor,
                 DataIO::polarity_exclusion_adaptor,
                 DataIO::lagrange_net_polarisation_adaptor,
@@ -295,6 +297,11 @@ private:
                         build_set_area(name, op_cfg,
                                        _minimization_params));
                 }
+                else if (name == "set_boundary_parameter") {
+                    _operations.push_back(
+                        build_set_boundary_parameter(
+                            name, op_cfg, _minimization_params));
+                }
                 else {
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
@@ -313,6 +320,7 @@ private:
                             "proliferate, "
                             "relax_area, "
                             "set_area, "
+                            "set_boundary_parameter, "
                             "void."));
                 }
 
@@ -662,6 +670,27 @@ public:
     double get_energy_cell_contractility (const AgentContainer<Cell>& cs) const
     {
         return _vertex_model.get_energy_cell_contractility(cs);
+    }
+
+    /// Getter for the boundary shape elasticity energy
+    /** See PCPVertex::get_energy_linetension
+     */
+    double get_boundary_shape_energy() const {
+        return _vertex_model.get_boundary_shape_energy();
+
+    }
+    /// Getter for the boundary area elasticity energy
+    /** See PCPVertex::get_energy_linetension
+     */
+    double get_boundary_area_energy () const {
+        return _vertex_model.get_boundary_area_energy();
+
+    }
+    /// Getter for the boundary energy
+    /** See PCPVertex::get_energy_linetension
+     */
+    double get_boundary_energy() const {
+        return _vertex_model.get_boundary_energy();
     }
     
     // double get_energy_cell_cell_polarity() const {

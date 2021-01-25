@@ -28,6 +28,11 @@ PCPTopology:
         single: {size: 0.62}
       vertex_manager: ~
     area_elasticity: 1.0
+    boundary_parameter:
+      area_elasticity: 0.
+      area_preferential: 0.
+      shape_elasticity: 0.
+      shape_index_preferential: 0.
     cell_cell_polarity_interaction: 0.0
     cell_initialisation_protein_level: 0.0
     cell_polarity_exclusion: 0.0
@@ -46,6 +51,8 @@ PCPTopology:
         Energy_cell_cell_polarity: {active: false, decider: write_always, trigger: build_once}
         Energy_cell_contractility: {active: false, decider: write_always, trigger: build_once}
         Energy_edge_contractility: {active: false, decider: write_always, trigger: build_once}
+        Energy_boundary_area_elasticity: {active: false, decider: write_always, trigger: build_once}
+        Energy_boundary_shape_elasticity: {active: false, decider: write_always, trigger: build_once}
         Energy_lagrange_const_concentration: {active: false, decider: write_always,
           trigger: build_once}
         Energy_lagrange_net_polarisation: {active: false, decider: write_always, trigger: build_once}
