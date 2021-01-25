@@ -21,6 +21,11 @@ PCPVertex:
       single: {size: 0.62}
     vertex_manager: ~
   area_elasticity: 1.0
+  boundary_parameter:
+    area_elasticity: 0.
+    area_preferential: 0.
+    shape_elasticity: 0.
+    shape_index_preferential: 0.
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0
   cell_polarity_exclusion: 0.0

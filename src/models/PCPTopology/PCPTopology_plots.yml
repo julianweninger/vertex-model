@@ -6,9 +6,31 @@
 energy:
   based_on: energy
 
+energy_boundary:
+  based_on: energy
+  model_name: PCPTopology
+
+  to_plot:
+    Energy/Boundary_area_elasticity: 
+      label: Boundary area-elasticity
+
+    Energy/Boundary_shape_elasticity: 
+      label: Boundary shape-elasticity
+
 energy_continuous:
   based_on: energy
   model_name: PCPTopology/PCPVertex
+
+energy_boundary_continuous:
+  based_on: energy
+  model_name: PCPTopology/PCPVertex
+
+  to_plot:
+    Energy/Boundary_area_elasticity: 
+      label: Boundary area-elasticity
+
+    Energy/Boundary_shape_elasticity: 
+      label: Boundary shape-elasticity
 
 energy_polarity_continuous:
   based_on: energy

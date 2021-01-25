@@ -307,44 +307,36 @@ public:
         return distance(edge->custom_links().a, edge->custom_links().b);
     }
 
-    /// Calculate the perimeter of a cell
-    double perimeter_of (const std::shared_ptr<Cell>& cell) const {
-        return this->perimeter_of_virtual(cell, 0.);
+    auto length_of (const std::shared_ptr<Edge>& edge, double beta) const
+    {
+        if (beta == 0) {
+            return distance(edge->custom_links().a, edge->custom_links().b);
+        }
+        else {
+            const SpaceVec &a = displace_virtual(edge->custom_links().a, beta);
+            const SpaceVec &b = displace_virtual(edge->custom_links().b, beta);
+            return _space->distance(a, b);
+        }
     }
 
     /// Calculate the perimeter of a cell
-    double perimeter_of_virtual (const std::shared_ptr<Cell>& cell,
-                                 double beta) const {
+    double perimeter_of (const std::shared_ptr<Cell>& cell,
+                         double beta = 0.) const
+    {
+        return perimeter_of(cell->custom_links().edges, beta);
+    }
+
+    /// Calculate the perimeter of a boundary.
+    /** This can be a boundary of a cell or any other closed loop of edges.
+     */
+    double perimeter_of (const OrderedEdgeContainer& boundary,
+                         double beta) const
+    {
         double perimeter = 0.;
-        for (auto [e, flip] : cell->custom_links().edges) {
-            if (beta == 0) {
-                perimeter += this->_space->distance(
-                    position_of(e->custom_links().a),
-                    position_of(e->custom_links().b));
-            }
-            else {
-                const SpaceVec &a = displace_virtual(e->custom_links().a,
-                                                         beta);
-                const SpaceVec &b = displace_virtual(e->custom_links().b,
-                                                         beta);
-                perimeter += _space->distance(a, b);
-            }
+        for (const auto [e, flip] : boundary) {
+            perimeter += length_of(e, beta);
         }
         return perimeter;
-    }
-
-    /// Calculate the area of a cell
-    /** \tparam get_sign    If false the area can have a sign. It will be
-     *                      negative when the cell's edges are ordered clockwise
-     *                      instead of anti-clockwise.
-     *                      If true, throws on counter-clockwise ordering
-     * 
-     *  \note Does not check whether the edges are ordered and in which
-     *        orientation they are ordered.
-     */
-    template <bool get_sign = false>
-    double area_of (const std::shared_ptr<Cell>& cell) const {
-        return this->area_of_virtual<get_sign>(cell, 0.);
     }
 
     /// Calculate the area of a cell
@@ -358,16 +350,32 @@ public:
      *        orientation they are ordered.
      */
     template <bool get_sign = false>
-    double area_of_virtual (const std::shared_ptr<Cell>& cell,
-                            double beta) const {
+    double area_of (const std::shared_ptr<Cell>& cell, double beta = 0.) const
+    {
+        return area_of<get_sign>(cell->custom_links().edges, beta);
+    }
+
+    /// Calculate the area of a boundary
+    /** \param boundary The edges defining a boundary. This can be of a cell
+     *                  or any other closed loop.
+     *  \param beta     The update step length at which to predict the area
+     *  \tparam get_sign    If false the area can have a sign. It will be
+     *                      negative when the cell's edges are ordered clockwise
+     *                      instead of anti-clockwise.
+     *                      If true, throws on counter-clockwise ordering
+     * 
+     *  \note Does not check whether the edges are ordered and in which
+     *        orientation they are ordered.
+     */
+    template <bool get_sign = false>
+    double area_of(const OrderedEdgeContainer& boundary,
+                   double beta = 0.) const 
+    {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
 
-        // the ordered edges using flip boolian: [edge, flip]
-        const auto& edges = cell->custom_links().edges;
-
         // define a reference in space
-        auto [e, flip] = edges.front();
+        auto [e, flip] = boundary.front();
         std::shared_ptr<Vertex> reference;
         if (not flip) { reference = e->custom_links().a; }
         else { reference = e->custom_links().b; }
@@ -381,34 +389,45 @@ public:
         }
 
         double area = 0.;
-        for (const auto [e, flip] : edges) {
-            SpaceVec a, b;
-            if (beta == 0.) {
-                a = position_of(e->custom_links().a);
-                b = position_of(e->custom_links().b);
-            }
-            else {
-                a = displace_virtual(e->custom_links().a, beta);
-                b = displace_virtual(e->custom_links().b, beta);
-            }
-            // define the vertices positions relative to the reference
-            /* this is important in periodic space to calculate with "real"
-             * coordinates */
-            a = ref + _space->displacement(ref, a);
-            b = ref + _space->displacement(ref, b);
+        if (beta == 0.) {
+            for (const auto [e, flip] : boundary) {
+                SpaceVec a = position_of(e->custom_links().a);
+                SpaceVec b = position_of(e->custom_links().b);
 
-            if (flip) { std::swap(a, b); }
+                // define the vertices positions relative to the reference
+                /* this is important in periodic space to calculate with 
+                    * "real" coordinates */
+                a = ref + _space->displacement(ref, a);
+                b = ref + _space->displacement(ref, b);
 
-            area += a[0] * b[1] - b[0] * a[1];
+                if (flip) { std::swap(a, b); }
+
+                area += a[0] * b[1] - b[0] * a[1];
+            }
+        }
+        else {
+            for (const auto [e, flip] : boundary) {
+                SpaceVec a = this->displace_virtual(e->custom_links().a,
+                                                    beta);
+                SpaceVec b = this->displace_virtual(e->custom_links().b,
+                                                    beta);
+
+                a = ref + _space->displacement(ref, a);
+                b = ref + _space->displacement(ref, b);
+                
+                if (flip) { std::swap(a, b); }
+
+                area += a[0] * b[1] - b[0] * a[1];
+            }
         }
 
-        area *= 0.5;
+        area /= 2.;
 
         if constexpr (not get_sign) {
             // With beta = 0, negative area not allowed
             if (area < 0. and beta == 0.) {
                 throw std::runtime_error(fmt::format(
-                    "Negative area ({}) of cell {}!", area, cell->id()));
+                    "Negative area ({}) of a boundary defining a cell!", area));
             }
             else if (area < 0.) {
                 return std::nan("1");
@@ -421,22 +440,25 @@ public:
     /// Calculate the shape index of a cell
     /** shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$
      *  and area \f$ A \f$.
+     * 
+     *  \param beta     The update step length at which to predict the area
      */ 
-    double shape_index_of (const std::shared_ptr<Cell>& cell) const {
-        return this->shape_index_of_virtual(cell, 0.);
+    double shape_index_of (const std::shared_ptr<Cell>& cell,
+                           double beta = 0.) const
+    {
+        return shape_index_of(cell->custom_links().edges, beta);
     }
 
-    /// Calculate the shape index of a cell
+    /// Calculate the shape index of a boundary
     /** shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$
      *  and area \f$ A \f$.
      * 
      *  \param beta     The update step length at which to predict the area
      */ 
-    double shape_index_of_virtual (const std::shared_ptr<Cell>& cell,
-                                   double beta) const
+    double shape_index_of (const OrderedEdgeContainer& boundary,
+                           double beta = 0.) const
     {
-        return (  perimeter_of_virtual(cell, beta)
-                / sqrt( area_of_virtual(cell, beta) ));
+        return perimeter_of(boundary, beta) / sqrt( area_of(boundary, beta) );
     }
     
     /// Returns the barycenter of the given cell
@@ -703,6 +725,72 @@ public:
             }
         }
         return false;
+    }
+
+    OrderedEdgeContainer get_boundary_edges () const {
+        if (_space->periodic) {
+            return OrderedEdgeContainer{};
+        }
+
+        const auto& cells = this->cells();
+        const auto& edges = this->edges();
+
+        OrderedEdgeContainer boundary{};
+        boundary.reserve(cells.size());
+
+        auto edge = *std::find_if(
+            edges.begin(), edges.end(),
+            [this](const auto& edge) {
+                return this->is_1_cell_boundary_edge(edge);
+            });
+
+        const auto start = edge->custom_links().a;
+        auto iter = edge->custom_links().b;
+        boundary.push_back(std::make_pair(edge, false));
+
+        while (iter != start) {
+            const auto tmp_edges = adjoint_edges_of(iter);
+            edge = *std::find_if(
+                tmp_edges.begin(), tmp_edges.end(),
+                [this, edge](const auto& e_it) {
+                    if (e_it == edge) {
+                        return false;
+                    }
+                    return this->is_1_cell_boundary_edge(e_it);
+                });
+
+            if (iter == edge->custom_links().a) {
+                boundary.push_back(std::make_pair(edge, false));
+                iter = edge->custom_links().b;
+            }
+            else {
+                boundary.push_back(std::make_pair(edge, true));
+                iter = edge->custom_links().a;
+            }
+        }
+
+        double area = std::accumulate(
+            boundary.begin(), boundary.end(), 0.,
+            [this](double val, const auto e_pair) {
+                const auto [e, flip] = e_pair;
+                
+                SpaceVec a = this->position_of(e->custom_links().a);
+                SpaceVec b = this->position_of(e->custom_links().b);
+
+                if (flip) { std::swap(a, b); }
+
+                return val + (a[0] * b[1] - b[0] * a[1]);
+            });
+        area /= 2.;
+
+        if (area < 0.) {
+            boundary = this->reverse_edge_ordering(boundary);
+            area = fabs(area);
+        }
+
+        boundary.shrink_to_fit();
+
+        return boundary;
     }
 
 

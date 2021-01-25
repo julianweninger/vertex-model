@@ -20,6 +20,11 @@ PCPVertex:
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0
   cell_polarity_exclusion: 0.0
+  boundary_parameter:
+    area_elasticity: 1.
+    area_preferential: 64
+    shape_elasticity: 0.1
+    shape_index_preferential: 4.
   data_manager:
     deciders:
       write_always: {type: always}

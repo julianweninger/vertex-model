@@ -42,6 +42,15 @@ energy_mechanics:
     Energy/Edge_contractility:
       label: edge contractility
 
+energy_boundary:
+  based_on: energy
+
+  to_plot:
+    Energy/Boundary_area_elasticity: 
+      label: cell-cell-polarity
+    Energy/Boundary_shape_elasticity: 
+      label: polarity-exclusion
+
 energy_polarity:
   based_on: energy
   enabled: false

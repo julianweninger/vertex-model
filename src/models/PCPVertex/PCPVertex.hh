@@ -253,6 +253,8 @@ public:
     /// The types of a cell
     using CellType = typename CellState::CellType;
 
+    using OrderedEdgeContainer = typename AgentManager::OrderedEdgeContainer;
+
     /// The type of a rule function acting on vertices of the agent manager
     using RuleFuncVertex = typename AgentManager::RuleFuncVertex;
 
@@ -360,6 +362,24 @@ private:
 
     /// Interaction parameter of cell-internal polarity interaction
     double _cell_polarity_exclusion;
+
+    struct BoundaryParam {
+        double area_elasticity;
+        double area_preferential;
+
+        double shape_elasticity;
+        double shape_index_preferential;
+
+        BoundaryParam (const Config& cfg)
+        :
+            area_elasticity(get_as<double>("area_elasticity", cfg)),
+            area_preferential(get_as<double>("area_preferential", cfg)),
+            shape_elasticity(get_as<double>("shape_elasticity", cfg)),
+            shape_index_preferential(get_as<double>("shape_index_preferential",
+                                                    cfg))
+        { }
+
+    } _boundary_param;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -449,6 +469,7 @@ public:
             "cell_cell_polarity_interaction",this->_cfg)),
         _cell_polarity_exclusion(get_as<double>(
             "cell_polarity_exclusion", this->_cfg)),
+        _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
         _prob_distr(0.,1.),
         _energy_previous_step(0.),
         _energy(0.),
@@ -516,6 +537,7 @@ private:
                                    double beta = 0.) const;
     double cell_contractility_energy (const std::shared_ptr<Cell>& cell,
                                       double beta = 0.) const;
+
     // double cell_cell_polarity_energy (Edge_ptr &e) const;
     // double polarity_exclusion_energy (Edge_ptr &a, Edge_ptr &b,
     //                                   const Cell_ptr &cell) const;
@@ -554,6 +576,10 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
+        if (edge->state.linetension == 0.) {
+            return edge->state;
+        }
+
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
         
@@ -579,6 +605,10 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
+        if (edge->state.contractility == 0.) {
+            return edge->state;
+        }
+
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
@@ -728,6 +758,129 @@ private:
     };
 
 
+
+    void set_grad_boundary_area_elasticity
+            (const OrderedEdgeContainer& boundary)
+    {
+        if (_boundary_param.area_elasticity == 0.) {
+            return;
+        }
+
+        double area = _am.area_of(boundary);
+
+        const auto rel_area = area / _boundary_param.area_preferential;
+        
+        for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++) {
+            std::shared_ptr<Edge> e0; bool e0_flip;
+            if (edges_it > 0) { 
+                std::tie(e0, e0_flip) = boundary[edges_it - 1];
+            }
+            else {
+                std::tie(e0, e0_flip) = boundary.back();
+            }
+
+            const auto [e1, e1_flip] = boundary[edges_it];
+            
+            // vertices in ordering
+            auto v_center = e0->custom_links().b;
+            auto v_prior  = e0->custom_links().a;
+            if (e0_flip) {
+                std::swap(v_center, v_prior);
+            }
+
+            std::shared_ptr<Vertex> v_post;
+            if (not e1_flip) {
+                v_post = e1->custom_links().b;
+            }
+            else {
+                v_post = e1->custom_links().a;
+            }
+
+            // get positions relative to cell center
+            SpaceVec prior = _am.position_of(v_prior);
+            SpaceVec post  = _am.position_of(v_post);
+
+            SpaceVec displ = post - prior;
+
+            // derivative of A to x_i, i.e. the position of v_center 
+            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
+
+            SpaceVec force = (  -1. * _boundary_param.area_elasticity
+                              * (rel_area - 1) * dA_dx
+                              / _boundary_param.area_preferential);
+
+            v_center->state.f += force;
+        }
+        
+        return;
+    };
+
+    void set_grad_boundary_shape_elasticity 
+            (const OrderedEdgeContainer& boundary)
+    {
+        if (_boundary_param.shape_elasticity == 0.) {
+            return;
+        }
+
+        const double area = _am.area_of(boundary, 0.);
+        const double perimeter = this->_am.perimeter_of(boundary, 0.);
+        const double shape_index = perimeter / sqrt(area);
+        
+        for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++)
+        {
+            std::shared_ptr<Edge> e0; bool e0_flip;
+            if (edges_it > 0) { 
+                std::tie(e0, e0_flip) = boundary[edges_it - 1];
+            }
+            else {
+                std::tie(e0, e0_flip) = boundary.back();
+            }
+
+            const auto [e1, e1_flip] = boundary[edges_it];
+            
+            // vertices in ordering
+            auto v_center = e0->custom_links().b;
+            auto v_prior  = e0->custom_links().a;
+            if (e0_flip) {
+                std::swap(v_center, v_prior);
+            }
+
+            std::shared_ptr<Vertex> v_post;
+            if (not e1_flip) {
+                v_post = e1->custom_links().b;
+            }
+            else {
+                v_post = e1->custom_links().a;
+            }
+
+            // get positions relative to cell center
+            SpaceVec center = _am.position_of(v_center);
+            SpaceVec prior  = _am.position_of(v_prior);
+            SpaceVec post   = _am.position_of(v_post);
+
+            // calculate dA / dx_i
+            SpaceVec displ = post - prior;
+            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
+
+            // calculate dP / dx_i
+            SpaceVec displ_2 = this->_space->displacement(prior, center);
+            SpaceVec displ_3 = this->_space->displacement(center, post);
+            SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
+                              - displ_3 / arma::norm(displ_3));
+
+            SpaceVec dE_dx = (  _boundary_param.shape_elasticity
+                              * (  shape_index
+                                 - _boundary_param.shape_index_preferential)
+                              * (  dP_dx / sqrt(area)
+                                 - 0.5 * dA_dx * shape_index / area));
+
+            v_center->state.f -= dE_dx;
+        }
+
+        return;
+    };
+
+
     // /// Set forces from cell-cell polarity interaction
     // /** 
     //  *  \return PCPVertex::cell_cell_polarity_energy
@@ -844,6 +997,11 @@ private:
                                                 _am.cells());
         apply_rule<Update::async, Shuffle::off>(set_grad_cell_contractility,
                                                 _am.cells());
+
+        // apply boundary forces
+        const auto boundary = _am.get_boundary_edges();
+        set_grad_boundary_area_elasticity(boundary);
+        set_grad_boundary_shape_elasticity(boundary);
     }
 
     /** The update of position
@@ -1148,8 +1306,12 @@ public:
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-    // NOTE when adding energy terms remember to add them to get_energy(..)
 protected:
+
+    // .. Prediction of energy terms ..........................................
+    // see energy.hh for implementation
+    // NOTE when adding energy terms remember to add them to get_energy(..)
+
     double get_energy_linetension(const AgentContainer<Edge>& es,
                                   double beta) const;
     double get_energy_edge_contractility(const AgentContainer<Edge>& es,
@@ -1158,10 +1320,16 @@ protected:
                                       double beta) const;    
     double get_energy_cell_contractility (const AgentContainer<Cell>& cs,
                                           double beta) const;
+                                          
+    double get_boundary_area_energy (double beta) const;
+    double get_boundary_shape_energy(double beta) const;
+
     double get_energy(const AgentContainer<Edge>& es,
                       const AgentContainer<Cell>& cs,
                       double beta = 0.) const;
     
+    // .. Derived and global energy term predictions  .........................
+
     /// Predict the energy from linetension term
     /** by moving the vertices towards energy minimum at stepsize beta.
      *  This uses steepest gradient direction or conjugate gradient direction
@@ -1205,6 +1373,13 @@ protected:
     double get_energy_cell_contractility (double beta) const {
         return get_energy_cell_contractility(_am.cells(), beta);
     }
+
+    /// Predict the energy contribution of tbe boundary
+    /** Includes shape and area elasticity
+     */
+    double get_boundary_energy(double beta) const {
+        return get_boundary_area_energy(beta) + get_boundary_shape_energy(beta);
+    }
     
     /// Predict the energy
     /** by moving the vertices towards energy minimum at stepsize beta.
@@ -1218,6 +1393,8 @@ protected:
     }
 
 public:
+    // .. Public energy terms .................................................
+
     /// Getter for energy associated with linetension
     /** Sums PCPVertex::line_tension_energy for all entities
      */
@@ -1245,9 +1422,38 @@ public:
     double get_energy_cell_contractility () const {
         return get_energy_cell_contractility(_am.cells(), 0.);
     }
+
+    double get_boundary_shape_energy() const {
+        return get_boundary_shape_energy(0.);
+    }
+    double get_boundary_area_energy () const {
+        return get_boundary_area_energy(0.);
+    }
+
+    double get_boundary_energy() const {
+        return get_boundary_area_energy(0.) + get_boundary_shape_energy(0.);
+    }
+
+    /// Getter for the total energy
     double get_energy() const {
         return get_energy(_am.edges(), _am.cells(), 0.);
     }
+
+    double get_rel_energy_change () const;
+
+    /// Whether the relative change in energy fulfills the equilibrium condition
+    bool equilibrium_condition() const {
+        if (_status != Status::Minimization) {
+            return false;
+        }
+
+        double energy_change = (  (_energy - _energy_previous_step)
+                                / (_energy + 1e-14));
+        return (fabs(energy_change) < _minimization_tolerance);
+    }
+
+
+    // .. Public energy terms for subset of entities ..........................
 
     /// Getter for energy associated with linetension
     /** Sums PCPVertex::line_tension_energy for provided entities
@@ -1283,14 +1489,14 @@ public:
      *      -# PCPVertex::get_energy_linetension
      *      -# PCPVertex::get_energy_edge_contractility
      *      -# PCPVertex::get_energy_areaelasticity
-     *      -# PCPVertex
+     *      -# PCPVertex::get_energy_cell_contractility
+     *      -# PCPVertex::get_boundary_area_energy
+     *      -# PCPVertex::get_boundary_shape_energy
      */
     double get_energy(const AgentContainer<Edge>& es,
                       const AgentContainer<Cell>& cs) const {
         return get_energy(es, cs, 0.);
     }
-
-    double get_rel_energy_change () const;
     
     // double get_energy_cell_cell_polarity(const EdgeContainer& es) const;
     // double get_energy_cell_cell_polarity() const {
@@ -1313,40 +1519,41 @@ public:
     //     return get_energy_lagrange_const_concentration(_cells);
     // }
 
-    bool equilibrium_condition() const {
-        if (_status != Status::Minimization) {
-            return false;
-        }
+    
+    // .. Counter for transitions, etc.. ......................................
 
-        double energy_change = (  (_energy - _energy_previous_step)
-                                / (_energy + 1e-14));
-        return (fabs(energy_change) < _minimization_tolerance);
-    }
-
+    /// Counter for the T1 neighborhood exchange transitions in last iteration
     std::size_t get_num_T1s() const {
         return _num_T1s;
     }
 
+    /// Counter for the attempted T1 neighborhood exchange transitions
+    /// in last iteration
     std::size_t get_num_T1s_attempted() const {
         return _num_T1s_attempted;
     }
 
+    /// Counter for the T2 cell extrusion transitions in last iteration
     std::size_t get_num_T2s() const {
         return _num_T2s;
     }
 
+    /// Total counter for the T1 neighborhood exchange transitions
     std::size_t get_num_T1s_total() const {
         return _num_T1s_total;
     }
 
+    /// Total counter for the attempted T1 neighborhood exchange transitions
     std::size_t get_num_T1s_attempted_total() const {
         return _num_T1s_attempted_total;
     }
 
+    /// Total counter for the T2 cell extrusion transitions
     std::size_t get_num_T2s_total() const {
         return _num_T2s_total;
     }
 
+    /// Counter for the energy minimizations completed
     std::size_t get_num_minimizations() const {
         return _num_minimizations;
     }
@@ -1355,6 +1562,9 @@ public:
     const AgentManager& get_am () const {
         return _am;
     }
+
+
+    // .. Model properties ....................................................
     
     /// Get linetension matrix
     CellCellPropertyMatrix get_linetension () const {
@@ -1395,10 +1605,12 @@ public:
         }
     }
 
+    /// Getter for edge contractility matrix
     CellCellPropertyMatrix get_edge_contractility () const {
         return _edge_contractility;
     }
-
+    
+    /// Setter for edge contractility matrix
     void set_edge_contractility (CellCellPropertyMatrix contractility,
                                  bool update_edges) 
     {
@@ -1431,6 +1643,12 @@ public:
             apply_rule<Update::sync>(update, this->_am.edges());
         }
     }
+
+    /// Setter for boundary parameter
+    void set_boundary_parameter (const Config& cfg) {
+        _boundary_param = BoundaryParam(cfg);
+    }
+
 }; // class PCPVertex
 
 

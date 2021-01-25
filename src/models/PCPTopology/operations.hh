@@ -1484,6 +1484,22 @@ OperationBundle build_set_area (
     return std::make_pair(operation, params);
 }
 
+OperationBundle build_set_boundary_parameter (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    auto boundary_cfg = get_as<Config>("boundary_parameter", cfg);
+
+    Operation operation = [boundary_cfg] (PCPVertex& vertex_model)
+    {
+        vertex_model.set_boundary_parameter(boundary_cfg);
+    };
+
+    return std::make_pair(operation, params);
+}
+
 } // namespace OperationCollection
 } // namespace PCPVertex
 } // namespace Models

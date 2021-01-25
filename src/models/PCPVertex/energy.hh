@@ -21,6 +21,10 @@ namespace PCPVertex {
 double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
+    if (edge->state.linetension == 0.) {
+        return 0.;
+    }
+
     double length;
     if (beta > 0) {
         const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
@@ -50,6 +54,10 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
+    if (edge->state.contractility == 0.) {
+        return 0.;
+    }
+
     double length;
     if (beta > 0) {
         const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
@@ -80,7 +88,7 @@ double PCPVertex::area_elasticity_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     // for beta = 0, returns same as area_of(cell)
-    double rel_area = (  _am.area_of_virtual(cell, beta)
+    double rel_area = (  _am.area_of(cell, beta)
                        / cell->state.area_preferential);
     return 0.5 * _area_elasticity * pow(rel_area - 1., 2);
 };
@@ -103,7 +111,7 @@ double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     const auto state = cell->state;
-    double shape_index = _am.shape_index_of_virtual(cell, beta);
+    double shape_index = _am.shape_index_of(cell, beta);
     return (  0.5 * state.contractility
             * std::pow(shape_index - state.shape_index_preferential, 2));
 };
@@ -291,6 +299,41 @@ double PCPVertex::get_energy_cell_contractility(
     return energy;
 }
 
+/// Getter for the boundary area energy 
+/** Similar to a cell, the domain's area has quadratic energy contribution
+ */ 
+double PCPVertex::get_boundary_area_energy (double beta) const {
+    if (_boundary_param.area_elasticity == 0.) {
+        return 0.;
+    }
+
+    const auto boundary = _am.get_boundary_edges();
+
+    double area = _am.area_of(boundary, beta);
+
+    double rel_area = area / _boundary_param.area_preferential;
+    double area_elasticity = _boundary_param.area_elasticity;
+
+    return 0.5 * area_elasticity * std::pow(rel_area - 1., 2);
+}
+
+/// Getter for the boundary shape energy
+/** Similar to a cell, the boundaries shape has quadratic energy contribution
+ */ 
+double PCPVertex::get_boundary_shape_energy(double beta) const {
+    if (_boundary_param.shape_elasticity == 0.) {
+        return 0.;
+    }
+    
+    const auto boundary = _am.get_boundary_edges();
+
+    double shape_elasticity = _boundary_param.shape_elasticity;
+    double shape_index = _am.shape_index_of(boundary, beta);
+    double shape_index_pref = _boundary_param.shape_index_preferential;
+
+    return (  0.5 * shape_elasticity
+            * std::pow(shape_index - shape_index_pref, 2.));
+}
 
 // /// Getter for energy associated with cell-cell polarity
 // double PCPVertex::get_energy_cell_cell_polarity(
@@ -363,7 +406,8 @@ double PCPVertex::get_energy (
    return (  get_energy_linetension(es, beta)
            + get_energy_edge_contractility(es, beta)
            + get_energy_areaelasticity(cs, beta)
-           + get_energy_cell_contractility(cs, beta));
+           + get_energy_cell_contractility(cs, beta)
+           + get_boundary_energy(beta));
 }
 
 /// Getter for the relative energy change from previous to last step
