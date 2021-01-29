@@ -211,7 +211,7 @@ void PCPVertex::init_minimization ()
         _am.vertices()
     );
 
-    _dt = 0.05;
+    _dt = _default_minimization_params.dt;
 };
 
 /// Single step in direction of steepest gradient
