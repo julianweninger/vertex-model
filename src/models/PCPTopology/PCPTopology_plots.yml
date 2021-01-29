@@ -203,6 +203,7 @@ cell_neighbourhood: !pspace
       - hair
       - support
       - support_hair
+      - hair_hair
       
 NotchDelta_densities:
   based_on: .basic_uni.lineplots
