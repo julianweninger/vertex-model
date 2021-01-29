@@ -118,6 +118,29 @@ cell_shape:
       x: time
       y: average shape index
 
+HC_neighbors:
+  <<: *CELLAREA
+
+  to_plot:
+    hair_cells:
+      label: hair cells
+    support_cells:
+      label: support cells
+
+  select:
+    _property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: num_hair_neighbors
+
+  helpers:
+    set_labels:
+      x: time
+      y: average hair cell neighbors
+
 hexatic_order:
   <<: *CELLAREA
 
