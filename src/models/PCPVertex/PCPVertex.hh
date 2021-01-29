@@ -49,7 +49,7 @@ struct MinimizationParams {
     std::size_t num_steps;
 
     /// The temperature for random brownian motion
-    /** With mean 0 and variance \f$ \sigma^2 = 2 T dt \f$.
+    /** With mean 0 and variance \f$ \sigma^2 = 2 T \f$.
      */
     std::normal_distribution<double> temperature;
 
@@ -85,7 +85,7 @@ struct MinimizationParams {
         dt(get_as<double>("dt", cfg)),
         max_steps(get_as<std::size_t>("max_steps", cfg)),
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
-        temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.) * dt)),
+        temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.))),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg, tolerance)),
         jiggle_intensity(get_as<double>("jiggle_intensity", cfg, 0.))
@@ -300,7 +300,7 @@ private:
     double _minimization_tolerance;
 
     /// The temperature for random brownian motion
-    /** With mean 0 and variance \f$ \sigma^2 = 2 T dt \f$.
+    /** With mean 0 and variance \f$ \sigma^2 = 2 T \f$.
      */
     std::normal_distribution<double> _distr_temperature;
 
@@ -1018,7 +1018,7 @@ private:
     const RuleFuncVertex update_brownian_motion = [this](const auto& vertex) {
         SpaceVec temp = {_distr_temperature(*this->_rng),
                          _distr_temperature(*this->_rng)};
-        _am.move_by(vertex, temp);
+        _am.move_by(vertex, temp * this->_dt);
         
         return vertex->state;
     };

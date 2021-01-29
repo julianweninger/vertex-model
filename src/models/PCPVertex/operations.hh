@@ -56,6 +56,10 @@ void PCPVertex::jiggle_vertices(double intensity)
  */
 void PCPVertex::increase_domain_size(double area)
 {
+    if (not this->_space->periodic) {
+        return;
+    }
+
     const SpaceVec domain = this->_space->get_domain_size();
     if (-1. * area > domain[0] * domain[1]) {
         throw std::invalid_argument("Cannot decrease the domain size by "
@@ -82,6 +86,16 @@ void PCPVertex::increase_domain_size(double area)
 double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
         bool fix_hc_area, bool fix_sc_area)
 {
+    if (not this->_space->periodic) {
+        if (compensate) {
+            this->_log->warn("Skipping stretch domain in non-periodic boundary "
+                "conditions. The domain is large enough to fit a tissue of any "
+                "size.. However, `compensate` is requested, which will also "
+                "be skipped!");
+        }
+        return 0.;
+    }
+
     if (compensate and fix_hc_area and fix_sc_area) {
         throw std::invalid_argument("Cannot compensate area while fixing "
             "hair and support cell area in operation 'increment_domain'!");

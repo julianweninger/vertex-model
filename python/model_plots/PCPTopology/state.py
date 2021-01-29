@@ -118,33 +118,55 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
 
     bins = range(3, 12)
 
+    # use num_neighbors
     if only_type == 'hair':
+        num_neighbors = data.sel(property='num_neighbors')
         num_neighbors = num_neighbors[cell_type == 1]
         area = area[cell_type == 1]
         shape_index = shape_index[cell_type == 1]
     elif only_type == 'support':
+        num_neighbors = data.sel(property='num_neighbors')
         num_neighbors = num_neighbors[cell_type == 2]
         area = area[cell_type == 2]
         shape_index = shape_index[cell_type == 2]
+
+    # use num_hair_neighbors
+    elif only_type == 'hair_hair':
+        num_neighbors = data.sel(property='num_hair_neighbors')
+        num_neighbors = num_neighbors[cell_type == 1]
+        bins = range(0, 7)
+        plot_area = False
+        plot_shape_index = False
     elif only_type == 'support_hair':
         num_neighbors = data.sel(property='num_hair_neighbors')
         num_neighbors = num_neighbors[cell_type == 2]
-        area = area[cell_type == 2]
-        shape_index = shape_index[cell_type == 2]
         bins = range(0, 7)
+        plot_area = False
+        plot_shape_index = False
+
+    # use num_neighbors - num_hair_neighbors
+    elif only_type == 'hair_support':
+        num_neighbors = num_neighbors - \
+                        data.sel(property='num_hair_neighbors')
+        num_neighbors = num_neighbors[cell_type == 1]
+        bins = range(0, 7)
+        plot_area = False
+        plot_shape_index = False
     elif only_type == 'support_support':
         num_neighbors = num_neighbors - \
                         data.sel(property='num_hair_neighbors')
         num_neighbors = num_neighbors[cell_type == 2]
-        area = area[cell_type == 2]
-        shape_index = shape_index[cell_type == 2]
         bins = range(0, 7)
+        plot_area = False
+        plot_shape_index = False
     elif only_type != 'all':
         raise ValueError("'only_type' unknown, was '{}', but must be "
                     "one of {}"
                     "".format(only_type, ['all', 'hair', 'support',
-                                            'support_hair',
-                                            'support_support']))
+                                          'support_hair',
+                                          'hair_support',
+                                          'support_support',
+                                          'hair_hair']))
     figure_index = 0
 
     # the histogram
