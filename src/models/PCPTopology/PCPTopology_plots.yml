@@ -167,26 +167,40 @@ equilibrium_cellular_structure:
     - .default_style_and_helpers
     - cellular_structure
 
-equilibrium_cellular_structure__property: !pspace
+equilibrium_cellular_structure__area_elasticity: &Property
   based_on:
     - .default_style_and_helpers
     - cellular_structure
 
   enabled: false
 
-  property: !sweep
-    default: area_elasticity
-    values: 
-      - area_elasticity
-      - cell_contractility
-      - linetension
-      - edge_contractility
-      - hexatic_order
+  property: area_elasticity
 
   property_interpolation_kwargs:
     method: nearest
   property_interpolation_plot_kwargs:
     cmap: Reds
+
+equilibrium_cellular_structure__cell_contractility:
+  <<: *Property
+  property: cell_contractility
+equilibrium_cellular_structure__linetension:
+  <<: *Property
+  property: linetension
+equilibrium_cellular_structure__edge_contractility:
+  <<: *Property
+  property: edge_contractility
+equilibrium_cellular_structure__hexatic_order:
+  <<: *Property
+  property: hexatic_order
+equilibrium_cellular_structure__rotation:
+  <<: *Property
+  property: rotation
+  property_interpolation_plot_kwargs:
+    cmap: seismic
+    vmin: -3.1415
+    vmax: 3.1415
+
 
 cellular_structure:
   based_on:

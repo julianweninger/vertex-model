@@ -302,6 +302,11 @@ private:
                         build_set_boundary_parameter(
                             name, op_cfg, _minimization_params));
                 }
+                else if (name == "set_torque") {
+                    _operations.push_back(
+                        build_set_torque(
+                            name, op_cfg, _minimization_params));
+                }
                 else {
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
@@ -321,6 +326,7 @@ private:
                             "relax_area, "
                             "set_area, "
                             "set_boundary_parameter, "
+                            "set_torque, "
                             "void."));
                 }
 

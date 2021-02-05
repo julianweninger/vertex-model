@@ -88,6 +88,44 @@ struct EdgeState {
 };
 
 
+struct RotationCellState {
+    double torque;
+
+    double tracked_rotation;
+
+    double tracking_persistence;
+
+    RotationCellState(const Utopia::DataIO::Config& cfg)
+    :
+        torque(get_as<double>("torque", cfg)),
+        tracked_rotation(0.),
+        tracking_persistence(1. / get_as<double>("tracking", cfg, 
+                                        std::numeric_limits<double>::max()))
+    { }
+
+    template <typename Cell, typename AgentManager>
+    double angular_velocity(const Cell& cell, const AgentManager& am) const
+    {
+        using SpaceVec = typename AgentManager::SpaceVec;
+
+        const SpaceVec cell_center = am.barycenter_of(cell);
+
+        double angular_velocity = 0.;
+        for (const auto& vertex : cell->custom_links().vertices) {
+            SpaceVec pos = am.position_of(vertex);
+            SpaceVec displ = am.get_space()->displacement(cell_center, pos);
+            double length = arma::norm(displ);
+
+            SpaceVec vel = vertex->state.f;
+
+            double cross_prod = (displ[0] * vel[1] - displ[1] * vel[0]);
+            angular_velocity += cross_prod / std::pow(length, 2.);
+        }
+
+        return angular_velocity / cell->custom_links().vertices.size();
+    }
+};
+
 
 /// The Cell defined by its id, its vertices and its area
 struct CellState {

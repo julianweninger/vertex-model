@@ -71,6 +71,8 @@ public:
         
         /// A cell in the Collier model
         std::shared_ptr<Utopia::Models::Collier::Collier::Cell> c_cell;
+
+        std::shared_ptr<RotationCellState> rotation_state;
     };
     using CellTraits = Utopia::AgentTraits<CellState, Update::manual, false,
                                            EmptyTag, CellLinks>;
@@ -164,6 +166,10 @@ public:
     }
 
     // -- Public interface ----------------------------------------------------
+    const auto& get_space() const {
+        return _space;
+    }    
+    
     /// Return const reference to the managed vertices
     const auto& vertices () const {
         return _vertex_manager.agents();

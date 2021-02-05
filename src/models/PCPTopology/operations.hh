@@ -1500,6 +1500,56 @@ OperationBundle build_set_boundary_parameter (
     return std::make_pair(operation, params);
 }
 
+/// Set a torque to cells
+/** The configuration is passed on to the constructor of RotationCellState
+ *  The config following the keys to the respective cell type:
+ *      - `hair`
+ *      - `support`
+ *      - `progenitor`
+ * 
+ *  If a configuration is not given, torque zero is set.
+ */
+OperationBundle build_set_torque (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    Config cfg_default;
+    cfg_default["torque"] = 0.;
+
+    Config cfg_hair = get_as<Config>("hair", cfg, cfg_default);
+    Config cfg_support = get_as<Config>("support", cfg, cfg_default);
+    Config cfg_progenitor = get_as<Config>("progenitor", cfg, cfg_default);
+
+    Operation operation = [cfg_hair, cfg_support, cfg_progenitor]
+                          (PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+
+        const auto& cells = vertex_model.get_am().cells();
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                auto rot_state = std::make_shared<RotationCellState>(cfg_hair);
+                cell->custom_links().rotation_state = rot_state;
+            }
+            else if (cell->state.type == CellType::support) {
+                auto rot_state = std::make_shared<RotationCellState>(
+                                                cfg_support);
+                cell->custom_links().rotation_state = rot_state;
+            }
+            else if (cell->state.type == CellType::progenitor) {
+                auto rot_state = std::make_shared<RotationCellState>(
+                                                cfg_progenitor);
+                cell->custom_links().rotation_state = rot_state;
+            }
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+
 } // namespace OperationCollection
 } // namespace PCPVertex
 } // namespace Models
