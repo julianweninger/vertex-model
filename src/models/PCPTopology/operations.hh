@@ -1633,6 +1633,65 @@ OperationBundle build_set_torque (
     return std::make_pair(operation, params);
 }
 
+/// A simple shear model
+/** Move all boundary vertices in a simple shear way:
+ *  \f$ dx = const * y \f$
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `max_shear` (double): the maximum displacement at \f$ y_{max} \f$
+ *                              with const = max_shear / W, where H the width
+ *                              of the tissue
+ */
+OperationBundle build_simple_shear (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    using SpaceVec = PCPVertex::SpaceVec;
+
+    OperationParams params(name, cfg, default_minim_params);
+    double max_shear = get_as<double>("max_shear", cfg);
+
+    auto [op_fix_bc, __params_fix_bc] = build_fix_boundary("fix_boundary", cfg,
+                                             default_minim_params);
+
+    Operation operation = [max_shear, op_fix_bc] (PCPVertex& vertex_model)
+    {
+        const auto& am = vertex_model.get_am();
+
+        // fix the current boundary cells
+        op_fix_bc(vertex_model);
+
+        double min_y = std::numeric_limits<double>::max();
+        double max_y = std::numeric_limits<double>::min();
+
+        for (const auto& vertex : am.vertices()) {
+            SpaceVec pos = am.position_of(vertex);
+            min_y = std::min(min_y, pos[1]);
+            max_y = std::max(max_y, pos[1]);
+        }
+
+        double gradient = max_shear / (max_y - min_y);
+        
+        // move the outermost vertices by dH / 2. towards hor. axis
+        // fix moved vertices permanently in space 
+        apply_rule<Update::sync>(
+            [am, gradient, min_y] (const auto& vertex)
+            {
+                SpaceVec pos = am.position_of(vertex);
+                double y = pos[1] - min_y;
+                if (vertex->state.fix_in_space) {
+                    am.move_by(vertex, SpaceVec({gradient * y, 0.}));
+                }
+                
+                return vertex->state;
+            },
+            am.vertices());
+    };
+
+    return std::make_pair(operation, params);
+}
+
 
 } // namespace OperationCollection
 } // namespace PCPVertex

@@ -320,6 +320,11 @@ private:
                         build_set_torque(
                             name, op_cfg, _minimization_params));
                 }
+                else if (name == "simple_shear") {
+                    _operations.push_back(
+                        build_simple_shear(
+                            name, op_cfg, _minimization_params));
+                }
                 else {
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
@@ -342,6 +347,7 @@ private:
                             "set_area, "
                             "set_boundary_parameter, "
                             "set_torque, "
+                            "simple_shear, "
                             "void."));
                 }
 
