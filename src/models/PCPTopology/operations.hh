@@ -639,6 +639,90 @@ OperationBundle build_differentiate_hair_cluster (
     return std::make_pair(operation, params);
 }
 
+/// An operation to fix boundary vertices in space
+OperationBundle build_fix_boundary (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    Operation operation = [] (PCPVertex& vertex_model)
+    {
+        const auto& am = vertex_model.get_am();
+        apply_rule<Update::sync>(
+            [am](const auto& vertex) {
+                auto state = vertex->state;
+                if (am.is_boundary(vertex)) {
+                    state.fix_in_space = true;
+                }
+                else {
+                    state.fix_in_space = false;
+                }
+                return state;
+            },
+            am.vertices()
+        );
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// A convergence and extension model
+/** The outermost vertices in the vertical direction are moved towards the
+ *  horizontal tissue axis and fixed in space for minimization.
+ *  Horizontal boundary vertices are free to move and are thought to move
+ *  outwards to compensate increased pressure.
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `dH` (double): The length by which the vertical axis is reduced
+ */
+OperationBundle build_convergence_and_extension (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    using SpaceVec = PCPVertex::SpaceVec;
+
+    OperationParams params(name, cfg, default_minim_params);
+    double dH = get_as<double>("dH", cfg);
+    Operation operation = [dH] (PCPVertex& vertex_model)
+    {
+        const auto& am = vertex_model.get_am();
+
+        double min_y = std::numeric_limits<double>::max();
+        double max_y = std::numeric_limits<double>::min();
+
+        for (const auto& vertex : am.vertices()) {
+            SpaceVec pos = am.position_of(vertex);
+            min_y = std::min(min_y, pos[1]);
+            max_y = std::max(max_y, pos[1]);
+        }
+        
+        // move the outermost vertices by dH / 2. towards hor. axis
+        // fix moved vertices permanently in space 
+        apply_rule<Update::sync>(
+            [am, dH, min_y, max_y] (const auto& vertex)
+            {
+                auto state = vertex->state;
+                SpaceVec pos = am.position_of(vertex);
+                if (fabs(pos[1] - min_y) < 3 * dH) {
+                    am.move_by(vertex, SpaceVec({0.,  dH / 2.}));
+                    state.fix_in_space = true;
+                }
+                else if (fabs(pos[1] - max_y) < 3 * dH) {
+                    am.move_by(vertex, SpaceVec({0., -dH / 2.}));
+                    state.fix_in_space = true;
+                }
+                
+                return state;
+            },
+            am.vertices()
+        );
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// The operation to increment preferential area
 /** \details The following parameter are extracted from cfg 
  *           (besides those passed to `OperationParams`):

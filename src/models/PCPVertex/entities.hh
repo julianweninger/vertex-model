@@ -27,11 +27,15 @@ struct VertexState {
     /// Whether to remove
     bool remove;
 
+    /// Whether to fix the position of this vertex, i.e. boundary condition
+    bool fix_in_space;
+
     /// Constructor
     VertexState ()
     :  
         f(), g(), h(),
-        remove(false)
+        remove(false),
+        fix_in_space(false)
     {
         f.zeros();
         g.zeros();

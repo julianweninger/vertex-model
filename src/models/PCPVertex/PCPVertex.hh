@@ -1030,6 +1030,14 @@ private:
             apply_rule<Update::async, Shuffle::off>(set_grad_torque, 
                                                     _am.cells());
         }
+
+        // set forces on fixed vertices (e.g. boundary) to zero
+        apply_rule<Update::sync>(
+            [](const auto& vertex) {
+                auto state = vertex->state;
+                if (state.fix_in_space) {  state.f = SpaceVec({0., 0.}); }
+                return state;
+            }, _am.vertices());
     }
 
     /** The update of position
@@ -1180,28 +1188,26 @@ public:
         _energy_previous_step = _energy;
         _energy = perform_update_step(_update_scheme);
 
-        if (_update_scheme == UpdateScheme::SteepestGradient) {
-            const RuleFuncCell track_rotation = [this](const auto& cell)
-            {
-                if (not cell->custom_links().rotation_state) {
-                    return cell->state;
-                }
-
-                const auto& rot_state = cell->custom_links().rotation_state;
-
-                double angular_vel = rot_state->angular_velocity(cell, _am);
-                angular_vel *= _dt;
-
-                double tracked_rotation = rot_state->tracked_rotation;
-                double alpha = rot_state->tracking_persistence;
-
-                rot_state->tracked_rotation += (  angular_vel
-                                                - tracked_rotation * alpha);
-
+        const RuleFuncCell track_rotation = [this](const auto& cell)
+        {
+            if (not cell->custom_links().rotation_state) {
                 return cell->state;
-            };
-            apply_rule<Update::sync>(track_rotation, _am.cells());
-        }
+            }
+
+            const auto& rot_state = cell->custom_links().rotation_state;
+
+            double angular_vel = rot_state->angular_velocity(cell, _am);
+            angular_vel *= _dt;
+
+            double tracked_rotation = rot_state->tracked_rotation;
+            double alpha = rot_state->tracking_persistence;
+
+            rot_state->tracked_rotation += (  angular_vel
+                                            - tracked_rotation * alpha);
+
+            return cell->state;
+        };
+        apply_rule<Update::sync>(track_rotation, _am.cells());
         
         // if (_gamma > 0) {
         //     throw std::logic_error("Polarity proteins update not implemented!");

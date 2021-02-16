@@ -474,21 +474,28 @@ public:
      *  \param cell     The considered cell
      */
     SpaceVec barycenter_of (const std::shared_ptr<Cell>& cell) const {
+        return barycenter_of(cell->custom_links().edges);
+    }
+    
+    /// Returns the barycenter of the given boundary
+    /** \note   It is assumed that the edges are ordered anti-clockwise or 
+     *          clock-wise
+     * 
+     *  \param cell     The considered cell
+     */
+    SpaceVec barycenter_of (const OrderedEdgeContainer& boundary) const {
         static_assert(Space::dim == 2, "Center of a cell is only implemented "
                       "for 2 dimensional space!");
 
-        // the ordered edges using flip boolian: [edge, flip]
-        const auto& edges = cell->custom_links().edges;
-
         // define a reference in space
-        auto [e, flip] = edges.front();
+        auto [e, flip] = boundary.front();
         std::shared_ptr<Vertex> reference;
         if (not flip) { reference = e->custom_links().a; }
         else { reference = e->custom_links().b; }
 
         double area = 0.;
         SpaceVec center(arma::fill::zeros);
-        for (const auto [e, flip] : edges) {
+        for (const auto [e, flip] : boundary) {
             // define the vertices positions relative to the reference
             /* this is important in periodic space to calculate with "real"
              * coordinates */

@@ -250,6 +250,19 @@ private:
                         build_differentiate_hair_cluster(name, op_cfg,
                                                          _minimization_params));
                 }
+                else if (name == "fix_boundary") {
+                    _operations.push_back(
+                        build_fix_boundary(name, op_cfg, _minimization_params));
+                }
+                else if (name == "convergence_and_extension") {
+                    if (_vertex_model.get_space()->periodic) {
+                        throw std::runtime_error("Cannot build operation "
+                            "convergence and extension in periodic space!");
+                    }
+                    _operations.push_back(
+                        build_convergence_and_extension(name, op_cfg,
+                                                        _minimization_params));
+                }
                 else if (name == "increment_area") {
                     _operations.push_back(
                         build_increment_area(name, op_cfg,
@@ -315,6 +328,8 @@ private:
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
                             "differentiate_hair_cluster, "
+                            "convergence_and_extension, "
+                            "fix_boundary, "
                             "increment_area, "
                             "increment_cell_contractility, "
                             "increment_domain, "
