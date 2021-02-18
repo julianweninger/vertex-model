@@ -164,6 +164,126 @@ using Operation = std::function<void(PCPVertex& vertex_model)>;
 
 using OperationBundle = typename std::pair<Operation, OperationParams>;
 
+/// An operation to fix boundary vertices in space
+/** Sets the fix_boundary in the vertex model and is updated continuously
+ *  in update
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `fix_boundary` (bool, default: true): Whether to fix the boundary
+ *                                              in space
+ */
+OperationBundle build_fix_boundary (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    bool fix_boundary = get_as<bool>("fix_boundary", cfg, true);
+
+    Operation operation = [fix_boundary] (PCPVertex& vertex_model)
+    {
+        vertex_model.fix_boundary(fix_boundary);
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// A model for increasing tissue curvature of horizontal axis
+/** Increments the curvature of the boundary, i.e. moves the boundary vertices
+ *  as when fitting to a circle with changed size.
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `increment_curvature` (double): Increments the curvature, starting
+ *              from initially 0 to a maximum of 1. Curvature of 1 corresponds
+ *              to half-circle with radius equal to the furthest distance to
+ *              center of curvature.
+ *      - `center` (double, default: 0.5): The relative center of curvature, 
+ *              i.e. the relative position of center of circle wrt proximal-
+ *              distal length of tissue.
+ */
+OperationBundle build_increment_curvature (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    using SpaceVec = PCPVertex::SpaceVec;
+
+    OperationParams params(name, cfg, default_minim_params);
+
+    double dk = get_as<double>("increment_curvature", cfg);
+    double center = get_as<double>("center", cfg, 0.5);
+    if (center < 0. or center > 1.) {
+        throw std::invalid_argument(fmt::format("In 'build_increment_curvature'"
+            ", center must be in [0., 1.], a relative proximal-distal "
+            "coordianate, but was {}", center));
+    }
+    auto current_curvature = std::make_shared<double>(0.);
+
+    Operation operation = [current_curvature, dk, center]
+                          (PCPVertex& vertex_model)
+    {
+        const auto& am = vertex_model.get_am();
+
+        // fix the current boundary cells
+        vertex_model.fix_boundary(true);
+
+        // determine the length of the tissue
+        double min_x = std::numeric_limits<double>::max();
+        double max_x = std::numeric_limits<double>::min();
+        for (const auto& vertex : am.vertices()) {
+            SpaceVec pos = am.position_of(vertex);
+            min_x = std::min(min_x, pos[0]);
+            max_x = std::max(max_x, pos[0]);
+        }
+
+        double reference_x = center * (max_x - min_x) + min_x;
+        double R_min = std::max(center * (max_x - min_x),
+                                (1. - center) * (max_x - min_x));
+
+        std::function<double(double, double)> calculate_radius
+            = [](double curvature, double R_min)
+        {
+            if (curvature == 0.) {
+                return 1.e12;
+            }
+            return R_min / curvature;
+        };
+    
+        // the current radius normed to the length of the tissue
+        double R = calculate_radius(*current_curvature, R_min);
+        *current_curvature += dk;
+        double R_prime = calculate_radius(*current_curvature, R_min);
+
+        if (*current_curvature > 1.) {
+            vertex_model.get_logger()->warn("Cannot increase curvature of "
+                "tissue as is already on a half-circle with radius {}", R);
+            return;
+        }
+        
+        // move boundary
+        apply_rule<Update::sync>(
+            [am, R, R_prime, reference_x] (const auto& vertex)
+            {
+                if (am.is_boundary(vertex)) {
+                    double x = am.position_of(vertex)[0] - reference_x;
+                    double x_2 = std::pow(x, 2);
+                    double R_2 = std::pow(R, 2);
+                    double R_prime_2 = std::pow(R_prime, 2);
+                    double dy = (  sqrt(R_prime_2 - x_2)
+                                 - sqrt(R_2 - x_2)
+                                 - (R_prime - R));
+                    am.move_by(vertex, SpaceVec({0., dy}));
+                }
+                
+                return vertex->state;
+            },
+            am.vertices());
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// The operation to differentiate the types of cells randomly
 /** Progenitor cells turn to hair cell with given probability and to support
  *  cell otherwise.
@@ -634,34 +754,6 @@ OperationBundle build_differentiate_hair_cluster (
         };
 
         apply_rule<Update::sync>(differentiate_others, cells);
-    };
-
-    return std::make_pair(operation, params);
-}
-
-/// An operation to fix boundary vertices in space
-OperationBundle build_fix_boundary (
-        std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
-{
-    OperationParams params(name, cfg, default_minim_params);
-
-    Operation operation = [] (PCPVertex& vertex_model)
-    {
-        const auto& am = vertex_model.get_am();
-        apply_rule<Update::sync>(
-            [am](const auto& vertex) {
-                auto state = vertex->state;
-                if (am.is_boundary(vertex)) {
-                    state.fix_in_space = true;
-                }
-                else {
-                    state.fix_in_space = false;
-                }
-                return state;
-            },
-            am.vertices()
-        );
     };
 
     return std::make_pair(operation, params);
@@ -1655,7 +1747,8 @@ OperationBundle build_simple_shear (
     auto [op_fix_bc, __params_fix_bc] = build_fix_boundary("fix_boundary", cfg,
                                              default_minim_params);
 
-    Operation operation = [max_shear, op_fix_bc] (PCPVertex& vertex_model)
+    Operation operation = [max_shear, op_fix_bc = op_fix_bc]
+                          (PCPVertex& vertex_model)
     {
         const auto& am = vertex_model.get_am();
 

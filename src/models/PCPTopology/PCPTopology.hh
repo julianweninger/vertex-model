@@ -273,6 +273,11 @@ private:
                         build_increment_cell_contractility(name, op_cfg,
                             _minimization_params));
                 }
+                else if (name == "increment_curvature") {
+                    _operations.push_back(
+                        build_increment_curvature(name, op_cfg,
+                            _minimization_params));
+                }
                 else if (name == "increment_domain") {
                     _operations.push_back(
                         build_increment_domain(name, op_cfg,
@@ -337,6 +342,7 @@ private:
                             "fix_boundary, "
                             "increment_area, "
                             "increment_cell_contractility, "
+                            "increment_curvature, "
                             "increment_domain, "
                             "increment_edge_contractility, "
                             "increment_linetension, "

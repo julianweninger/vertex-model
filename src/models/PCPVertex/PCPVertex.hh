@@ -370,13 +370,16 @@ private:
         double shape_elasticity;
         double shape_index_preferential;
 
+        bool fix_boundary;
+
         BoundaryParam (const Config& cfg)
         :
             area_elasticity(get_as<double>("area_elasticity", cfg)),
             area_preferential(get_as<double>("area_preferential", cfg)),
             shape_elasticity(get_as<double>("shape_elasticity", cfg)),
             shape_index_preferential(get_as<double>("shape_index_preferential",
-                                                    cfg))
+                                                    cfg)),
+            fix_boundary(get_as<bool>("fix_boundary", cfg, false))
         { }
 
     } _boundary_param;
@@ -1031,13 +1034,33 @@ private:
                                                     _am.cells());
         }
 
+        // fix the boundary
+        if (_boundary_param.fix_boundary) {
+            apply_rule<Update::sync>(
+                [this](const auto& vertex) {
+                    auto state = vertex->state;
+                    if (this->_am.is_boundary(vertex)) {
+                        state.fix_in_space = true;
+                    }
+                    else {
+                        state.fix_in_space = false;
+                    }
+                    return state;
+                },
+                _am.vertices()
+            );
+        }
         // set forces on fixed vertices (e.g. boundary) to zero
+        // NOTE this is always done, as particular vertices can be manually
+        //      fixed 
         apply_rule<Update::sync>(
             [](const auto& vertex) {
                 auto state = vertex->state;
                 if (state.fix_in_space) {  state.f = SpaceVec({0., 0.}); }
                 return state;
-            }, _am.vertices());
+            },
+            _am.vertices()
+        ); 
     }
 
     /** The update of position
@@ -1704,6 +1727,25 @@ public:
     /// Setter for boundary parameter
     void set_boundary_parameter (const Config& cfg) {
         _boundary_param = BoundaryParam(cfg);
+    }
+
+    /// Setter for fixed boundary
+    void fix_boundary (bool fix_boundary = true) {
+        _boundary_param.fix_boundary = fix_boundary;
+
+        apply_rule<Update::sync>(
+            [this](const auto& vertex) {
+                auto state = vertex->state;
+                if (this->_am.is_boundary(vertex)) {
+                    state.fix_in_space = true;
+                }
+                else {
+                    state.fix_in_space = false;
+                }
+                return state;
+            },
+            _am.vertices()
+        );
     }
 
 }; // class PCPVertex
