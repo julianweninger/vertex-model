@@ -643,6 +643,12 @@ auto cells_adaptor = std::make_tuple(
                 }
                 return cell->custom_links().rotation_state->tracked_rotation;
             });
+        
+        dataset->write(
+            cells.begin(), cells.end(),
+            [am](const auto& cell) {
+                return static_cast<double>(am.is_boundary(cell));
+            });
 
         // the polarity
         // std::vector<SpaceVec> polarities;
@@ -670,7 +676,7 @@ auto cells_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {11, m.get_am().cells().size()});
+            {12, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -692,7 +698,8 @@ auto cells_adaptor = std::make_tuple(
                     "num_neighbors",
                     "num_hair_neighbors",
                     "hexatic_order",
-                    "rotation"
+                    "rotation",
+                    "is_boundary"
                 }));
                     // "polarity_x",
                     // "polarity_y"}));
