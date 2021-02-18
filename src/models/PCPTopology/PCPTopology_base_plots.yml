@@ -32,71 +32,92 @@ transitions:
   plot_func: transitions
   file_ext: png
 
-cell_property:
-  module: model_plots.PCPTopology
-  plot_func: errorbars
-  creator: universe
-  universes: all
-  file_ext: png
-
+select_cells:
   select:
+    # the data containing all cells
     _cells: data/PCPTopology/Cells
     
   transform:
+    # the data containing information of cell_type
     - .sel:
       args: [!dag_tag _cells]
       kwargs:
         property: cell_type
     - .rename:
       args: [!dag_prev , cell_types]
-      tag: _cell_kind
+      tag: _cell_type
+
+    # the data containing information of boundary
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+    - .rename:
+      args: [!dag_prev , is_bulk]
     - create_mask:
-      args: [!dag_tag _cell_kind, ==, 1]
+      args: [!dag_prev , <, 0.5]
+      tag: _is_bulk
+
+    # mask for hair cells
+    - create_mask:
+      args: [!dag_tag _cell_type, ==, 1]
       tag: _hair_cells
+    # mask for support cells
     - create_mask:
-      args: [!dag_tag _cell_kind, ==, 2]
+      args: [!dag_tag _cell_type, ==, 2]
       tag: _support_cells
 
-    - .mean:
-      args: [!dag_tag _property , id]
-      kwargs:
-        skipna: True
-      tag: data
-    - .std:
-      args: [!dag_tag _property, id]
-      kwargs:
-        skipna: True
-      tag: data__std
-
+    # the data for hair cells
     - .where:
-      args: [!dag_tag _property, !dag_tag _hair_cells]
-    - .mean:
-      args: [!dag_prev ,id]
-      kwargs:
-        skipna: True
+      args: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells
+    # the data for support cells
     - .where:
-      args: [!dag_tag _property, !dag_tag _hair_cells]
-    - .std:
-      args: [!dag_prev ,id]
-      kwargs:
-        skipna: True
-      tag: hair_cells__std
-
-    - .where:
-      args: [!dag_tag _property, !dag_tag _support_cells]
-    - .mean:
-      args: [!dag_prev ,id]
-      kwargs:
-        skipna: True
+      args: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells
-    - .where:
-      args: [!dag_tag _property, !dag_tag _support_cells]
-    - .std:
-      args: [!dag_prev ,id]
+
+    # the mean and mean__std data
+    - .mean:
+      args: [!dag_tag property , id]
       kwargs:
         skipna: True
-      tag: support_cells__std
+      tag: cells_mean
+    - .std:
+      args: [!dag_tag property, id]
+      kwargs:
+        skipna: True
+      tag: cells_mean__std
+    
+    # the mean and mean__std data for hair cells
+    - .mean:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_mean
+    - .std:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_mean__std
+
+    # the mean and mean__std data for support cells
+    - .mean:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_mean
+    - .std:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_mean__std
+
+cell_property:
+  module: model_plots.PCPTopology
+  plot_func: errorbars
+  creator: universe
+  universes: all
+  file_ext: png
 
   helpers:
     set_labels:

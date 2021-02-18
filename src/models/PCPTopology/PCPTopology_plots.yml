@@ -60,18 +60,19 @@ cell_area: &CELLAREA
   based_on:
     - .default_style_and_helpers
     - cell_property
+    - select_cells
 
   to_plot: 
-    data:
+    cells_mean:
       label: all cells
       plot_std: False
-    hair_cells:
+    hair_cells_mean:
       label: hair cells
-    support_cells:
+    support_cells_mean:
       label: support cells
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -88,7 +89,7 @@ cell_pref_area:
   <<: *CELLAREA
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -105,7 +106,7 @@ cell_shape:
   <<: *CELLAREA
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -122,13 +123,13 @@ HC_neighbors:
   <<: *CELLAREA
 
   to_plot:
-    hair_cells:
+    hair_cells_mean:
       label: hair cells
-    support_cells:
+    support_cells_mean:
       label: support cells
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -145,11 +146,11 @@ hexatic_order:
   <<: *CELLAREA
 
   to_plot: 
-    hair_cells:
+    hair_cells_mean:
       label: hair cells
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -161,6 +162,27 @@ hexatic_order:
     set_labels:
       x: time
       y: average hexatic_order
+
+rotation:
+  <<: *CELLAREA
+
+  to_plot: 
+    cells_mean:
+      label: all cells
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: rotation
+
+  helpers:
+    set_labels:
+      x: time
+      y: average rotation
       
 equilibrium_cellular_structure:
   based_on:
@@ -193,6 +215,7 @@ equilibrium_cellular_structure__edge_contractility:
 equilibrium_cellular_structure__hexatic_order:
   <<: *Property
   property: hexatic_order
+  property_hair_cells_only: True
 equilibrium_cellular_structure__rotation:
   <<: *Property
   property: rotation
@@ -200,6 +223,7 @@ equilibrium_cellular_structure__rotation:
     cmap: seismic
     vmin: -3.1415
     vmax: 3.1415
+  property_bulk_cells_only: True
 
 
 cellular_structure:
