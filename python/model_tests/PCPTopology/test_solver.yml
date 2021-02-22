@@ -5,6 +5,16 @@ perform_sweep: True
 
 paths:
   model_note: test_solvers
+  
+run_kwargs:
+  stop_conditions:
+    - !stop-condition
+      name: single simulation timeout
+      description: terminates a simulation if it ran for too long
+      enabled: true               # (optional, true by default)
+      to_check:                   # A sequence of AND-connected conditions
+        - func: timeout_wall      # Looked up in utopya.stopcond_funcs
+          seconds: !expr 60*5    # --> terminated after 10 minutes wall time
 
 parameter_space:
   num_steps: 5
