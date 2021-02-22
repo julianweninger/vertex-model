@@ -474,7 +474,7 @@ public:
             "cell_polarity_exclusion", this->_cfg)),
         _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
         _prob_distr(0.,1.),
-        _energy_previous_step(0.),
+        _energy_previous_step(std::numeric_limits<double>::max()),
         _energy(0.),
         _num_T1s(0),
         _num_T1s_total(0),
@@ -1249,7 +1249,8 @@ public:
         // }
 
         this->_log->trace("Energy changed by {}",
-                          _energy - _energy_previous_step);
+                          get_rel_energy_change(_energy,
+                                                _energy_previous_step));
     }
 
     void prolog () {
@@ -1262,8 +1263,8 @@ public:
         this->_monitor.set_entry("time", this->_time);
         this->_monitor.set_entry("energy", _energy);
         this->_monitor.set_entry("energy_change",
-                                 (  (_energy - _energy_previous_step)
-                                  / (_energy + 1e-14)));
+                                 get_rel_energy_change(_energy,
+                                                       _energy_previous_step));
     }
 
     /// Minimize the energy
@@ -1353,9 +1354,9 @@ public:
                 this->iterate();
                 monitor_mngr();
 
-                double energy_change = (  (_energy - _energy_previous_step)
-                                        / (_energy + 1e-14));
-                minimum_reached = (fabs(energy_change) < tolerance);
+                minimum_reached = equilibrium_condition();
+                double energy_change = get_rel_energy_change(
+                    _energy, _energy_previous_step);
                 this->_log->trace("Energy changed by {}.", energy_change);
                 
                 if (not minimum_reached 
@@ -1364,7 +1365,7 @@ public:
                     throw std::runtime_error(fmt::format(
                         "Equilibrium not reached within {} steps at a "
                         "tolerance of {}! Relative energy change in last step "
-                        "was {}.", 
+                        "was {}.",
                         params.max_steps, tolerance, energy_change));
                 }
 
@@ -1378,9 +1379,16 @@ public:
             _num_minimizations++;
         }
 
-        this->_log->debug("Energy minimized within {} steps", 
-                          this->get_time() - time_0);
-        return this->get_time() - time_0;
+        auto num_steps = this->get_time() - time_0;
+        if (num_steps == 1) {
+            this->_log->warn("Energy was minimized in a single step and "
+                "changed by {}!",
+                get_rel_energy_change(_energy, _energy_previous_step));
+        }
+        else {
+            this->_log->debug("Energy minimized within {} steps.", num_steps);
+        }
+        return num_steps;
     }
 
     // Getters and setters ....................................................
@@ -1520,6 +1528,7 @@ public:
     }
 
     double get_rel_energy_change () const;
+    double get_rel_energy_change (double E, double E_0) const;
 
     /// Whether the relative change in energy fulfills the equilibrium condition
     bool equilibrium_condition() const {
@@ -1527,9 +1536,9 @@ public:
             return false;
         }
 
-        double energy_change = (  (_energy - _energy_previous_step)
-                                / (_energy + 1e-14));
-        return (fabs(energy_change) < _minimization_tolerance);
+        double energy_change = get_rel_energy_change(_energy,
+                                                     _energy_previous_step);
+        return (energy_change > - _minimization_tolerance);
     }
 
 

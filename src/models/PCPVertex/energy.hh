@@ -32,8 +32,9 @@ double PCPVertex::line_tension_energy (
         length = this->_space->distance(a, b);
     }
     else {
-        length = this->_space->distance(_am.position_of(edge->custom_links().a),
-                                        _am.position_of(edge->custom_links().b));
+        length = this->_space->distance(
+            _am.position_of(edge->custom_links().a),
+            _am.position_of(edge->custom_links().b));
     }
     
     return edge->state.linetension * length;
@@ -416,7 +417,13 @@ double PCPVertex::get_rel_energy_change () const
     double energy = get_energy();
     
     double energy_change = energy - _energy_previous_step;
-    return energy_change / (energy + 1e-14);
+    return energy_change / fabs(energy + 1e-14);
+}
+
+/// Getter for the relative energy change from previous to last step
+double PCPVertex::get_rel_energy_change (double E, double E_0) const
+{
+    return (E - E_0) / fabs(E + 1e-14);
 }
 
 } // namespace PCPVertex

@@ -1745,7 +1745,7 @@ OperationBundle build_simple_shear (
     double max_shear = get_as<double>("max_shear", cfg);
 
     auto [op_fix_bc, __params_fix_bc] = build_fix_boundary("fix_boundary", cfg,
-                                             default_minim_params);
+                                                     default_minim_params);
 
     Operation operation = [max_shear, op_fix_bc = op_fix_bc]
                           (PCPVertex& vertex_model)

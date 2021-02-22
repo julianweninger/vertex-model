@@ -200,7 +200,7 @@ NotchDelta:
 # Minimization parameter
 minimization: &Minimization
   update_scheme: conjugate_gradient
-  dt: 0.01
+  dt: 0.001
 
   tolerance: 1.e-8
   max_steps: 15000

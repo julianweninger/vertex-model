@@ -227,7 +227,7 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
     if (adaptive_step) {
         std::tie(_dt, new_energy) = determine_timestep(
             _dt, _energy, _minimization_tolerance);
-        double energy_change = (new_energy - _energy) / new_energy;
+        double energy_change = get_rel_energy_change(new_energy, _energy);
 
         if (energy_change < -1e-14) {
             this->_log->trace("Updating with timestep {} at relative energy "
@@ -265,7 +265,7 @@ double PCPVertex::conjugate_gradient_step ()
     double new_energy;
     std::tie(_dt, new_energy) = determine_timestep(
         _dt, _energy, _minimization_tolerance);
-    double energy_change = (new_energy - _energy) / new_energy;
+    double energy_change = get_rel_energy_change(new_energy, _energy);
 
     if (energy_change < -1e-14) {
         this->_log->trace("Updating with timestep {} at energy change {}",
