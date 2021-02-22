@@ -51,11 +51,11 @@ select_cells:
     - .sel:
       args: [!dag_tag _cells]
       kwargs:
-        property: cell_type
+        property: is_boundary
     - .rename:
       args: [!dag_prev , is_bulk]
     - create_mask:
-      args: [!dag_prev , <, 0.5]
+      args: [!dag_prev , <, 0.5] # not boundary
       tag: _is_bulk
 
     # mask for hair cells
@@ -75,6 +75,10 @@ select_cells:
     - .where:
       args: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells
+    # the data for bulk cells
+    - .where:
+      args: [!dag_tag property, !dag_tag _is_bulk]
+      tag: bulk_cells
 
     # the mean and mean__std data
     - .mean:
@@ -87,6 +91,16 @@ select_cells:
       kwargs:
         skipna: True
       tag: cells_mean__std
+    - .max:
+      args: [!dag_tag property , id]
+      kwargs:
+        skipna: True
+      tag: cells_max
+    - .min:
+      args: [!dag_tag property , id]
+      kwargs:
+        skipna: True
+      tag: cells_min
     
     # the mean and mean__std data for hair cells
     - .mean:
@@ -99,6 +113,16 @@ select_cells:
       kwargs:
         skipna: True
       tag: hair_cells_mean__std
+    - .max:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_max
+    - .min:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_min
 
     # the mean and mean__std data for support cells
     - .mean:
@@ -111,6 +135,38 @@ select_cells:
       kwargs:
         skipna: True
       tag: support_cells_mean__std
+    - .max:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_max
+    - .min:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_min
+
+    # the mean and mean__std data for bulk cells (non-boundary)
+    - .mean:
+      args: [!dag_tag bulk_cells , id]
+      kwargs:
+        skipna: True
+      tag: bulk_cells_mean
+    - .std:
+      args: [!dag_tag bulk_cells, id]
+      kwargs:
+        skipna: True
+      tag: bulk_cells_mean__std
+    - .max:
+      args: [!dag_tag bulk_cells , id]
+      kwargs:
+        skipna: True
+      tag: bulk_cells_max
+    - .min:
+      args: [!dag_tag bulk_cells , id]
+      kwargs:
+        skipna: True
+      tag: bulk_cells_min
 
 cell_property:
   module: model_plots.PCPTopology
