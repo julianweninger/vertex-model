@@ -430,3 +430,21 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper,
    
         _errorbar(hlpr=hlpr, data=data[key], std=std, **plot_spec,
                   **add_kwargs, **errorbar_kwargs)
+
+@is_plot_func(use_dag=True, required_dag_tags=('x', 'y', ))
+def scatter_xy_data(*, data: dict, hlpr: PlotHelper,
+                    plot_time_color_gradient: bool=False,
+                    **plot_kwargs):
+    """A scatter-plot of x over y data. 
+
+    Args:
+        plot_time_color_gradient (bool, default: false): Whether to use a color
+            gradient using the time as 3rd coordinate.
+    """
+    if plot_time_color_gradient:
+        c = data['x'].time
+    else:
+        c = plot_kwargs.pop("c", None)
+        
+    hlpr.ax.scatter(data['x'], data['y'], c=c, **plot_kwargs)
+    

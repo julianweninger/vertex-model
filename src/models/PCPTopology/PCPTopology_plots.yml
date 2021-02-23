@@ -183,7 +183,7 @@ rotation:
     set_labels:
       x: time
       y: average rotation
-      
+
 equilibrium_cellular_structure:
   based_on:
     - .default_style_and_helpers
