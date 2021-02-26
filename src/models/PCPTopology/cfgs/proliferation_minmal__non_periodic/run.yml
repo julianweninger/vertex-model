@@ -26,9 +26,11 @@ parameter_space:
           times: []
           iterations_prolog: 1
 
-          minimization:
-            num_repeat: 1
+          minimization: &MinimzationQuickAndDirty
             jiggle_intensity: 1.e-3
+            num_repeat: 5
+            tolerance: 1.e-6
+            jiggle_tolerance: 1.e-5
 
       - proliferate:
           times: [1]
@@ -136,9 +138,31 @@ parameter_space:
           minimization:
             mode: manual
       # 2048 cells 
+      
+      - proliferate:
+          times: [10]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 32
+
+          iterations: 2048
+
+          num_increases: 0
+          area_threshold: 0.
+
+          minimization:
+            mode: manual
+      # 4096 cells 
 
       - jiggle:
-          times: !listgen [2, 1000]
+          times: !listgen [2, 11]
+
+      - jiggle:
+          times: []
+          minimization: *MinimzationQuickAndDirty
+
+          # Quick and dirty jiggle
+          # NOTE needs to be followed by a true minimization
 
     PCPVertex:
       log_level: info
@@ -172,8 +196,6 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 6, 1]
-              - [6, 18, 2]
-              - [18, 1000, 2]
+              - [0, 11, 1]
       triggers:
         build_interval: *interval

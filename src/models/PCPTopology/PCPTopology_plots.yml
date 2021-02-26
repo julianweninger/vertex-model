@@ -60,18 +60,19 @@ cell_area: &CELLAREA
   based_on:
     - .default_style_and_helpers
     - cell_property
+    - select_cells
 
   to_plot: 
-    data:
+    cells_mean:
       label: all cells
       plot_std: False
-    hair_cells:
+    hair_cells_mean:
       label: hair cells
-    support_cells:
+    support_cells_mean:
       label: support cells
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -88,7 +89,7 @@ cell_pref_area:
   <<: *CELLAREA
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -105,7 +106,7 @@ cell_shape:
   <<: *CELLAREA
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -122,13 +123,13 @@ HC_neighbors:
   <<: *CELLAREA
 
   to_plot:
-    hair_cells:
+    hair_cells_mean:
       label: hair cells
-    support_cells:
+    support_cells_mean:
       label: support cells
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -145,11 +146,11 @@ hexatic_order:
   <<: *CELLAREA
 
   to_plot: 
-    hair_cells:
+    hair_cells_mean:
       label: hair cells
 
   select:
-    _property:
+    property:
       path: data/PCPTopology/Cells
       transform:
       - .sel:
@@ -161,32 +162,140 @@ hexatic_order:
     set_labels:
       x: time
       y: average hexatic_order
+
+rotation:
+  <<: *CELLAREA
+
+  to_plot: 
+    bulk_cells_mean:
+      label: all cells (bulk)
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: rotation
+
+  helpers:
+    set_labels:
+      x: time
+      y: average rotation
+
       
+energy_vs_SCHC_contacts: &energy_vs_contacts
+  based_on: .basic_uni.lineplot
+  creator: universe
+  universes: all
+  module: model_plots.PCPTopology
+  plot_func: scatter_xy_data
+  file_ext: png
+
+  enabled: False
+
+  plot_time_color_gradient: True
+  cmap: plasma
+
+  select:
+    # the data containing all cells
+    _cells: data/PCPTopology/Cells
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: num_hair_neighbors
+    y: 
+      path: data/PCPTopology/Energy/Edge_contractility
+    
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+    - create_mask:
+      args: [!dag_prev , ==, 2]
+    - .where:
+      args: [!dag_tag property, !dag_prev ]
+    - .mean:
+      args: [!dag_prev  ,id]
+      kwargs:
+        skipna: True
+      tag: x
+
+  helpers:
+    set_labels:
+      x: average HC neighbors for SCs
+      y: edge contractility energy
+
+energy_vs_HCHC_contacts:
+  <<: *energy_vs_contacts
+  
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+    - create_mask:
+      args: [!dag_prev , ==, 1]
+    - .where:
+      args: [!dag_tag property, !dag_prev ]
+    - .mean:
+      args: [!dag_prev , id]
+      kwargs:
+        skipna: True
+      tag: x
+
+  helpers:
+    set_labels:
+      x: average HC neighbors for HCs
+      y: edge contractility energy
+
 equilibrium_cellular_structure:
   based_on:
     - .default_style_and_helpers
     - cellular_structure
 
-equilibrium_cellular_structure__property: !pspace
+equilibrium_cellular_structure__area_elasticity: &Property
   based_on:
     - .default_style_and_helpers
     - cellular_structure
 
   enabled: false
 
-  property: !sweep
-    default: area_elasticity
-    values: 
-      - area_elasticity
-      - cell_contractility
-      - linetension
-      - edge_contractility
-      - hexatic_order
+  property: area_elasticity
 
   property_interpolation_kwargs:
     method: nearest
   property_interpolation_plot_kwargs:
     cmap: Reds
+
+equilibrium_cellular_structure__cell_contractility:
+  <<: *Property
+  property: cell_contractility
+equilibrium_cellular_structure__linetension:
+  <<: *Property
+  property: linetension
+equilibrium_cellular_structure__edge_contractility:
+  <<: *Property
+  property: edge_contractility
+equilibrium_cellular_structure__hexatic_order:
+  <<: *Property
+  property: hexatic_order
+  property_hair_cells_only: True
+equilibrium_cellular_structure__rotation:
+  <<: *Property
+  cell_marker_size: 0.
+  property: rotation
+  property_interpolation_plot_kwargs:
+    cmap: seismic
+    vmin: -3.1415
+    vmax: 3.1415
+  property_bulk_cells_only: True
+
 
 cellular_structure:
   based_on:

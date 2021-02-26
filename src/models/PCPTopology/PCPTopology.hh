@@ -250,6 +250,19 @@ private:
                         build_differentiate_hair_cluster(name, op_cfg,
                                                          _minimization_params));
                 }
+                else if (name == "fix_boundary") {
+                    _operations.push_back(
+                        build_fix_boundary(name, op_cfg, _minimization_params));
+                }
+                else if (name == "convergence_and_extension") {
+                    if (_vertex_model.get_space()->periodic) {
+                        throw std::runtime_error("Cannot build operation "
+                            "convergence and extension in periodic space!");
+                    }
+                    _operations.push_back(
+                        build_convergence_and_extension(name, op_cfg,
+                                                        _minimization_params));
+                }
                 else if (name == "increment_area") {
                     _operations.push_back(
                         build_increment_area(name, op_cfg,
@@ -258,6 +271,11 @@ private:
                 else if (name == "increment_cell_contractility") {
                     _operations.push_back(
                         build_increment_cell_contractility(name, op_cfg,
+                            _minimization_params));
+                }
+                else if (name == "increment_curvature") {
+                    _operations.push_back(
+                        build_increment_curvature(name, op_cfg,
                             _minimization_params));
                 }
                 else if (name == "increment_domain") {
@@ -302,6 +320,16 @@ private:
                         build_set_boundary_parameter(
                             name, op_cfg, _minimization_params));
                 }
+                else if (name == "set_torque") {
+                    _operations.push_back(
+                        build_set_torque(
+                            name, op_cfg, _minimization_params));
+                }
+                else if (name == "simple_shear") {
+                    _operations.push_back(
+                        build_simple_shear(
+                            name, op_cfg, _minimization_params));
+                }
                 else {
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
@@ -310,8 +338,11 @@ private:
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
                             "differentiate_hair_cluster, "
+                            "convergence_and_extension, "
+                            "fix_boundary, "
                             "increment_area, "
                             "increment_cell_contractility, "
+                            "increment_curvature, "
                             "increment_domain, "
                             "increment_edge_contractility, "
                             "increment_linetension, "
@@ -321,6 +352,8 @@ private:
                             "relax_area, "
                             "set_area, "
                             "set_boundary_parameter, "
+                            "set_torque, "
+                            "simple_shear, "
                             "void."));
                 }
 

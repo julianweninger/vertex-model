@@ -88,6 +88,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        cell_marker_size: int=60,
                        plot_vertices: bool=False,
                        property: str=None,
+                       property_hair_cells_only: bool=False,
+                       property_support_cells_only: bool=False,
+                       property_bulk_cells_only: bool=False,
                        property_interpolation_kwargs: dict={},
                        property_interpolation_plot_kwargs: dict={}):
     """Performs a plot of the cells, edges and vertices
@@ -103,6 +106,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         plot_vertices (bool, default: false): Whether to plot the vertices
         property (str, optional): An additional cell property to plot. Data is 
             cell data where property=property.
+        property_hair_cells_only (bool, default: false): Whether to plot only 
+            for hair cells
+        property_support_cells_only (bool, default: false): Whether to plot 
+            only for support cells
+        property_bulk_cells_only (bool, default: false): Whether to plot only 
+            for non-boundary cells
         property_interpolation_kwargs (dict, optional): Kwargs passed on to 
             scipy.interpolate.griddata.
         property_interpolation_plot_kwargs (dict, optional): Kwargs passed on to
@@ -346,13 +355,16 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 prop_data = c_data.sel(property=property)
                 prop_data = prop_data.assign_coords({'x': x, 'y': y})
 
-                if property == "hexatic_order":
-                    # remove non hair cells
-                    # hexatic order of non hair cells is always 0
-                    prop_data = prop_data.where(cell_type == 1)
-
             # perform the interpolation
             if property:
+                if property_hair_cells_only:
+                    prop_data = prop_data.where(cell_type == 1)
+                if property_support_cells_only:
+                    prop_data = prop_data.where(cell_type == 2)
+                if property_bulk_cells_only:
+                    is_boundary = c_data.sel(property="is_boundary").round()
+                    prop_data = prop_data.where(is_boundary == 0)
+
                 num_data_points = len(prop_data) * 10j
                 min_x = floor(domain_size_min_x)
                 max_x = ceil(domain_size_max_x)

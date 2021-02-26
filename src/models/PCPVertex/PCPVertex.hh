@@ -370,13 +370,16 @@ private:
         double shape_elasticity;
         double shape_index_preferential;
 
+        bool fix_boundary;
+
         BoundaryParam (const Config& cfg)
         :
             area_elasticity(get_as<double>("area_elasticity", cfg)),
             area_preferential(get_as<double>("area_preferential", cfg)),
             shape_elasticity(get_as<double>("shape_elasticity", cfg)),
             shape_index_preferential(get_as<double>("shape_index_preferential",
-                                                    cfg))
+                                                    cfg)),
+            fix_boundary(get_as<bool>("fix_boundary", cfg, false))
         { }
 
     } _boundary_param;
@@ -425,6 +428,9 @@ protected:
         Jiggled
     } _status;
 
+    /// A variable to disable all topological transitions
+    bool _transitions_allowed;
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
@@ -471,7 +477,7 @@ public:
             "cell_polarity_exclusion", this->_cfg)),
         _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
         _prob_distr(0.,1.),
-        _energy_previous_step(0.),
+        _energy_previous_step(std::numeric_limits<double>::max()),
         _energy(0.),
         _num_T1s(0),
         _num_T1s_total(0),
@@ -479,7 +485,9 @@ public:
         _num_T1s_attempted_total(0),
         _num_T2s(0),
         _num_T2s_total(0),
-        _num_minimizations(0)
+        _num_minimizations(0),
+        _transitions_allowed(get_as<bool>("topological_transitions_allowed",
+                                          this->_cfg, true))
     {
         // this->initialise_polarity_random(get_as<double>(
         //         "cell_initialisation_protein_level", this->_cfg));
@@ -757,6 +765,29 @@ private:
         return state;
     };
 
+    /// Apply a torque to the vertices of the cell
+    const RuleFuncCell set_grad_torque = [this](const auto& cell) {
+        if (not cell->custom_links().rotation_state) {
+            return cell->state;
+        }
+
+        const SpaceVec cell_center = _am.barycenter_of(cell);
+        double torque = cell->custom_links().rotation_state->torque;
+
+        for (const auto& vertex : cell->custom_links().vertices) {
+            const SpaceVec pos = _am.position_of(vertex);
+            SpaceVec displ = _space->displacement(pos, cell_center);
+            double distance = arma::norm(displ);
+
+            SpaceVec force = torque / distance * SpaceVec({-displ[1],
+                                                           displ[0]});
+
+            vertex->state.f += force;
+        }
+
+        return cell->state;
+    };
+
 
 
     void set_grad_boundary_area_elasticity
@@ -1002,6 +1033,39 @@ private:
         const auto boundary = _am.get_boundary_edges();
         set_grad_boundary_area_elasticity(boundary);
         set_grad_boundary_shape_elasticity(boundary);
+
+        if (_update_scheme == UpdateScheme::SteepestGradient) {
+            apply_rule<Update::async, Shuffle::off>(set_grad_torque, 
+                                                    _am.cells());
+        }
+
+        // fix the boundary
+        if (_boundary_param.fix_boundary) {
+            apply_rule<Update::sync>(
+                [this](const auto& vertex) {
+                    auto state = vertex->state;
+                    if (this->_am.is_boundary(vertex)) {
+                        state.fix_in_space = true;
+                    }
+                    else {
+                        state.fix_in_space = false;
+                    }
+                    return state;
+                },
+                _am.vertices()
+            );
+        }
+        // set forces on fixed vertices (e.g. boundary) to zero
+        // NOTE this is always done, as particular vertices can be manually
+        //      fixed 
+        apply_rule<Update::sync>(
+            [](const auto& vertex) {
+                auto state = vertex->state;
+                if (state.fix_in_space) {  state.f = SpaceVec({0., 0.}); }
+                return state;
+            },
+            _am.vertices()
+        ); 
     }
 
     /** The update of position
@@ -1034,6 +1098,7 @@ private:
     //     e->sigma_b += e->d_sigma_b * _gamma;
     // };
     
+
     // -- The algorithm    ----------------------------------------------------
     // see algorithm.hh
     std::pair<double, double> determine_timestep (double dt,
@@ -1042,9 +1107,33 @@ private:
     double steepest_gradient_step (bool adaptive_step);
     double conjugate_gradient_step ();
     double perform_update_step(UpdateScheme update_scheme);
+    bool perform_transitions(bool enabled);
+
 
     // -- Helper functions ----------------------------------------------------
 
+    /// Update the rotation tracking of a cell
+    /** Tracks the average angular velocity of the cell's vertices
+     */
+    const RuleFuncCell track_rotation = [this](const auto& cell)
+    {
+        if (not cell->custom_links().rotation_state) {
+            return cell->state;
+        }
+
+        const auto& rot_state = cell->custom_links().rotation_state;
+
+        double angular_vel = rot_state->angular_velocity(cell, _am);
+        angular_vel *= _dt;
+
+        double tracked_rotation = rot_state->tracked_rotation;
+        double alpha = rot_state->tracking_persistence;
+
+        rot_state->tracked_rotation += (  angular_vel
+                                        - tracked_rotation * alpha);
+
+        return cell->state;
+    };
 
 public:
     // -- Public Interface ----------------------------------------------------
@@ -1079,70 +1168,12 @@ public:
 
     /// Iterate a single step
     /** \details Rules applied
-     *      -# perform T2 transitions on cells
-     *      -# perform T1 transitions on edges 
-     *      -# perform minimization step
+     *      -# perform_transitions()
+     *      -# perform_update_step()
+     *      -# tracking of variables
      */
     void perform_step () {
-        bool transition_occurred = false;
-
-        // T2 transitions -- cell extrusion
-        _num_T2s = 0;
-        auto cells = _am.cells();
-        std::shuffle(cells.begin(), cells.end(), *this->_rng);
-        for (int i = cells.size() - 1; i >= 0; i--) {
-            double area = _am.area_of(cells[i]);
-            if (area < _T2_threshold) {
-                this->_log->debug("Removing cell in T2 transition in step {}..",
-                                  this->_time);
-                bool T2 = _am.remove_cell_T2(cells[i]);
-                transition_occurred = (transition_occurred or T2);
-                _num_T2s += T2;
-            }
-        }
-
-        // T1 transition -- neighborhood change
-        _num_T1s = 0;
-        _num_T1s_attempted = 0;        
-        auto edges = _am.edges();
-        std::shuffle(edges.begin(), edges.end(), *this->_rng);
-        for (int i = edges.size() - 1; i >= 0; i--) {
-            auto& edge = edges[i];
-            double length = _am.length_of(edge);
-            if (length < _T1_threshold
-                and _prob_distr(*this->_rng) < _T1_probability
-                and ((edge->state.last_T1_attempt - this->_time) > _T1_timeout
-                     or edge->state.last_T1_attempt == 0))
-            {
-                this->_log->debug("Removing edge in T1 transition in step {}..",
-                                 this->_time);
-                bool T1 = _am.remove_edge_T1(edge,
-                        _linetension, _edge_contractility,
-                        [this](const AgentContainer<Edge>& es,
-                               const AgentContainer<Cell>& cs) { 
-                                    return this->get_energy(es, cs, 0.); },
-                        _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
-                
-                if (not T1) {
-                    edge->state.last_T1_attempt = this->_time;
-                }
-                // else: edge was removed
-
-                transition_occurred = (transition_occurred or T1);
-                _num_T1s += T1;
-                _num_T1s_attempted++;
-            }
-        }
-        if (_num_T2s > 0 or _num_T1s > 0 or _num_T1s_attempted > 0) {
-            this->_log->info("Removed {} cell{} and {} edge{} ({} attempted) "
-                             "in step {}",
-                            _num_T2s, _num_T2s != 1 ? "s":"", 
-                            _num_T1s, _num_T1s != 1 ? "s":"",
-                            _num_T1s_attempted, this->_time);
-        }
-        _num_T1s_total += _num_T1s;
-        _num_T1s_attempted_total += _num_T1s_attempted;
-        _num_T2s_total += _num_T2s;
+        bool transition_occurred = perform_transitions(_transitions_allowed);
 
         if (transition_occurred) {
             // restart the conjugate gradient update
@@ -1151,6 +1182,8 @@ public:
 
         _energy_previous_step = _energy;
         _energy = perform_update_step(_update_scheme);
+
+        apply_rule<Update::sync>(track_rotation, _am.cells());
         
         // if (_gamma > 0) {
         //     throw std::logic_error("Polarity proteins update not implemented!");
@@ -1169,7 +1202,8 @@ public:
         // }
 
         this->_log->trace("Energy changed by {}",
-                          _energy - _energy_previous_step);
+                          get_rel_energy_change(_energy,
+                                                _energy_previous_step));
     }
 
     void prolog () {
@@ -1182,8 +1216,8 @@ public:
         this->_monitor.set_entry("time", this->_time);
         this->_monitor.set_entry("energy", _energy);
         this->_monitor.set_entry("energy_change",
-                                 (  (_energy - _energy_previous_step)
-                                  / (_energy + 1e-14)));
+                                 get_rel_energy_change(_energy,
+                                                       _energy_previous_step));
     }
 
     /// Minimize the energy
@@ -1212,7 +1246,8 @@ public:
                           this->_time, this->_time_max);
 
         const auto time_0 = this->get_time();
-        this->_log->debug("Minimizing energy from step {}", time_0);
+        this->_log->debug("Minimizing energy from step {} with {} repeats ...",
+                          time_0, params.num_repeat);
         _status = Status::Minimization;
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
@@ -1223,7 +1258,8 @@ public:
                 this->jiggle_vertices(params.jiggle_intensity);
                 this->increment_time();
                 this->_datamanager(*this);            
-                this->_log->debug("Finished jiggling: {:7d} / {:d}",
+                this->_log->debug("Incremented time after jiggling: "
+                                  "{:7d} / {:d}",
                                   this->_time, this->_time_max);
                 
                 // reset status
@@ -1249,11 +1285,18 @@ public:
             }
             _minimization_tolerance = tolerance;
 
+            const bool tmp_transitions_allowed = _transitions_allowed;
+            // NOTE save status and restore at the end
+
             // iterate a fixed number of steps
             if (params.num_steps > 0) {
                 this->_log->debug("Iterating vertex model for {} steps",
                                   params.num_steps);
                 for (std::size_t step = 0; step < params.num_steps; step++) {
+                    // disable topological transitions in first iteration
+                    if (step == 0) { _transitions_allowed = false; }
+                    else { _transitions_allowed = tmp_transitions_allowed; }
+
                     this->iterate();
                     monitor_mngr();
 
@@ -1267,15 +1310,25 @@ public:
                 // end here after fixed number of steps
                 minimum_reached = true;
             }
+            else {
+                this->_log->debug("Minimizing energy from step {} "
+                                  "in {:d} / {:d} repeat ...",
+                                  time_0, i+1, params.num_repeat);
+            }
 
             // iterate until minimum reached
             while (not minimum_reached) {
+                // disable topological transitions in first iteration
+                if (this->get_time() - time_start == 0) {
+                    _transitions_allowed = false; }
+                else { _transitions_allowed = tmp_transitions_allowed; }
+
                 this->iterate();
                 monitor_mngr();
 
-                double energy_change = (  (_energy - _energy_previous_step)
-                                        / (_energy + 1e-14));
-                minimum_reached = (fabs(energy_change) < tolerance);
+                minimum_reached = equilibrium_condition();
+                double energy_change = get_rel_energy_change(
+                    _energy, _energy_previous_step);
                 this->_log->trace("Energy changed by {}.", energy_change);
                 
                 if (not minimum_reached 
@@ -1284,7 +1337,7 @@ public:
                     throw std::runtime_error(fmt::format(
                         "Equilibrium not reached within {} steps at a "
                         "tolerance of {}! Relative energy change in last step "
-                        "was {}.", 
+                        "was {}.",
                         params.max_steps, tolerance, energy_change));
                 }
 
@@ -1294,13 +1347,26 @@ public:
                     throw GotSignal(received_signum.load());
                 }
             }
+            this->_log->trace("  Energy minimized in {} steps.",
+                              this->get_time() - time_0);
 
             _num_minimizations++;
+
+            _transitions_allowed = tmp_transitions_allowed;
+            // NOTE restore initial state of transitions allowed
         }
 
-        this->_log->debug("Energy minimized within {} steps", 
-                          this->get_time() - time_0);
-        return this->get_time() - time_0;
+        auto num_steps = this->get_time() - time_0;
+        if (num_steps == 1) {
+            this->_log->warn("Energy was minimized in a single step and "
+                "changed by {}!",
+                get_rel_energy_change(_energy, _energy_previous_step));
+        }
+        else {
+            this->_log->debug("Energy minimized in {} steps.", num_steps);
+        }
+
+        return num_steps;
     }
 
     // Getters and setters ....................................................
@@ -1440,6 +1506,7 @@ public:
     }
 
     double get_rel_energy_change () const;
+    double get_rel_energy_change (double E, double E_0) const;
 
     /// Whether the relative change in energy fulfills the equilibrium condition
     bool equilibrium_condition() const {
@@ -1447,9 +1514,9 @@ public:
             return false;
         }
 
-        double energy_change = (  (_energy - _energy_previous_step)
-                                / (_energy + 1e-14));
-        return (fabs(energy_change) < _minimization_tolerance);
+        double energy_change = get_rel_energy_change(_energy,
+                                                     _energy_previous_step);
+        return (energy_change > - _minimization_tolerance);
     }
 
 
@@ -1647,6 +1714,25 @@ public:
     /// Setter for boundary parameter
     void set_boundary_parameter (const Config& cfg) {
         _boundary_param = BoundaryParam(cfg);
+    }
+
+    /// Setter for fixed boundary
+    void fix_boundary (bool fix_boundary = true) {
+        _boundary_param.fix_boundary = fix_boundary;
+
+        apply_rule<Update::sync>(
+            [this](const auto& vertex) {
+                auto state = vertex->state;
+                if (this->_am.is_boundary(vertex)) {
+                    state.fix_in_space = true;
+                }
+                else {
+                    state.fix_in_space = false;
+                }
+                return state;
+            },
+            _am.vertices()
+        );
     }
 
 }; // class PCPVertex
