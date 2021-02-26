@@ -184,6 +184,76 @@ rotation:
       x: time
       y: average rotation
 
+      
+energy_vs_SCHC_contacts: &energy_vs_contacts
+  based_on: .basic_uni.lineplot
+  creator: universe
+  universes: all
+  module: model_plots.PCPTopology
+  plot_func: scatter_xy_data
+  file_ext: png
+
+  enabled: False
+
+  plot_time_color_gradient: True
+  cmap: plasma
+
+  select:
+    # the data containing all cells
+    _cells: data/PCPTopology/Cells
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+      - .sel:
+        args: [!dag_tag _cells]
+        kwargs:
+          property: num_hair_neighbors
+    y: 
+      path: data/PCPTopology/Energy/Edge_contractility
+    
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+    - create_mask:
+      args: [!dag_prev , ==, 2]
+    - .where:
+      args: [!dag_tag property, !dag_prev ]
+    - .mean:
+      args: [!dag_prev  ,id]
+      kwargs:
+        skipna: True
+      tag: x
+
+  helpers:
+    set_labels:
+      x: average HC neighbors for SCs
+      y: edge contractility energy
+
+energy_vs_HCHC_contacts:
+  <<: *energy_vs_contacts
+  
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+    - create_mask:
+      args: [!dag_prev , ==, 1]
+    - .where:
+      args: [!dag_tag property, !dag_prev ]
+    - .mean:
+      args: [!dag_prev , id]
+      kwargs:
+        skipna: True
+      tag: x
+
+  helpers:
+    set_labels:
+      x: average HC neighbors for HCs
+      y: edge contractility energy
+
 equilibrium_cellular_structure:
   based_on:
     - .default_style_and_helpers
