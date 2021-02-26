@@ -28,9 +28,11 @@ operations:
       times: []
       iterations_prolog: 0
 
-      minimization:
-        num_repeat: 1
+      minimization: &MinimzationQuickAndDirty
         jiggle_intensity: 1.e-3
+        num_repeat: 5
+        tolerance: 1.e-6
+        jiggle_tolerance: 1.e-5
       
   - proliferate:
       times: []
