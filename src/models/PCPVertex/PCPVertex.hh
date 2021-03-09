@@ -280,11 +280,17 @@ private:
     /// The manager of the model's entities
     AgentManager _am;
 
+
+    // -- Minimization parameters ---------------------------------------------
+
     // PARAMETERS
     MinimizationParams _default_minimization_params;
 
     /// timestep scaling
     double _dt;
+
+    /// timestep scaling for polarity
+    double _gamma;
 
     /// The update scheme for energy minimization
     /** Currently implemented update schemes:
@@ -304,8 +310,8 @@ private:
      */
     std::normal_distribution<double> _distr_temperature;
 
-    /// timestep scaling for polarity
-    double _gamma;
+
+    // -- Mechanical parameters -----------------------------------------------
 
     /// Linetension constant Lambda
     /** The entries are linetensions at interfaces between two cells of types i 
@@ -326,6 +332,42 @@ private:
      *  \note This is a symmetric matrix
      */
     CellCellPropertyMatrix _edge_contractility;
+    
+    /// Area elasticity constant K
+    double _area_elasticity;
+
+    /// Mechanical parameters for boundary
+    /** The boundary of the domain is treated as one cell
+     */
+    struct BoundaryParam {
+        double area_elasticity;
+        double area_preferential;
+
+        double shape_elasticity;
+        double shape_index_preferential;
+
+        bool fix_boundary;
+
+        BoundaryParam (const Config& cfg)
+        :
+            area_elasticity(get_as<double>("area_elasticity", cfg)),
+            area_preferential(get_as<double>("area_preferential", cfg)),
+            shape_elasticity(get_as<double>("shape_elasticity", cfg)),
+            shape_index_preferential(get_as<double>("shape_index_preferential",
+                                                    cfg)),
+            fix_boundary(get_as<bool>("fix_boundary", cfg, false))
+        { }
+
+    } _boundary_param;
+
+
+    // -- transition parameters -----------------------------------------------
+
+    /// Whether topological transitions are enabled
+    bool _enable_transitions;
+
+    /// Whether T1 transitions are enabled
+    bool _enable_T1_transitions;
 
     /// Edges shorter than this value are replaced in a T1 transition
     const double _T1_threshold;
@@ -351,38 +393,21 @@ private:
      */
     const std::size_t _T1_timeout;
     
-    /// Area elasticity constant K
-    double _area_elasticity;
+    /// Whether T2 transitions are enabled
+    bool _enable_T2_transitions;
 
     /// Cells with area smaller than this value are removed in T2 transition
     double _T2_threshold;
+
+
+    // -- polarity parameters -----------------------------------------------
 
     /// Interaction parameter of cell-cell polarity interaction
     double _cell_cell_polarity_interaction;
 
     /// Interaction parameter of cell-internal polarity interaction
     double _cell_polarity_exclusion;
-
-    struct BoundaryParam {
-        double area_elasticity;
-        double area_preferential;
-
-        double shape_elasticity;
-        double shape_index_preferential;
-
-        bool fix_boundary;
-
-        BoundaryParam (const Config& cfg)
-        :
-            area_elasticity(get_as<double>("area_elasticity", cfg)),
-            area_preferential(get_as<double>("area_preferential", cfg)),
-            shape_elasticity(get_as<double>("shape_elasticity", cfg)),
-            shape_index_preferential(get_as<double>("shape_index_preferential",
-                                                    cfg)),
-            fix_boundary(get_as<bool>("fix_boundary", cfg, false))
-        { }
-
-    } _boundary_param;
+    
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -428,9 +453,6 @@ protected:
         Jiggled
     } _status;
 
-    /// A variable to disable all topological transitions
-    bool _transitions_allowed;
-
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPVertex model
@@ -457,25 +479,31 @@ public:
         _default_minimization_params(get_as<Config>("minimization",
                                                     this->_cfg)),
         _dt(_default_minimization_params.dt),
+        _gamma(get_as<double>("gamma", this->_cfg)),
         _update_scheme(_default_minimization_params.update_scheme),
         _minimization_tolerance(_default_minimization_params.tolerance),
         _distr_temperature(_default_minimization_params.temperature),
-        _gamma(get_as<double>("gamma", this->_cfg)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
+        _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
+        _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
+        _enable_transitions(
+            get_as<bool>("enable_transitions", this->_cfg, true)),
+        _enable_T1_transitions(
+            get_as<bool>("enable_T1_transitions", this->_cfg, true)),
         _T1_threshold(get_as<double>("T1_threshold", this->_cfg)),
-        _T1_separation(_T1_threshold *
-                       get_as<double>("T1_separation_factor",this->_cfg)),
+        _T1_separation(
+            _T1_threshold * get_as<double>("T1_separation_factor",this->_cfg)),
         _T1_probability(get_as<double>("T1_probability", this->_cfg)),
         _T1_barrier(get_as<double>("T1_barrier", this->_cfg)),
         _T1_timeout(get_as<std::size_t>("T1_timeout", this->_cfg, 0)),
-        _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
+        _enable_T2_transitions(
+            get_as<bool>("enable_T2_transitions", this->_cfg, true)),
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
             "cell_cell_polarity_interaction",this->_cfg)),
         _cell_polarity_exclusion(get_as<double>(
             "cell_polarity_exclusion", this->_cfg)),
-        _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
         _prob_distr(0.,1.),
         _energy_previous_step(std::numeric_limits<double>::max()),
         _energy(0.),
@@ -485,9 +513,7 @@ public:
         _num_T1s_attempted_total(0),
         _num_T2s(0),
         _num_T2s_total(0),
-        _num_minimizations(0),
-        _transitions_allowed(get_as<bool>("topological_transitions_allowed",
-                                          this->_cfg, true))
+        _num_minimizations(0)
     {
         // this->initialise_polarity_random(get_as<double>(
         //         "cell_initialisation_protein_level", this->_cfg));
@@ -1173,7 +1199,7 @@ public:
      *      -# tracking of variables
      */
     void perform_step () {
-        bool transition_occurred = perform_transitions(_transitions_allowed);
+        bool transition_occurred = perform_transitions(_enable_transitions);
 
         if (transition_occurred) {
             // restart the conjugate gradient update
@@ -1285,7 +1311,7 @@ public:
             }
             _minimization_tolerance = tolerance;
 
-            const bool tmp_transitions_allowed = _transitions_allowed;
+            const bool tmp_enable_transitions = _enable_transitions;
             // NOTE save status and restore at the end
 
             // iterate a fixed number of steps
@@ -1294,8 +1320,8 @@ public:
                                   params.num_steps);
                 for (std::size_t step = 0; step < params.num_steps; step++) {
                     // disable topological transitions in first iteration
-                    if (step == 0) { _transitions_allowed = false; }
-                    else { _transitions_allowed = tmp_transitions_allowed; }
+                    if (step == 0) { _enable_transitions = false; }
+                    else { _enable_transitions = tmp_enable_transitions; }
 
                     this->iterate();
                     monitor_mngr();
@@ -1320,8 +1346,8 @@ public:
             while (not minimum_reached) {
                 // disable topological transitions in first iteration
                 if (this->get_time() - time_start == 0) {
-                    _transitions_allowed = false; }
-                else { _transitions_allowed = tmp_transitions_allowed; }
+                    _enable_transitions = false; }
+                else { _enable_transitions = tmp_enable_transitions; }
 
                 this->iterate();
                 monitor_mngr();
@@ -1352,7 +1378,7 @@ public:
 
             _num_minimizations++;
 
-            _transitions_allowed = tmp_transitions_allowed;
+            _enable_transitions = tmp_enable_transitions;
             // NOTE restore initial state of transitions allowed
         }
 
@@ -1733,6 +1759,15 @@ public:
             },
             _am.vertices()
         );
+    }
+
+    /// Enable or disable transitions
+    void enable_transitions (bool enable_T1_transitions = true,
+                             bool enable_T2_transitions = true)
+    {
+        _enable_T1_transitions = enable_T1_transitions;
+        _enable_T2_transitions = enable_T2_transitions;
+        _enable_transitions = (enable_T1_transitions or enable_T2_transitions);
     }
 
 }; // class PCPVertex

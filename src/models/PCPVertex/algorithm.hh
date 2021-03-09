@@ -337,51 +337,56 @@ bool PCPVertex::perform_transitions(bool enabled = true)
 
     // T2 transitions -- cell extrusion
     _num_T2s = 0;
-    auto cells = _am.cells();
-    std::shuffle(cells.begin(), cells.end(), *this->_rng);
-    for (int i = cells.size() - 1; i >= 0; i--) {
-        double area = _am.area_of(cells[i]);
-        if (area < _T2_threshold) {
-            this->_log->debug("Removing cell in T2 transition in step {}..",
-                                this->_time);
-            bool T2 = _am.remove_cell_T2(cells[i]);
-            transition_occurred = (transition_occurred or T2);
-            _num_T2s += T2;
+    if (_enable_T2_transitions) {
+        auto cells = _am.cells();
+        std::shuffle(cells.begin(), cells.end(), *this->_rng);
+        for (int i = cells.size() - 1; i >= 0; i--) {
+            double area = _am.area_of(cells[i]);
+            if (area < _T2_threshold) {
+                this->_log->debug("Removing cell in T2 transition in step {}..",
+                                    this->_time);
+                bool T2 = _am.remove_cell_T2(cells[i]);
+                transition_occurred = (transition_occurred or T2);
+                _num_T2s += T2;
+            }
         }
     }
 
     // T1 transition -- neighborhood change
     _num_T1s = 0;
-    _num_T1s_attempted = 0;        
-    auto edges = _am.edges();
-    std::shuffle(edges.begin(), edges.end(), *this->_rng);
-    for (int i = edges.size() - 1; i >= 0; i--) {
-        auto& edge = edges[i];
-        double length = _am.length_of(edge);
-        if (length < _T1_threshold
-            and _prob_distr(*this->_rng) < _T1_probability
-            and ((edge->state.last_T1_attempt - this->_time) > _T1_timeout
-                    or edge->state.last_T1_attempt == 0))
-        {
-            this->_log->debug("Removing edge in T1 transition in step {}..",
-                                this->_time);
-            bool T1 = _am.remove_edge_T1(edge,
-                    _linetension, _edge_contractility,
-                    [this](const AgentContainer<Edge>& es,
-                            const AgentContainer<Cell>& cs) { 
-                                return this->get_energy(es, cs, 0.); },
-                    _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
-            
-            if (not T1) {
-                edge->state.last_T1_attempt = this->_time;
-            }
-            // else: edge was removed
+    _num_T1s_attempted = 0;
+    if (_enable_T1_transitions) {
+        auto edges = _am.edges();
+        std::shuffle(edges.begin(), edges.end(), *this->_rng);
+        for (int i = edges.size() - 1; i >= 0; i--) {
+            auto& edge = edges[i];
+            double length = _am.length_of(edge);
+            if (length < _T1_threshold
+                and _prob_distr(*this->_rng) < _T1_probability
+                and ((edge->state.last_T1_attempt - this->_time) > _T1_timeout
+                        or edge->state.last_T1_attempt == 0))
+            {
+                this->_log->debug("Removing edge in T1 transition in step {}..",
+                                    this->_time);
+                bool T1 = _am.remove_edge_T1(edge,
+                        _linetension, _edge_contractility,
+                        [this](const AgentContainer<Edge>& es,
+                                const AgentContainer<Cell>& cs) { 
+                                    return this->get_energy(es, cs, 0.); },
+                        _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
+                
+                if (not T1) {
+                    edge->state.last_T1_attempt = this->_time;
+                }
+                // else: edge was removed
 
-            transition_occurred = (transition_occurred or T1);
-            _num_T1s += T1;
-            _num_T1s_attempted++;
+                transition_occurred = (transition_occurred or T1);
+                _num_T1s += T1;
+                _num_T1s_attempted++;
+            }
         }
     }
+
     if (_num_T2s > 0 or _num_T1s > 0 or _num_T1s_attempted > 0) {
         this->_log->info("Removed {} cell{} and {} edge{} ({} attempted) "
                             "in step {}",

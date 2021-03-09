@@ -224,7 +224,16 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Operation name:  {}", name);
 
-                if (name == "differentiate_Collier") {
+                if (name == "convergence_and_extension") {
+                    if (_vertex_model.get_space()->periodic) {
+                        throw std::runtime_error("Cannot build operation "
+                            "convergence and extension in periodic space!");
+                    }
+                    _operations.push_back(
+                        build_convergence_and_extension(name, op_cfg,
+                                                        _minimization_params));
+                }
+                else if (name == "differentiate_Collier") {
                     this->setup_collier(
                             get_as<Config>("Collier", op_cfg, {}));
                     _operations.push_back(
@@ -250,18 +259,14 @@ private:
                         build_differentiate_hair_cluster(name, op_cfg,
                                                          _minimization_params));
                 }
+                else if (name == "enable_transitions") {
+                    _operations.push_back(
+                        build_enable_transitions(
+                            name, op_cfg, _minimization_params));
+                }
                 else if (name == "fix_boundary") {
                     _operations.push_back(
                         build_fix_boundary(name, op_cfg, _minimization_params));
-                }
-                else if (name == "convergence_and_extension") {
-                    if (_vertex_model.get_space()->periodic) {
-                        throw std::runtime_error("Cannot build operation "
-                            "convergence and extension in periodic space!");
-                    }
-                    _operations.push_back(
-                        build_convergence_and_extension(name, op_cfg,
-                                                        _minimization_params));
                 }
                 else if (name == "increment_area") {
                     _operations.push_back(
@@ -334,11 +339,12 @@ private:
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
                         "Choose from: {}", name,
+                            "convergence_and_extension, "
                             "differentiate_Collier, "
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
                             "differentiate_hair_cluster, "
-                            "convergence_and_extension, "
+                            "enable_transitions, "
                             "fix_boundary, "
                             "increment_area, "
                             "increment_cell_contractility, "
