@@ -174,47 +174,66 @@ using OperationBundle = typename std::pair<Operation, OperationParams>;
  *  (besides those passed to `OperationParams`):
  *      - `dH` (double): The length by which the vertical axis is reduced
  */
+template<typename Logger>
 OperationBundle build_convergence_and_extension (
         std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Logger> logger = nullptr,
+        std::function<void()> monitor = [](){ })
 {
     using SpaceVec = PCPVertex::SpaceVec;
 
     OperationParams params(name, cfg, default_minim_params);
     double dH = get_as<double>("dH", cfg);
-    Operation operation = [dH] (PCPVertex& vertex_model)
+    double H_target = get_as<double>("H_target", cfg, 0.);
+    auto H = std::make_shared<double>(0.);
+    if (H_target > 1. or H_target < 0.) {
+        throw std::invalid_argument(fmt::format(
+            "The `H_target` parameter in convergence and extension operation "
+            "needs to be in [0., 1.], a relative final width, but was {}!",
+            H_target));
+    }
+    double potential_const = get_as<double>("potential_const", cfg);
+
+    MinimizationParams minimization(
+        get_as<Config>("minimization", cfg, Config()),
+                       params.minimization_params);
+
+    Operation operation =
+    [H, dH, H_target, potential_const, minimization, logger, monitor]
+    (PCPVertex& vertex_model)
     {
         const auto& am = vertex_model.get_am();
-
-        double min_y = std::numeric_limits<double>::max();
-        double max_y = std::numeric_limits<double>::min();
-
-        for (const auto& vertex : am.vertices()) {
-            SpaceVec pos = am.position_of(vertex);
-            min_y = std::min(min_y, pos[1]);
-            max_y = std::max(max_y, pos[1]);
-        }
         
-        // move the outermost vertices by dH / 2. towards hor. axis
-        // fix moved vertices permanently in space 
-        apply_rule<Update::sync>(
-            [am, dH, min_y, max_y] (const auto& vertex)
-            {
-                auto state = vertex->state;
+        if (*H < 1.e-12) {
+            double min_y = std::numeric_limits<double>::max();
+            double max_y = std::numeric_limits<double>::lowest();
+            for (const auto& vertex : am.vertices()) {
                 SpaceVec pos = am.position_of(vertex);
-                if (fabs(pos[1] - min_y) < 3 * dH) {
-                    am.move_by(vertex, SpaceVec({0.,  dH / 2.}));
-                    state.fix_in_space = true;
+                min_y = std::min(min_y, pos[1]);
+                max_y = std::max(max_y, pos[1]);
+            }
+            *H = max_y - min_y;
+        }
+        double H_final = H_target * *H;
+
+        if (H_final > 1.e-12) {
+            while (*H > H_final) {
+                *H = std::max(*H - dH, H_final);
+                vertex_model.set_stripe_parameters(potential_const, *H);
+                if (logger) {
+                    logger->debug("In convergence and extension, decreasing "
+                        "width to {} (with target value {}) and minimizing "
+                        "energy", *H, H_final);
                 }
-                else if (fabs(pos[1] - max_y) < 3 * dH) {
-                    am.move_by(vertex, SpaceVec({0., -dH / 2.}));
-                    state.fix_in_space = true;
+                if (*H > H_final) {
+                    vertex_model.minimize_energy(minimization, monitor);
                 }
-                
-                return state;
-            },
-            am.vertices()
-        );
+            }
+        }
+        else {
+            vertex_model.set_stripe_parameters(potential_const, *H - dH);
+        }
     };
 
     return std::make_pair(operation, params);
@@ -784,7 +803,7 @@ OperationBundle build_increment_curvature (
 
         // determine the length of the tissue
         double min_x = std::numeric_limits<double>::max();
-        double max_x = std::numeric_limits<double>::min();
+        double max_x = std::numeric_limits<double>::lowest();
         for (const auto& vertex : am.vertices()) {
             SpaceVec pos = am.position_of(vertex);
             min_x = std::min(min_x, pos[0]);
@@ -1779,7 +1798,7 @@ OperationBundle build_simple_shear (
         op_fix_bc(vertex_model);
 
         double min_y = std::numeric_limits<double>::max();
-        double max_y = std::numeric_limits<double>::min();
+        double max_y = std::numeric_limits<double>::lowest();
 
         for (const auto& vertex : am.vertices()) {
             SpaceVec pos = am.position_of(vertex);

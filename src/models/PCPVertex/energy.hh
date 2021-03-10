@@ -336,6 +336,75 @@ double PCPVertex::get_boundary_shape_energy(double beta) const {
             * std::pow(shape_index - shape_index_pref, 2.));
 }
 
+/// Getter for the boundary stripe energy 
+/** A quadratic potential for boundary vertices that are outside a stripe
+ */ 
+double PCPVertex::get_boundary_stripe_energy (double beta) const {
+    if (_boundary_param.stripe_potential_constant == 0.) {
+        return 0.;
+    }
+
+    const auto boundary = _am.get_boundary_edges();
+    AgentContainer<Vertex> vertices;
+    vertices.reserve(boundary.size());
+    for (const auto [e, flip] : boundary) {
+        if (not flip) { vertices.push_back(e->custom_links().a); }
+        else          { vertices.push_back(e->custom_links().b); }
+    }
+
+    double x_min = std::numeric_limits<double>::max();
+    double x_max = std::numeric_limits<double>::lowest();
+    double y_min = std::numeric_limits<double>::max();
+    double y_max = std::numeric_limits<double>::lowest();
+    for (const auto &v : _am.vertices()) {
+        SpaceVec pos = _am.position_of(v);
+        x_min = std::min(x_min, pos[0]);
+        x_max = std::max(x_max, pos[0]);
+        y_min = std::min(y_min, pos[1]);
+        y_max = std::max(y_max, pos[1]);
+    }
+    double L = x_max - x_min;
+    double H = y_max - y_min;
+
+    double curvature = _boundary_param.stripe_curvature;
+
+    SpaceVec tissue_center(
+        {_boundary_param.stripe_curvature_center * L + x_min,
+         0.5 * H + y_min});
+
+    double energy = 0.;
+    if (curvature > 1.e-12) {
+        SpaceVec origin = tissue_center - SpaceVec({0., 1. / curvature});
+        double inner_radius = (  1. / curvature
+                                - _boundary_param.stripe_width / 2.);
+        double outer_radius = (  1. / curvature
+                                + _boundary_param.stripe_width / 2.);
+        for (const auto &v : vertices) {
+            SpaceVec pos = _am.displace_virtual(v, beta) - origin;
+
+            double radius = arma::norm(pos);
+            if (radius < inner_radius) {
+                energy += std::pow(radius - outer_radius, 2.);
+            }
+            else if (radius > outer_radius) {
+                energy += std::pow(radius - outer_radius, 2.);
+            }
+        }
+    }
+    else {
+        SpaceVec origin = tissue_center;
+        double R = _boundary_param.stripe_width / 2.;
+        for (const auto &v : _am.vertices()) {
+            double r = fabs((_am.displace_virtual(v, beta) - origin)[1]);
+            if (r > R) {
+                energy += std::pow(r - R, 2.);
+            }
+        }
+    }
+
+    return 0.5 * _boundary_param.stripe_potential_constant * energy;
+}
+
 // /// Getter for energy associated with cell-cell polarity
 // double PCPVertex::get_energy_cell_cell_polarity(
 //         const EdgeContainer& es) const
@@ -404,11 +473,15 @@ double PCPVertex::get_energy (
         const AgentContainer<Cell>& cs,
         double beta) const
 {
-   return (  get_energy_linetension(es, beta)
-           + get_energy_edge_contractility(es, beta)
-           + get_energy_areaelasticity(cs, beta)
-           + get_energy_cell_contractility(cs, beta)
-           + get_boundary_energy(beta));
+    if (not std::isfinite(beta)) {
+        throw std::runtime_error(fmt::format("Cannot calculate energy "
+            "with non finite beta={}", beta));
+    }
+    return (  get_energy_linetension(es, beta)
+            + get_energy_edge_contractility(es, beta)
+            + get_energy_areaelasticity(cs, beta)
+            + get_energy_cell_contractility(cs, beta)
+            + get_boundary_energy(beta));
 }
 
 /// Getter for the relative energy change from previous to last step

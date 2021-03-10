@@ -135,6 +135,13 @@ private:
 
     std::size_t _estimate_minimizations;
 
+    /// A manager for monitor activity
+    std::function<void()> _monitor_mngr = [this](){
+        this->_monitor.get_monitor_manager()->check_timer();
+        this->__monitor();
+        this->_monitor.get_monitor_manager()->emit_if_enabled();
+    };
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPTopology model
@@ -231,7 +238,8 @@ private:
                     }
                     _operations.push_back(
                         build_convergence_and_extension(name, op_cfg,
-                                                        _minimization_params));
+                                                        _minimization_params,
+                                                        _log, _monitor_mngr));
                 }
                 else if (name == "differentiate_Collier") {
                     this->setup_collier(
@@ -489,12 +497,6 @@ private:
             emit_interval = iterates + 1;
         }
 
-        std::function<void()> monitor_mngr = [this](){
-            this->_monitor.get_monitor_manager()->check_timer();
-            this->__monitor();
-            this->_monitor.get_monitor_manager()->emit_if_enabled();
-        };
-
         for (std::size_t it = 0; it < iterates; it++) {
             if (not params.disable) {
                 operation(_vertex_model);
@@ -504,7 +506,7 @@ private:
             if (params.minimization_mode == MinimizationMode::Every) {
                 this->_log->debug("   Minimizing energy ...");
                 _vertex_model.minimize_energy(params.minimization_params,
-                                              monitor_mngr);
+                                              _monitor_mngr);
                 
                 // write data during epilog
                 if (epilog) {
@@ -530,7 +532,7 @@ private:
         {
             this->_log->debug("   Minimizing energy ...");
             _vertex_model.minimize_energy(params.minimization_params,
-                                          monitor_mngr);
+                                          _monitor_mngr);
                 
             // write data during epilog
             if (epilog) {

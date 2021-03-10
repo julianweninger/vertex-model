@@ -346,6 +346,12 @@ private:
         double shape_elasticity;
         double shape_index_preferential;
 
+        double stripe_potential_constant;
+        double stripe_width;
+        double stripe_curvature;
+        double stripe_curvature_center;
+        bool stripe_no_curvature;
+
         bool fix_boundary;
 
         BoundaryParam (const Config& cfg)
@@ -355,8 +361,25 @@ private:
             shape_elasticity(get_as<double>("shape_elasticity", cfg)),
             shape_index_preferential(get_as<double>("shape_index_preferential",
                                                     cfg)),
+            stripe_potential_constant(
+                get_as<double>("stripe_potential_constant", cfg, 0.)),
+            stripe_width(
+                get_as<double>("stripe_width", cfg,
+                               std::numeric_limits<double>::max())),
+            stripe_curvature(
+                get_as<double>("stripe_curvature", cfg, 0.)),
+            stripe_curvature_center(
+                get_as<double>("stripe_curvature_center", cfg, 0.5)),
             fix_boundary(get_as<bool>("fix_boundary", cfg, false))
-        { }
+        {
+            if (stripe_curvature_center < 0. or stripe_curvature_center > 1.) {
+                throw std::invalid_argument(fmt::format(
+                    "In boundary parameter constructor"
+                    ", `stripe_curvature_center` must be in [0., 1.], "
+                    "a relative proximal-distal coordianate, but was {}!",
+                    stripe_curvature_center));
+            }
+        }
 
     } _boundary_param;
 
@@ -937,6 +960,75 @@ private:
         return;
     };
 
+    /// Derivative of a quadratic boundary potential
+    void set_grad_boundary_stripe
+            (const OrderedEdgeContainer& boundary)
+    {
+        if (_boundary_param.stripe_potential_constant == 0.) {
+            return;
+        }
+
+        AgentContainer<Vertex> vertices;
+        vertices.reserve(boundary.size());
+        for (const auto [e, flip] : boundary) {
+            if (not flip) { vertices.push_back(e->custom_links().a); }
+            else          { vertices.push_back(e->custom_links().b); }
+        }
+
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = std::numeric_limits<double>::lowest();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = std::numeric_limits<double>::lowest();
+        for (const auto &v : _am.vertices()) {
+            SpaceVec pos = _am.position_of(v);
+            x_min = std::min(x_min, pos[0]);
+            x_max = std::max(x_max, pos[0]);
+            y_min = std::min(y_min, pos[1]);
+            y_max = std::max(y_max, pos[1]);
+        }
+        double L = x_max - x_min;
+        double H = y_max - y_min;
+
+        double curvature = _boundary_param.stripe_curvature;
+
+        SpaceVec tissue_center(
+            {_boundary_param.stripe_curvature_center * L + x_min,
+             0.5 * H + y_min});
+
+        if (curvature > 1.e-12) {
+            SpaceVec origin = tissue_center - SpaceVec({0., 1. / curvature});
+            double inner_radius = (  1. / curvature
+                                   - _boundary_param.stripe_width / 2.);
+            double outer_radius = (  1. / curvature
+                                   + _boundary_param.stripe_width / 2.);
+            for (const auto &v : vertices) {
+                SpaceVec pos = _am.position_of(v) - origin;
+
+                double radius = arma::norm(pos);
+                if (radius < inner_radius) {
+                    v->state.f += fabs(radius - inner_radius) * pos / radius;
+                }
+                else if (radius > outer_radius) {
+                    v->state.f -= fabs(radius - outer_radius) * pos / radius;
+                }
+            }
+        }
+        else {
+            SpaceVec origin = tissue_center;
+            double R = _boundary_param.stripe_width / 2.;
+            for (const auto &v : _am.vertices()) {
+                SpaceVec pos = _am.position_of(v) - origin;
+                pos[0] = 0.;
+                double norm = arma::norm(pos);
+                if (norm > R) {
+                    v->state.f -= (norm - R) * pos / norm;
+                }
+            }
+        }
+
+        return;
+    };
+
 
     // /// Set forces from cell-cell polarity interaction
     // /** 
@@ -1059,6 +1151,7 @@ private:
         const auto boundary = _am.get_boundary_edges();
         set_grad_boundary_area_elasticity(boundary);
         set_grad_boundary_shape_elasticity(boundary);
+        set_grad_boundary_stripe(boundary);
 
         if (_update_scheme == UpdateScheme::SteepestGradient) {
             apply_rule<Update::async, Shuffle::off>(set_grad_torque, 
@@ -1091,7 +1184,17 @@ private:
                 return state;
             },
             _am.vertices()
-        ); 
+        );
+
+        // reset the virtual position
+        apply_rule<Update::sync>(
+            [this](const auto& vertex) {
+                vertex->state.virtual_pos = 
+                    std::make_pair(0., _am.position_of(vertex));
+                return vertex->state;
+            },
+            _am.vertices()
+        );
     }
 
     /** The update of position
@@ -1383,7 +1486,8 @@ public:
         }
 
         auto num_steps = this->get_time() - time_0;
-        if (num_steps == 1) {
+        if (num_steps == params.num_repeat *(1 + (params.jiggle_intensity > 0)))
+        {
             this->_log->warn("Energy was minimized in a single step and "
                 "changed by {}!",
                 get_rel_energy_change(_energy, _energy_previous_step));
@@ -1415,6 +1519,7 @@ protected:
                                           
     double get_boundary_area_energy (double beta) const;
     double get_boundary_shape_energy(double beta) const;
+    double get_boundary_stripe_energy(double beta) const;
 
     double get_energy(const AgentContainer<Edge>& es,
                       const AgentContainer<Cell>& cs,
@@ -1470,7 +1575,9 @@ protected:
     /** Includes shape and area elasticity
      */
     double get_boundary_energy(double beta) const {
-        return get_boundary_area_energy(beta) + get_boundary_shape_energy(beta);
+        return (  get_boundary_area_energy(beta)
+                + get_boundary_shape_energy(beta)
+                + get_boundary_stripe_energy(beta));
     }
     
     /// Predict the energy
@@ -1521,9 +1628,14 @@ public:
     double get_boundary_area_energy () const {
         return get_boundary_area_energy(0.);
     }
+    double get_boundary_stripe_energy () const {
+        return get_boundary_stripe_energy(0.);
+    }
 
     double get_boundary_energy() const {
-        return get_boundary_area_energy(0.) + get_boundary_shape_energy(0.);
+        return (  get_boundary_area_energy(0.)
+                + get_boundary_shape_energy(0.)
+                + get_boundary_stripe_energy(0.));
     }
 
     /// Getter for the total energy
@@ -1585,6 +1697,7 @@ public:
      *      -# PCPVertex::get_energy_cell_contractility
      *      -# PCPVertex::get_boundary_area_energy
      *      -# PCPVertex::get_boundary_shape_energy
+     *      -# PCPVertex::get_boundary_stripe_energy
      */
     double get_energy(const AgentContainer<Edge>& es,
                       const AgentContainer<Cell>& cs) const {
@@ -1768,6 +1881,13 @@ public:
         _enable_T1_transitions = enable_T1_transitions;
         _enable_T2_transitions = enable_T2_transitions;
         _enable_transitions = (enable_T1_transitions or enable_T2_transitions);
+    }
+
+    void set_stripe_boundary_parameters(double potential_constant,
+                               double stripe_width)
+    {
+        _boundary_param.stripe_potential_constant = potential_constant;
+        _boundary_param.stripe_width = stripe_width;
     }
 
 }; // class PCPVertex
