@@ -217,10 +217,11 @@ OperationBundle build_convergence_and_extension (
         }
         double H_final = H_target * *H;
 
+        vertex_model.init_stripe_boundary(false);
         if (H_final > 1.e-12) {
             while (*H > H_final) {
                 *H = std::max(*H - dH, H_final);
-                vertex_model.set_stripe_parameters(potential_const, *H);
+                vertex_model.set_stripe_boundary_width(potential_const, *H);
                 if (logger) {
                     logger->debug("In convergence and extension, decreasing "
                         "width to {} (with target value {}) and minimizing "
@@ -232,7 +233,7 @@ OperationBundle build_convergence_and_extension (
             }
         }
         else {
-            vertex_model.set_stripe_parameters(potential_const, *H - dH);
+            vertex_model.set_stripe_boundary_width(potential_const, *H - dH);
         }
     };
 
@@ -780,78 +781,19 @@ OperationBundle build_increment_curvature (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
-    using SpaceVec = PCPVertex::SpaceVec;
-
     OperationParams params(name, cfg, default_minim_params);
 
+    double potential_const = get_as<double>("potential_const", cfg);
     double dk = get_as<double>("increment_curvature", cfg);
-    double center = get_as<double>("center", cfg, 0.5);
-    if (center < 0. or center > 1.) {
-        throw std::invalid_argument(fmt::format("In 'build_increment_curvature'"
-            ", center must be in [0., 1.], a relative proximal-distal "
-            "coordianate, but was {}", center));
-    }
     auto current_curvature = std::make_shared<double>(0.);
 
-    Operation operation = [current_curvature, dk, center]
-                          (PCPVertex& vertex_model)
+    Operation operation =
+    [current_curvature, dk, potential_const]
+    (PCPVertex& vertex_model)
     {
-        const auto& am = vertex_model.get_am();
-
-        // fix the current boundary cells
-        vertex_model.fix_boundary(true);
-
-        // determine the length of the tissue
-        double min_x = std::numeric_limits<double>::max();
-        double max_x = std::numeric_limits<double>::lowest();
-        for (const auto& vertex : am.vertices()) {
-            SpaceVec pos = am.position_of(vertex);
-            min_x = std::min(min_x, pos[0]);
-            max_x = std::max(max_x, pos[0]);
-        }
-
-        double reference_x = center * (max_x - min_x) + min_x;
-        double R_min = std::max(center * (max_x - min_x),
-                                (1. - center) * (max_x - min_x));
-
-        std::function<double(double, double)> calculate_radius
-            = [](double curvature, double R_min)
-        {
-            if (curvature == 0.) {
-                return 1.e12;
-            }
-            return R_min / curvature;
-        };
-    
-        // the current radius normed to the length of the tissue
-        double R = calculate_radius(*current_curvature, R_min);
         *current_curvature += dk;
-        double R_prime = calculate_radius(*current_curvature, R_min);
-
-        if (*current_curvature > 1.) {
-            vertex_model.get_logger()->warn("Cannot increase curvature of "
-                "tissue as is already on a half-circle with radius {}", R);
-            return;
-        }
-        
-        // move boundary
-        apply_rule<Update::sync>(
-            [am, R, R_prime, reference_x] (const auto& vertex)
-            {
-                if (am.is_boundary(vertex)) {
-                    double x = am.position_of(vertex)[0] - reference_x;
-                    double x_2 = std::pow(x, 2);
-                    double R_2 = std::pow(R, 2);
-                    double R_prime_2 = std::pow(R_prime, 2);
-                    double dy = (  sqrt(R_prime_2 - x_2)
-                                 - sqrt(R_2 - x_2)
-                                 - (R_prime - R));
-                    am.move_by(vertex, SpaceVec({0., dy}));
-                }
-                
-                return vertex->state;
-            },
-            am.vertices());
+        vertex_model.set_stripe_boundary_curvature(
+            potential_const, *current_curvature);
     };
 
     return std::make_pair(operation, params);

@@ -167,8 +167,8 @@ rotation:
   <<: *CELLAREA
 
   to_plot: 
-    bulk_cells_mean:
-      label: all cells (bulk)
+    cells_mean:
+      label: all cells
 
   select:
     property:
@@ -294,7 +294,7 @@ equilibrium_cellular_structure__rotation:
     cmap: seismic
     vmin: -3.1415
     vmax: 3.1415
-  property_bulk_cells_only: True
+  property_bulk_cells_only: False
 
 
 cellular_structure:

@@ -344,61 +344,27 @@ double PCPVertex::get_boundary_stripe_energy (double beta) const {
         return 0.;
     }
 
-    const auto boundary = _am.get_boundary_edges();
-    AgentContainer<Vertex> vertices;
-    vertices.reserve(boundary.size());
-    for (const auto [e, flip] : boundary) {
-        if (not flip) { vertices.push_back(e->custom_links().a); }
-        else          { vertices.push_back(e->custom_links().b); }
-    }
+    double curvature = std::max(_boundary_param.stripe_curvature, 1.e-10);
+    double R = 1. / curvature;
 
-    double x_min = std::numeric_limits<double>::max();
-    double x_max = std::numeric_limits<double>::lowest();
-    double y_min = std::numeric_limits<double>::max();
-    double y_max = std::numeric_limits<double>::lowest();
-    for (const auto &v : _am.vertices()) {
-        SpaceVec pos = _am.position_of(v);
-        x_min = std::min(x_min, pos[0]);
-        x_max = std::max(x_max, pos[0]);
-        y_min = std::min(y_min, pos[1]);
-        y_max = std::max(y_max, pos[1]);
-    }
-    double L = x_max - x_min;
-    double H = y_max - y_min;
+    // the (fixed) center of the circle stripe
+    SpaceVec origin = *_boundary_param.stripe_origin - SpaceVec({0., R});
 
-    double curvature = _boundary_param.stripe_curvature;
-
-    SpaceVec tissue_center(
-        {_boundary_param.stripe_curvature_center * L + x_min,
-         0.5 * H + y_min});
-
+    double inner_radius = (R - _boundary_param.stripe_width / 2.);
+    double outer_radius = (R + _boundary_param.stripe_width / 2.);
+    
     double energy = 0.;
-    if (curvature > 1.e-12) {
-        SpaceVec origin = tissue_center - SpaceVec({0., 1. / curvature});
-        double inner_radius = (  1. / curvature
-                                - _boundary_param.stripe_width / 2.);
-        double outer_radius = (  1. / curvature
-                                + _boundary_param.stripe_width / 2.);
-        for (const auto &v : vertices) {
-            SpaceVec pos = _am.displace_virtual(v, beta) - origin;
+    // apply to all vertices outside the domain
+    for (const auto &v : _am.vertices()) {
+        // the position wrt origin
+        SpaceVec pos = _am.displace_virtual(v, beta) - origin;
 
-            double radius = arma::norm(pos);
-            if (radius < inner_radius) {
-                energy += std::pow(radius - outer_radius, 2.);
-            }
-            else if (radius > outer_radius) {
-                energy += std::pow(radius - outer_radius, 2.);
-            }
+        double radius = arma::norm(pos);
+        if (radius < inner_radius) {
+            energy += std::pow(radius - inner_radius, 2.);
         }
-    }
-    else {
-        SpaceVec origin = tissue_center;
-        double R = _boundary_param.stripe_width / 2.;
-        for (const auto &v : _am.vertices()) {
-            double r = fabs((_am.displace_virtual(v, beta) - origin)[1]);
-            if (r > R) {
-                energy += std::pow(r - R, 2.);
-            }
+        else if (radius > outer_radius) {
+            energy += std::pow(radius - outer_radius, 2.);
         }
     }
 
