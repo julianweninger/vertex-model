@@ -164,121 +164,77 @@ using Operation = std::function<void(PCPVertex& vertex_model)>;
 
 using OperationBundle = typename std::pair<Operation, OperationParams>;
 
-/// An operation to fix boundary vertices in space
-/** Sets the fix_boundary in the vertex model and is updated continuously
- *  in update
+/// A convergence and extension model
+/** The outermost vertices in the vertical direction are moved towards the
+ *  horizontal tissue axis and fixed in space for minimization.
+ *  Horizontal boundary vertices are free to move and are thought to move
+ *  outwards to compensate increased pressure.
  * 
  *  The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
- *      - `fix_boundary` (bool, default: true): Whether to fix the boundary
- *                                              in space
+ *      - `dH` (double): The length by which the vertical axis is reduced
  */
-OperationBundle build_fix_boundary (
+template<typename Logger>
+OperationBundle build_convergence_and_extension (
         std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
-{
-    OperationParams params(name, cfg, default_minim_params);
-
-    bool fix_boundary = get_as<bool>("fix_boundary", cfg, true);
-
-    Operation operation = [fix_boundary] (PCPVertex& vertex_model)
-    {
-        vertex_model.fix_boundary(fix_boundary);
-    };
-
-    return std::make_pair(operation, params);
-}
-
-/// A model for increasing tissue curvature of horizontal axis
-/** Increments the curvature of the boundary, i.e. moves the boundary vertices
- *  as when fitting to a circle with changed size.
- * 
- *  The following parameter are extracted from cfg 
- *  (besides those passed to `OperationParams`):
- *      - `increment_curvature` (double): Increments the curvature, starting
- *              from initially 0 to a maximum of 1. Curvature of 1 corresponds
- *              to half-circle with radius equal to the furthest distance to
- *              center of curvature.
- *      - `center` (double, default: 0.5): The relative center of curvature, 
- *              i.e. the relative position of center of circle wrt proximal-
- *              distal length of tissue.
- */
-OperationBundle build_increment_curvature (
-        std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Logger> logger = nullptr,
+        std::function<void()> monitor = [](){ })
 {
     using SpaceVec = PCPVertex::SpaceVec;
 
     OperationParams params(name, cfg, default_minim_params);
-
-    double dk = get_as<double>("increment_curvature", cfg);
-    double center = get_as<double>("center", cfg, 0.5);
-    if (center < 0. or center > 1.) {
-        throw std::invalid_argument(fmt::format("In 'build_increment_curvature'"
-            ", center must be in [0., 1.], a relative proximal-distal "
-            "coordianate, but was {}", center));
+    double dH = get_as<double>("dH", cfg);
+    double H_target = get_as<double>("H_target", cfg, 0.);
+    auto H = std::make_shared<double>(0.);
+    if (H_target > 1. or H_target < 0.) {
+        throw std::invalid_argument(fmt::format(
+            "The `H_target` parameter in convergence and extension operation "
+            "needs to be in [0., 1.], a relative final width, but was {}!",
+            H_target));
     }
-    auto current_curvature = std::make_shared<double>(0.);
+    double potential_const = get_as<double>("potential_const", cfg);
 
-    Operation operation = [current_curvature, dk, center]
-                          (PCPVertex& vertex_model)
+    MinimizationParams minimization(
+        get_as<Config>("minimization", cfg, Config()),
+                       params.minimization_params);
+
+    Operation operation =
+    [H, dH, H_target, potential_const, minimization, logger, monitor]
+    (PCPVertex& vertex_model)
     {
         const auto& am = vertex_model.get_am();
-
-        // fix the current boundary cells
-        vertex_model.fix_boundary(true);
-
-        // determine the length of the tissue
-        double min_x = std::numeric_limits<double>::max();
-        double max_x = std::numeric_limits<double>::min();
-        for (const auto& vertex : am.vertices()) {
-            SpaceVec pos = am.position_of(vertex);
-            min_x = std::min(min_x, pos[0]);
-            max_x = std::max(max_x, pos[0]);
-        }
-
-        double reference_x = center * (max_x - min_x) + min_x;
-        double R_min = std::max(center * (max_x - min_x),
-                                (1. - center) * (max_x - min_x));
-
-        std::function<double(double, double)> calculate_radius
-            = [](double curvature, double R_min)
-        {
-            if (curvature == 0.) {
-                return 1.e12;
-            }
-            return R_min / curvature;
-        };
-    
-        // the current radius normed to the length of the tissue
-        double R = calculate_radius(*current_curvature, R_min);
-        *current_curvature += dk;
-        double R_prime = calculate_radius(*current_curvature, R_min);
-
-        if (*current_curvature > 1.) {
-            vertex_model.get_logger()->warn("Cannot increase curvature of "
-                "tissue as is already on a half-circle with radius {}", R);
-            return;
-        }
         
-        // move boundary
-        apply_rule<Update::sync>(
-            [am, R, R_prime, reference_x] (const auto& vertex)
-            {
-                if (am.is_boundary(vertex)) {
-                    double x = am.position_of(vertex)[0] - reference_x;
-                    double x_2 = std::pow(x, 2);
-                    double R_2 = std::pow(R, 2);
-                    double R_prime_2 = std::pow(R_prime, 2);
-                    double dy = (  sqrt(R_prime_2 - x_2)
-                                 - sqrt(R_2 - x_2)
-                                 - (R_prime - R));
-                    am.move_by(vertex, SpaceVec({0., dy}));
+        if (*H < 1.e-12) {
+            double min_y = std::numeric_limits<double>::max();
+            double max_y = std::numeric_limits<double>::lowest();
+            for (const auto& vertex : am.vertices()) {
+                SpaceVec pos = am.position_of(vertex);
+                min_y = std::min(min_y, pos[1]);
+                max_y = std::max(max_y, pos[1]);
+            }
+            *H = max_y - min_y;
+        }
+        double H_final = H_target * *H;
+
+        vertex_model.init_stripe_boundary(false);
+        if (H_final > 1.e-12) {
+            while (*H > H_final) {
+                *H = std::max(*H - dH, H_final);
+                vertex_model.set_stripe_boundary_width(potential_const, *H);
+                if (logger) {
+                    logger->debug("In convergence and extension, decreasing "
+                        "width to {} (with target value {}) and minimizing "
+                        "energy", *H, H_final);
                 }
-                
-                return vertex->state;
-            },
-            am.vertices());
+                if (*H > H_final) {
+                    vertex_model.minimize_energy(minimization, monitor);
+                }
+            }
+        }
+        else {
+            vertex_model.set_stripe_boundary_width(potential_const, *H - dH);
+        }
     };
 
     return std::make_pair(operation, params);
@@ -759,57 +715,85 @@ OperationBundle build_differentiate_hair_cluster (
     return std::make_pair(operation, params);
 }
 
-/// A convergence and extension model
-/** The outermost vertices in the vertical direction are moved towards the
- *  horizontal tissue axis and fixed in space for minimization.
- *  Horizontal boundary vertices are free to move and are thought to move
- *  outwards to compensate increased pressure.
- * 
- *  The following parameter are extracted from cfg 
+/// Enable or disable topological transitions
+/** The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
- *      - `dH` (double): The length by which the vertical axis is reduced
+ *      - `enable_T1s` (bool): Whether to enable T1 transitions
+ *      - `enable_T2s` (bool): Whether to enable T2 transitions
  */
-OperationBundle build_convergence_and_extension (
+OperationBundle build_enable_transitions (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
-    using SpaceVec = PCPVertex::SpaceVec;
-
     OperationParams params(name, cfg, default_minim_params);
-    double dH = get_as<double>("dH", cfg);
-    Operation operation = [dH] (PCPVertex& vertex_model)
+
+    auto enable_T1s = get_as<bool>("enable_T1s", cfg);
+    auto enable_T2s = get_as<bool>("enable_T2s", cfg);
+
+    Operation operation = [enable_T1s, enable_T2s](PCPVertex& vertex_model)
     {
-        const auto& am = vertex_model.get_am();
+        vertex_model.enable_transitions(enable_T1s, enable_T2s);
+    };
 
-        double min_y = std::numeric_limits<double>::max();
-        double max_y = std::numeric_limits<double>::min();
+    return std::make_pair(operation, params);
+}
 
-        for (const auto& vertex : am.vertices()) {
-            SpaceVec pos = am.position_of(vertex);
-            min_y = std::min(min_y, pos[1]);
-            max_y = std::max(max_y, pos[1]);
-        }
-        
-        // move the outermost vertices by dH / 2. towards hor. axis
-        // fix moved vertices permanently in space 
-        apply_rule<Update::sync>(
-            [am, dH, min_y, max_y] (const auto& vertex)
-            {
-                auto state = vertex->state;
-                SpaceVec pos = am.position_of(vertex);
-                if (fabs(pos[1] - min_y) < 3 * dH) {
-                    am.move_by(vertex, SpaceVec({0.,  dH / 2.}));
-                    state.fix_in_space = true;
-                }
-                else if (fabs(pos[1] - max_y) < 3 * dH) {
-                    am.move_by(vertex, SpaceVec({0., -dH / 2.}));
-                    state.fix_in_space = true;
-                }
-                
-                return state;
-            },
-            am.vertices()
-        );
+/// An operation to fix boundary vertices in space
+/** Sets the fix_boundary in the vertex model and is updated continuously
+ *  in update
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `fix_boundary` (bool, default: true): Whether to fix the boundary
+ *                                              in space
+ */
+OperationBundle build_fix_boundary (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    bool fix_boundary = get_as<bool>("fix_boundary", cfg, true);
+
+    Operation operation = [fix_boundary] (PCPVertex& vertex_model)
+    {
+        vertex_model.fix_boundary(fix_boundary);
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// A model for increasing tissue curvature of horizontal axis
+/** Increments the curvature of the boundary, i.e. moves the boundary vertices
+ *  as when fitting to a circle with changed size.
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `increment_curvature` (double): Increments the curvature, starting
+ *              from initially 0 to a maximum of 1. Curvature of 1 corresponds
+ *              to half-circle with radius equal to the furthest distance to
+ *              center of curvature.
+ *      - `center` (double, default: 0.5): The relative center of curvature, 
+ *              i.e. the relative position of center of circle wrt proximal-
+ *              distal length of tissue.
+ */
+OperationBundle build_increment_curvature (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double potential_const = get_as<double>("potential_const", cfg);
+    double dk = get_as<double>("increment_curvature", cfg);
+    auto current_curvature = std::make_shared<double>(0.);
+
+    Operation operation =
+    [current_curvature, dk, potential_const]
+    (PCPVertex& vertex_model)
+    {
+        *current_curvature += dk;
+        vertex_model.set_stripe_boundary_curvature(
+            potential_const, *current_curvature);
     };
 
     return std::make_pair(operation, params);
@@ -1756,7 +1740,7 @@ OperationBundle build_simple_shear (
         op_fix_bc(vertex_model);
 
         double min_y = std::numeric_limits<double>::max();
-        double max_y = std::numeric_limits<double>::min();
+        double max_y = std::numeric_limits<double>::lowest();
 
         for (const auto& vertex : am.vertices()) {
             SpaceVec pos = am.position_of(vertex);
@@ -1784,7 +1768,6 @@ OperationBundle build_simple_shear (
 
     return std::make_pair(operation, params);
 }
-
 
 } // namespace OperationCollection
 } // namespace PCPVertex

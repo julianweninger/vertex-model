@@ -135,6 +135,13 @@ private:
 
     std::size_t _estimate_minimizations;
 
+    /// A manager for monitor activity
+    std::function<void()> _monitor_mngr = [this](){
+        this->_monitor.get_monitor_manager()->check_timer();
+        this->__monitor();
+        this->_monitor.get_monitor_manager()->emit_if_enabled();
+    };
+
 public:
     // -- Model Setup ---------------------------------------------------------
     /// Construct the PCPTopology model
@@ -224,7 +231,17 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Operation name:  {}", name);
 
-                if (name == "differentiate_Collier") {
+                if (name == "convergence_and_extension") {
+                    if (_vertex_model.get_space()->periodic) {
+                        throw std::runtime_error("Cannot build operation "
+                            "convergence and extension in periodic space!");
+                    }
+                    _operations.push_back(
+                        build_convergence_and_extension(name, op_cfg,
+                                                        _minimization_params,
+                                                        _log, _monitor_mngr));
+                }
+                else if (name == "differentiate_Collier") {
                     this->setup_collier(
                             get_as<Config>("Collier", op_cfg, {}));
                     _operations.push_back(
@@ -250,18 +267,14 @@ private:
                         build_differentiate_hair_cluster(name, op_cfg,
                                                          _minimization_params));
                 }
+                else if (name == "enable_transitions") {
+                    _operations.push_back(
+                        build_enable_transitions(
+                            name, op_cfg, _minimization_params));
+                }
                 else if (name == "fix_boundary") {
                     _operations.push_back(
                         build_fix_boundary(name, op_cfg, _minimization_params));
-                }
-                else if (name == "convergence_and_extension") {
-                    if (_vertex_model.get_space()->periodic) {
-                        throw std::runtime_error("Cannot build operation "
-                            "convergence and extension in periodic space!");
-                    }
-                    _operations.push_back(
-                        build_convergence_and_extension(name, op_cfg,
-                                                        _minimization_params));
                 }
                 else if (name == "increment_area") {
                     _operations.push_back(
@@ -334,11 +347,12 @@ private:
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
                         "Choose from: {}", name,
+                            "convergence_and_extension, "
                             "differentiate_Collier, "
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
                             "differentiate_hair_cluster, "
-                            "convergence_and_extension, "
+                            "enable_transitions, "
                             "fix_boundary, "
                             "increment_area, "
                             "increment_cell_contractility, "
@@ -483,12 +497,6 @@ private:
             emit_interval = iterates + 1;
         }
 
-        std::function<void()> monitor_mngr = [this](){
-            this->_monitor.get_monitor_manager()->check_timer();
-            this->__monitor();
-            this->_monitor.get_monitor_manager()->emit_if_enabled();
-        };
-
         for (std::size_t it = 0; it < iterates; it++) {
             if (not params.disable) {
                 operation(_vertex_model);
@@ -498,7 +506,7 @@ private:
             if (params.minimization_mode == MinimizationMode::Every) {
                 this->_log->debug("   Minimizing energy ...");
                 _vertex_model.minimize_energy(params.minimization_params,
-                                              monitor_mngr);
+                                              _monitor_mngr);
                 
                 // write data during epilog
                 if (epilog) {
@@ -524,7 +532,7 @@ private:
         {
             this->_log->debug("   Minimizing energy ...");
             _vertex_model.minimize_energy(params.minimization_params,
-                                          monitor_mngr);
+                                          _monitor_mngr);
                 
             // write data during epilog
             if (epilog) {

@@ -336,6 +336,41 @@ double PCPVertex::get_boundary_shape_energy(double beta) const {
             * std::pow(shape_index - shape_index_pref, 2.));
 }
 
+/// Getter for the boundary stripe energy 
+/** A quadratic potential for boundary vertices that are outside a stripe
+ */ 
+double PCPVertex::get_boundary_stripe_energy (double beta) const {
+    if (_boundary_param.stripe_potential_constant == 0.) {
+        return 0.;
+    }
+
+    double curvature = std::max(_boundary_param.stripe_curvature, 1.e-10);
+    double R = 1. / curvature;
+
+    // the (fixed) center of the circle stripe
+    SpaceVec origin = *_boundary_param.stripe_origin - SpaceVec({0., R});
+
+    double inner_radius = (R - _boundary_param.stripe_width / 2.);
+    double outer_radius = (R + _boundary_param.stripe_width / 2.);
+    
+    double energy = 0.;
+    // apply to all vertices outside the domain
+    for (const auto &v : _am.vertices()) {
+        // the position wrt origin
+        SpaceVec pos = _am.displace_virtual(v, beta) - origin;
+
+        double radius = arma::norm(pos);
+        if (radius < inner_radius) {
+            energy += std::pow(radius - inner_radius, 2.);
+        }
+        else if (radius > outer_radius) {
+            energy += std::pow(radius - outer_radius, 2.);
+        }
+    }
+
+    return 0.5 * _boundary_param.stripe_potential_constant * energy;
+}
+
 // /// Getter for energy associated with cell-cell polarity
 // double PCPVertex::get_energy_cell_cell_polarity(
 //         const EdgeContainer& es) const
@@ -404,11 +439,15 @@ double PCPVertex::get_energy (
         const AgentContainer<Cell>& cs,
         double beta) const
 {
-   return (  get_energy_linetension(es, beta)
-           + get_energy_edge_contractility(es, beta)
-           + get_energy_areaelasticity(cs, beta)
-           + get_energy_cell_contractility(cs, beta)
-           + get_boundary_energy(beta));
+    if (not std::isfinite(beta)) {
+        throw std::runtime_error(fmt::format("Cannot calculate energy "
+            "with non finite beta={}", beta));
+    }
+    return (  get_energy_linetension(es, beta)
+            + get_energy_edge_contractility(es, beta)
+            + get_energy_areaelasticity(cs, beta)
+            + get_energy_cell_contractility(cs, beta)
+            + get_boundary_energy(beta));
 }
 
 /// Getter for the relative energy change from previous to last step
