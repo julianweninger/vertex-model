@@ -34,39 +34,52 @@ transitions:
 
 select_cells:
   select:
+    # NOTE the order in which datasets are created is alphabetically!
+    #      (underscores) `_` are treated first
+
     # the data containing all cells
     _cells: data/PCPTopology/Cells
     
+    # a mask to select only bulk cells
+    _is_bulk:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: is_boundary
+        - .rename:
+          args: [!dag_prev , is_bulk]
+        - create_mask:
+          args: [!dag_prev , <, 0.5] # not boundary
+
+    # the type of the cells
+    __cell_type:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: cell_type
+        - .rename:
+          args: [!dag_prev , cell_types]
+
+    # a mask to select only hair cells
+    _hair_cells:
+      path: data/PCPTopology/Cells
+      transform:
+        - create_mask:
+          args: [!dag_tag __cell_type, ==, 1]
+    
+    # a mask to select only support cells
+    _support_cells:
+      path: data/PCPTopology/Cells
+      transform:
+        - create_mask:
+          args: [!dag_tag __cell_type, ==, 2]
+    
+    
   transform:
-    # the data containing information of cell_type
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-    - .rename:
-      args: [!dag_prev , cell_types]
-      tag: _cell_type
-
-    # the data containing information of boundary
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: is_boundary
-    - .rename:
-      args: [!dag_prev , is_bulk]
-    - create_mask:
-      args: [!dag_prev , <, 0.5] # not boundary
-      tag: _is_bulk
-
-    # mask for hair cells
-    - create_mask:
-      args: [!dag_tag _cell_type, ==, 1]
-      tag: _hair_cells
-    # mask for support cells
-    - create_mask:
-      args: [!dag_tag _cell_type, ==, 2]
-      tag: _support_cells
-
     # the data for hair cells
     - .where:
       args: [!dag_tag property, !dag_tag _hair_cells]
