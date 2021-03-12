@@ -1393,6 +1393,14 @@ OperationBundle build_jiggle (
 /** \details The following parameter are extracted from cfg 
  *           (besides those passed to `OperationParams`):
  *               - `factor` (double): incremental factor c. Should be in [0, 1].
+ *               - `factor_type` (double, default: 0.): incremental factor c'.
+ *                      Should be in [0, 1]. A factor that relaxes all cells
+ *                      of one type to the average cell area
+ *               - `factor_tissue` (double, default: 0.): incremental factor c''.
+ *                      Should be in [0, 1]. A factor that relaxes all cells
+ *                      to aim for a target average cell area.
+ *               - `average_cell_area` (double, default: 1): The target
+ *                      average cell area.
  *               - `minimum` (double, optional): Don't set preferential area 
  *                                               below this value.
  *               - `minimum` (double, optional): Don't set preferential area 
@@ -1407,7 +1415,8 @@ OperationBundle build_jiggle (
  *                          preferential area of cells.
  * 
  *  Preferential area is relaxed towards the actual cell area:
- *  \f$ A^\prime_0  = A_0 + c (A - A_0) \f$
+ *  \f$ A_0(t+1) - A_0(t) =   c (A - A_0) + c\prime (<A>_{type} - A0)
+ *                          + c\prime\prime (<A> - A_{target}) \f$
  * 
  *  Operation is applied to all cells with respective \f$A\f$ and \f$A_0\f$.
  */
@@ -1418,9 +1427,12 @@ OperationBundle build_relax_area (
     OperationParams params(name, cfg, default_minim_params);
 
     double factor(get_as<double>("factor", cfg));
+    double factor_type(  get_as<double>("factor_type", cfg, 0.));
+    double factor_tissue(get_as<double>("factor_tissue", cfg, 0.));
+    double target_area(  get_as<double>("average_cell_area", cfg, 1.));
+
     double minimum(get_as<double>("minimum", cfg, 0.));
     double maximum(get_as<double>("maximum", cfg, 0.));
-
 
     double minimum_HC(get_as<double>("minimum_hair", cfg, 0.));
     double maximum_HC(get_as<double>("maximum_hair", cfg, 0.));
@@ -1428,7 +1440,9 @@ OperationBundle build_relax_area (
     double minimum_SC(get_as<double>("minimum_support", cfg, 0.));
     double maximum_SC(get_as<double>("maximum_support", cfg, 0.));
 
-    Operation operation = [factor, minimum, maximum, minimum_HC, maximum_HC,
+    Operation operation = [factor, factor_type, factor_tissue, target_area,
+                           minimum, maximum,
+                           minimum_HC, maximum_HC,
                            minimum_SC, maximum_SC]
             (PCPVertex& vertex_model)
     {
@@ -1437,15 +1451,44 @@ OperationBundle build_relax_area (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        PCPVertex::RuleFuncCell update = [factor,
-                                          minimum, maximum, 
-                                          minimum_HC, maximum_HC,
-                                          minimum_SC, maximum_SC,
-                                          am](const auto& cell)
+        double average_HC = 0.;
+        std::size_t num_HC = 0;
+        double average_SC = 0.;
+        std::size_t num_SC = 0;
+        double average = 0.;
+        for (const auto& cell : cells) {
+            double area = am.area_of(cell);
+            if (cell->state.type == CellType::hair) {
+                average_HC += area;
+                num_HC++;
+            }
+            else if (cell->state.type == CellType::support) {
+                average_SC += area;
+                num_SC++;
+            }
+            average += area;
+        }
+        average_HC /= static_cast<double>(num_HC); 
+        average_SC /= static_cast<double>(num_SC); 
+        average /= static_cast<double>(cells.size());
+
+        PCPVertex::RuleFuncCell update = 
+        [factor, factor_type, factor_tissue, target_area,
+         average_HC, average_SC, average,
+         minimum, maximum, minimum_HC, maximum_HC, minimum_SC, maximum_SC,
+         am]
+        (const auto& cell)
         {
             auto state = cell->state;
-            state.area_preferential += factor * (  am.area_of(cell)
-                                                 - state.area_preferential);
+            double A0 = state.area_preferential;
+            state.area_preferential += factor * (am.area_of(cell) - A0);
+            if (state.type == CellType::hair) {
+                state.area_preferential += factor_type * (average_HC - A0);
+            }
+            else if (state.type == CellType::support) {
+                state.area_preferential += factor_type * (average_SC - A0);
+            }
+            state.area_preferential += factor_tissue * (target_area - average);
 
             // general maximum and minimum
             state.area_preferential = std::max(state.area_preferential,
