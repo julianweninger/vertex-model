@@ -1080,6 +1080,7 @@ private:
      *           objects
      */
     void remove_vertex (const std::shared_ptr<Vertex>& vertex) {
+        vertex->state.remove = true;
         _vertices_adjoint_edges.erase(vertex->id());
         _vertices_adjoint_cells.erase(vertex->id());
         _vertex_manager.remove_agent(vertex);
@@ -1090,6 +1091,7 @@ private:
      *           objects
      */
     void remove_edge (const std::shared_ptr<Edge>& edge) {
+        edge->state.remove = true;
         _edges_adjoint_cells.erase(edge->id());
         _edge_manager.remove_agent(edge);
     }
@@ -1105,6 +1107,7 @@ private:
      *           objects
      */
     void remove_cell (const std::shared_ptr<Cell>& cell) {
+        cell->state.remove = true;
         if (cell->custom_links().nd_cell) {
             cell->custom_links().nd_cell->state.cell_type = 
                 Utopia::Models::NotchDelta::CellState::StateType::inactive;

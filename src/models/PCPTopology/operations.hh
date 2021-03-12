@@ -1053,7 +1053,7 @@ OperationBundle build_increment_domain (
  *      - `support_support` (double, default: 0.): Incremental value for 
  *              edges between cells of types support and support.
  * 
- *  \note This increments the matrix of linetension, hence affects current and
+ *  \note This increments the matrix of contractility, hence affects current and
  *        future edges between cells of corresponding type.
  */
 OperationBundle build_increment_edge_contractility (

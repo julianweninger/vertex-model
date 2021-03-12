@@ -695,12 +695,8 @@ bool EntitiesManager<Model>::remove_boundary_edge(
                              const AgentContainer<Cell>&)> get_energy,
         double T1_barrier, double random_number)
 {
-    this->_log->debug("Removing a boundary edge {} in merging vertices ...",
-                      edge->id());
-
     auto vertex_a = edge->custom_links().a;
     auto vertex_b = edge->custom_links().b;
-    SpaceVec displ = displacement(vertex_a, vertex_b);
 
     // if a 3 fold vertex involved, call this one a
     if (is_3_fold_boundary_vertex(vertex_b))
@@ -708,10 +704,9 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         std::swap(vertex_a, vertex_b);
     }
 
-    // create copies of the objects - T1 might be aborted
-    const Edge edge_copy = *edge;
-    const auto adjoint_edges_vertex_a = adjoint_edges_of(vertex_a);
-    const auto adjoint_edges_vertex_b = adjoint_edges_of(vertex_b);
+    this->_log->debug("Removing a boundary edge {} in merging "
+                      "vertices {} and {} ...",
+                      edge->id(), vertex_a->id(), vertex_b->id());
     
     // get the adjacent cells to edge. `adj_cell_b` will be the void cell
     auto [adj_cell_a, adj_cell_b] = adjoints_of(edge);
@@ -751,8 +746,8 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         }
     }
 
-    AgentContainer<Cell> cells = {adj_cell_a};
-    if (adj_cell_c) { cells.push_back(adj_cell_c); }
+    AgentContainer<Cell> adj_cells = {adj_cell_a};
+    if (adj_cell_c) { adj_cells.push_back(adj_cell_c); }
 
     // The involved edges
     // (a, b) and (c) currently share vertex a, resp. b
@@ -779,22 +774,28 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         }
     }
 
-    AgentContainer<Edge> edges = {edge, adj_edge_a, adj_edge_c};
-    if (adj_edge_b) { edges.push_back(adj_edge_b); }
+    AgentContainer<Edge> adj_edges = {edge, adj_edge_a, adj_edge_c};
+    if (adj_edge_b) { adj_edges.push_back(adj_edge_b); }
 
-    std::vector<Edge> edges_copy = {*adj_edge_a, *adj_edge_c};
-    if (adj_edge_b) { edges_copy.push_back(*adj_edge_b); }
 
-    const auto adj_cell_a_vs = adj_cell_a->custom_links().vertices;
-    const auto adj_cell_a_es = adj_cell_a->custom_links().edges;
-    AgentContainer<Vertex> adj_cell_c_vs;
-    OrderedEdgeContainer adj_cell_c_es;
-    if (adj_cell_c) {
-        adj_cell_c_vs = adj_cell_c->custom_links().vertices;
-        adj_cell_c_es = adj_cell_c->custom_links().edges;
+    // create copies of the objects - T1 might be aborted
+    const Edge edge_copy = *edge;
+    const auto adjoint_edges_vertex_a = adjoint_edges_of(vertex_a);
+    const auto adjoint_edges_vertex_b = adjoint_edges_of(vertex_b);
+
+    std::vector<Edge> adj_edges_copy{};
+    for (const auto& edge : adj_edges) {
+        adj_edges_copy.push_back(*edge);
+    }
+    std::vector<AgentContainer<Vertex>> adj_cells_vs_copy{};
+    std::vector<OrderedEdgeContainer> adj_cells_es_copy{};
+    for (const auto& cell : adj_cells) {
+        adj_cells_vs_copy.push_back(cell->custom_links().vertices);
+        adj_cells_es_copy.push_back(cell->custom_links().edges);
     }
 
-    double current_energy = get_energy(edges, cells);
+    double current_energy = get_energy(adj_edges, adj_cells);
+
 
     // create a new vertex in the edge's center
     SpaceVec center = (  position_of(vertex_a)
@@ -806,11 +807,11 @@ bool EntitiesManager<Model>::remove_boundary_edge(
     if (adj_edge_b) { new_adjoint_edges.push_back(adj_edge_b); }    
     _vertices_adjoint_edges[new_v->id()] = new_adjoint_edges;
 
-    _vertices_adjoint_cells[new_v->id()] = cells;
+    _vertices_adjoint_cells[new_v->id()] = adj_cells;
 
 
     // remove objects
-    for (auto &c : cells) {
+    for (auto &c : adj_cells) {
         auto& vertices = c->custom_links().vertices;
         vertices.erase(std::remove_if(
                 vertices.begin(), vertices.end(), 
@@ -831,7 +832,7 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         adj_cell_a->custom_links().edges.end());
     
     // replace vertices in edges
-    for (auto &e : edges) {
+    for (auto &e : adj_edges) {
         if (e->custom_links().a->state.remove) { 
             e->custom_links().a = new_v;
         }
@@ -844,13 +845,13 @@ bool EntitiesManager<Model>::remove_boundary_edge(
     // NOTE vertex a is associated with cell a; 
     //      vertex b is associated with cell b
     //      both associated with cells c and d
-    for (auto c : cells) {
+    for (auto c : adj_cells) {
         c->custom_links().vertices.push_back(new_v);
     }
 
-    AgentContainer<Edge> new_edges = {adj_edge_a, adj_edge_c};
-    if (adj_edge_b) { new_edges.push_back(adj_edge_b); }
-    double new_energy = get_energy(new_edges, cells);
+    AgentContainer<Edge> new_adj_edges = {adj_edge_a, adj_edge_c};
+    if (adj_edge_b) { new_adj_edges.push_back(adj_edge_b); }
+    double new_energy = get_energy(new_adj_edges, adj_cells);
 
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
     if (random_number > probability)
@@ -859,7 +860,7 @@ bool EntitiesManager<Model>::remove_boundary_edge(
                 "{} .. The probability to do this T1 transition is {}.",
                 new_energy - current_energy, probability);
         
-        // undo the changes
+        // undo the changes        
         edge->state.remove = false;
         vertex_a->state.remove = false;
         vertex_b->state.remove = false;
@@ -868,20 +869,17 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         _vertices_adjoint_edges[vertex_b->id()] = adjoint_edges_vertex_b;
         // NOTE these are changed with add_edge(..)
 
-        adj_edge_a->custom_links().a = edges_copy[0].custom_links().a;
-        adj_edge_a->custom_links().b = edges_copy[0].custom_links().b;
-        adj_edge_c->custom_links().a = edges_copy[1].custom_links().a;
-        adj_edge_c->custom_links().b = edges_copy[1].custom_links().b;
-        if (adj_edge_b) {
-            adj_edge_b->custom_links().a = edges_copy[2].custom_links().a;
-            adj_edge_b->custom_links().b = edges_copy[2].custom_links().b;
-        }
+        for (std::size_t i = 0; i < adj_edges.size(); i++) {
+            auto edge = adj_edges[i];
+            auto edge_copy = adj_edges_copy[i];
+            edge->custom_links().a = edge_copy.custom_links().a;
+            edge->custom_links().b = edge_copy.custom_links().b;
 
-        adj_cell_a->custom_links().vertices = adj_cell_a_vs;
-        adj_cell_a->custom_links().edges = adj_cell_a_es;
-        if (adj_cell_c) {
-            adj_cell_c->custom_links().vertices = adj_cell_c_vs;
-            adj_cell_c->custom_links().edges = adj_cell_c_es;
+        }
+        for (std::size_t i = 0; i < adj_cells.size(); i++) {
+            auto cell = adj_cells[i];
+            cell->custom_links().vertices = adj_cells_vs_copy[i];
+            cell->custom_links().edges = adj_cells_es_copy[i];
         }
 
         remove_vertex(new_v);

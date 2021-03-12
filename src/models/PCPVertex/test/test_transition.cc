@@ -505,7 +505,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                     const auto& a = edge->custom_links().a;
                     const auto& b = edge->custom_links().b;
                     return (    am.is_1_cell_boundary_edge(edge)
-                            and (    am.is_2_fold_boundary_vertex(a)
+                            and (   am.is_2_fold_boundary_vertex(a)
                                 and am.is_3_fold_boundary_vertex(b)));
                 });
             BOOST_TEST((edge_it != edges.end()));
