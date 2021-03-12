@@ -66,6 +66,7 @@ void test_custom_links_periodic(PCPVertex& model) {
         BOOST_TEST(adj_edges.size() == 3);
         for (auto e : adj_edges) {
             BOOST_TEST(e);
+            BOOST_TEST(not e->state.remove);
         }
 
         // test the adjacent cells
@@ -73,6 +74,7 @@ void test_custom_links_periodic(PCPVertex& model) {
         BOOST_TEST(adj_cells.size() == 3);
         for (auto c : adj_cells) {
             BOOST_TEST(c);
+            BOOST_TEST(not c->state.remove);
         }
     }
 
@@ -81,7 +83,9 @@ void test_custom_links_periodic(PCPVertex& model) {
 
         // test the vertices
         BOOST_TEST(e->custom_links().a);
+        BOOST_TEST(not e->custom_links().a->state.remove);
         BOOST_TEST(e->custom_links().b);
+        BOOST_TEST(not e->custom_links().b->state.remove);
 
         auto adj_edges = am.adjoint_edges_of(e->custom_links().a);
         BOOST_TEST((std::find(adj_edges.begin(), adj_edges.end(), e) != 
@@ -92,7 +96,10 @@ void test_custom_links_periodic(PCPVertex& model) {
 
         // test the adjoint cells
         const auto [a, b] = am.adjoints_of(e);
-        BOOST_TEST((a and b));
+        BOOST_TEST(a);
+        BOOST_TEST(not a->state.remove);
+        BOOST_TEST(b);
+        BOOST_TEST(not b->state.remove);
     }
 
     for (auto c : am.cells()) {
@@ -113,6 +120,7 @@ void test_custom_links_periodic(PCPVertex& model) {
         BOOST_TEST(vertices.size() >= 3);
         for (auto v : vertices) {
             BOOST_TEST(v);
+            BOOST_TEST(not v->state.remove);
         }
 
         // test edges        
@@ -126,6 +134,7 @@ void test_custom_links_periodic(PCPVertex& model) {
         for (unsigned int i = 1; i < edges.size(); i++) {
             auto [e, flip] = edges[i];
             BOOST_TEST(e);
+            BOOST_TEST(not e->state.remove);
 
             if (not flip) {
                 BOOST_TEST(iterator == e->custom_links().a);
@@ -168,6 +177,7 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         }
         for (auto e : adj_edges) {
             BOOST_TEST(e);
+            BOOST_TEST(not e->state.remove);
         }
 
         // test the adjacent cells
@@ -183,6 +193,7 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         }
         for (auto c : adj_cells) {
             BOOST_TEST(c);
+            BOOST_TEST(not c->state.remove);
         }
     }
 
@@ -192,8 +203,8 @@ void test_custom_links_non_periodic(PCPVertex& model) {
 
         // test the vertices
         BOOST_TEST(e->custom_links().a);
-        BOOST_TEST(e->custom_links().b);
         BOOST_TEST(not e->custom_links().a->state.remove);
+        BOOST_TEST(e->custom_links().b);
         BOOST_TEST(not e->custom_links().b->state.remove);
 
         auto adj_edges = am.adjoint_edges_of(e->custom_links().a);
@@ -209,13 +220,18 @@ void test_custom_links_non_periodic(PCPVertex& model) {
             BOOST_TEST((a or b));
             if (not a) {
                 BOOST_TEST(b);
+                BOOST_TEST(not b->state.remove);
             }
             else if (not b) {
                 BOOST_TEST(a);
+                BOOST_TEST(not a->state.remove);
             }
         }
         else {
-            BOOST_TEST((a and b));
+            BOOST_TEST(a);
+            BOOST_TEST(not a->state.remove);
+            BOOST_TEST(b);
+            BOOST_TEST(not b->state.remove);
         }
     }
 
@@ -238,17 +254,18 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         BOOST_TEST(vertices.size() >= 3);
         for (auto v : vertices) {
             BOOST_TEST(v);
+            BOOST_TEST(not v->state.remove);
         }
         
         // test edges        
         auto [e, flip] = edges[0];
         BOOST_TEST(e);
-        BOOST_TEST(e);
+        BOOST_TEST(not e->state.remove);
         auto first = e->custom_links().a;
         auto iterator = e->custom_links().b;
         BOOST_TEST(first);
-        BOOST_TEST(iterator);
         BOOST_TEST(not first->state.remove);
+        BOOST_TEST(iterator);
         BOOST_TEST(not iterator->state.remove);
         if (flip) {
             std::swap(first, iterator);
@@ -257,9 +274,10 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         for (unsigned int i = 1; i < edges.size(); i++) {
             auto [e, flip] = edges[i];
             BOOST_TEST(e);
+            BOOST_TEST(not e->state.remove);
             BOOST_TEST(e->custom_links().a);
-            BOOST_TEST(e->custom_links().b);
             BOOST_TEST(not e->custom_links().a->state.remove);
+            BOOST_TEST(e->custom_links().b);
             BOOST_TEST(not e->custom_links().b->state.remove);
 
             if (not flip) {
