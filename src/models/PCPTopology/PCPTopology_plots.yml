@@ -124,23 +124,50 @@ HC_neighbors:
 
   to_plot:
     hair_cells_mean:
-      label: hair cells
+      label: hair cells (bulk)
     support_cells_mean:
-      label: support cells
+      label: support cells (bulk)
 
   select:
     property:
       path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: num_hair_neighbors
+      transform: 
+        - .sel:
+          args: [!dag_tag _cells]
+          kwargs:
+            property: num_hair_neighbors
+        - .where:
+          args: [!dag_prev , !dag_tag _is_bulk]
 
   helpers:
     set_labels:
       x: time
       y: average hair cell neighbors
+
+neighbors:
+  <<: *CELLAREA
+
+  to_plot:
+    hair_cells_mean:
+      label: hair cells (bulk)
+    support_cells_mean:
+      label: support cells (bulk)
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_tag _cells]
+          kwargs:
+            property: num_neighbors
+        - .where:
+          args: [!dag_prev , !dag_tag _is_bulk]
+
+  helpers:
+    set_labels:
+      x: time
+      y: average neighbors
 
 hexatic_order:
   <<: *CELLAREA
