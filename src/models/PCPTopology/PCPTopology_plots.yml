@@ -324,7 +324,7 @@ equilibrium_cellular_structure__rotation:
   property_bulk_cells_only: False
 
 
-cellular_structure:
+cellular_structure_continuous:
   based_on:
     - .default_style_and_helpers
     - cellular_structure
