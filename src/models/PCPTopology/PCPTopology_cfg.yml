@@ -146,6 +146,8 @@ Collier:
 
 # -- The NotchDelta model used in differentiation (optional)
 NotchDelta:
+  log_level: info
+  
   space: {periodic: false}
   cell_manager:
     grid:
@@ -212,6 +214,8 @@ minimization: &Minimization
 
 # The model for energy minimization
 PCPVertex:
+  log_level: info
+
   space: *SPACE
 
   boundary_parameter:
