@@ -12,43 +12,52 @@ namespace PCPVertex {
  *  \param dt           The step size of previous step
  *  \param energy_0     The energy at current position
  *  \param tolerance    Tolerance to find the minimum
- *  \return {step size to reach line minimum, energy at line minimum}
+ *  \return {whether successful, step size to reach line minimum,
+ *           energy at line minimum}
  */
-std::pair<double, double> PCPVertex::determine_timestep (
+std::tuple<bool, double, double> PCPVertex::determine_timestep (
         const double dt, const double energy_0,
         const double tolerance) const
 {
-    /// Capture nan energy values
-    const std::function<double(double)> get_energy = [this](double beta) {
+    // whether an error occurred - infinite energy
+    auto success = std::make_shared<bool>(true);
+
+    // Capture nan energy values
+    // nan energy is mapped to infinity
+    // NOTE arise from bad prediction of area
+    const std::function<double(double, std::shared_ptr<bool>)> get_energy =
+    [this](double beta, std::shared_ptr<bool> success)
+    {
         double energy = this->get_energy(beta);
-        if (isnan(energy)) {
+        if (std::isnan(energy)) {
+            *success = false;
             return std::numeric_limits<double>::max();
         }
         return energy;
     };
 
     // check that energy is actually decreasing in direction of update
-    double tmp_energy = get_energy(1e-8);
+    double tmp_energy = get_energy(1e-4, success);
     if (tmp_energy >= energy_0) {
-        this->_log->trace("Already in minimum. At step size of 1e-8 the energy "
+        this->_log->trace("Already in minimum. At step size of 1e-4 the energy "
             "along direction of update increased by {}.",
             tmp_energy - energy_0);
 
-        return std::make_pair(0., energy_0);
+        return std::make_tuple(*success, 0., energy_0);
     }
 
     // find a minimum that is closer than a local maxima, i.e.
     // E_2 (dt = pos_2) > E_0(dt = 0) > E_min (dt = pos_min)
     // Start search with previous dt
     double pos_2 = std::max(std::min(2*dt, 2.), 1e-8); // right boundary
-    double energy_2 = get_energy(pos_2); // energy at right boundary
+    double energy_2 = get_energy(pos_2, success); // energy at right boundary
     double pos_min = pos_2 / 2.; // the minimum
-    double energy_min = get_energy(pos_min); // energy at minimum
+    double energy_min = get_energy(pos_min, success); // energy at minimum
     while (true) {
         if (pos_min > 3000.) {
             if (fabs(energy_2 - energy_0) < tolerance) {
                 // the energy function is flat
-                return std::make_pair(0., energy_0);
+                return std::make_tuple(true, 0., energy_0);
             }
             this->_log->error("At step of {} along direction of "
                 "update the energy is still decreasing by {}", pos_min, 
@@ -61,20 +70,20 @@ std::pair<double, double> PCPVertex::determine_timestep (
                 }
                 this->_log->error("DEBUG At step of {} along direction of "
                     "update the energy is changing by {} at max displacement "
-                    "of {}", beta, get_energy(beta) - energy_0,
+                    "of {}", beta, get_energy(beta, success) - energy_0,
                     max_displ);
             }
             // NOTE only if energy_2 < energy_1: dt -> 2*dt
             throw std::runtime_error("Unable to find bracket to "
                 "local energy minimum!");
         }
-        if (pos_2 < 1e-10) {
+        if (pos_2 < 1e-8) {
             // the energy is increasing, hence already at local minimum
             // because only if energy_min > energy_2: pos_2 -> pos_2 / 2
             this->_log->trace("Already in minimum. At step size of {} the "
                 "energy along direction of update increased by {}.",
                 pos_2, energy_2 - energy_0);
-            return std::make_pair(0., energy_0);
+            return std::make_tuple(true, 0., energy_0);
         }
 
         if (energy_2 < energy_0) {
@@ -86,7 +95,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
 
             // increase interval
             pos_2 *= 2.;
-            energy_2 = get_energy(pos_2);
+            energy_2 = get_energy(pos_2, success);
             continue;
         }
 
@@ -97,7 +106,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
             energy_2 = energy_min;
 
             pos_min = pos_2 / 2.;
-            energy_min = get_energy(pos_min);
+            energy_min = get_energy(pos_min, success);
             continue;
         }
 
@@ -106,18 +115,39 @@ std::pair<double, double> PCPVertex::determine_timestep (
         break;
     }
 
+    // check that pos_2 is a true right boundary
+    if (std::isnan(energy_2) or energy_2 > 1.e16) {
+        if (std::isnan(energy_min) or energy_min > 1.e15) {
+            return std::make_tuple(false, std::nan("1"), std::nan("1"));
+        }
+
+        *success = true;
+
+        // choose a closer right boundary
+        pos_2 = 0.5 * (pos_2 + pos_min);
+        energy_2 = get_energy(pos_2, success);
+
+        // failed to find right bracket
+        if (energy_2 < energy_0) {
+            return std::make_tuple(false, std::nan("1"), std::nan("1"));
+        }
+
+        // continue with new right bracket
+    }
+
     // is minimum already good enough?
     if (fabs(energy_min - energy_0) < tolerance) {
         // the found minimum fulfills our condition
-        return std::make_pair(pos_min, energy_min);
+        return std::make_tuple(*success, pos_min, energy_min);
     }
+    
 
     // Improve knowledge of minimum by decreasing the interval size
     double pos_1 = 0.; // the left boundary
     double energy_1 = energy_0; // energy at left boundary
 
     // Find the minimum between brackets with parabolic interpolation
-    while(true) {
+    while(*success) {
         double term_3 = (pos_2 - pos_1)*(energy_2 - energy_min);
         double term_4 = (pos_2 - pos_min)*(energy_2 - energy_1);
         double term_1 = (pos_2 - pos_1)*term_3;
@@ -125,7 +155,7 @@ std::pair<double, double> PCPVertex::determine_timestep (
 
         // the minimum of parabola through 1, 2, min
         double pos_3 = pos_2 - 0.5*(term_1 - term_2)/(term_3 - term_4);
-        if (pos_3 < pos_1 or pos_3 > pos_2) {
+        if (not std::isfinite(pos_3) or pos_3 < pos_1 or pos_3 > pos_2) {
             this->_log->error("pos_1={}, pos_min={}, pos_2={}",
                               pos_1, pos_min, pos_2);
             this->_log->error("D_energy_1={}, D_energy_min={}, "
@@ -133,23 +163,28 @@ std::pair<double, double> PCPVertex::determine_timestep (
                               energy_0-energy_1, energy_0-energy_min,
                               energy_0-energy_2);
             this->_log->error("Fitted minimum: x={}", pos_3);
-            throw std::runtime_error("Energy minimization failed! "
-                                     "Parabola fit outside brackets");
+
+            // catch with steepest gradient step
+            return std::make_tuple(false, std::nan("1"), std::nan("1"));
         }
 
         // if the found minimum is precise enough
-        double energy_3 = get_energy(pos_3);
+        double energy_3 = get_energy(pos_3, success);
         if (fabs(energy_3 - energy_min) < tolerance) {
             // found the minimum with required precision
             if (energy_3 < energy_min) {
-                return std::make_pair(pos_3, energy_3);
+                return std::make_tuple(*success, pos_3, energy_3);
             }
             else {
-                return std::make_pair(pos_min, energy_min);
+                return std::make_tuple(*success, pos_min, energy_min);
             }
         }
         
         if (energy_3 > energy_0) {
+            if (not *success) {
+                return std::make_tuple(false, std::nan("1"), std::nan("1"));
+            }
+
             // there is a closer maximum. Retry with smaller step size
             return determine_timestep(pos_3 / 2., energy_0, tolerance);
         }
@@ -188,6 +223,9 @@ std::pair<double, double> PCPVertex::determine_timestep (
 
         // repeat with decreased brackets
     }
+
+    // only reaches here when success == false
+    return std::make_tuple(false, std::nan("1"), std::nan("1"));
 };
 
 /// Initialisation of the energy minisation process
@@ -225,9 +263,20 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
 
     double new_energy;
     if (adaptive_step) {
-        std::tie(_dt, new_energy) = determine_timestep(
+        bool success;
+        std::tie(success, _dt, new_energy) = determine_timestep(
             _dt, _energy, _minimization_tolerance);
         double energy_change = get_rel_energy_change(new_energy, _energy);
+
+        if (not success) {            
+            this->init_minimization();
+            // NOTE this resets _dt
+
+            this->_log->warn("Failed to determine timestep with nan energy. "
+                "Performing a steepest gradient step with dt = {}!", _dt);
+            
+            return steepest_gradient_step(false);
+        }
 
         if (energy_change < -1e-14) {
             this->_log->trace("Updating with timestep {} at relative energy "
@@ -238,7 +287,11 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
             this->_log->trace("NOT updating with step size {} along direction "
                               "of update at energy change {}", _dt,
                               energy_change);
-            return this->_energy;
+                              
+            this->init_minimization();
+            // NOTE this resets _dt
+
+            return steepest_gradient_step(false);
         }
     }
  
@@ -263,9 +316,23 @@ double PCPVertex::conjugate_gradient_step ()
 {
     // line minimization along direction of update h
     double new_energy;
-    std::tie(_dt, new_energy) = determine_timestep(
+    bool success;
+    std::tie(success, _dt, new_energy) = determine_timestep(
         _dt, _energy, _minimization_tolerance);
     double energy_change = get_rel_energy_change(new_energy, _energy);
+
+    if (not success) {
+        this->init_minimization();
+        // NOTE this resets dt
+
+        this->_log->debug("Failed to determine timestep with nan energy. "
+            "Performing a steepest gradient step with dt = {}!", _dt);
+
+        new_energy = steepest_gradient_step(false);
+        this->init_minimization();
+        
+        return new_energy;
+    }
 
     if (energy_change < -1e-14) {
         this->_log->trace("Updating with timestep {} at energy change {}",
@@ -274,10 +341,18 @@ double PCPVertex::conjugate_gradient_step ()
         apply_rule<Update::sync>(update_position, _am.vertices());
     }
     else {
-        this->_log->trace("NOT updating with step size {} along direction "
-                          "of update at energy change {}", _dt,
-                          energy_change);
-        return this->_energy;
+        this->init_minimization();
+        // NOTE this resets dt
+
+        this->_log->debug("Failed to determine timestep with dt = 0. or "
+            "dE = {} >= 0."
+            "Performing a steepest gradient step with dt = {}!",
+            energy_change, _dt);
+
+        new_energy = steepest_gradient_step(false);
+        this->init_minimization();
+        
+        return new_energy;
     }
 
     // determine the conjugate gradient direction
@@ -343,8 +418,8 @@ bool PCPVertex::perform_transitions(bool enabled = true)
         for (int i = cells.size() - 1; i >= 0; i--) {
             double area = _am.area_of(cells[i]);
             if (area < _T2_threshold) {
-                this->_log->debug("Removing cell in T2 transition in step {}..",
-                                    this->_time);
+                this->_log->debug("Removing cell {} in T2 transition "
+                                  "in step {}..", cells[i]->id(), this->_time);
                 bool T2 = _am.remove_cell_T2(cells[i]);
                 transition_occurred = (transition_occurred or T2);
                 _num_T2s += T2;
@@ -366,8 +441,8 @@ bool PCPVertex::perform_transitions(bool enabled = true)
                 and ((edge->state.last_T1_attempt - this->_time) > _T1_timeout
                         or edge->state.last_T1_attempt == 0))
             {
-                this->_log->debug("Removing edge in T1 transition in step {}..",
-                                    this->_time);
+                this->_log->debug("Removing edge {} in T1 transition "
+                                  "in step {}..", edge->id(), this->_time);
                 bool T1 = _am.remove_edge_T1(edge,
                         _linetension, _edge_contractility,
                         [this](const AgentContainer<Edge>& es,
