@@ -364,14 +364,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 if property_bulk_cells_only:
                     is_boundary = c_data.sel(property="is_boundary").round()
                     prop_data = prop_data.where(is_boundary == 0)
-
-                num_data_points = len(prop_data) * 10j
+                
                 min_x = floor(domain_size_min_x)
                 max_x = ceil(domain_size_max_x)
                 min_y = floor(domain_size_min_y)
                 max_y = ceil(domain_size_max_y)
-                grid_x, grid_y = np.mgrid[min_x:max_x:num_data_points,
-                                          min_y:max_y:num_data_points]
+                grid_x, grid_y = np.mgrid[min_x:max_x:512j, min_y:max_y:512j]
                 grid_z1 = griddata((prop_data.x, prop_data.y), prop_data,
                                     (grid_x, grid_y),
                                     **property_interpolation_kwargs)
