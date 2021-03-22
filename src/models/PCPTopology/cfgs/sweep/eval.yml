@@ -11,12 +11,23 @@
 #   model_name: PCPTopology/PCPVertex
 
 # transitions:
-#   based_on: transitions
+#   based_on:
+#     - universe
+
+#   model_name: PCPTopology
+#   module: model_plots.PCPTopology
+#   plot_func: transitions
+
 #   map_to_continuous_time: True
 
 # transitions_continuous:
-#   based_on: transitions
+#   based_on:
+#     - universe
+
 #   model_name: PCPTopology/PCPVertex
+#   module: model_plots.PCPTopology
+#   plot_func: transitions
+  
 #   map_to_discrete_time: True
 
 # --- Average seeds -----------------------------------------------------------
