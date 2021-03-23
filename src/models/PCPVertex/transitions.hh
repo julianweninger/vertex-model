@@ -316,16 +316,18 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     auto vertex_a = edge->custom_links().a;
     auto vertex_b = edge->custom_links().b;
 
-    if (    is_2_fold_boundary_vertex(vertex_a)
-        and is_2_fold_boundary_vertex(vertex_b))
+    if (   is_2_fold_boundary_vertex(vertex_a)
+        or is_2_fold_boundary_vertex(vertex_b))
     {
         return remove_boundary_edge(edge, get_energy, T1_barrier,
                                     random_number);
     }
 
     if (is_1_cell_boundary_edge(edge)) {
-        this->_log->debug("Remodelling 1 cell boundary edge {} in "
-                          "T1 transition ...", edge->id());
+        this->_log->debug("Remodelling 1 cell boundary edge {} ({} -> {}) in "
+                          "T1 transition ...", edge->id(),
+                          vertex_a->id(), vertex_b->id());
+
     }
     else if (is_2_cell_boundary_edge<false>(edge)) {
         if (    is_3_fold_boundary_vertex(vertex_a)
