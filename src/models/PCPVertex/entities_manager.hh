@@ -763,7 +763,7 @@ public:
 
         while (iter != start) {
             const auto tmp_edges = adjoint_edges_of(iter);
-            edge = *std::find_if(
+            auto edge_it = std::find_if(
                 tmp_edges.begin(), tmp_edges.end(),
                 [this, edge](const auto& e_it) {
                     if (e_it == edge) {
@@ -771,14 +771,30 @@ public:
                     }
                     return this->is_1_cell_boundary_edge(e_it);
                 });
+            if (edge_it == tmp_edges.end()) {
+                throw std::runtime_error("No 1 cell boundary edge found to "
+                    "continue iteration of boundary!");
+            }
+            edge = *edge_it;
 
             if (iter == edge->custom_links().a) {
                 boundary.push_back(std::make_pair(edge, false));
                 iter = edge->custom_links().b;
             }
-            else {
+            else if (iter == edge->custom_links().b) {
                 boundary.push_back(std::make_pair(edge, true));
                 iter = edge->custom_links().a;
+            }
+            else {
+                throw std::runtime_error(fmt::format("Failed to iterate "
+                    "boundary with edge {} ({} -> {}) not starting at vertex {}",
+                    edge->id(),
+                    edge->custom_links().a->id(), edge->custom_links().b->id(),
+                    iter->id()));
+            }
+
+            if (boundary.size() > edges.size()) {
+                throw std::runtime_error("Failed to determine tissue boundary!");
             }
         }
 
