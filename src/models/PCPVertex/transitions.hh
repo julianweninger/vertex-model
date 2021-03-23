@@ -278,6 +278,11 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
             else if (adj_cell_b == cell) {
                 adj_cell_b = new_c;
             }
+
+            if (adj_cell_a == new_c and adj_cell_b == new_c) {
+                adj_cell_b = nullptr;
+            }
+            
             _edges_adjoint_cells[e->id()] = std::make_pair(adj_cell_a,
                                                            adj_cell_b);
         }

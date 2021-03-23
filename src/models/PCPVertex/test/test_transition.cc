@@ -80,22 +80,21 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         // find the first cell that is not a boundary cell
         auto cell = *std::find_if(cells.begin(), cells.end(),
                                   [am, periodic_BC](const auto& cell) {
-                                    //   if (periodic_BC) {
+                                      if (periodic_BC) {
                                           return (not am.is_boundary(cell));
-                                    //   }
-                                    //   else {
-                                    //       return am.is_boundary(cell);
-                                    //   }
-                                    // TODO reactivate test of boundary cells!
+                                      }
+                                      else {
+                                          return am.is_boundary(cell);
+                                      }
                                   });
-        // if (periodic_BC) {
-        //     BOOST_TEST(not am.is_boundary(cell));
-        //     // NOTE this is a bulk cell
-        //     // NOTE this also tests removal of bulk cell in non-periodic BC
-        // }
-        // else {
-        //     BOOST_TEST(am.is_boundary(cell));
-        // }
+        if (periodic_BC) {
+            BOOST_TEST(not am.is_boundary(cell));
+            // NOTE this is a bulk cell
+            // NOTE implicit test of removal of bulk cell in non-periodic BC
+        }
+        else {
+            BOOST_TEST(am.is_boundary(cell));
+        }
 
         // set arbitrary values and check inheritance
         cell->state.area_preferential = 0.314;

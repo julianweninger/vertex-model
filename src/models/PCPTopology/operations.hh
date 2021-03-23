@@ -1315,14 +1315,12 @@ OperationBundle build_proliferate (
         auto it = std::copy_if (cells.begin(), cells.end(),
                                 current_generation.begin(),
                                 [generation_max_id, am](const auto& cell){
-                                    return (    cell->id() < *generation_max_id
-                                            and not am.is_boundary(cell));
+                                    return (cell->id() < *generation_max_id);
                                 } );
         current_generation.resize(
             std::distance(current_generation.begin(), it));
         if (current_generation.size() == 0) {
             for (const auto& c : cells) {
-                if (am.is_boundary(c)) { continue; }
                 *generation_max_id = std::max(*generation_max_id, c->id());
             }
             *generation_max_id = *generation_max_id + 1;
@@ -1330,11 +1328,10 @@ OperationBundle build_proliferate (
             current_generation.clear();
             current_generation.resize(cells.size());
             auto it = std::copy_if (cells.begin(), cells.end(),
-                                    current_generation.begin(),
-                                    [generation_max_id, am](const auto& cell){
-                                        return (cell->id() < *generation_max_id
-                                            and not am.is_boundary(cell));
-                                    } );
+                        current_generation.begin(),
+                        [generation_max_id, am](const auto& cell){
+                            return (cell->id() < *generation_max_id);
+                        } );
             current_generation.resize(
                 std::distance(current_generation.begin(), it));
         }
