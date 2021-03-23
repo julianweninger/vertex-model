@@ -1210,9 +1210,10 @@ private:
 
     // -- The algorithm    ----------------------------------------------------
     // see algorithm.hh
-    std::pair<double, double> determine_timestep (double dt,
-                                                  const double energy_0,
-                                                  const double tolerance) const;
+    std::pair<double, double> determine_timestep (
+        double dt,
+        const double energy_0,
+        const double tolerance) const;
     double steepest_gradient_step (bool adaptive_step);
     double conjugate_gradient_step ();
     double perform_update_step(UpdateScheme update_scheme);
@@ -1422,7 +1423,7 @@ public:
             else {
                 this->_log->debug("Minimizing energy from step {} "
                                   "in {:d} / {:d} repeat ...",
-                                  time_0, i+1, params.num_repeat);
+                                  time_start, i+1, params.num_repeat);
             }
 
             // iterate until minimum reached
@@ -1457,7 +1458,7 @@ public:
                 }
             }
             this->_log->trace("  Energy minimized in {} steps.",
-                              this->get_time() - time_0);
+                              this->get_time() - time_start);
 
             _num_minimizations++;
 

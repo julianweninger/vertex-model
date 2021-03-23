@@ -443,6 +443,7 @@ double PCPVertex::get_energy (
         throw std::runtime_error(fmt::format("Cannot calculate energy "
             "with non finite beta={}", beta));
     }
+
     return (  get_energy_linetension(es, beta)
             + get_energy_edge_contractility(es, beta)
             + get_energy_areaelasticity(cs, beta)
@@ -456,13 +457,13 @@ double PCPVertex::get_rel_energy_change () const
     double energy = get_energy();
     
     double energy_change = energy - _energy_previous_step;
-    return energy_change / fabs(energy + 1e-14);
+    return energy_change / std::max(fabs(energy), 1e-14);
 }
 
 /// Getter for the relative energy change from previous to last step
-double PCPVertex::get_rel_energy_change (double E, double E_0) const
+double PCPVertex::get_rel_energy_change (double energy, double energy_0) const
 {
-    return (E - E_0) / fabs(E + 1e-14);
+    return (energy - energy_0) / std::max(fabs(energy), 1e-14);
 }
 
 } // namespace PCPVertex

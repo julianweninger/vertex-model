@@ -53,27 +53,34 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         ValueError: On invalid data dimensionality
         ValueError: On mismatch of data shapes
     """
-    transitions_base(dm, uni=uni, hlpr=hlpr, model_name=model_name,
-                     **plot_kwargs)
     
     continuous_time = uni['data'][continuous_time_path]
 
     if map_to_continuous_time:
-        ax3 = hlpr.ax.twiny()
-        ax3.set_xlim(hlpr.ax.get_xlim())
-        ax3.set_xticks(continuous_time.time)
-        ax3.set_xticklabels(["%.0f" % continuous_time.sel(time=time) for time 
-                                in continuous_time.time])
-
-        ax3.set_xlabel("Continuous time")
+        times = ["%.0f" % continuous_time.sel(time=time) \
+                 for time in continuous_time.time]
+        ax1 = hlpr.ax.twiny()
+        ax1.set_xlim(hlpr.ax.get_xlim())
+        ax1.set_xticks(continuous_time.time)
+        ax1.set_xticklabels(times, rotation=90)
+        ax1.set_xlabel("Continuous time")
 
     if map_to_discrete_time:
-        ax3 = hlpr.ax.twiny()
-        ax3.set_xlim(hlpr.ax.get_xlim())
-        ax3.set_xticks(continuous_time.data)
-        ax3.set_xticklabels(["%.0f" % time for time in continuous_time.time])
+        ax1 = hlpr.ax.twiny()
+        ax1.set_xlim(hlpr.ax.get_xlim())
+        ax1.set_xticks(continuous_time.data)
+        ax1.set_xticklabels(["%.0f" % time for time in continuous_time.time],
+                            rotation=90)
 
-        ax3.set_xlabel("Time of operations")
+        ax1.set_xlabel("Time of operations")
+
+    hlpr.select_axis(0, 0)
+
+    transitions_base(dm, uni=uni, hlpr=hlpr, model_name=model_name,
+                     **plot_kwargs)
+
+    hlpr.fig.tight_layout()
+
 
 def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
                        plot_hist: bool=True,

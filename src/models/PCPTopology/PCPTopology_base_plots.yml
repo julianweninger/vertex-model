@@ -35,14 +35,6 @@ energy:
       x: time
       y: energy [a.u.]
 
-transitions:
-  based_on:
-    - universe
-
-  model_name: PCPTopology
-  module: model_plots.PCPTopology
-  plot_func: transitions
-
 select_cells:
   select:
     # NOTE the order in which datasets are created is alphabetically!
