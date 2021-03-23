@@ -32,6 +32,16 @@ parameter_space:
             tolerance: 1.e-6
             jiggle_tolerance: 1.e-5
 
+      - set_boundary_parameter:
+          times: [1]
+          boundary_parameter:
+            area_elasticity: 0.
+            area_preferential: 25.
+            shape_elasticity: 100.
+            shape_index_preferential: 3.54491 # 2 sqrt(pi)
+          minimization:
+            mode: manual
+
       - proliferate:
           times: [1]
           iterations_prolog: 0

@@ -17,7 +17,6 @@ parameter_space:
   num_steps: 2
 
   PCPTopology:
-
     operations:
       - jiggle:
           times: []
@@ -26,8 +25,8 @@ parameter_space:
           minimization: &MinimzationQuickAndDirty
             jiggle_intensity: 1.e-3
             num_repeat: 5
-            tolerance: 1.e-6
-            jiggle_tolerance: 1.e-5
+            tolerance: 1.e-8
+            jiggle_tolerance: 1.e-6
 
       - proliferate:
           times: [1]

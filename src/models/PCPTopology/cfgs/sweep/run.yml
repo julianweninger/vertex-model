@@ -48,7 +48,19 @@ parameter_space:
             mode: manual
       - jiggle: *JiggleQuickDirty
       # 32 cells
-
+      
+      - set_boundary_parameter:
+          times: []
+          iterations_prolog: 1
+          boundary_parameter:
+            area_elasticity: 0.
+            area_preferential: 25.
+            shape_elasticity: 10.
+            shape_index_preferential: 3.54491 # 2 sqrt(pi)
+          minimization:
+            mode: manual
+      - jiggle: *JiggleQuickDirty
+            
       - set_boundary_parameter:
           times: []
           iterations_prolog: 1
@@ -62,11 +74,12 @@ parameter_space:
       - jiggle: *JiggleQuickDirty
       # circular boundary condition
 
-      # - proliferate:
-      #     <<: *proliferate
-      #     iterations_prolog: 32
-      # - jiggle: *JiggleQuickDirty
-      # # 64 cells
+      - proliferate:
+          <<: *proliferate
+          iterations_prolog: 32
+      - jiggle: *JiggleQuickDirty
+      # 64 cells
+
       # - proliferate:
       #     <<: *proliferate
       #     iterations_prolog: 64
