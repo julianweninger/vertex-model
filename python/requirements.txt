@@ -1,3 +1,5 @@
 # Can add additional requirements for utopia models python scripts
 # These can be related to plotting and/or testing, and are installed alongside
 # the registration of model tests.
+
+dantro>=0.16

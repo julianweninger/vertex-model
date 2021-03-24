@@ -57,29 +57,46 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     num_T1s_attempted = uni['data'][model_name]['Statistics/num_T1s_attempted']
     num_T2s = uni['data'][model_name]['Statistics/num_T2s']
 
-    # Create the line plot of energy
-    hlpr.ax.plot(energy.time, energy, label='total')
-    hlpr.ax.plot(linetension.time, linetension, label='linetension')
-    hlpr.ax.plot(cell_contractility.time, cell_contractility,
-                 label='cell contractility')
-    hlpr.ax.plot(edge_contractility.time, edge_contractility,
-                 label='edge contractility')
-    hlpr.ax.plot(areaelasticity.time, areaelasticity, label='areaelasticity')
 
-    hlpr.ax.set_xlabel("Time [steps]")
-    hlpr.ax.set_ylabel("Energy [a.u.]")
-    hlpr.ax.legend(loc='upper left')
-    hlpr.ax.set_xlim(left=energy.time[0], right=energy.time[-1])
+    # Create the line plot of energy
+    ax1 = hlpr.ax
+    ax1.plot(energy.time, energy,
+             label='total', alpha=0.5)
+    ax1.plot(linetension.time, linetension,
+             label='linetension', alpha=0.5)
+    ax1.plot(cell_contractility.time, cell_contractility,
+             label='cell contractility', alpha=0.5)
+    ax1.plot(edge_contractility.time, edge_contractility,
+             label='edge contractility', alpha=0.5)
+    ax1.plot(areaelasticity.time, areaelasticity, 
+             label='areaelasticity', alpha=0.5)
+
+    ax1.set_xlabel("Time [steps]")
+    ax1.set_ylabel("Energy [a.u.]")
+    ax1.legend(loc='upper left')
+    ax1.set_xlim(left=energy.time[0], right=energy.time[-1])
 
     # Plot the T1s
-    ax2 = hlpr.ax.twinx()
-    ax2.plot(num_T1s_attempted.time, num_T1s_attempted, color='gray', label='#T1 attempted')
-    ax2.plot(num_T1s.time, num_T1s, color='black', label='#T1')
-    ax2.plot(num_T2s.time, num_T2s, color='seagreen', label='#T2')
+    ax2 = ax1.twinx()
+    
+    ax2.plot(num_T1s_attempted.time, num_T1s_attempted.cumsum(), color='gray', label='#T1 attempted')
+    ax2.plot(num_T1s.time, num_T1s.cumsum(), color='black', label='#T1')
 
-    ax2.set_ylabel("Transitions")
-    ax2.set_ylim(bottom=0)
+    ax2.set_ylabel("T1 transitions")
     ax2.legend(loc='upper right')
+
+    # Plot the T2s
+    ax3 = ax1.twinx()
+    
+    ax3.plot(num_T2s.time, num_T2s.cumsum(), color='seagreen', label='#T2')
+    
+    ax3.set_ylabel("T2 transitions")
+    ax3.set_ylim(bottom=0)
+
+    ax3.spines['right'].set_position(('outward', 60))
+    ax3.yaxis.label.set_color('seagreen')
+
+    hlpr.fig.tight_layout()
 
 
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
