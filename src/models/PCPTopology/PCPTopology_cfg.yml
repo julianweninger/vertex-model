@@ -220,9 +220,9 @@ PCPVertex:
 
   boundary_parameter:
     area_elasticity: 0.
-    area_preferential: 0.
-    shape_elasticity: 0.
-    shape_index_preferential: 0.
+    area_preferential: 25.
+    shape_elasticity: 100.
+    shape_index_preferential: 3.54491 # 2 sqrt(pi)
 
   # --- Initialization parameters
   agent_manager:
