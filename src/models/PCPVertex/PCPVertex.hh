@@ -1210,7 +1210,7 @@ private:
 
     // -- The algorithm    ----------------------------------------------------
     // see algorithm.hh
-    std::pair<double, double> determine_timestep (
+    std::tuple<bool, double, double> determine_timestep (
         double dt,
         const double energy_0,
         const double tolerance) const;
@@ -1360,6 +1360,8 @@ public:
                           time_0, params.num_repeat);
         _status = Status::Minimization;
 
+        const double energy_after_perturbation = this->get_energy();
+
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
             // jiggle vertices if required
@@ -1439,7 +1441,6 @@ public:
                 minimum_reached = equilibrium_condition();
                 double energy_change = get_rel_energy_change(
                     _energy, _energy_previous_step);
-                this->_log->trace("Energy changed by {}.", energy_change);
                 
                 if (not minimum_reached 
                     and this->get_time() - time_start >= params.max_steps)
@@ -1467,14 +1468,16 @@ public:
         }
 
         auto num_steps = this->get_time() - time_0;
-        if (num_steps == params.num_repeat *(1 + (params.jiggle_intensity > 0)))
+        if (get_rel_energy_change(_energy, energy_after_perturbation) > -1.e-3)
         {
-            this->_log->warn("Energy was minimized in a single step and "
-                "changed by {}!",
+            this->_log->warn("Energy changed by {} (relative)!",
                 get_rel_energy_change(_energy, _energy_previous_step));
         }
         else {
-            this->_log->debug("Energy minimized in {} steps.", num_steps);
+            this->_log->info("Energy minimized in {} steps and changed by "
+                "{} (rel.).",
+                num_steps,
+                get_rel_energy_change(_energy, energy_after_perturbation));
         }
 
         return num_steps;
@@ -1625,7 +1628,7 @@ public:
     }
 
     double get_rel_energy_change () const;
-    double get_rel_energy_change (double E, double E_0) const;
+    double get_rel_energy_change (double energy, double energy_0) const;
 
     /// Whether the relative change in energy fulfills the equilibrium condition
     bool equilibrium_condition() const {
