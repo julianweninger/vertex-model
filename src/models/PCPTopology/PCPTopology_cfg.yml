@@ -206,11 +206,14 @@ minimization: &Minimization
   update_scheme: conjugate_gradient
   dt: 0.001
 
+  num_repeat: 20
+  
   tolerance: 1.e-8
-  max_steps: 15000
-  num_repeat: 50
   jiggle_tolerance: 1.e-6
   jiggle_intensity: 0.1
+  
+  max_steps: 15000
+
 
 # The model for energy minimization
 PCPVertex:

@@ -319,6 +319,12 @@ private:
                     _operations.push_back(
                         build_proliferate(name, op_cfg, _minimization_params));
                 }
+                else if (name == "proliferate_quick_and_dirty") {
+                    _operations.push_back(
+                        build_proliferate_quick_and_dirty(name, op_cfg,
+                                _minimization_params,
+                                _log, _monitor_mngr));
+                }
                 else if (name == "relax_area") {
                     _operations.push_back(
                         build_relax_area(name, op_cfg, _minimization_params));
@@ -363,6 +369,7 @@ private:
                             "increment_shape_index, "
                             "jiggle, "
                             "proliferate, "
+                            "proliferate_quick_and_dirty, "
                             "relax_area, "
                             "set_area, "
                             "set_boundary_parameter, "

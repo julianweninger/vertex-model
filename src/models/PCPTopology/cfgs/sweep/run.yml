@@ -28,61 +28,20 @@ parameter_space:
       extent: [30, 30]
 
     operations:
-      - jiggle: &JiggleQuickDirty
+      - jiggle: 
           times: []
           iterations_prolog: 1
-          minimization:
+          minimization: &JiggleQuickDirty
             jiggle_intensity: 1.e-3
             num_repeat: 2
             tolerance: 1.e-8
             jiggle_tolerance: 1.e-6
 
-      - proliferate: &proliferate
+      - proliferate_quick_and_dirty:
           times: []
-          iterations_prolog: 16
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
-      - jiggle: *JiggleQuickDirty
-      # 32 cells
-      
-      - proliferate:
-          <<: *proliferate
-          iterations_prolog: 32
-      - jiggle: *JiggleQuickDirty
-      # 64 cells
-
-      # - proliferate:
-      #     <<: *proliferate
-      #     iterations_prolog: 64
-      # - jiggle: *JiggleQuickDirty
-      # # 128 cells
-      # - proliferate:
-      #     <<: *proliferate
-      #     iterations_prolog: 128
-      # - jiggle: *JiggleQuickDirty
-      # # 256 cells
-      # - proliferate:
-      #     <<: *proliferate
-      #     iterations_prolog: 256
-      # - jiggle: *JiggleQuickDirty
-      # # 512 cells
-      # - proliferate:
-      #     <<: *proliferate
-      #     iterations_prolog: 512
-      # - jiggle: *JiggleQuickDirty
-      # # 1024 cells
-      # - proliferate:
-      #     <<: *proliferate
-      #     iterations_prolog: 1024
-      # - jiggle: *JiggleQuickDirty
-      # # 2048 cells
-
-      - jiggle:
-          times: !listgen [1, 11]
+          iterations_prolog: 1
+          target_num_cells: 64
+          minimization_quick: *JiggleQuickDirty
           minimization:
             num_repeat: 15
             jiggle_intensity: 0.1
@@ -106,8 +65,6 @@ parameter_space:
           minimization:
             mode: manual
       # END differentiation
-
-
 
     PCPVertex:
       log_level: warning
