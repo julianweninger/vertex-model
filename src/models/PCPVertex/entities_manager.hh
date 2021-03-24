@@ -380,6 +380,11 @@ public:
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
 
+        if (boundary.size() < 3) {
+            throw std::runtime_error(fmt::format("Cannot calculate area for a "
+                "boundary with {} < 3 edge(s)", boundary.size()));
+        }
+
         // define a reference in space
         auto [e, flip] = boundary.front();
         std::shared_ptr<Vertex> reference;

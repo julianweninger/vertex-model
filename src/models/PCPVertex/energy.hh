@@ -304,7 +304,7 @@ double PCPVertex::get_energy_cell_contractility(
 /** Similar to a cell, the domain's area has quadratic energy contribution
  */ 
 double PCPVertex::get_boundary_area_energy (double beta) const {
-    if (_boundary_param.area_elasticity == 0.) {
+    if (_space->periodic or _boundary_param.area_elasticity == 0.) {
         return 0.;
     }
 
@@ -322,7 +322,7 @@ double PCPVertex::get_boundary_area_energy (double beta) const {
 /** Similar to a cell, the boundaries shape has quadratic energy contribution
  */ 
 double PCPVertex::get_boundary_shape_energy(double beta) const {
-    if (_boundary_param.shape_elasticity == 0.) {
+    if (_space->periodic or _boundary_param.shape_elasticity == 0.) {
         return 0.;
     }
     
@@ -340,7 +340,7 @@ double PCPVertex::get_boundary_shape_energy(double beta) const {
 /** A quadratic potential for boundary vertices that are outside a stripe
  */ 
 double PCPVertex::get_boundary_stripe_energy (double beta) const {
-    if (_boundary_param.stripe_potential_constant == 0.) {
+    if (_space->periodic or _boundary_param.stripe_potential_constant == 0.) {
         return 0.;
     }
 

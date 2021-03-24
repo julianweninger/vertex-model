@@ -26,13 +26,13 @@ space: &SPACE
 operations:
   - jiggle: # this is not done automatically
       times: []
-      iterations_prolog: 0
+      iterations_prolog: 1
 
       minimization: &MinimzationQuickAndDirty
         jiggle_intensity: 1.e-3
-        num_repeat: 5
-        tolerance: 1.e-6
-        jiggle_tolerance: 1.e-5
+        num_repeat: 2
+        tolerance: 1.e-8
+        jiggle_tolerance: 1.e-6
       
   - proliferate:
       times: []
