@@ -928,17 +928,18 @@ bool EntitiesManager<Model>::remove_boundary_edge(
 template<class Model>
 bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
 {
-    if (neighbors_of(cell).size() <= 1) {
-        this->_log->debug("Removing cell {} with single neighbor in "
-                          "T2 transition ...", cell->id());
-    }
-    else if (cell->custom_links().edges.size() != 3) {
+    if (neighbors_of(cell).size() > 3) {
         this->_log->debug("Delaying T2 transition, because the cell {} has "
-            "more than 3 vertices (has {} vertices).",
-            cell->id(), cell->custom_links().edges.size());
+            "more than 3 neighbors (has {} neighbors and {} edges).",
+            cell->id(), neighbors_of(cell).size(),
+            cell->custom_links().edges.size());
         return false;
     }
-
+    if (cell->custom_links().edges.size() > 3) {
+        this->_log->debug("Removing boundary cell {} with {} neighbor(s) and "
+            "{} edges in T2 transition ...", cell->id(), 
+            neighbors_of(cell).size(), cell->custom_links().edges.size());
+    }
     else if (not this->is_boundary(cell)) {
         this->_log->debug("Removing cell {} in T2 transition ...", cell->id());
     }
