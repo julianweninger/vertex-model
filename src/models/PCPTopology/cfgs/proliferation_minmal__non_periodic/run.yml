@@ -26,143 +26,66 @@ parameter_space:
           times: []
           iterations_prolog: 1
 
-          minimization: &MinimzationQuickAndDirty
+          minimization: &JiggleQuickDirty
             jiggle_intensity: 1.e-3
-            num_repeat: 5
-            tolerance: 1.e-6
-            jiggle_tolerance: 1.e-5
+            num_repeat: 2
+            tolerance: 1.e-8
+            jiggle_tolerance: 1.e-6
 
-      - proliferate:
+      - proliferate_quick_and_dirty:
           times: [1]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 16
-
-          num_increases: 0
-          area_threshold: 0.
-
+          target_num_cells: 32
+          minimization_quick:
+            mode: manual
           minimization:
             mode: manual
       # 32 cells
 
+      - jiggle:
+          times: [2]
       # NOTE time 2: jiggle (see last operation)
 
-      - proliferate:
-          times: [4]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 32
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [3]
+          target_num_cells: 64
+          minimization_quick: *JiggleQuickDirty
       # 64 cells
 
-      - proliferate:
-          times: [5]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 64
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [4]
+          target_num_cells: 128
+          minimization_quick: *JiggleQuickDirty
       # 128 cells
       
-      - proliferate:
-          times: [6]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 128
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [5]
+          target_num_cells: 256
+          minimization_quick: *JiggleQuickDirty
       # 256 cells
       
-      - proliferate:
-          times: [7]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 256
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [6]
+          target_num_cells: 512
+          minimization_quick: *JiggleQuickDirty
       # 512 cells
       
-      - proliferate:
-          times: [8]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 512
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [7]
+          target_num_cells: 1024
+          minimization_quick: *JiggleQuickDirty
       # 1024 cells
       
-      - proliferate:
-          times: [9]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 1024
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [8]
+          target_num_cells: 2048
+          minimization_quick: *JiggleQuickDirty
       # 2048 cells 
       
-      - proliferate:
-          times: [10]
-          iterations_prolog: 0
-          iterations_epilog: 0
-          emit_interval: 32
-
-          iterations: 2048
-
-          num_increases: 0
-          area_threshold: 0.
-
-          minimization:
-            mode: manual
+      - proliferate_quick_and_dirty:
+          times: [9]
+          target_num_cells: 4096
+          minimization_quick: *JiggleQuickDirty
       # 4096 cells 
-
-      - jiggle:
-          times: !listgen [2, 11]
-
-      - jiggle:
-          times: []
-          minimization: *MinimzationQuickAndDirty
-
-          # Quick and dirty jiggle
-          # NOTE needs to be followed by a true minimization
 
     PCPVertex:
       log_level: info

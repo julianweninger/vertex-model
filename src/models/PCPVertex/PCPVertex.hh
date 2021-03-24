@@ -859,7 +859,7 @@ private:
     void set_grad_boundary_area_elasticity
             (const OrderedEdgeContainer& boundary)
     {
-        if (_boundary_param.area_elasticity == 0.) {
+        if (_space->periodic or _boundary_param.area_elasticity == 0.) {
             return;
         }
 
@@ -915,7 +915,7 @@ private:
     void set_grad_boundary_shape_elasticity 
             (const OrderedEdgeContainer& boundary)
     {
-        if (_boundary_param.shape_elasticity == 0.) {
+        if (_space->periodic or _boundary_param.shape_elasticity == 0.) {
             return;
         }
 
@@ -979,7 +979,8 @@ private:
 
     /// Derivative of a quadratic boundary potential
     void set_grad_boundary_stripe () {
-        if (_boundary_param.stripe_potential_constant == 0.) {
+        if (_space->periodic or _boundary_param.stripe_potential_constant == 0.)
+        {
             return;
         }
 
@@ -1128,10 +1129,12 @@ private:
                                                 _am.cells());
 
         // apply boundary forces
-        const auto boundary = _am.get_boundary_edges();
-        set_grad_boundary_area_elasticity(boundary);
-        set_grad_boundary_shape_elasticity(boundary);
-        set_grad_boundary_stripe();
+        if (not _space->periodic) {
+            const auto boundary = _am.get_boundary_edges();
+            set_grad_boundary_area_elasticity(boundary);
+            set_grad_boundary_shape_elasticity(boundary);
+            set_grad_boundary_stripe();
+        }
 
         if (_update_scheme == UpdateScheme::SteepestGradient) {
             apply_rule<Update::async, Shuffle::off>(set_grad_torque, 
@@ -1139,7 +1142,7 @@ private:
         }
 
         // fix the boundary
-        if (_boundary_param.fix_boundary) {
+        if (not _space->periodic and _boundary_param.fix_boundary) {
             apply_rule<Update::sync>(
                 [this](const auto& vertex) {
                     auto state = vertex->state;
@@ -1559,6 +1562,9 @@ protected:
     /** Includes shape and area elasticity
      */
     double get_boundary_energy(double beta) const {
+        if (_space->periodic) {
+            return 0.;
+        }
         return (  get_boundary_area_energy(beta)
                 + get_boundary_shape_energy(beta)
                 + get_boundary_stripe_energy(beta));
@@ -1617,6 +1623,9 @@ public:
     }
 
     double get_boundary_energy() const {
+        if (_space->periodic) {
+            return 0.;
+        }
         return (  get_boundary_area_energy(0.)
                 + get_boundary_shape_energy(0.)
                 + get_boundary_stripe_energy(0.));

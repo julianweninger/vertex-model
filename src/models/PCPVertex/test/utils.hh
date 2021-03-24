@@ -299,6 +299,15 @@ void test_custom_links_non_periodic(PCPVertex& model) {
             BOOST_TEST(am.neighbors_of(c).size() < edges.size());
         }
     }
+    const auto boundary = am.get_boundary_edges();
+    BOOST_TEST(boundary.size() > 0);
+    BOOST_TEST(am.area_of(boundary) > 0.);
+    BOOST_TEST(am.shape_index_of(boundary) > 0.);
+    for (const auto [e, flip] : boundary) {
+        BOOST_TEST(am.is_boundary(e));
+        BOOST_TEST(am.is_boundary(e->custom_links().a));
+        BOOST_TEST(am.is_boundary(e->custom_links().b));
+    }
 }
 
 

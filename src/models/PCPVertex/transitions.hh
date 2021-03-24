@@ -278,12 +278,17 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
             else if (adj_cell_b == cell) {
                 adj_cell_b = new_c;
             }
+
+            if (adj_cell_a == new_c and adj_cell_b == new_c) {
+                adj_cell_b = nullptr;
+            }
+            
             _edges_adjoint_cells[e->id()] = std::make_pair(adj_cell_a,
                                                            adj_cell_b);
         }
     }
 
-    this->_log->trace("Done.");
+    this->_log->trace("Successfully divided cell.");
 
     return;
 } // divide cell
@@ -494,6 +499,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     AgentContainer<Edge> edges_tmp = edges;
     edges_tmp.push_back(edge);
     double current_energy = get_energy(edges_tmp, cells);
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     // create two new vertices using the separation
     SpaceVec center = (  position_of(vertex_a)
@@ -629,6 +637,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     edges_tmp = edges;
     edges_tmp.push_back(new_edge);
     double new_energy = get_energy(edges_tmp, cells);
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
     if (random_number > probability)
@@ -797,7 +808,9 @@ bool EntitiesManager<Model>::remove_boundary_edge(
     }
 
     double current_energy = get_energy(adj_edges, adj_cells);
-
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     // create a new vertex in the edge's center
     SpaceVec center = (  position_of(vertex_a)
@@ -851,9 +864,10 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         c->custom_links().vertices.push_back(new_v);
     }
 
-    AgentContainer<Edge> new_adj_edges = {adj_edge_a, adj_edge_c};
-    if (adj_edge_b) { new_adj_edges.push_back(adj_edge_b); }
-    double new_energy = get_energy(new_adj_edges, adj_cells);
+    double new_energy = get_energy(new_adjoint_edges, adj_cells);
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
     if (random_number > probability)
@@ -914,14 +928,19 @@ bool EntitiesManager<Model>::remove_boundary_edge(
 template<class Model>
 bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
 {
-    if (cell->custom_links().edges.size() != 3) {
+    if (neighbors_of(cell).size() > 3) {
         this->_log->debug("Delaying T2 transition, because the cell {} has "
-            "more than 3 vertices (has {} vertices).",
-            cell->id(), cell->custom_links().edges.size());
+            "more than 3 neighbors (has {} neighbors and {} edges).",
+            cell->id(), neighbors_of(cell).size(),
+            cell->custom_links().edges.size());
         return false;
     }
-
-    if (not this->is_boundary(cell)) {
+    if (cell->custom_links().edges.size() > 3) {
+        this->_log->debug("Removing boundary cell {} with {} neighbor(s) and "
+            "{} edges in T2 transition ...", cell->id(), 
+            neighbors_of(cell).size(), cell->custom_links().edges.size());
+    }
+    else if (not this->is_boundary(cell)) {
         this->_log->debug("Removing cell {} in T2 transition ...", cell->id());
     }
     else {

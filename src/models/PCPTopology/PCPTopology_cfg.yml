@@ -26,13 +26,13 @@ space: &SPACE
 operations:
   - jiggle: # this is not done automatically
       times: []
-      iterations_prolog: 0
+      iterations_prolog: 1
 
       minimization: &MinimzationQuickAndDirty
         jiggle_intensity: 1.e-3
-        num_repeat: 5
-        tolerance: 1.e-6
-        jiggle_tolerance: 1.e-5
+        num_repeat: 2
+        tolerance: 1.e-8
+        jiggle_tolerance: 1.e-6
       
   - proliferate:
       times: []
@@ -206,11 +206,14 @@ minimization: &Minimization
   update_scheme: conjugate_gradient
   dt: 0.001
 
+  num_repeat: 20
+  
   tolerance: 1.e-8
-  max_steps: 15000
-  num_repeat: 50
   jiggle_tolerance: 1.e-6
   jiggle_intensity: 0.1
+  
+  max_steps: 15000
+
 
 # The model for energy minimization
 PCPVertex:
@@ -220,9 +223,9 @@ PCPVertex:
 
   boundary_parameter:
     area_elasticity: 0.
-    area_preferential: 0.
-    shape_elasticity: 0.
-    shape_index_preferential: 0.
+    area_preferential: 25.
+    shape_elasticity: 100.
+    shape_index_preferential: 3.54491 # 2 sqrt(pi)
 
   # --- Initialization parameters
   agent_manager:

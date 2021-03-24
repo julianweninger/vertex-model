@@ -37,6 +37,9 @@ struct OperationParams {
      */
     std::size_t emit_interval;
 
+    /// Additional minimisation estimate per iteration
+    std::size_t add_num_minimisations;
+
     /// The propability to invoke
     /** \details Default: 1; If evaluated false, all iterations are skipped.
      */
@@ -84,6 +87,7 @@ struct OperationParams {
         times(),
         iterations(get_as<std::size_t>("iterations", cfg, 1)),
         emit_interval( get_as<std::size_t>("emit_interval", cfg, 0)),
+        add_num_minimisations(0),
         probability(get_as<double>("probability", cfg, 1)),
         iterations_prolog(get_as<std::size_t>("iterations_prolog", cfg, 0)),
         iterations_epilog(get_as<std::size_t>("iterations_epilog", cfg, 0)),
@@ -156,7 +160,8 @@ struct OperationParams {
                 minimization_mode));
         }
 
-        return iters * minimization_params.num_repeat;
+        return iters * (  minimization_params.num_repeat
+                        + add_num_minimisations);
     }
 };
 
@@ -1315,14 +1320,12 @@ OperationBundle build_proliferate (
         auto it = std::copy_if (cells.begin(), cells.end(),
                                 current_generation.begin(),
                                 [generation_max_id, am](const auto& cell){
-                                    return (    cell->id() < *generation_max_id
-                                            and not am.is_boundary(cell));
+                                    return (cell->id() < *generation_max_id);
                                 } );
         current_generation.resize(
             std::distance(current_generation.begin(), it));
         if (current_generation.size() == 0) {
             for (const auto& c : cells) {
-                if (am.is_boundary(c)) { continue; }
                 *generation_max_id = std::max(*generation_max_id, c->id());
             }
             *generation_max_id = *generation_max_id + 1;
@@ -1330,11 +1333,10 @@ OperationBundle build_proliferate (
             current_generation.clear();
             current_generation.resize(cells.size());
             auto it = std::copy_if (cells.begin(), cells.end(),
-                                    current_generation.begin(),
-                                    [generation_max_id, am](const auto& cell){
-                                        return (cell->id() < *generation_max_id
-                                            and not am.is_boundary(cell));
-                                    } );
+                        current_generation.begin(),
+                        [generation_max_id, am](const auto& cell){
+                            return (cell->id() < *generation_max_id);
+                        } );
             current_generation.resize(
                 std::distance(current_generation.begin(), it));
         }
@@ -1372,6 +1374,88 @@ OperationBundle build_proliferate (
 
         double angle = prob_distr(*vertex_model.get_rng()) * PI;
         vertex_model.divide_cell(cell, angle);        
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// The operation to proliferate cells
+/** Cell division happens as follows:
+ *      #. Choose random cell of oldest generation.
+ *      #. Increment area of cell to 2x preferential area. In 'num_increases'
+ *         iterations. Minimize energy after every iteration.
+ *      #. If area < threshold * 2x area_preferential: throw
+ *      #. Divide cell in 2 daughter cells using the configuration of mother
+ *         cell.
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `num_increases` (uint, > 0): In how many steps the area is to be increased
+ *              to 2x A0 before division.
+ *      - `area_threshold` (double, default: 0.): Threshold factor of how much 
+ *              cell must increase: If area < threshold * 2x area_preferential
+ *              throws.
+ */
+template<typename Logger>
+OperationBundle build_proliferate_quick_and_dirty (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Logger> logger = nullptr,
+        std::function<void()> monitor = [](){ })
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    Config cfg_proliferation;
+    cfg_proliferation["num_increases"] = 0;
+    cfg_proliferation["area_threshold"] = 0.;
+
+    Config minimization_tmp;
+    minimization_tmp["mode"] = "manual";
+    cfg_proliferation["minimization_after_increase"] = minimization_tmp;
+    cfg_proliferation["times"] = std::vector<std::size_t>({});
+
+    auto op_pair = build_proliferate(
+        "proliferate", cfg_proliferation, default_minim_params);
+    auto proliferate = std::get<0>(op_pair);
+
+    MinimizationParams minimization_quick(
+        get_as<Config>("minimization_quick", cfg),
+        params.minimization_params);
+
+    auto target_num_cells = get_as<std::size_t>("target_num_cells", cfg);
+
+    params.add_num_minimisations = (  minimization_quick.num_repeat
+                                    * std::ceil(std::log2(
+                                            std::ceil(target_num_cells / 16))));
+
+    Operation operation = [proliferate, target_num_cells, minimization_quick,
+                           logger, monitor]
+            (PCPVertex& vertex_model)
+    {
+        const auto& cells = vertex_model.get_am().cells();
+
+        std::size_t max_iterations = std::ceil(std::log2(
+            std::ceil(target_num_cells / cells.size()))) + 1;
+
+        auto num_cells = cells.size();
+        std::size_t cnt_iterations = 0;
+        while (    num_cells < target_num_cells
+               and cnt_iterations++ < max_iterations)
+        {
+            logger->debug("Proliferating {} cells and minimizing energy ...",
+                          num_cells);
+            for (std::size_t i = num_cells; (    i < 2 * num_cells
+                                             and i < target_num_cells); i++)
+            {
+                proliferate(vertex_model);
+            }
+
+            logger->trace(" There are {} cells after proliferation. "
+                          "Minimizing energy now ...");
+            vertex_model.minimize_energy(minimization_quick, monitor);
+
+            num_cells = cells.size();
+        }
     };
 
     return std::make_pair(operation, params);
