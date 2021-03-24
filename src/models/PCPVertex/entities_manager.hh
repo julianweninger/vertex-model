@@ -745,16 +745,25 @@ public:
             return OrderedEdgeContainer{};
         }
 
-        const auto& cells = this->cells();
         const auto& edges = this->edges();
 
         OrderedEdgeContainer boundary{};
-        boundary.reserve(cells.size());
+        boundary.reserve(edges.size());
 
         auto edge = *std::find_if(
             edges.begin(), edges.end(),
             [this](const auto& edge) {
-                return this->is_1_cell_boundary_edge(edge);
+                return (   this->is_1_cell_boundary_edge(edge)
+                        and not edge->state.remove);
+                /* WARN this is only a work for a unprecise removal in
+                 *      remove_boundary_edge!
+                 *      get_boundary_edges will be called before the
+                 *      remove_boundary_edge terminates. At that point the 
+                 *      edge has not been removed from the edges container,
+                 *      but all weak links are set correctly.
+                 *      Hence, once a true edge has been picked, iteration 
+                 *      works fine!
+                 */
             });
 
         const auto start = edge->custom_links().a;

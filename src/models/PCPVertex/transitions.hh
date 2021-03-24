@@ -288,7 +288,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         }
     }
 
-    this->_log->trace("Done.");
+    this->_log->trace("Successfully divided cell.");
 
     return;
 } // divide cell
@@ -499,6 +499,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     AgentContainer<Edge> edges_tmp = edges;
     edges_tmp.push_back(edge);
     double current_energy = get_energy(edges_tmp, cells);
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     // create two new vertices using the separation
     SpaceVec center = (  position_of(vertex_a)
@@ -634,6 +637,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     edges_tmp = edges;
     edges_tmp.push_back(new_edge);
     double new_energy = get_energy(edges_tmp, cells);
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
     if (random_number > probability)
@@ -802,7 +808,9 @@ bool EntitiesManager<Model>::remove_boundary_edge(
     }
 
     double current_energy = get_energy(adj_edges, adj_cells);
-
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     // create a new vertex in the edge's center
     SpaceVec center = (  position_of(vertex_a)
@@ -856,9 +864,10 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         c->custom_links().vertices.push_back(new_v);
     }
 
-    AgentContainer<Edge> new_adj_edges = {adj_edge_a, adj_edge_c};
-    if (adj_edge_b) { new_adj_edges.push_back(adj_edge_b); }
-    double new_energy = get_energy(new_adj_edges, adj_cells);
+    double new_energy = get_energy(new_adjoint_edges, adj_cells);
+    // WARN agents are not yet removed at this point!
+    //      Any component if get_energy that works globally on the agent
+    //      container must be dealt with care!
 
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
     if (random_number > probability)

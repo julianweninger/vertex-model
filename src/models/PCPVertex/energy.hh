@@ -439,6 +439,10 @@ double PCPVertex::get_energy (
         const AgentContainer<Cell>& cs,
         double beta) const
 {
+    // WARN It is supposed to work on the AgentContainers es and cs.
+    //      If functions work on the globally defined edges() and cells(),
+    //      handle with care and check the entities_manager transitions.
+
     if (not std::isfinite(beta)) {
         throw std::runtime_error(fmt::format("Cannot calculate energy "
             "with non finite beta={}", beta));
