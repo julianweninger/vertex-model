@@ -381,7 +381,7 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
 
 
 @is_plot_func(use_dag=True)
-def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper,
+def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
              cmap: str=None,**errorbar_kwargs):
     """Perform errorbar plots from the selected multiverse data.
     
@@ -407,6 +407,67 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper,
             will be colored according to this color map.
         **errorbar_kwargs: Passed on to plt.errorbar
     """
+
+    num_lines = len(data.keys())
+
+    if num_lines > 1:
+        hlpr.provide_defaults('set_legend', use_legend=True)
+
+    # Determine whether there will be colours according to a color map
+    if cmap is not None:
+        cmap = mpl.cm.get_cmap(cmap)
+        colors = [cmap(i/max(num_lines-1, 1)) for i in range(num_lines)]
+    else:
+        colors = [None] * num_lines
+
+    # Iterate over the plot specifications
+    for (key, plot_spec), color in zip(to_plot.items(), colors):
+        # Prepare additional kwargs
+        add_kwargs = dict()
+
+        if color is not None and 'color' not in plot_spec:
+            add_kwargs['color'] = color
+
+        if 'label' not in plot_spec:
+            add_kwargs['label'] = key
+
+        plot_std = plot_spec.pop('plot_std', True)
+        d = data[key]
+        if plot_std and (property + '__stddev') in d.property.data:
+            std = d.sel(property=property+'__stddev')
+        d = d.sel(property=property)
+   
+        _errorbar(hlpr=hlpr, data=d, std=std, **plot_spec,
+                  **add_kwargs, **errorbar_kwargs)
+
+@is_plot_func(use_dag=True)
+def errorbars_mv(*, data: dict, to_plot: dict, hlpr: PlotHelper,
+             cmap: str=None,**errorbar_kwargs):
+    """Perform errorbar plots from the selected multiverse data.
+    
+    This plot, ultimately, requires 1D data, where the remaining dimension is
+    plotted on the x-axis. The ``transform_data`` or ``lines_from`` arguments
+    can be used to work with higher-dimensional data.
+
+    Creates datasets hair_cells, hair_cells__std, support_cells,
+    and support_cells__std in data.
+    
+    Args:
+        data (dict): The data.
+        to_plot (dict): A dict of specifications of lines to plot. 
+            The keys must be available in data. If key + '__std' is available
+            in data, this data is used for errorbars, otherwise simple lineplot
+            performed.
+            Mapped values can contain these kwargs
+                std (str, default: `<name>__std`): name of the std dataset
+                plot_std (bool, default: True): Plot the std dataset if
+                    available
+            The remaining mapped values are passed on to plt.errorbar.
+        cmap (str, optional): If given, the lines created from ``to_plot``
+            will be colored according to this color map.
+        **errorbar_kwargs: Passed on to plt.errorbar
+    """
+
     num_lines = len(data.keys())
 
     if num_lines > 1:

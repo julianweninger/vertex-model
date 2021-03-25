@@ -173,6 +173,14 @@ public:
                 DataIO::lagrange_const_concentration_adaptor,
                 // transition adaptors
                 DataIO::transition_adaptor,
+                // statistics
+                DataIO::statistics_time_adaptor,
+                DataIO::cell_stats_adaptor<Cell>,
+                DataIO::hair_cell_stats_adaptor<Cell>,
+                DataIO::support_cell_stats_adaptor<Cell>,
+                DataIO::bulk_cell_stats_adaptor<Cell>,
+                DataIO::bulk_hair_cell_stats_adaptor<Cell>,
+                DataIO::bulk_support_cell_stats_adaptor<Cell>,
                 // position adaptors
                 DataIO::vertices_adaptor<SpaceVec>,
                 DataIO::cells_adaptor<SpaceVec, CellType>,

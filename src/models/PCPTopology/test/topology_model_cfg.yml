@@ -45,14 +45,20 @@ PCPTopology:
             - [0, 10]
           type: interval
       tasks:
-        Cells: &id003 {active: false, decider: write_interval, trigger: build_interval}
-        Edges: *id003
+        Bulk_cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Bulk_hair_cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Bulk_support_cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Cell_energies: {active: false, decider: write_interval, trigger: build_interval}
+        Cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Cells: {active: false, decider: write_interval, trigger: build_interval}
+        Edge_energies: {active: false, decider: write_interval, trigger: build_interval}
+        Edges: {active: false, decider: write_interval, trigger: build_interval}
         Energy_areaelasticity: {active: false, decider: write_always, trigger: build_once}
+        Energy_boundary_area_elasticity: {active: false, decider: write_always, trigger: build_once}
+        Energy_boundary_shape_elasticity: {active: false, decider: write_always, trigger: build_once}
         Energy_cell_cell_polarity: {active: false, decider: write_always, trigger: build_once}
         Energy_cell_contractility: {active: false, decider: write_always, trigger: build_once}
         Energy_edge_contractility: {active: false, decider: write_always, trigger: build_once}
-        Energy_boundary_area_elasticity: {active: false, decider: write_always, trigger: build_once}
-        Energy_boundary_shape_elasticity: {active: false, decider: write_always, trigger: build_once}
         Energy_lagrange_const_concentration: {active: false, decider: write_always,
           trigger: build_once}
         Energy_lagrange_net_polarisation: {active: false, decider: write_always, trigger: build_once}
@@ -60,9 +66,10 @@ PCPTopology:
         Energy_polarity_exclusion: {active: false, decider: write_always, trigger: build_once}
         Energy_time: {active: false, decider: write_always, trigger: build_once}
         Energy_total: {active: false, decider: write_always, trigger: build_once}
-        Vertices: *id003
-        Cell_energies: *id003
-        Edge_energies: *id003
+        Hair_cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Statistics_time: {active: false, decider: write_always, trigger: build_once}
+        Support_cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Vertices: {active: false, decider: write_interval, trigger: build_interval}
         transitions: {active: false, decider: write_always, trigger: build_once}
       triggers:
         build_always: {type: always}

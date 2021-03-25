@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "PCPTopology.hh"
+#include "PCPTopology_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;
 using namespace DataIO;
@@ -17,11 +18,17 @@ auto model_factory(ParentType parent) {
         boundary_area_elasticity_adaptor, boundary_shape_elasticity_adaptor,
         cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
         lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
+        // transitions
+        transition_adaptor,
         // statistics
         statistics_time_adaptor, cell_neighbourhood_adaptor,
-        cell_area_adaptor<typename PCPTopology::CellType>,
         cell_area_histogram_adaptor,
-        transition_adaptor,
+        cell_stats_adaptor<typename PCPTopology::Cell>,
+        hair_cell_stats_adaptor<typename PCPTopology::Cell>,
+        support_cell_stats_adaptor<typename PCPTopology::Cell>,
+        bulk_cell_stats_adaptor<typename PCPTopology::Cell>,
+        bulk_hair_cell_stats_adaptor<typename PCPTopology::Cell>,
+        bulk_support_cell_stats_adaptor<typename PCPTopology::Cell>,
         // the position adaptors
         vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,

@@ -67,7 +67,7 @@ transitions_continuous:
   
   map_to_discrete_time: True
 
-cell_area: &CELLAREA
+cell_area:
   based_on:
     - .default_style_and_helpers
     - universe
@@ -75,21 +75,14 @@ cell_area: &CELLAREA
     - select_cells
 
   to_plot: 
-    cells_mean:
+    cells:
       label: all cells
-    hair_cells_mean:
+    hair_cells:
       label: hair cells
-    support_cells_mean:
+    support_cells:
       label: support cells
 
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: area
+  property: area
 
   helpers:
     set_labels:
@@ -97,16 +90,9 @@ cell_area: &CELLAREA
       y: average area
 
 cell_pref_area:
-  <<: *CELLAREA
+  based_on: cell_area
 
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: area_preferential
+  property: area_preferential
 
   helpers:
     set_labels:
@@ -114,16 +100,9 @@ cell_pref_area:
       y: average pref. area
 
 cell_shape:
-  <<: *CELLAREA
+  based_on: cell_area
 
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: shape_index
+  property: shape_index
 
   helpers:
     set_labels:
@@ -131,33 +110,6 @@ cell_shape:
       y: average shape index
 
 HC_neighbors:
-  <<: *CELLAREA
-
-  to_plot:
-    cells_mean:
-      label: all cells (bulk)
-    hair_cells_mean:
-      label: hair cells (bulk)
-    support_cells_mean:
-      label: support cells (bulk)
-
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform: 
-        - .sel:
-          args: [!dag_tag _cells]
-          kwargs:
-            property: num_hair_neighbors
-        - .where:
-          args: [!dag_prev , !dag_tag _is_bulk]
-
-  helpers:
-    set_labels:
-      x: time
-      y: average hair cell neighbors
-
-neighbors:
   based_on:
     - .default_style_and_helpers
     - universe
@@ -165,23 +117,24 @@ neighbors:
     - select_cells
 
   to_plot:
-    cells_mean:
+    bulk_cells:
       label: all cells (bulk)
-    hair_cells_mean:
+    bulk_hair_cells:
       label: hair cells (bulk)
-    support_cells_mean:
+    bulk_support_cells:
       label: support cells (bulk)
 
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-        - .sel:
-          args: [!dag_tag _cells]
-          kwargs:
-            property: num_neighbors
-        - .where:
-          args: [!dag_prev , !dag_tag _is_bulk]
+  property: num_hair_neighbors
+
+  helpers:
+    set_labels:
+      x: time
+      y: average hair cell neighbors
+
+neighbors:
+  based_on: HC_neighbors
+
+  property: num_neighbors
 
   helpers:
     set_labels:
@@ -189,20 +142,17 @@ neighbors:
       y: average neighbors
 
 hexatic_order:
-  <<: *CELLAREA
+  based_on:
+    - .default_style_and_helpers
+    - universe
+    - cell_property
+    - select_cells
 
   to_plot: 
-    hair_cells_mean:
-      label: hair cells
-
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: hexatic_order
+    bulk_hair_cells:
+      label: hair cells (bulk)
+  
+  property: hexatic_order
 
   helpers:
     set_labels:
@@ -210,20 +160,17 @@ hexatic_order:
       y: average hexatic_order
 
 rotation:
-  <<: *CELLAREA
+  based_on:
+    - .default_style_and_helpers
+    - universe
+    - cell_property
+    - select_cells
 
   to_plot: 
-    cells_mean:
+    cells:
       label: all cells
 
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: rotation
+  property: rotation
 
   helpers:
     set_labels:

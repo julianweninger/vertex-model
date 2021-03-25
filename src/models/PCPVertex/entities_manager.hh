@@ -577,11 +577,35 @@ public:
     }
 
     /// The neighboring cells to a cell of type `hair`
-    /** The neighbors and next neighbors of cell that are of CellType::hair.
+    /** The neighbors of cell that are of CellType::hair.
      * 
      *  \param cell   The considered cell
      */
     AgentContainer<Cell> hair_neighbors_of(
+            const std::shared_ptr<Cell>& cell) const
+    {
+        std::set<std::shared_ptr<Cell>> hair_neighbors;
+
+        auto neighbors = this->neighbors_of(cell);
+
+        for (const auto & nb : neighbors) {
+            if (nb->state.type == CellType::hair)
+            {
+                hair_neighbors.insert(nb);
+            }
+        }
+        hair_neighbors.erase(nullptr);
+
+        return AgentContainer<Cell>(hair_neighbors.begin(),
+                                    hair_neighbors.end());
+    }
+
+    /// The neighboring cells to a cell of type `hair`
+    /** The neighbors and next neighbors of cell that are of CellType::hair.
+     * 
+     *  \param cell   The considered cell
+     */
+    AgentContainer<Cell> hair_next_neighbors_of(
             const std::shared_ptr<Cell>& cell) const
     {
         std::set<std::shared_ptr<Cell>> hair_neighbors;
@@ -609,6 +633,38 @@ public:
 
         return AgentContainer<Cell>(hair_neighbors.begin(),
                                     hair_neighbors.end());
+    }
+
+    double hexatic_order_of (const std::shared_ptr<Cell>& cell) const 
+    {
+        
+        if (cell->state.type != CellType::hair) {
+            return 0.;
+        }
+
+        auto hair_neighbors = hair_next_neighbors_of(cell);
+        if (hair_neighbors.size() < 4) {
+            return 0.;
+        }
+
+        using namespace std::complex_literals;
+        std::complex<double> hex_order = std::accumulate(
+            hair_neighbors.begin(), hair_neighbors.end(),
+            std::complex<double>(0., 0.),
+            [this, cell](std::complex<double> val,
+                        const auto& nb)
+            {
+                using namespace std::complex_literals;
+
+                double distance = this->distance(cell, nb);
+                double dx = this->displacement(cell, nb)[0];
+                double theta = acos(dx / distance);
+                return val + std::exp(1i * 6. * theta);
+            }
+        );
+
+        std::complex<double> N(hair_neighbors.size());                            
+        return std::norm(hex_order / N);
     }
 
     // see transitions.hh

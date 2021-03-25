@@ -151,6 +151,17 @@ data_manager:
 
     transitions: *energy
 
+    Cell_stats: &Statistics
+      active: true
+      trigger: build_once
+      decider: write_always
+    Hair_cell_stats: *Statistics
+    Support_cell_stats: *Statistics
+    Bulk_cell_stats: *Statistics
+    Bulk_hair_cell_stats: *Statistics
+    Bulk_support_cell_stats: *Statistics
+    Statistics_time: *Statistics
+
     Vertices: &agents
       active: true
       trigger: build_interval

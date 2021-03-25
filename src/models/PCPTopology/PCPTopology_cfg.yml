@@ -315,6 +315,17 @@ PCPVertex:
 
       transitions: *energy_continuous
 
+      Cell_stats: &Statistics_continuous
+        active: false
+        trigger: build_once
+        decider: write_always
+      Hair_cell_stats: *Statistics_continuous
+      Support_cell_stats: *Statistics_continuous
+      Bulk_cell_stats: *Statistics_continuous
+      Bulk_hair_cell_stats: *Statistics_continuous
+      Bulk_support_cell_stats: *Statistics_continuous
+      Statistics_time: *Statistics_continuous
+
       Vertices: &agents_continuous
         active: true
         trigger: build_interval
@@ -371,13 +382,18 @@ data_manager:
     
     transitions: *energy
         
-    Cell_area: &Statistics
+    Cell_stats: &Statistics
       active: true
       trigger: build_once
       decider: write_always
-    Statistics_time: *Statistics
-    Cell_neighbourhood: *Statistics    
+    Hair_cell_stats: *Statistics
+    Support_cell_stats: *Statistics
+    Bulk_cell_stats: *Statistics
+    Bulk_hair_cell_stats: *Statistics
+    Bulk_support_cell_stats: *Statistics
+    Cell_neighbourhood: *Statistics
     Cell_area_histogram: *Statistics
+    Statistics_time: *Statistics
     
     Vertices: &agents_equilibrium
         active: true
