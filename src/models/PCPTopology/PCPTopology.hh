@@ -231,7 +231,12 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Operation name:  {}", name);
 
-                if (name == "convergence_and_extension") {
+                if (name == "brownian_noise") {
+                    _operations.push_back(
+                        build_brownian_noise(name, op_cfg, _minimization_params,
+                                             _log, _monitor_mngr));
+                }
+                else if (name == "convergence_and_extension") {
                     if (_vertex_model.get_space()->periodic) {
                         throw std::runtime_error("Cannot build operation "
                             "convergence and extension in periodic space!");
@@ -353,6 +358,7 @@ private:
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
                         "Choose from: {}", name,
+                            "brownian_noise, "
                             "convergence_and_extension, "
                             "differentiate_Collier, "
                             "differentiate_NotchDelta, "
@@ -378,10 +384,11 @@ private:
                             "void."));
                 }
 
-                this->_log->debug("Added '{}' operation.", name);
                 const auto& params = std::get<1>(_operations.back());
-                _estimate_minimizations += params.get_num_minimizations(
-                                                        this->_time_max);
+                auto estimate = params.get_num_minimizations(this->_time_max);
+                _estimate_minimizations += estimate;
+                this->_log->debug("Added '{}' operation with an estimate of "
+                                  "{} iterations.", name, estimate);
             }
         }
     }
