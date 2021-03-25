@@ -149,10 +149,7 @@ data_manager:
       <<: *energy
       active: false
 
-    num_T1s: *energy
-    num_T1s_attempted: *energy
-    num_T2s: *energy
-    Statistics_time: *energy
+    transitions: *energy
 
     Vertices: &agents
       active: true

@@ -313,10 +313,7 @@ PCPVertex:
         <<: *energy_continuous
         active: true
 
-      Statistics_time: *energy_continuous
-      num_T1s: *energy_continuous
-      num_T1s_attempted: *energy_continuous
-      num_T2s: *energy_continuous
+      transitions: *energy_continuous
 
       Vertices: &agents_continuous
         active: true
@@ -371,11 +368,9 @@ data_manager:
     Energy_polarity_exclusion: *polarity_energy
     Energy_lagrange_net_polarisation: *polarity_energy
     Energy_lagrange_const_concentration: *polarity_energy
-
-    num_T1s: *energy
-    num_T1s_attempted: *energy
-    num_T2s: *energy
-
+    
+    transitions: *energy
+        
     Cell_area: &Statistics
       active: true
       trigger: build_once
@@ -383,7 +378,7 @@ data_manager:
     Statistics_time: *Statistics
     Cell_neighbourhood: *Statistics    
     Cell_area_histogram: *Statistics
-
+    
     Vertices: &agents_equilibrium
         active: true
         trigger: build_interval

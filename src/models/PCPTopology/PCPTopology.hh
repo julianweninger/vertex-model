@@ -172,9 +172,7 @@ public:
                 DataIO::lagrange_net_polarisation_adaptor,
                 DataIO::lagrange_const_concentration_adaptor,
                 // transition adaptors
-                DataIO::statistics_time_adaptor,
-                DataIO::T1_adaptor, DataIO::T1_attempted_adaptor,
-                DataIO::T2_adaptor,
+                DataIO::transition_adaptor,
                 // position adaptors
                 DataIO::vertices_adaptor<SpaceVec>,
                 DataIO::cells_adaptor<SpaceVec, CellType>,

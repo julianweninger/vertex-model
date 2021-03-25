@@ -53,9 +53,11 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     cell_contractility = uni['data'][model_name]['Energy']['Cell_contractility']
     edge_contractility = uni['data'][model_name]['Energy']['Edge_contractility']
     areaelasticity = uni['data'][model_name]['Energy']['Areaelasticity']
-    num_T1s = uni['data'][model_name]['Statistics/num_T1s']
-    num_T1s_attempted = uni['data'][model_name]['Statistics/num_T1s_attempted']
-    num_T2s = uni['data'][model_name]['Statistics/num_T2s']
+    
+    transitions = uni['data'][model_name]['Energy/transitions']
+    num_T1s = transitions.sel(property="num_T1s")
+    num_T1s_attempted = transitions.sel(property="num_T1s_attempted")
+    num_T2s = transitions.sel(property="num_T2s")
 
 
     # Create the line plot of energy
