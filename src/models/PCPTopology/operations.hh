@@ -169,6 +169,54 @@ using Operation = std::function<void(PCPVertex& vertex_model)>;
 
 using OperationBundle = typename std::pair<Operation, OperationParams>;
 
+/// Minimize using alternating brownian motion and minimization
+/** Iterates the vertex model using a brownian motion update scheme,
+ *  then minimizes energy using the usual configuration.
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `num_repeat` (std::size_t): How often to repeat the cycle
+ *      - `brownian_iteration` (minimization Config): The configuration for
+ *              brownian motion minimization update.
+ *      - `minimization` (minimization Config): The update to the default
+ *              minimization config. Used to minimize after brownian motion.
+ */
+template<typename Logger>
+OperationBundle build_brownian_noise (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Logger> logger = nullptr,
+        std::function<void()> monitor = [](){ })
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    MinimizationParams brownian_iteration(
+        get_as<Config>("brownian_iteration", cfg),
+        params.minimization_params);
+    auto minimization = params.minimization_params;
+
+    auto num_repeat = get_as<std::size_t>("num_repeat", cfg);
+    params.add_num_minimisations = 2 * num_repeat;
+
+    Operation operation = [num_repeat, brownian_iteration, minimization,
+                           monitor, logger]
+                          (PCPVertex& vertex_model)
+    {
+        logger->debug("Repeating cycle of minimization and brownian motion {} "
+                      "times ..", num_repeat);
+        for (std::size_t i = 0; i < num_repeat; i++) {
+            logger->trace("   Minimizing energy {} / {} ..", i, num_repeat);
+            vertex_model.minimize_energy(minimization, monitor);
+            
+            logger->trace("   Iterating brownian motion {} / {} ..",
+                          i, num_repeat);
+            vertex_model.minimize_energy(brownian_iteration, monitor);
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// A convergence and extension model
 /** The outermost vertices in the vertical direction are moved towards the
  *  horizontal tissue axis and fixed in space for minimization.
@@ -1426,7 +1474,7 @@ OperationBundle build_proliferate_quick_and_dirty (
 
     params.add_num_minimisations = (  minimization_quick.num_repeat
                                     * std::ceil(std::log2(
-                                            std::ceil(target_num_cells / 16))));
+                                            std::ceil(target_num_cells/ 16.))));
 
     Operation operation = [proliferate, target_num_cells, minimization_quick,
                            logger, monitor]
@@ -1451,7 +1499,7 @@ OperationBundle build_proliferate_quick_and_dirty (
             }
 
             logger->trace(" There are {} cells after proliferation. "
-                          "Minimizing energy now ...");
+                          "Minimizing energy now ...", cells.size());
             vertex_model.minimize_energy(minimization_quick, monitor);
 
             num_cells = cells.size();
