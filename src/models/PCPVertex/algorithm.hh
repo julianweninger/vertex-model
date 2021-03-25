@@ -436,11 +436,28 @@ bool PCPVertex::perform_transitions(bool enabled = true)
         for (int i = edges.size() - 1; i >= 0; i--) {
             auto& edge = edges[i];
             double length = _am.length_of(edge);
-            if (length < _T1_threshold
-                and _prob_distr(*this->_rng) < _T1_probability
-                and ((edge->state.last_T1_attempt - this->_time) > _T1_timeout
-                        or edge->state.last_T1_attempt == 0))
+            if (length < _T1_threshold)
             {
+                if (_prob_distr(*this->_rng) > _T1_probability) {
+                    this->_log->trace("Skipping T1 transition on edge {} of "
+                                      "length {} < {} because of freq {} < 1.",
+                                      edge->id(), length, _T1_threshold,
+                                      _T1_probability);
+                    continue;
+                }
+                if (    edge->state.last_T1_attempt > 0
+                    and (  this->_time - edge->state.last_T1_attempt
+                         < _T1_timeout)) 
+                {
+                    this->_log->trace("Skipping T1 transition on edge {} of "
+                                      "length {} < {} because of lifetime "
+                                      "{} < {} (timeout).",
+                                      edge->id(), length, _T1_threshold,
+                                      this->_time - edge->state.last_T1_attempt,
+                                      _T1_timeout);
+                    continue;
+                }
+
                 this->_log->debug("Removing edge {} in T1 transition "
                                   "in step {}..", edge->id(), this->_time);
                 bool T1 = _am.remove_edge_T1(edge,
