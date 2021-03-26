@@ -167,8 +167,8 @@ rotation:
     - select_cells
 
   to_plot: 
-    cells:
-      label: all cells
+    bulk_cells:
+      label: all cells (bulk)
 
   property: rotation
 

@@ -1100,8 +1100,11 @@ std::vector<double> generate_statistics (const CellContainer& cells,
     stats.push_back(stddev(values, stats.back()));
     stats.push_back(max(values));
     stats.push_back(min(values));
+    
     values.clear();
     values.reserve(cells.size());
+
+    stats.push_back(cells.size());
 
     return stats;
 }
@@ -1128,7 +1131,7 @@ auto cell_stats_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Cell_stats", {H5S_UNLIMITED, 32});
+        return group->open_dataset("Cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1172,7 +1175,8 @@ auto cell_stats_adaptor = std::make_tuple(
                                       "rotation",
                                       "rotation__stddev",
                                       "rotation__max",
-                                      "rotation__min"
+                                      "rotation__min",
+                                      "count"
                                       }));
 
 
@@ -1209,7 +1213,7 @@ auto hair_cell_stats_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Hair_cell_stats", {H5S_UNLIMITED, 32});
+        return group->open_dataset("Hair_cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1253,7 +1257,8 @@ auto hair_cell_stats_adaptor = std::make_tuple(
                                       "rotation",
                                       "rotation__stddev",
                                       "rotation__max",
-                                      "rotation__min"
+                                      "rotation__min",
+                                      "count"
                                       }));
 
 
@@ -1291,7 +1296,7 @@ auto support_cell_stats_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Support_cell_stats", {H5S_UNLIMITED, 32});
+        return group->open_dataset("Support_cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1335,7 +1340,8 @@ auto support_cell_stats_adaptor = std::make_tuple(
                                       "rotation",
                                       "rotation__stddev",
                                       "rotation__max",
-                                      "rotation__min"
+                                      "rotation__min",
+                                      "count"
                                       }));
 
 
@@ -1372,7 +1378,7 @@ auto bulk_cell_stats_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Bulk_cell_stats", {H5S_UNLIMITED, 32});
+        return group->open_dataset("Bulk_cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1416,7 +1422,8 @@ auto bulk_cell_stats_adaptor = std::make_tuple(
                                       "rotation",
                                       "rotation__stddev",
                                       "rotation__max",
-                                      "rotation__min"
+                                      "rotation__min",
+                                      "count"
                                       }));
 
 
@@ -1462,7 +1469,7 @@ auto bulk_hair_cell_stats_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Bulk_hair_cell_stats", {H5S_UNLIMITED, 32});
+        return group->open_dataset("Bulk_hair_cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1506,7 +1513,8 @@ auto bulk_hair_cell_stats_adaptor = std::make_tuple(
                                       "rotation",
                                       "rotation__stddev",
                                       "rotation__max",
-                                      "rotation__min"
+                                      "rotation__min",
+                                      "count"
                                       }));
 
 
@@ -1552,7 +1560,7 @@ auto bulk_support_cell_stats_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Bulk_support_cell_stats", {H5S_UNLIMITED, 32});
+        return group->open_dataset("Bulk_support_cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1596,7 +1604,8 @@ auto bulk_support_cell_stats_adaptor = std::make_tuple(
                                       "rotation",
                                       "rotation__stddev",
                                       "rotation__max",
-                                      "rotation__min"
+                                      "rotation__min",
+                                      "count"
                                       }));
 
 

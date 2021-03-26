@@ -382,7 +382,7 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
 
 @is_plot_func(use_dag=True)
 def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
-             cmap: str=None,**errorbar_kwargs):
+              average_dim: str=None, cmap: str=None,**errorbar_kwargs):
     """Perform errorbar plots from the selected multiverse data.
     
     This plot, ultimately, requires 1D data, where the remaining dimension is
@@ -433,11 +433,22 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
 
         plot_std = plot_spec.pop('plot_std', True)
         d = data[key]
+        prop = d.sel(property=property)
         if plot_std and (property + '__stddev') in d.property.data:
             std = d.sel(property=property+'__stddev')
-        d = d.sel(property=property)
+
+        if average_dim:
+            if not average_dim in d.coords:
+                raise KeyError("No dimension '{}' in data '{}'. "
+                               "Available dims: {}"
+                               "".format(average_dim, d.name, d.dims))
+            prop = prop.sum(dim=average_dim) / prop.count(dim=average_dim)
+            if std is not None:
+                std = std.sum(dim=average_dim) / std.count(dim=average_dim)
+            prop = prop.squeeze()
+            std = std.squeeze()
    
-        _errorbar(hlpr=hlpr, data=d, std=std, **plot_spec,
+        _errorbar(hlpr=hlpr, data=prop, std=std, **plot_spec,
                   **add_kwargs, **errorbar_kwargs)
 
 @is_plot_func(use_dag=True)
