@@ -29,8 +29,15 @@ auto model_factory(ParentType &parent) {
         cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
         lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // transition adaptors
+        transition_adaptor,
+        // statistics
         statistics_time_adaptor,
-        T1_adaptor, T1_attempted_adaptor, T2_adaptor,
+        cell_stats_adaptor<typename PCPVertex::Cell>,
+        hair_cell_stats_adaptor<typename PCPVertex::Cell>,
+        support_cell_stats_adaptor<typename PCPVertex::Cell>,
+        bulk_cell_stats_adaptor<typename PCPVertex::Cell>,
+        bulk_hair_cell_stats_adaptor<typename PCPVertex::Cell>,
+        bulk_support_cell_stats_adaptor<typename PCPVertex::Cell>,
         // the position adaptors
         vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,

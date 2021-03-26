@@ -69,23 +69,15 @@ transitions:
   based_on: transitions
 
 
-cell_area: &CELLAREA
+cell_area:
   based_on:
     - .default_style_and_helpers
     - cell_property
-
   to_plot: 
-    data:
+    cells:
       label: all cells
-
-  select:
-    _property:
-      path: data/PCPVertex/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: area
+  
+  property: area
 
   helpers:
     set_labels:
@@ -93,16 +85,9 @@ cell_area: &CELLAREA
       y: average area
 
 cell_pref_area:
-  <<: *CELLAREA
-
-  select:
-    _property:
-      path: data/PCPVertex/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: area_preferential
+  based_on: cell_area
+  
+  property: area_preferential
 
   helpers:
     set_labels:
@@ -110,16 +95,9 @@ cell_pref_area:
       y: average pref. area
 
 cell_shape:
-  <<: *CELLAREA
+  based_on: cell_area
 
-  select:
-    _property:
-      path: data/PCPVertex/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: shape_index
+  property: shape_index
 
   helpers:
     set_labels:

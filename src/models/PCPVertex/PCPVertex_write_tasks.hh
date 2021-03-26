@@ -20,15 +20,18 @@ using namespace Utopia::DataIO;
  *          - Energy_polarity_exclusion
  *          - Energy_lagrange_net_polarisation
  *          - Energy_lagrange_const_concentration
+ *          - transitions
  *      - Vertices (time series groups)
  *      - Cells (time series groups)
  *      - Edges (time series groups)
  *      - Statistics
- *          - num T1s
- *          - num_T1s_attempted
- *          - num T2s
- *          - Cell_area
  *          - Statistics_time
+ *          - Cell_stats
+ *          - Hair_cell_stats
+ *          - Support_cell_stats
+ *          - Bulk_cell_stats
+ *          - Bulk_hair_cell_stats
+ *          - Bulkd_support_cell_stats
  */
 namespace Utopia::Models::PCPVertex::DataIO{
 
@@ -606,33 +609,7 @@ auto cells_adaptor = std::make_tuple(
 
         dataset->write(cells.begin(), cells.end(),
                        [am](const auto& cell) {
-                            if (cell->state.type != CellType::hair) {
-                                return 0.;
-                            }
-
-                            auto hair_neighbors = am.hair_neighbors_of(cell);
-                            if (hair_neighbors.size() < 4) {
-                                return 0.;
-                            }
-
-                            using namespace std::complex_literals;
-                            std::complex<double> hex_order = std::accumulate(
-                                hair_neighbors.begin(), hair_neighbors.end(),
-                                std::complex<double>(0., 0.),
-                                [am, cell](std::complex<double> val,
-                                           const auto& nb)
-                                {
-                                    using namespace std::complex_literals;
-
-                                    double distance = am.distance(cell, nb);
-                                    double dx = am.displacement(cell, nb)[0];
-                                    double theta = acos(dx / distance);
-                                    return val + std::exp(1i * 6. * theta);
-                                }
-                            );
-
-                            std::complex<double> N(hair_neighbors.size());                            
-                            return std::norm(hex_order / N);
+                           return am.hexatic_order_of(cell);
                        });
 
         dataset->write(
@@ -934,25 +911,31 @@ auto hair_cluster_adaptor = std::make_tuple(
     }    
 ); // end hair cluster adaptor
 
-/// Datamanager adaptor for T1 cell intercalation counter
-auto T1_adaptor = std::make_tuple(
+auto transition_adaptor = std::make_tuple(
 
     // name of the task
-    "num_T1s",
+    "transitions",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Statistics");
+        return grp->open_group("Energy");
     },
 
     // writer function
     [](auto& dataset, auto& model) {
-        dataset->write(model.get_num_T1s());
+        std::vector<double> stats{};
+        stats.reserve(3);
+        
+        stats.push_back(model.get_num_T1s());
+        stats.push_back(model.get_num_T1s_attempted());
+        stats.push_back(model.get_num_T2s());
+        
+        dataset->write(stats);
     },
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("num_T1s");
+        return group->open_dataset("transitions", { H5S_UNLIMITED, 3 });
     },
     
     // attribute writer for basegroup
@@ -963,79 +946,175 @@ auto T1_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "time");
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
+
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
+                std::vector<std::string>({
+                    "num_T1s",
+                    "num_T1s_attempted",
+                    "num_T2s"
+                }));
     }
-); // end T1_adaptor
 
-/// Datamanager adaptor for attempted T1 cell intercalation counter
-auto T1_attempted_adaptor = std::make_tuple(
+); // transitions
 
-    // name of the task
-    "num_T1s_attempted",
+template <typename CellContainer, typename AgentManager>
+std::vector<double> generate_statistics (const CellContainer& cells,
+                                         const AgentManager& am)
+{
+    std::function<double(const std::vector<double>&)> average =
+    [](const std::vector<double>& values) {
+        if (values.size() == 0) {
+            return std::nan("1");
+        }
+        return (  std::accumulate(values.begin(), values.end(), 0.)
+                / static_cast<double>(values.size()));
+    };
+    std::function<double(const std::vector<double>&, double)> stddev =
+    [](const std::vector<double>& values, double mean) {
+        if (values.size() == 0) {
+            return std::nan("1");
+        }
+        return sqrt(  std::accumulate(values.begin(), values.end(), 0.,
+                            [mean](const double& sum, const double& val) {
+                                return (  sum
+                                        + std::pow(val - mean, 2));
+                            })
+                    / static_cast<double>(values.size()));
+    };
+    std::function<double(const std::vector<double>&)> max =
+    [](const std::vector<double>& values) {
+        if (values.size() == 0) {
+            return std::nan("1");
+        }
+        return *std::max_element(values.begin(), values.end());
+    };
+    std::function<double(const std::vector<double>&)> min =
+    [](const std::vector<double>& values) {
+        if (values.size() == 0) {
+            return std::nan("1");
+        }
+        return *std::min_element(values.begin(), values.end());
+    };
 
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Statistics");
-    },
+    std::vector<double> values;
+    values.reserve(cells.size());
 
-    // writer function
-    [](auto& dataset, auto& model) {
-        dataset->write(model.get_num_T1s_attempted());
-    },
+    std::vector<double> stats;
+    stats.reserve(16);
 
-    // builder function
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("num_T1s_attempted");
-    },
+    // area
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        return am.area_of(cell);
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // area preferential
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [](const auto& cell) {
+                        return cell->state.area_preferential;
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(min(values));
+    stats.push_back(max(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // perimeter
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        return am.perimeter_of(cell);
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // shape index
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        return am.shape_index_of(cell);
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // num neighbors
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        return am.neighbors_of(cell).size();
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // num_hair_neighbors
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        return am.hair_neighbors_of(cell).size();
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // hexatic order
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        return am.hexatic_order_of(cell);
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
+    values.clear();
+    values.reserve(cells.size());
+
+    // rotation
+    std::transform(cells.begin(), cells.end(), std::back_inserter(values),
+                    [am](const auto& cell) {
+                        if (not cell->custom_links().rotation_state) {
+                            return 0.;
+                        }
+                        return cell->custom_links().rotation_state->\
+                                        tracked_rotation;
+                    });
+    stats.push_back(average(values));
+    stats.push_back(stddev(values, stats.back()));
+    stats.push_back(max(values));
+    stats.push_back(min(values));
     
-    // attribute writer for basegroup
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+    values.clear();
+    values.reserve(cells.size());
 
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time");
-    }
-); // end T1_attempted_adaptor
+    stats.push_back(cells.size());
 
-/// Datamanager adaptor for T2 cell extrusion counter
-auto T2_adaptor = std::make_tuple(
-
-    // name of the task
-    "num_T2s",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Statistics");
-    },
-
-    // writer function
-    [](auto& dataset, auto& model) {
-        dataset->write(model.get_num_T2s());
-    },
-
-    // builder function
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("num_T2s");
-    },
-    
-    // attribute writer for basegroup
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time");
-    }
-); // end T2_adaptor
+    return stats;
+}
 
 /// Datamanager adaptor for cell area statistics
-template <typename CellType>
-auto cell_area_adaptor = std::make_tuple(
+template <typename Cell, typename CellType = typename Cell::State::CellType>
+auto cell_stats_adaptor = std::make_tuple(
 
     // name of the task
-    "Cell_area",
+    "Cell_stats",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
@@ -1046,30 +1125,13 @@ auto cell_area_adaptor = std::make_tuple(
     [](auto& dataset, auto& model) {
         const auto& am = model.get_am();
         const auto& cells = am.cells();
-        std::vector<double> area_cells(CellType::num_cell_types, 0.);
-        std::vector<int> num_cells(CellType::num_cell_types, 0.);
-        for (auto c : cells) {
-            num_cells[c->state.type]++;
-            area_cells[c->state.type] += am.area_of(c);
-        }
-        double area_total = std::accumulate(area_cells.begin(),
-                                            area_cells.end(), 0.);
-        double area_average = area_total / cells.size();
-
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            area_cells[i] /= num_cells[i];
-        }
-        double average_hair = area_cells[CellType::hair];
-        double average_support = area_cells[CellType::support];
-
-        std::vector<double> data = {area_average,
-                                    average_hair, average_support};
-        dataset->write(data);
+        
+        dataset->write(generate_statistics(cells, am));
     },
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Cell_area", {H5S_UNLIMITED, 3});
+        return group->open_dataset("Cell_stats", {H5S_UNLIMITED, 33});
     },
     
     // attribute writer for basegroup
@@ -1082,13 +1144,477 @@ auto cell_area_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__time", "Time");
         hdfdataset->add_attribute("dim_name__1", "property");
         hdfdataset->add_attribute("coords__property", 
-            std::vector<std::string>({"area_average", "area_hair_average",
-                                      "area_support_average"}));
+            std::vector<std::string>({"area",
+                                      "area__stddev",
+                                      "area__max",
+                                      "area__min",
+                                      "area_preferential",
+                                      "area_preferential__stddev",
+                                      "area_preferential__max",
+                                      "area_preferential__min",
+                                      "perimeter",
+                                      "perimeter__stddev",
+                                      "perimeter__max",
+                                      "perimeter__min",
+                                      "shape_index",
+                                      "shape_index__stddev",
+                                      "shape_index__max",
+                                      "shape_index__min",
+                                      "num_neighbors",
+                                      "num_neighbors__stddev",
+                                      "num_neighbors__max",
+                                      "num_neighbors__min",
+                                      "num_hair_neighbors",
+                                      "num_hair_neighbors__stddev",
+                                      "num_hair_neighbors__max",
+                                      "num_hair_neighbors__min",
+                                      "hexatic_order",
+                                      "hexatic_order__stddev",
+                                      "hexatic_order__max",
+                                      "hexatic_order__min",
+                                      "rotation",
+                                      "rotation__stddev",
+                                      "rotation__max",
+                                      "rotation__min",
+                                      "count"
+                                      }));
+
 
     }
-); // end cell_area_adaptor
+); // end cell_stats_adaptor
+
+/// Datamanager adaptor for cell area statistics
+template <typename Cell, typename CellType = typename Cell::State::CellType>
+auto hair_cell_stats_adaptor = std::make_tuple(
+
+    // name of the task
+    "Hair_cell_stats",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+        
+        AgentContainer<Cell> hair_cells;
+        hair_cells.reserve(cells.size());
+        std::copy_if(cells.begin(), cells.end(), std::back_inserter(hair_cells),
+                     [](const auto& cell) {
+                         return cell->state.type == CellType::hair;
+                     });
+        hair_cells.shrink_to_fit();
+        
+        dataset->write(generate_statistics(hair_cells, am));
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Hair_cell_stats", {H5S_UNLIMITED, 33});
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
+            std::vector<std::string>({"area",
+                                      "area__stddev",
+                                      "area__max",
+                                      "area__min",
+                                      "area_preferential",
+                                      "area_preferential__stddev",
+                                      "area_preferential__max",
+                                      "area_preferential__min",
+                                      "perimeter",
+                                      "perimeter__stddev",
+                                      "perimeter__max",
+                                      "perimeter__min",
+                                      "shape_index",
+                                      "shape_index__stddev",
+                                      "shape_index__max",
+                                      "shape_index__min",
+                                      "num_neighbors",
+                                      "num_neighbors__stddev",
+                                      "num_neighbors__max",
+                                      "num_neighbors__min",
+                                      "num_hair_neighbors",
+                                      "num_hair_neighbors__stddev",
+                                      "num_hair_neighbors__max",
+                                      "num_hair_neighbors__min",
+                                      "hexatic_order",
+                                      "hexatic_order__stddev",
+                                      "hexatic_order__max",
+                                      "hexatic_order__min",
+                                      "rotation",
+                                      "rotation__stddev",
+                                      "rotation__max",
+                                      "rotation__min",
+                                      "count"
+                                      }));
+
+
+    }
+); // end hair_cell_stats_adaptor
+
+/// Datamanager adaptor for cell area statistics
+template <typename Cell, typename CellType = typename Cell::State::CellType>
+auto support_cell_stats_adaptor = std::make_tuple(
+
+    // name of the task
+    "Support_cell_stats",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+        
+        AgentContainer<Cell> support_cells;
+        support_cells.reserve(cells.size());
+        std::copy_if(cells.begin(), cells.end(),
+                     std::back_inserter(support_cells),
+                     [](const auto& cell) {
+                         return cell->state.type == CellType::support;
+                     });
+        support_cells.shrink_to_fit();
+        
+        dataset->write(generate_statistics(support_cells, am));
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Support_cell_stats", {H5S_UNLIMITED, 33});
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
+            std::vector<std::string>({"area",
+                                      "area__stddev",
+                                      "area__max",
+                                      "area__min",
+                                      "area_preferential",
+                                      "area_preferential__stddev",
+                                      "area_preferential__max",
+                                      "area_preferential__min",
+                                      "perimeter",
+                                      "perimeter__stddev",
+                                      "perimeter__max",
+                                      "perimeter__min",
+                                      "shape_index",
+                                      "shape_index__stddev",
+                                      "shape_index__max",
+                                      "shape_index__min",
+                                      "num_neighbors",
+                                      "num_neighbors__stddev",
+                                      "num_neighbors__max",
+                                      "num_neighbors__min",
+                                      "num_hair_neighbors",
+                                      "num_hair_neighbors__stddev",
+                                      "num_hair_neighbors__max",
+                                      "num_hair_neighbors__min",
+                                      "hexatic_order",
+                                      "hexatic_order__stddev",
+                                      "hexatic_order__max",
+                                      "hexatic_order__min",
+                                      "rotation",
+                                      "rotation__stddev",
+                                      "rotation__max",
+                                      "rotation__min",
+                                      "count"
+                                      }));
+
+
+    }
+); // end support_cell_stats_adaptor
+
+/// Datamanager adaptor for cell area statistics
+template <typename Cell, typename CellType = typename Cell::State::CellType>
+auto bulk_cell_stats_adaptor = std::make_tuple(
+
+    // name of the task
+    "Bulk_cell_stats",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+        
+        AgentContainer<Cell> bulk_cells;
+        bulk_cells.reserve(cells.size());
+        std::copy_if(cells.begin(), cells.end(), std::back_inserter(bulk_cells),
+                     [am](const auto& cell) {
+                         return not am.is_boundary(cell);
+                     });
+        bulk_cells.shrink_to_fit();
+        
+        dataset->write(generate_statistics(bulk_cells, am));
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Bulk_cell_stats", {H5S_UNLIMITED, 33});
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
+            std::vector<std::string>({"area",
+                                      "area__stddev",
+                                      "area__max",
+                                      "area__min",
+                                      "area_preferential",
+                                      "area_preferential__stddev",
+                                      "area_preferential__max",
+                                      "area_preferential__min",
+                                      "perimeter",
+                                      "perimeter__stddev",
+                                      "perimeter__max",
+                                      "perimeter__min",
+                                      "shape_index",
+                                      "shape_index__stddev",
+                                      "shape_index__max",
+                                      "shape_index__min",
+                                      "num_neighbors",
+                                      "num_neighbors__stddev",
+                                      "num_neighbors__max",
+                                      "num_neighbors__min",
+                                      "num_hair_neighbors",
+                                      "num_hair_neighbors__stddev",
+                                      "num_hair_neighbors__max",
+                                      "num_hair_neighbors__min",
+                                      "hexatic_order",
+                                      "hexatic_order__stddev",
+                                      "hexatic_order__max",
+                                      "hexatic_order__min",
+                                      "rotation",
+                                      "rotation__stddev",
+                                      "rotation__max",
+                                      "rotation__min",
+                                      "count"
+                                      }));
+
+
+    }
+); // end bulk_cell_stats_adaptor
+
+/// Datamanager adaptor for cell area statistics
+template <typename Cell, typename CellType = typename Cell::State::CellType>
+auto bulk_hair_cell_stats_adaptor = std::make_tuple(
+
+    // name of the task
+    "Bulk_hair_cell_stats",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+        
+        AgentContainer<Cell> bulk_cells;
+        bulk_cells.reserve(cells.size());
+        std::copy_if(cells.begin(), cells.end(), std::back_inserter(bulk_cells),
+                     [am](const auto& cell) {
+                         return not am.is_boundary(cell);
+                     });
+        bulk_cells.shrink_to_fit();
+        
+        AgentContainer<Cell> hair_bulk_cells;
+        hair_bulk_cells.reserve(bulk_cells.size());
+        std::copy_if(bulk_cells.begin(), bulk_cells.end(),
+                     std::back_inserter(hair_bulk_cells),
+                     [](const auto& cell) {
+                         return cell->state.type == CellType::hair;
+                     });
+        hair_bulk_cells.shrink_to_fit();
+        
+        dataset->write(generate_statistics(hair_bulk_cells, am));
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Bulk_hair_cell_stats", {H5S_UNLIMITED, 33});
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
+            std::vector<std::string>({"area",
+                                      "area__stddev",
+                                      "area__max",
+                                      "area__min",
+                                      "area_preferential",
+                                      "area_preferential__stddev",
+                                      "area_preferential__max",
+                                      "area_preferential__min",
+                                      "perimeter",
+                                      "perimeter__stddev",
+                                      "perimeter__max",
+                                      "perimeter__min",
+                                      "shape_index",
+                                      "shape_index__stddev",
+                                      "shape_index__max",
+                                      "shape_index__min",
+                                      "num_neighbors",
+                                      "num_neighbors__stddev",
+                                      "num_neighbors__max",
+                                      "num_neighbors__min",
+                                      "num_hair_neighbors",
+                                      "num_hair_neighbors__stddev",
+                                      "num_hair_neighbors__max",
+                                      "num_hair_neighbors__min",
+                                      "hexatic_order",
+                                      "hexatic_order__stddev",
+                                      "hexatic_order__max",
+                                      "hexatic_order__min",
+                                      "rotation",
+                                      "rotation__stddev",
+                                      "rotation__max",
+                                      "rotation__min",
+                                      "count"
+                                      }));
+
+
+    }
+); // end bulk_hair_cell_stats_adaptor
+
+/// Datamanager adaptor for cell area statistics
+template <typename Cell, typename CellType = typename Cell::State::CellType>
+auto bulk_support_cell_stats_adaptor = std::make_tuple(
+
+    // name of the task
+    "Bulk_support_cell_stats",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+        
+        AgentContainer<Cell> bulk_cells;
+        bulk_cells.reserve(cells.size());
+        std::copy_if(cells.begin(), cells.end(), std::back_inserter(bulk_cells),
+                     [am](const auto& cell) {
+                         return not am.is_boundary(cell);
+                     });
+        bulk_cells.shrink_to_fit();
+        
+        AgentContainer<Cell> support_bulk_cells;
+        support_bulk_cells.reserve(bulk_cells.size());
+        std::copy_if(bulk_cells.begin(), bulk_cells.end(),
+                     std::back_inserter(support_bulk_cells),
+                     [](const auto& cell) {
+                         return cell->state.type == CellType::support;
+                     });
+        support_bulk_cells.shrink_to_fit();
+        
+        dataset->write(generate_statistics(support_bulk_cells, am));
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Bulk_support_cell_stats", {H5S_UNLIMITED, 33});
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {},
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+        hdfdataset->add_attribute("dim_name__1", "property");
+        hdfdataset->add_attribute("coords__property", 
+            std::vector<std::string>({"area",
+                                      "area__stddev",
+                                      "area__max",
+                                      "area__min",
+                                      "area_preferential",
+                                      "area_preferential__stddev",
+                                      "area_preferential__max",
+                                      "area_preferential__min",
+                                      "perimeter",
+                                      "perimeter__stddev",
+                                      "perimeter__max",
+                                      "perimeter__min",
+                                      "shape_index",
+                                      "shape_index__stddev",
+                                      "shape_index__max",
+                                      "shape_index__min",
+                                      "num_neighbors",
+                                      "num_neighbors__stddev",
+                                      "num_neighbors__max",
+                                      "num_neighbors__min",
+                                      "num_hair_neighbors",
+                                      "num_hair_neighbors__stddev",
+                                      "num_hair_neighbors__max",
+                                      "num_hair_neighbors__min",
+                                      "hexatic_order",
+                                      "hexatic_order__stddev",
+                                      "hexatic_order__max",
+                                      "hexatic_order__min",
+                                      "rotation",
+                                      "rotation__stddev",
+                                      "rotation__max",
+                                      "rotation__min",
+                                      "count"
+                                      }));
+
+
+    }
+); // end bulk_support_cell_stats_adaptor
 
 /// Datamanager adaptor for timepoints
+/** The dataset to which the other energy adaptors link their coordinate time
+ */
 auto statistics_time_adaptor = std::make_tuple(
 
     // name of the task
