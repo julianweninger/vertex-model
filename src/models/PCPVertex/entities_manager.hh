@@ -438,7 +438,8 @@ public:
             // With beta = 0, negative area not allowed
             if (area < 0. and beta == 0.) {
                 throw std::runtime_error(fmt::format(
-                    "Negative area ({}) of a boundary defining a cell!", area));
+                    "Negative area ({}) of a boundary defining a cell with "
+                    "{} edges!", area, boundary.size()));
             }
             else if (area < 0.) {
                 return std::nan("1");
@@ -868,19 +869,7 @@ public:
             }
         }
 
-        double area = std::accumulate(
-            boundary.begin(), boundary.end(), 0.,
-            [this](double val, const auto e_pair) {
-                const auto [e, flip] = e_pair;
-                
-                SpaceVec a = this->position_of(e->custom_links().a);
-                SpaceVec b = this->position_of(e->custom_links().b);
-
-                if (flip) { std::swap(a, b); }
-
-                return val + (a[0] * b[1] - b[0] * a[1]);
-            });
-        area /= 2.;
+        double area = area_of<true>(boundary);
 
         if (area < 0.) {
             boundary = this->reverse_edge_ordering(boundary);
