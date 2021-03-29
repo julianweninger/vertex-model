@@ -177,6 +177,54 @@ rotation:
       x: time
       y: average rotation
 
+neighbors_vs_area:
+  based_on:
+    - .basic_uni.lineplot
+    - universe
+
+  module: model_plots.PCPTopology
+  plot_func: scatter_xy_data
+
+  plot_time_color_gradient: true
+  cmap: plasma
+
+  select:
+    # the data containing all cells
+    bulk_hair_cells:
+      path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: area
+    bulk_support_cells:
+      path: data/PCPTopology/Statistics/Bulk_support_cell_stats
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: area
+    y:
+      path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: num_neighbors
+      
+  transform:
+    - div:
+      args: [!dag_tag bulk_hair_cells, !dag_tag bulk_support_cells]
+      tag: x
+
+  helpers:
+    set_labels:
+      x: area av HC / av SC
+      y: average hair cell neighbors
+    set_limits:
+      x: [1., 7.]
+      y: [5.5, 9.]
+
       
 energy_vs_SCHC_contacts: &energy_vs_contacts
   based_on: .basic_uni.lineplot
