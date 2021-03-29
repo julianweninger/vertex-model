@@ -188,17 +188,22 @@ OperationBundle build_brownian_noise (
         std::shared_ptr<Logger> logger = nullptr,
         std::function<void()> monitor = [](){ })
 {
+    using MinimizationMode = OperationParams::MinimizationMode;
+
     OperationParams params(name, cfg, default_minim_params);
 
     MinimizationParams brownian_iteration(
         get_as<Config>("brownian_iteration", cfg),
         params.minimization_params);
     auto minimization = params.minimization_params;
+    bool minimize = (    params.minimization_mode == MinimizationMode::Every
+                     and not params.disable);
 
     auto num_repeat = get_as<std::size_t>("num_repeat", cfg);
     params.add_num_minimisations = 2 * num_repeat;
 
     Operation operation = [num_repeat, brownian_iteration, minimization,
+                           minimize,
                            monitor, logger]
                           (PCPVertex& vertex_model)
     {
@@ -206,7 +211,9 @@ OperationBundle build_brownian_noise (
                       "times ..", num_repeat);
         for (std::size_t i = 0; i < num_repeat; i++) {
             logger->trace("   Minimizing energy {} / {} ..", i, num_repeat);
-            vertex_model.minimize_energy(minimization, monitor);
+            if (minimize) {
+                vertex_model.minimize_energy(minimization, monitor);
+            }
             
             logger->trace("   Iterating brownian motion {} / {} ..",
                           i, num_repeat);
