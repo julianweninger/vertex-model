@@ -123,14 +123,21 @@ struct MinimizationParams {
         dt(get_as<double>("dt", cfg, defaults.dt)),
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
-        temperature(0., sqrt(2* get_as<double>("temperature", cfg,
-                                    defaults.temperature.param().stddev()) * dt)),
+        temperature(0., 0.),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
                                         defaults.jiggle_tolerance)),
         jiggle_intensity(get_as<double>("jiggle_intensity", cfg,
                                         defaults.jiggle_intensity))
     {
+        if (cfg["temperature"]) {
+            temperature = std::normal_distribution<double>(0.,
+                get_as<double>("temperature", cfg));
+        }
+        else {
+            temperature = defaults.temperature;
+        }
+        
         if (num_repeat == 0) {
             throw Utopia::KeyError("num_repeat", cfg, fmt::format(
                 "Value must be larger than 0, but was {}", num_repeat));
@@ -1473,8 +1480,10 @@ public:
         auto num_steps = this->get_time() - time_0;
         if (get_rel_energy_change(_energy, energy_after_perturbation) > -1.e-3)
         {
-            this->_log->warn("Energy changed by {} (relative)!",
-                get_rel_energy_change(_energy, _energy_previous_step));
+            this->_log->info("WARN Energy minimized in {} steps and changed by "
+                "{} (rel.).",
+                num_steps,
+                get_rel_energy_change(_energy, energy_after_perturbation));
         }
         else {
             this->_log->info("Energy minimized in {} steps and changed by "
