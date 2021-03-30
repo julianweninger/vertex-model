@@ -151,6 +151,7 @@ hexatic_order:
   to_plot: 
     bulk_hair_cells:
       label: hair cells (bulk)
+      plot_min_max: True
   
   property: hexatic_order
 
