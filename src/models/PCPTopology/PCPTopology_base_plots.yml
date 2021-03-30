@@ -49,6 +49,130 @@ select_cells:
       path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
     bulk_support_cells:
       path: data/PCPTopology/Statistics/Bulk_support_cell_stats
+
+select_cell_properties:
+  select:
+    # NOTE the order in which datasets are created is alphabetically!
+    #      (underscores) `_` are treated first
+
+    # the data containing all cells
+    _cells: data/PCPTopology/Cells
+    
+    # a mask to select only bulk cells
+    _is_bulk:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: is_boundary
+        - .rename:
+          args: [!dag_prev , is_bulk]
+        - create_mask:
+          args: [!dag_prev , <, 0.5] # not boundary
+
+    # the type of the cells
+    __cell_type:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: cell_type
+        - .rename:
+          args: [!dag_prev , cell_types]
+
+    # a mask to select only hair cells
+    _hair_cells:
+      path: data/PCPTopology/Cells
+      transform:
+        - create_mask:
+          args: [!dag_tag __cell_type, ==, 1]
+    
+    # a mask to select only support cells
+    _support_cells:
+      path: data/PCPTopology/Cells
+      transform:
+        - create_mask:
+          args: [!dag_tag __cell_type, ==, 2]
+    
+    
+  transform:
+    # the data for hair cells
+    - .where:
+      args: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells
+    # the data for support cells
+    - .where:
+      args: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells
+
+    # the mean and mean__std data
+    - .mean:
+      args: [!dag_tag property , id]
+      kwargs:
+        skipna: True
+      tag: cells_mean
+    - .std:
+      args: [!dag_tag property, id]
+      kwargs:
+        skipna: True
+      tag: cells_mean__std
+    - .max:
+      args: [!dag_tag property , id]
+      kwargs:
+        skipna: True
+      tag: cells_max
+    - .min:
+      args: [!dag_tag property , id]
+      kwargs:
+        skipna: True
+      tag: cells_min
+    
+    # the mean and mean__std data for hair cells
+    - .mean:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_mean
+    - .std:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_mean__std
+    - .max:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_max
+    - .min:
+      args: [!dag_tag hair_cells ,id]
+      kwargs:
+        skipna: True
+      tag: hair_cells_min
+
+    # the mean and mean__std data for support cells
+    - .mean:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_mean
+    - .std:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_mean__std
+    - .max:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_max
+    - .min:
+      args: [!dag_tag support_cells ,id]
+      kwargs:
+        skipna: True
+      tag: support_cells_min
+
       
 select_cells_multiverse:
   select_and_combine:
