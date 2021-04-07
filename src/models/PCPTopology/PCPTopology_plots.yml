@@ -151,6 +151,7 @@ hexatic_order:
   to_plot: 
     bulk_hair_cells:
       label: hair cells (bulk)
+      plot_min_max: True
   
   property: hexatic_order
 
@@ -223,7 +224,7 @@ neighbors_vs_area:
       y: average hair cell neighbors
     set_limits:
       x: [1., 7.]
-      y: [5.5, 9.]
+      y: [5.5, 15]
 
       
 energy_vs_SCHC_contacts: &energy_vs_contacts

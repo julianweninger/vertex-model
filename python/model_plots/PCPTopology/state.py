@@ -15,7 +15,6 @@ import matplotlib.patches as mpatches
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
 from utopya.plotting import MultiversePlotCreator
-from utopya.plot_funcs._basic import _errorbar
 
 from ..tools import save_and_close
 from ..PCPVertex.state import transitions as transitions_base
@@ -380,6 +379,117 @@ def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
                        shape_index_plot_kwargs=shape_index_plot_kwargs)
 
 
+def _errorbar(*, hlpr: PlotHelper, data: xr.DataArray, std: xr.DataArray,
+              min: xr.DataArray=None, max: xr.DataArray=None,
+              min_max_kwargs: dict=None,
+              fill_between: bool=True, fill_between_kwargs: dict=None,
+              **errorbar_kwargs):
+    """Given the data and (optionally) the standard deviation data, plots a
+    single errorbar line.
+    
+    Args:
+        hlpr (PlotHelper): The helper
+        data (xr.DataArray): The data
+        std (xr.DataArray): The y-error data
+        fill_between (bool, optional): Whether to use plt.fill_between or
+            plt.errorbar to plot y-errors
+        fill_between_kwargs (dict, optional): Passed on to plt.fill_between
+        **errorbar_kwargs: Passed on to plt.errorbar
+    
+    Raises:
+        ValueError: On non-1D data
+    """
+    # Check dimensionality
+    if data.ndim != 1:
+        raise ValueError("Requiring 1D data to plot a single errorbar "
+                         "line but got {}D data with shape {}:\n{}\n"
+                         "Apply dimensionality reducing transformations "
+                         "using the `transform_data` argument to arrive "
+                         "at plottable data."
+                         "".format(data.ndim, data.shape, data))
+
+    elif std is not None and std.ndim != 1:
+        raise ValueError("Requiring 1D standard deviation data to plot the "
+                         "error markers of a single errorbar line but "
+                         "got {}D data with shape {}:\n{}\n"
+                         "Apply dimensionality reducing transformations "
+                         "using the `transform_std` argument to arrive "
+                         "at plottable data."
+                         "".format(std.ndim, std.shape, std))
+    elif min is not None and min.ndim != 1:
+        raise ValueError("Requiring 1D minimum data to plot the "
+                         "error markers of a single errorbar line but "
+                         "got {}D data with shape {}:\n{}\n"
+                         "Apply dimensionality reducing transformations "
+                         "using the `transform_std` argument to arrive "
+                         "at plottable data."
+                         "".format(min.ndim, min.shape, min))
+    elif max is not None and max.ndim != 1:
+        raise ValueError("Requiring 1D maximum data to plot the "
+                         "error markers of a single errorbar line but "
+                         "got {}D data with shape {}:\n{}\n"
+                         "Apply dimensionality reducing transformations "
+                         "using the `transform_std` argument to arrive "
+                         "at plottable data."
+                         "".format(max.ndim, max.shape, max))
+
+    # Data is ok.
+    # Decide on whether yerr is done by errorbar or by fill_between
+    yerr = std if not fill_between else None
+
+    # Plot the data against its coordinates, including standard deviation
+    ebar = hlpr.ax.errorbar(data.coords[data.dims[0]], data,
+                            yerr=yerr, **errorbar_kwargs)
+
+    # Now plot the confidence interval via 
+    if fill_between and std is not None:
+        # Find out the colour of the error bar line. Get line collection
+        lc, _, _ = ebar
+        line_color = lc.get_c()
+        line_alpha = lc.get_alpha() if lc.get_alpha() else 1.
+        line_label = errorbar_kwargs.get('label', None)
+
+        # Prepare kwargs
+        fb_kwargs = (copy.deepcopy(fill_between_kwargs) if fill_between_kwargs
+                     else {})
+
+        if 'color' not in fb_kwargs:
+            fb_kwargs['color'] = line_color
+        if 'alpha' not in fb_kwargs:
+            fb_kwargs['alpha'] = line_alpha * .2
+        if 'label' not in fb_kwargs and line_label:
+            fb_kwargs['label'] = line_label + " (std. dev.)"
+
+        # Fill.
+        hlpr.ax.fill_between(data.coords[data.dims[0]],
+                             y1=(data - std), y2=(data + std),
+                             **fb_kwargs)
+
+    for m, id in zip([min, max], ['min', 'max']):
+        if m is not None:
+            # Find out the colour of the error bar line. Get line collection
+            lc, _, _ = ebar
+            line_color = lc.get_c()
+            line_alpha = lc.get_alpha() if lc.get_alpha() else 1.
+            line_label = errorbar_kwargs.get('label', None)
+
+            # Prepare kwargs
+            fb_kwargs = (copy.deepcopy(min_max_kwargs) if min_max_kwargs
+                        else {})
+
+            if 'color' not in fb_kwargs:
+                fb_kwargs['color'] = line_color
+            if 'alpha' not in fb_kwargs:
+                fb_kwargs['alpha'] = line_alpha * .5
+            if line_label:
+                fb_kwargs['label'] = line_label + " (" + id + ".)"
+            if 'linestyle' not in fb_kwargs and 'ls' not in fb_kwargs:
+                fb_kwargs['linestyle'] = '--'
+
+            hlpr.ax.plot(m.coords[data.dims[0]], m, **fb_kwargs)
+
+    # TODO Manually add the legend patch
+
 @is_plot_func(use_dag=True)
 def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
               average_dim: str=None, cmap: str=None,**errorbar_kwargs):
@@ -432,10 +542,21 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
             add_kwargs['label'] = key
 
         plot_std = plot_spec.pop('plot_std', True)
+        plot_min_max = plot_spec.pop('plot_min_max', False)
         d = data[key]
         prop = d.sel(property=property)
         if plot_std and (property + '__stddev') in d.property.data:
             std = d.sel(property=property+'__stddev')
+        else:
+            std = None
+        if plot_min_max and (property + '__min') in d.property.data:
+            min = d.sel(property=property+'__min')
+        else:
+            min = None
+        if plot_min_max and (property + '__max') in d.property.data:
+            max = d.sel(property=property+'__max')
+        else:
+            max = None
 
         if average_dim:
             if not average_dim in d.coords:
@@ -445,10 +566,16 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
             prop = prop.sum(dim=average_dim) / prop.count(dim=average_dim)
             if std is not None:
                 std = std.sum(dim=average_dim) / std.count(dim=average_dim)
+                std = std.squeeze()
+            if min is not None:
+                min = min.sum(dim=average_dim) / min.count(dim=average_dim)
+                min = min.squeeze()
+            if max is not None:
+                max = max.sum(dim=average_dim) / max.count(dim=average_dim)
+                max = max.squeeze()
             prop = prop.squeeze()
-            std = std.squeeze()
    
-        _errorbar(hlpr=hlpr, data=prop, std=std, **plot_spec,
+        _errorbar(hlpr=hlpr, data=prop, std=std, min=min, max=max, **plot_spec,
                   **add_kwargs, **errorbar_kwargs)
 
 @is_plot_func(use_dag=True)
