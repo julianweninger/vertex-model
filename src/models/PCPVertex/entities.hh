@@ -51,8 +51,16 @@ struct VertexState {
  *  have only one.
  */
 struct EdgeState {
-    /// The linetension parameter property to this edge
-    double linetension;
+    /// The linetension parameter
+    double _linetension;
+
+    /// Fluctuations to the linetension parameter (Ornstein-Uhlenbeck process)
+    double _linetension_fluctuation;
+
+    /// The linetension property to this edge
+    double linetension() const { 
+        return _linetension + _linetension_fluctuation;
+    };
 
     /// The contractility parameter
     double contractility;
@@ -82,13 +90,23 @@ struct EdgeState {
      */
     EdgeState (const Utopia::DataIO::Config& cfg)
     :
-        linetension(get_as<double>("linetension", cfg)),
+        _linetension(get_as<double>("linetension", cfg)),
+        _linetension_fluctuation(0.),
         contractility(get_as<double>("contractility", cfg)),
         last_T1_attempt(0),
         sigma_a(0.), sigma_b(0.),
         d_sigma_a(0.), d_sigma_b(0.),
         remove(false)
     { }
+
+    Utopia::DataIO::Config get_cfg() const {
+        Utopia::DataIO::Config cfg;
+
+        cfg["linetension"] = _linetension;
+        cfg["contractility"] = contractility;
+
+        return cfg;
+    }
 };
 
 

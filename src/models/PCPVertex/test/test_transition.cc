@@ -180,7 +180,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                 return val + c->custom_links().edges.size();
             }) - adj_a_num_es - adj_b_num_es;
 
-        edge->state.linetension = 200.;
+        edge->state._linetension = 200.;
 
         // move both vertices to the center of the edge
         auto a = edge->custom_links().a;
@@ -291,7 +291,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
 
-        edge->state.linetension = 200.;
+        edge->state._linetension = 200.;
 
         // information to identify new objects
         const std::size_t max_edge_id = (*std::max_element(edges.begin(),
@@ -429,7 +429,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
 
-        edge->state.linetension = 200.;
+        edge->state._linetension = 200.;
 
         // information to identify new objects
         const std::size_t max_vertex_id = (*std::max_element(vertices.begin(),

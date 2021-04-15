@@ -53,6 +53,19 @@ struct MinimizationParams {
      */
     std::normal_distribution<double> temperature;
 
+    /// Linetension fluctuation parameter
+    /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
+     * 
+     *  \f$  \frac{d\Lambda_{mn}}{dt} = - \frac{1}{\tau_\Lambda}
+     *      (\Lambda_{mn}(t) - \Lambda_0)
+     *      + \Delta \Lambda \sqrt{2 / \tau_\Lambda} \Theta_{mn}(t)
+     *  \f$
+     * 
+     *  with the first value \f$ \tau \f$ and the second value
+     *  \f$ \Delta \Lambda \f$.
+     */
+    std::pair<double, double> linetension_fluctuations;
+
     /// The number of jiggling the vertices
     /** \details The first jiggle is applied before the first minimization,
      *           then the energy is minimized up to `jiggle_tolerance`.
@@ -86,6 +99,12 @@ struct MinimizationParams {
         max_steps(get_as<std::size_t>("max_steps", cfg)),
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
         temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.))),
+        linetension_fluctuations(
+            std::make_pair(
+                get_as<double>("linetension_fluctuation_tau", cfg, 1.),
+                get_as<double>("linetension_fluctuation", cfg, 0.)
+            )
+        ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg, tolerance)),
         jiggle_intensity(get_as<double>("jiggle_intensity", cfg, 0.))
@@ -124,6 +143,14 @@ struct MinimizationParams {
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
         temperature(0., 0.),
+        linetension_fluctuations(
+            std::make_pair(
+                get_as<double>("linetension_fluctuation_tau", cfg,
+                    std::get<0>(defaults.linetension_fluctuations)),
+                get_as<double>("linetension_fluctuation", cfg,
+                    std::get<1>(defaults.linetension_fluctuations))
+            )
+        ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
                                         defaults.jiggle_tolerance)),
@@ -317,6 +344,8 @@ private:
      */
     std::normal_distribution<double> _distr_temperature;
 
+    std::pair<double, double> _linetension_fluctuations;
+
 
     // -- Mechanical parameters -----------------------------------------------
 
@@ -456,10 +485,13 @@ private:
 
     /// Interaction parameter of cell-internal polarity interaction
     double _cell_polarity_exclusion;
-    
+
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
+
+    /// A [0,1]-range uniform distribution used for evaluating probabilities
+    std::normal_distribution<double> _normal_distr;
 
     // .. Temporary objects ...................................................
 protected:
@@ -532,6 +564,8 @@ public:
         _update_scheme(_default_minimization_params.update_scheme),
         _minimization_tolerance(_default_minimization_params.tolerance),
         _distr_temperature(_default_minimization_params.temperature),
+        _linetension_fluctuations(
+            _default_minimization_params.linetension_fluctuations),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -554,6 +588,7 @@ public:
         _cell_polarity_exclusion(get_as<double>(
             "cell_polarity_exclusion", this->_cfg)),
         _prob_distr(0.,1.),
+        _normal_distr(0.,1.),
         _energy_previous_step(std::numeric_limits<double>::max()),
         _energy(0.),
         _num_T1s(0),
@@ -659,7 +694,7 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
-        if (edge->state.linetension == 0.) {
+        if (edge->state.linetension() == 0.) {
             return edge->state;
         }
 
@@ -669,7 +704,7 @@ private:
         SpaceVec displ = this->_am.displacement(a, b);
         auto length = arma::norm(displ);
 
-        SpaceVec force = edge->state.linetension * displ / length;
+        SpaceVec force = edge->state.linetension() * displ / length;
 
         a->state.f += force;
         b->state.f -= force;
@@ -1208,6 +1243,23 @@ private:
         return vertex->state;
     };
 
+    const RuleFuncEdge update_lintension_ornstein =
+    [this](const auto& edge)
+    {
+        double linetension = edge->state._linetension_fluctuation;
+
+        double tau = std::get<0>(this->_linetension_fluctuations);
+        double dL = std::get<1>(this->_linetension_fluctuations);
+        
+        double rand_l = dL * sqrt(2. * _dt / tau) * _normal_distr(*this->_rng);
+
+        linetension += rand_l - _dt / tau * linetension;
+
+        edge->state._linetension_fluctuation = linetension;
+        
+        return edge->state;
+    };
+
     /** The update of polarity protein levels
      * 
      *  Change polarity level proportional to the gradient of energy (force)
@@ -1372,6 +1424,18 @@ public:
                           time_0, params.num_repeat);
         _status = Status::Minimization;
 
+
+        _update_scheme = params.update_scheme;
+        _dt = params.dt;
+        _distr_temperature = params.temperature;
+        _linetension_fluctuations = params.linetension_fluctuations;
+        if (std::get<1>(_linetension_fluctuations) == 0.) {
+            for (const auto& e : _am.edges()) {
+                e->state._linetension_fluctuation = 0.;
+            }
+        }
+
+
         const double energy_after_perturbation = this->get_energy();
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
@@ -1395,10 +1459,7 @@ public:
             bool minimum_reached = false;
 
             this->init_minimization();
-
-            _update_scheme = params.update_scheme;
             _dt = params.dt;
-            _distr_temperature = params.temperature;
 
             double tolerance;
             if (i+1 == params.num_repeat) {
@@ -1805,7 +1866,7 @@ public:
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
                 if (a and b) {
-                    state.linetension = this->_linetension(a->state.type,
+                    state._linetension = this->_linetension(a->state.type,
                                                            b->state.type);
                 }
                 return state;

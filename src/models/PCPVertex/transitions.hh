@@ -148,9 +148,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
                 adj_edges.end());
         }
 
-        DataIO::Config edge_cfg;
-        edge_cfg["linetension"] = edge->state.linetension;
-        edge_cfg["contractility"] = edge->state.contractility;
+        DataIO::Config edge_cfg = edge->state.get_cfg();
 
         // Divide edge at pivot intow two new edges
         auto new_edge_0 = this->add_edge(a, pivot, edge_cfg);
