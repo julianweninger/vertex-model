@@ -121,6 +121,8 @@ public:
         this->_log->debug("{} model fully set up.", this->_name);
     }
 
+    virtual ~NotchDelta() {}
+
 
 private:
     // .. Setup functions .....................................................

@@ -2,23 +2,9 @@
 ---
 # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
-  # Which Utopia base image to use
-  UTOPIA_BASE_IMAGE: ccees/utopia-base:focal-v1
-
-  # Which repo to use for the framework and which branch to clone from
-  UTOPIA_CLONE_URL: https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia.git
-  # NOTE This should always be the master; change this only for testing!
-  UTOPIA_BRANCH: master
-
-  # Subdirectory inside project directory to use for framework repository
-  UTOPIA_DIR: _framework
-
-  # Variables for Models Docker image deployment
-  VERTEX_MODEL_BASE_IMAGE_NAME: ccees/vertex-model-base
-  VERTEX_MODEL_BASE_IMAGE_TAG: "1.0"
-  VERTEX_MODEL_BASE_IMAGE: "${VERTEX_MODEL_BASE_IMAGE_NAME}:v${VERTEX_MODEL_BASE_IMAGE_TAG}"
-  # NOTE Do not forget to increment the VERTEX_MODEL_BASE_IMAGE_TAG when changes
-  #      to the docker file are introduced.
+  # Variables for docker images
+  BASE_IMAGE: blsqr/brewtopia:latest
+  TEST_IMAGE: blsqr/brewtopia-models:latest
 
   # Docker Hub login command
   DOCKER_HUB_LOGIN: docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
@@ -46,14 +32,20 @@ variables:
 
 
 # Define the image to use for all stages
-image: ${VERTEX_MODEL_BASE_IMAGE}
+image: ${TEST_IMAGE}
 
 stages:
-  - setup     # set up the Docker base image for testing
-  - prep      # prepare the utopia framework repo and configure utopia
+  - update    # update the docker images for testing
+  - prep      # prepares the framework
   - build     # build models and tests
   - test      # carry out tests
-  - report    # Compile reports on testing
+  - report    # compile reports on testing
+
+workflow:
+  rules:
+    # Run pipelines on tags and branches
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
 
 
 # .. YAML Templates ...........................................................
@@ -67,7 +59,6 @@ stages:
       - $CI_PROJECT_DIR/.config        # copied from ~/.config
       - $CI_PROJECT_DIR/.cmake         # copied from ~/.cmake
       - $CI_PROJECT_DIR/build          # created in build stage
-      - $CI_PROJECT_DIR/$UTOPIA_DIR    # framework paths (setup stage)
     expire_in: 3 hours
 
 
@@ -84,67 +75,90 @@ stages:
     - $DOCKER_HUB_LOGIN
 
 
+
+
 # ++ Job definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-# -- Setup stage --------------------------------------------------------------
-# This stage takes care to build the Models base testing image
+# -- Update stage -------------------------------------------------------------
+# This stage takes care to build the brewtopia testing images
 
-setup:vertex-model-base:
+# .. brewtopia: the base image
+# This takes a long time to build and should only be run if the build time of
+# brewtopia-models increases significantly.
+# To run:
+#    - Go to the GitLab pipelines web interface
+#    - Select the master branch
+#    - Set the BUILD_BREWTOPIA variable to "true"
+update:brewtopia:
   <<: *dind
-  stage: setup
-  only:
-    - master
-    - web
+  stage: update
+  timeout: 2h
+  variables:
+    BUILD_BREWTOPIA: "false"
+  rules:
+    - if: '$BUILD_BREWTOPIA == "true" && $CI_COMMIT_BRANCH == "master"'
+      when: always
+    - when: never
   script:
-    - docker build -f docker/vertex-model-base.dockerfile
-                   --build-arg UTOPIA_BASE_IMAGE=$UTOPIA_BASE_IMAGE
-                   -t $VERTEX_MODEL_BASE_IMAGE
+    - docker build -f docker/brewtopia.Dockerfile
+                   -t ${BASE_IMAGE}
                    ./
-    - docker push $VERTEX_MODEL_BASE_IMAGE
+    - docker push ${BASE_IMAGE}
+
+# .. brewtopia-models: the testing image
+# This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
+# It updates the dependencies and the Utopia installation in the test image.
+update:brewtopia-models:
+  <<: *dind
+  stage: update
+  allow_failure: true
+  variables:
+    BUILD_BREWTOPIA_MODELS: "false"
+  rules:
+    - if: '$BUILD_BREWTOPIA_MODELS == "true"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
+    - when: never
+  script:
+    - docker build -f docker/brewtopia-models.Dockerfile
+                   --build-arg BASE_IMAGE=${BASE_IMAGE}
+                   -t ${TEST_IMAGE}
+                   ./
+    - docker push ${TEST_IMAGE}
+
 
 # -- Preparation stage --------------------------------------------------------
-# This stage sets up the Utopa framework, the main dependency of this repo
+# This stage sets up the Utopia framework, the main dependency of this repo
 
 prep:framework:
   <<: [*artifacts]
   stage: prep
+  tags: [singlecore]
   script:
-    # Clone the framework repo to a specific directory and check out the
-    # desired branch. By cloning into a subdirectory inside the project
-    # directory, artifacts can be used.
-    - git clone --recurse-submodules -b $UTOPIA_BRANCH $UTOPIA_CLONE_URL $UTOPIA_DIR
-
-    # Create build directory and configure
-    - cd $UTOPIA_DIR && mkdir build && cd build
-    - cmake -DCMAKE_BUILD_TYPE=Release ..
-
-    # Now, move back to the project directory and configure, specifying the
-    # Utopia directory.
+    # Create a build directory and run cmake
     - cd $CI_PROJECT_DIR && mkdir build && cd build
-    - cmake
-      -DUtopia_DIR=$CI_PROJECT_DIR/$UTOPIA_DIR/build
-      -DCPP_COVERAGE=On
-      ..
+    - cmake -DCPP_COVERAGE=On ..
 
     # Show available models
     - $RUN_IN_UTOPIA_ENV utopia models ls
 
-    # Carry over user config directory (to have it available in artifacts)
+    # Carry over user config directory and CMake package registry (to have them
+    # available in artifacts)
     - cp -r ~/.config $CI_PROJECT_DIR/
-
-    # Carry over CMake package registry
     - cp -r ~/.cmake $CI_PROJECT_DIR/
 
-# -- Build stage --------------------------------------------------------------
-# In this stage, the models and their tests are built.
-# The artifacts of the tests and models jobs are needed in the test stage
 
-# Build the models and their tests; artifacts used in test stage
+
+# -- Build stage --------------------------------------------------------------
+# In this stage, the models, all tests, and the documentation are built.
+# The artifacts from the build:all job are used in the test stage.
+
 build:all: &build
   <<: *artifacts
   stage: build
-  dependencies:
-    - prep:framework
+  tags: [multicore]
+  dependencies: ['prep:framework']
   before_script:
     # Copy the frontend-generated configuration, carried over as artifacts,
     # back into the home directory, where the frontend expects it.
@@ -153,20 +167,19 @@ build:all: &build
     - &copy_cmake_reg_to_home cp -r $CI_PROJECT_DIR/.cmake ~/
   script:
     - cd $CI_PROJECT_DIR/build
-    - make $MAKE_FLAGS_BUILD build_tests_models
     - make $MAKE_FLAGS_BUILD all
+    - make $MAKE_FLAGS_BUILD build_tests_models
 
-# Build in debug mode, once with gcc and once with clang
 build:debug: &build_debug
   <<: *build
-  allow_failure: true
   before_script:
     - *copy_config_to_home
     - *copy_cmake_reg_to_home
+    - &fresh_build_dir rm -rf $CI_PROJECT_DIR/build && mkdir -p $CI_PROJECT_DIR/build
     - cd $CI_PROJECT_DIR/build
     - cmake
         -DCMAKE_BUILD_TYPE=Debug
-        -DCMAKE_CXX_FLAGS_DEBUG='-Werror -Wall -Wextra'
+        -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
       ..
 
 build:debug-clang:
@@ -174,55 +187,66 @@ build:debug-clang:
   before_script:
     - *copy_config_to_home
     - *copy_cmake_reg_to_home
+    - *fresh_build_dir
     - cd $CI_PROJECT_DIR/build
     - cmake
         -DCMAKE_BUILD_TYPE=Debug
         -DCMAKE_C_COMPILER=clang
         -DCMAKE_CXX_COMPILER=clang++
-        -DCMAKE_CXX_FLAGS_DEBUG='-Werror -Wall -Wextra'
+        -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
       ..
 
-# Build the documentation; artifacts retained for verification
 build:docs:
-  stage: build
+  <<: *build
+  allow_failure: true
+  tags: [singlecore]
+  script:
+    - cd $CI_PROJECT_DIR/build
+    - cmake ..
+    - make doc
+  after_script:
+    - cat $CI_PROJECT_DIR/build/doc/sphinx_warnings.log || true
+    - cat $CI_PROJECT_DIR/build/doc/doxygen/doxygen_warnings.log || true
   artifacts:
     name: "$CI_JOB_NAME"
     paths:
       - $CI_PROJECT_DIR/build/doc
+      - $CI_PROJECT_DIR/build/doc/doxygen/doxygen_warnings.log
+      - $CI_PROJECT_DIR/build/doc/sphinx_warnings.log
     expire_in: 1 week
     expose_as: Documentation
-  script:
-    - cd build
-    - make doc
+
+
 
 
 # -- Test stage ---------------------------------------------------------------
-# Using the artifacts of the build stage, execute the model tests
+# Using the artifacts of the build stage, execute the models tests
 
-# Perform the explicit model tests, C++ and Python
-test:models: &model_defaults
+test:models: &test_models
   <<: *artifacts
   stage: test
-  dependencies:
-    - build:all
-  needs:
-    - build:all
+  tags: [multicore]
+  dependencies: ['build:all']
+  needs: ['build:all']
   before_script:
     - *copy_config_to_home
     - *copy_cmake_reg_to_home
+    #
+    # Need to install requirements again
+    - $RUN_IN_UTOPIA_ENV pip install -r python/requirements.txt
+    # NOTE Doing this rather than carrying them through as build artifacts from
+    #      the prep stage, because these dependencies get installed into the
+    #      utopia _framework's_ build directory, which is not located inside
+    #      the project directory and thus cannot be part of the artifacts.
+    #      Instead of doing the mess with copying that directory etc, we can
+    #      just reinstall here, which is fast and straight-forward.
   script:
-    # Test all models using the testing framework
+    # Test all models using the testing framework; this includes Python tests
     - cd build
     - make $MAKE_FLAGS_TEST test_models
 
-
-# Run each model via the CLI, testing default model and plots configuration
 test:model_defaults:
-  <<: *model_defaults
-  dependencies:
-    - build:all
-  needs:
-    - build:all
+  <<: *test_models
   script:
     - $ENTER_UTOPIA_ENV
 
@@ -231,21 +255,18 @@ test:model_defaults:
     - utopia run PCPVertex --debug
     - utopia run PCPTopology --debug --num-steps 5
 
-    # NOTE Add your newly implemented model here (in alphabetical order)
 
 
-# -- Report stage ---------------------------------------------------------------
+# -- Report stage -------------------------------------------------------------
 # Using the artifacts of the test stage, compile reports on the tests
 
-# Install gcovr, run it, and extract coverage reports
+# Install gcovr and extract coverage reports
 report:coverage:
   stage: report
-  tags:
-    - singlecore
+  tags: [singlecore]
   dependencies:
     - test:models
     - test:model_defaults
-
   before_script:
     - source $CI_PROJECT_DIR/build/activate
     - pip3 install gcovr
@@ -266,12 +287,10 @@ report:coverage:
         --root $CI_PROJECT_DIR/
         --filter $CI_PROJECT_DIR/src/
         --exclude '.*tests?/.*'
-
-  # For higher precision, extract the coverage from --print-summary :tada:
-  coverage: '/^lines: (\d+.\d+\%).*$/'
+  coverage: '/^lines: (\d+.\d+\%).*$/'   # matches output of --print-summary
   artifacts:
     name: "$CI_JOB_NAME"
-    expose_as: Coverage Report
+    expose_as: Coverage report
     paths:
       - $CI_PROJECT_DIR/build/coverage/
     expire_in: 3 weeks

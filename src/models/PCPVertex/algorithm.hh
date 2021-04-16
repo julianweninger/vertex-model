@@ -240,7 +240,7 @@ void PCPVertex::init_minimization ()
     }
 
     apply_rule<Update::sync>(
-        [this](const auto& vertex) {
+        [](const auto& vertex) {
             auto state = vertex->state;
             state.g = state.f;
             state.h = state.f;

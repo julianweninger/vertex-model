@@ -20,8 +20,6 @@
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex;
 
-const double precision = 1e-12;
-
 template<bool periodic>
 struct Fixture {    
     Models::PCPVertex::PCPVertex vertex_model;

@@ -271,6 +271,8 @@ public:
         this->_log->debug("{} model fully set up.", this->_name);
     }
 
+    virtual ~Collier() {}
+
 
 private:
     // .. Setup functions .....................................................
