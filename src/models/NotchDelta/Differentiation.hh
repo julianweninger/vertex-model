@@ -211,7 +211,7 @@ protected:
     /// Tag those cells that form a rosette
     /** I.e. hair cells that have no hair cell neighbors
      */
-    const RuleFunc tag_rosettes = [this](const auto& cell)
+    const RuleFunc tag_rosettes = [](const auto& cell)
     {
         auto state = cell->state;
 
