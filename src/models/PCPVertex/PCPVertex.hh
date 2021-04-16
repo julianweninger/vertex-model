@@ -393,6 +393,8 @@ private:
                                std::numeric_limits<double>::max())),
             stripe_curvature(
                 get_as<double>("stripe_curvature", cfg, 0.)),
+            stripe_curvature_center(
+                get_as<double>("stripe_curvature_center", cfg, 0.5)),
 
             fix_boundary(get_as<bool>("fix_boundary", cfg, false))
         {
@@ -1908,8 +1910,10 @@ public:
         double L = x_max - x_min;
         double H = y_max - y_min;
 
+        double rel = _boundary_param.stripe_curvature_center;
+
         _boundary_param.stripe_origin = std::make_shared<SpaceVec>(
-            SpaceVec({0.5 * L + x_min, 0.5 * H + y_min}));
+            SpaceVec({rel * L + x_min, 0.5 * H + y_min}));
     }
 
     /// Set new parameter for a stripe boundary potential
