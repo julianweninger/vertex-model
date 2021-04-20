@@ -3,32 +3,28 @@
 # These can use the `based_on` feature with configurations specified in the
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
 ---
-# energy:
-#   based_on: energy
+energy:
+  based_on: energy
+  universes:
+    seed: 0
 
-# energy_continuous:
-#   based_on: energy
-#   model_name: PCPTopology/PCPVertex
+transitions:
+  based_on: universe
+  universes:
+    seed: 0
 
-# transitions:
-#   based_on:
-#     - universe
+  model_name: PCPTopology
+  module: model_plots.PCPTopology
+  plot_func: transitions
 
-#   model_name: PCPTopology
-#   module: model_plots.PCPTopology
-#   plot_func: transitions
+  map_to_continuous_time: True
 
-#   map_to_continuous_time: True
+transitions_continuous:
+  based_on:
+    - universe
+    - transitions
 
-# transitions_continuous:
-#   based_on:
-#     - universe
-
-#   model_name: PCPTopology/PCPVertex
-#   module: model_plots.PCPTopology
-#   plot_func: transitions
-  
-#   map_to_discrete_time: True
+  model_name: PCPTopology/PCPVertex
 
 # --- Average seeds -----------------------------------------------------------
 
