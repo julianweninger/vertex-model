@@ -81,16 +81,18 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.fig.tight_layout()
 
 
-def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
-                       plot_hist: bool=True,
-                       plot_area: bool=True,
-                       plot_shape_index: bool=True,
-                       helpers_frame_hist: dict=None,
-                       helpers_frame_area: dict=None,
-                       helpers_frame_shape_index: dict=None,
-                       hist_plot_kwargs: dict=None,
-                       area_plot_kwargs: dict=None,
-                       shape_index_plot_kwargs: dict=None):
+def plot_neighbourhood(*, num_neighbors, num_hair_neighbors,
+                      area, shape_index, cell_type,
+                      hlpr: PlotHelper, only_type: str='all',
+                      plot_hist: bool=True,
+                      plot_area: bool=True,
+                      plot_shape_index: bool=True,
+                      helpers_frame_hist: dict=None,
+                      helpers_frame_area: dict=None,
+                      helpers_frame_shape_index: dict=None,
+                      hist_plot_kwargs: dict=None,
+                      area_plot_kwargs: dict=None,
+                      shape_index_plot_kwargs: dict=None):
     """ Helper function to plot the cell_neighbourhood.
 
     Plots the properties averaged separately for the polygon classes
@@ -117,50 +119,40 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
         shape_index_plot_kwargs: passed on to matplotlib.errorbar
                                  (shape_index plot)
     """
-    num_neighbors = data.sel(property='num_neighbors')
-    area = data.sel(property='area')
-    shape_index = data.sel(property='shape_index')
-    cell_type = data.sel(property='cell_type')
 
     bins = range(3, 12)
 
     # use num_neighbors
     if only_type == 'hair':
-        num_neighbors = data.sel(property='num_neighbors')
         num_neighbors = num_neighbors[cell_type == 1]
         area = area[cell_type == 1]
         shape_index = shape_index[cell_type == 1]
     elif only_type == 'support':
-        num_neighbors = data.sel(property='num_neighbors')
         num_neighbors = num_neighbors[cell_type == 2]
         area = area[cell_type == 2]
         shape_index = shape_index[cell_type == 2]
 
     # use num_hair_neighbors
     elif only_type == 'hair_hair':
-        num_neighbors = data.sel(property='num_hair_neighbors')
-        num_neighbors = num_neighbors[cell_type == 1]
+        num_neighbors = num_hair_neighbors[cell_type == 1]
         bins = range(0, 7)
         plot_area = False
         plot_shape_index = False
     elif only_type == 'support_hair':
-        num_neighbors = data.sel(property='num_hair_neighbors')
-        num_neighbors = num_neighbors[cell_type == 2]
+        num_neighbors = num_hair_neighbors[cell_type == 2]
         bins = range(0, 7)
         plot_area = False
         plot_shape_index = False
 
     # use num_neighbors - num_hair_neighbors
     elif only_type == 'hair_support':
-        num_neighbors = num_neighbors - \
-                        data.sel(property='num_hair_neighbors')
+        num_neighbors = num_neighbors - num_hair_neighbors
         num_neighbors = num_neighbors[cell_type == 1]
         bins = range(0, 7)
         plot_area = False
         plot_shape_index = False
     elif only_type == 'support_support':
-        num_neighbors = num_neighbors - \
-                        data.sel(property='num_hair_neighbors')
+        num_neighbors = num_neighbors - num_hair_neighbors
         num_neighbors = num_neighbors[cell_type == 2]
         bins = range(0, 7)
         plot_area = False
@@ -251,9 +243,16 @@ def plot_neighbourhood(data, *, hlpr: PlotHelper, only_type: str='all',
                 hlpr.invoke_helper(name, **args)
 
 
-@is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
-def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
-                       datapath = 'PCPTopology/Cells',
+@is_plot_func(creator_type=UniversePlotCreator, supports_animation=True,
+              use_dag=True,
+              required_dag_tags=(
+                  'num_neighbors',
+                  'num_hair_neighbors',
+                  'area',
+                  'shape_index',
+                  'cell_type'))
+def cell_neighbourhood(*, data: dict, hlpr: PlotHelper,
+                       stack_dims: list=None,
                        only_type: str='all',
                        plot_hist: bool=True,
                        plot_area: bool=True,
@@ -289,12 +288,23 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
         shape_index_plot_kwargs: passed on to matplotlib.errorbar (shape_index plot)
     """
-
     # Get the group that all datasets are in
-    grp = uni['data/'+datapath]
-
-    # Get the shape of the data
-    uni_cfg = uni['cfg']
+    num_neighbors = data['num_neighbors']
+    num_hair_neighbors = data['num_hair_neighbors']
+    area = data['area']
+    shape_index = data['shape_index']
+    cell_type = data['cell_type']
+    if stack_dims is not None:
+        for dim in stack_dims:
+            if not dim in num_neighbors.dims:
+                raise ValueError("Dimension {} not in data {}", dim,
+                                 num_neighbors.dims)
+        stack_dims.append('id')
+        num_neighbors = num_neighbors.stack(ids=stack_dims).squeeze()
+        num_hair_neighbors = num_hair_neighbors.stack(ids=stack_dims).squeeze()
+        area = area.stack(ids=stack_dims).squeeze()
+        shape_index = shape_index.stack(ids=stack_dims).squeeze()
+        cell_type = cell_type.stack(ids=stack_dims).squeeze()
 
     # Prepare the figure ......................................................
     # Prepare the figure to have as many columns as there are properties
@@ -309,16 +319,22 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     def update():
         # grp['cells'] is TimeSeriesGroup -> single dimension time
-        for time in grp:
-            plot_neighbourhood(grp[time], hlpr=hlpr, only_type=only_type,
-                               plot_hist=plot_hist, plot_area=plot_area,
-                               plot_shape_index=plot_shape_index,
-                               helpers_frame_hist=helpers_frame_hist,
-                               helpers_frame_area=helpers_frame_area,
-                               helpers_frame_shape_index=helpers_frame_shape_index,
-                               hist_plot_kwargs=hist_plot_kwargs, 
-                               area_plot_kwargs=area_plot_kwargs,
-                               shape_index_plot_kwargs=shape_index_plot_kwargs)
+        for time in num_neighbors.time:
+            plot_neighbourhood(
+                num_neighbors=num_neighbors.sel(time=time),
+                num_hair_neighbors=num_hair_neighbors.sel(time=time),
+                area=area.sel(time=time),
+                shape_index=shape_index.sel(time=time),
+                cell_type=cell_type.sel(time=time),
+                hlpr=hlpr, only_type=only_type,
+                plot_hist=plot_hist, plot_area=plot_area,
+                plot_shape_index=plot_shape_index,
+                helpers_frame_hist=helpers_frame_hist,
+                helpers_frame_area=helpers_frame_area,
+                helpers_frame_shape_index=helpers_frame_shape_index,
+                hist_plot_kwargs=hist_plot_kwargs,
+                area_plot_kwargs=area_plot_kwargs,
+                shape_index_plot_kwargs=shape_index_plot_kwargs)
             
             hlpr.select_axis(col=0, row=0)
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
@@ -327,56 +343,6 @@ def cell_neighbourhood(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     hlpr.register_animation_update(update)
 
-
-@is_plot_func(creator_type=MultiversePlotCreator, use_dag=True)
-def cell_neighbourhood_mv(*, data: dict, hlpr: PlotHelper,
-                          only_type: str='all',
-                          plot_hist: bool=True,
-                          plot_area: bool=True,
-                          plot_shape_index: bool=True,
-                          helpers_frame_hist: dict=None,
-                          helpers_frame_area: dict=None,
-                          helpers_frame_shape_index: dict=None,
-                          hist_plot_kwargs: dict=None,
-                          area_plot_kwargs: dict=None,
-                          shape_index_plot_kwargs: dict=None):
-    """Plot properties of the cell averaged separately for different polygon
-    classes.
-    Average furthermore over the dimension seed of the data.
-
-    Args:
-        only_type (str): If only a single type of cells should be used for 
-                         calculation. Can be 'all', 'hair', 'support'
-
-        plot_hist (bool, default: True): Whether to plot the histogram
-        plot_area (bool, default: True): Whether to plot the mean area
-        plot_shape_index (bool, default: True): Whether to plot the mean shape
-                                                index
-        helpers_frame_hist (dict, optional): Dict passed to helper within every 
-                                             frame
-        helpers_frame_area (dict, optional): Dict passed to helper within every 
-                                             frame
-        helpers_frame_shape_index (dict, optional): Dict passed to helper within every 
-                                             frame
-        hist_plot_kwargs: passed on to matplotlib.hist (histogram plot)
-        area_plot_kwargs: passed on to matplotlib.errorbar (area plot)
-        shape_index_plot_kwargs: passed on to matplotlib.errorbar (shape_index plot)
-    """
-
-    # Prepare the figure ......................................................
-    # Prepare the figure to have as many columns as there are properties
-    hlpr.setup_figure(ncols=2)
-    data = data['data'].stack(z=('seed', 'id')).squeeze()
-
-    plot_neighbourhood(data, hlpr=hlpr, only_type=only_type,
-                       plot_hist=plot_hist, plot_area=plot_area,
-                       plot_shape_index=plot_shape_index,
-                       helpers_frame_hist=helpers_frame_hist,
-                       helpers_frame_area=helpers_frame_area,
-                       helpers_frame_shape_index=helpers_frame_shape_index,
-                       hist_plot_kwargs=hist_plot_kwargs, 
-                       area_plot_kwargs=area_plot_kwargs,
-                       shape_index_plot_kwargs=shape_index_plot_kwargs)
 
 
 def _errorbar(*, hlpr: PlotHelper, data: xr.DataArray, std: xr.DataArray,

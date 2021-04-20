@@ -143,6 +143,59 @@ rotation_mv: !pspace
       x: time
       y: average rotation
 
+cell_neighbourhood_mv: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - multiverse
+    - _cell_neighbourhood
+
+  stack_dims: [seed]
+
+  only_type: all
+
+  select_and_combine:
+    fields:
+      area:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: area
+      cell_type:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: cell_type
+      shape_index:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: shape_index
+      num_neighbors:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: num_neighbors
+      num_hair_neighbors:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: num_hair_neighbors
+    subspace:
+      p0: !sweep
+        default: 3.62
+        values: [3.62, 3.72, 3.77, 3.81]
+        name: p0
+
     
 # --- Average seeds, bifurcation diagram --------------------------------------
 
