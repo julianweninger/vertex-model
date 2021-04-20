@@ -85,6 +85,7 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     ax2.plot(num_T1s.time, num_T1s.cumsum(), color='black', label='#T1')
 
     ax2.set_ylabel("T1 transitions")
+    ax2.set_ylim(bottom=0)
     ax2.legend(loc='upper right')
 
     # Plot the T2s
@@ -364,7 +365,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             elif (   property == 'linetension'
                 or property == 'edge_contractility'):
                 prop_data = grp['Edge_energies'][time]
-                prop_data = prop_data.sel(energy_term=property)
+                prop_data = prop_data.sel(energy_term=property).squeeze()
                 prop_data = prop_data.assign_coords({'x': (ax + dx / 2.),
                                                      'y': (ay + dy / 2.)})
 
@@ -376,6 +377,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             # perform the interpolation
             if property:
+                if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
+                    prop_data.data[0] += 1.e-10
                 if property_hair_cells_only:
                     prop_data = prop_data.where(cell_type == 1)
                 if property_support_cells_only:
@@ -431,6 +434,5 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # remove colorbar
             if property:
                 cbar.remove()
-
 
     hlpr.register_animation_update(update)
