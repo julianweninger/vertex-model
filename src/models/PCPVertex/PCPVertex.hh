@@ -19,6 +19,7 @@
 #include "entities_manager.hh"
 #include "initialisation.hh"
 #include "transitions.hh"
+#include "utils.hh"
 
 namespace Utopia {
 namespace Models {
@@ -346,6 +347,8 @@ private:
 
     std::pair<double, double> _linetension_fluctuations;
 
+    std::pair<double, double> _area_fluctuations;
+
 
     // -- Mechanical parameters -----------------------------------------------
 
@@ -566,6 +569,7 @@ public:
         _distr_temperature(_default_minimization_params.temperature),
         _linetension_fluctuations(
             _default_minimization_params.linetension_fluctuations),
+        _area_fluctuations(std::make_pair(0., 0.)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -753,7 +757,7 @@ private:
         const auto state = cell->state;
 
         const auto rel_cell_area = (  this->_am.area_of(cell)
-                                    / state.area_preferential);
+                                    / state.area_preferential());
         const SpaceVec cell_center = this->_am.barycenter_of(cell);
         
         const auto& edges = cell->custom_links().edges;
@@ -798,7 +802,7 @@ private:
 
             SpaceVec force = (  -1. * this->_area_elasticity
                               * (rel_cell_area - 1) * dA_dx
-                              / state.area_preferential);
+                              / state.area_preferential());
 
             v_center->state.f += force;
         }
@@ -1243,7 +1247,7 @@ private:
         return vertex->state;
     };
 
-    const RuleFuncEdge update_lintension_ornstein =
+    const RuleFuncEdge update_linetension_ornstein =
     [this](const auto& edge)
     {
         double linetension = edge->state._linetension_fluctuation;
@@ -1258,6 +1262,28 @@ private:
         edge->state._linetension_fluctuation = linetension;
         
         return edge->state;
+    };
+
+    const RuleFuncCell update_area_preferential_ornstein =
+    [this](const auto& cell)
+    {
+        double A0 = cell->state._area_preferential_fluctuations;
+
+        double tau = std::get<0>(this->_area_fluctuations);
+        double dA = (  std::get<1>(this->_area_fluctuations)
+                     * cell->state._area_preferential);
+
+        auto distr = get_lognormal_distribution(cell->state.area_preferential(),
+                                                dA);
+        double rn = distr(*this->_rng) - cell->state.area_preferential();
+        
+        double rand_A = sqrt(2. * _dt / tau) * rn;
+
+        A0 += rand_A - _dt / tau * A0;
+
+        cell->state._area_preferential_fluctuations = A0;
+        
+        return cell->state;
     };
 
     /** The update of polarity protein levels
@@ -2032,6 +2058,10 @@ public:
                                          fabs(min_x - origin_x));
 
         _boundary_param.stripe_curvature = kappa_max * rel_curvature;
+    }
+
+    void set_area_fluctuations(double stddev, double tau = 1.) {
+        _area_fluctuations = std::make_pair(tau, stddev);
     }
 
 

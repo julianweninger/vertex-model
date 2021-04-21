@@ -90,7 +90,7 @@ double PCPVertex::area_elasticity_energy (
 {
     // for beta = 0, returns same as area_of(cell)
     double rel_area = (  _am.area_of(cell, beta)
-                       / cell->state.area_preferential);
+                       / cell->state.area_preferential());
     return 0.5 * _area_elasticity * pow(rel_area - 1., 2);
 };
 

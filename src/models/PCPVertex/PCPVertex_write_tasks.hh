@@ -575,7 +575,7 @@ auto cells_adaptor = std::make_tuple(
         std::transform(cells.begin(), cells.end(),
                        std::back_inserter(area_preferentials),
                        [](const auto& c) { 
-                            return c->state.area_preferential; });
+                            return c->state.area_preferential(); });
         dataset->write(area_preferentials);
         
         std::vector<double> perimeters;
@@ -1018,7 +1018,7 @@ std::vector<double> generate_statistics (const CellContainer& cells,
     // area preferential
     std::transform(cells.begin(), cells.end(), std::back_inserter(values),
                     [](const auto& cell) {
-                        return cell->state.area_preferential;
+                        return cell->state.area_preferential();
                     });
     stats.push_back(average(values));
     stats.push_back(stddev(values, stats.back()));

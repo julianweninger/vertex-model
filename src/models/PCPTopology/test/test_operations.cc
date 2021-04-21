@@ -488,7 +488,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         std::vector<double> areas;
         areas.reserve(cells.size());
         for (const auto& cell : cells) {
-            areas.push_back(cell->state.area_preferential);
+            areas.push_back(cell->state.area_preferential());
         }
         auto [mean, stddev] = get_statistics(areas);
 
@@ -505,7 +505,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas.clear();
         areas.reserve(cells.size());
         for (const auto& cell : cells) {
-            areas.push_back(cell->state.area_preferential);
+            areas.push_back(cell->state.area_preferential());
         }
         std::tie(mean, stddev) = get_statistics(areas);
 
@@ -521,10 +521,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
             else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();
@@ -556,7 +556,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         const auto& cells = vertex_model.get_am().cells();
         double area = 0.;
         for (const auto& c : cells) {
-            area += c->state.area_preferential;
+            area += c->state.area_preferential();
         }
 
         op_diff(vertex_model);
@@ -564,7 +564,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         double new_area = 0.;
         for (const auto& c : cells) {
-            new_area += c->state.area_preferential;
+            new_area += c->state.area_preferential();
         }
 
         BOOST_CHECK_CLOSE(area, new_area, 5);
@@ -573,7 +573,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();
@@ -604,7 +604,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         // check that the cells fit in the domain
         double cell_area = 0.;
         for (const auto& c : cells) {
-            cell_area += c->state.area_preferential;
+            cell_area += c->state.area_preferential();
         }
 
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
@@ -615,7 +615,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_HCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();
@@ -630,7 +630,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_SCs.shrink_to_fit();
@@ -715,7 +715,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         const auto& cells = vertex_model.get_am().cells();
         double area = 0.;
         for (const auto& c : cells) {
-            area += c->state.area_preferential;
+            area += c->state.area_preferential();
         }
 
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
@@ -725,7 +725,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         double new_area = 0.;
         for (const auto& c : cells) {
-            new_area += c->state.area_preferential;
+            new_area += c->state.area_preferential();
         }
 
         BOOST_CHECK_CLOSE(area, new_area, 1e-2);
@@ -746,7 +746,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         const auto& cells = vertex_model.get_am().cells();
         double area = 0.;
         for (const auto& c : cells) {
-            area += c->state.area_preferential;
+            area += c->state.area_preferential();
         }
 
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
@@ -756,7 +756,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         double new_area = 0.;
         for (const auto& c : cells) {
-            new_area += c->state.area_preferential;
+            new_area += c->state.area_preferential();
         }
         BOOST_CHECK_CLOSE(area, new_area, 1e-2);
 
@@ -779,7 +779,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         const auto& cells = vertex_model.get_am().cells();
         double area = 0.;
         for (const auto& c : cells) {
-            area += c->state.area_preferential;
+            area += c->state.area_preferential();
         }
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
@@ -788,7 +788,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         double new_area = 0.;
         for (const auto& c : cells) {
-            new_area += c->state.area_preferential;
+            new_area += c->state.area_preferential();
         }
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
@@ -811,9 +811,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         double area = 0.;
         double area_hc = 0;
         for (const auto& c : cells) {
-            area += c->state.area_preferential;
+            area += c->state.area_preferential();
             if (c->state.type == CellType::hair) {
-                area_hc += c->state.area_preferential;
+                area_hc += c->state.area_preferential();
             }
         }
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
@@ -823,9 +823,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         double new_area = 0.;
         double new_area_hc = 0;
         for (const auto& c : cells) {
-            new_area += c->state.area_preferential;
+            new_area += c->state.area_preferential();
             if (c->state.type == CellType::hair) {
-                new_area_hc += c->state.area_preferential;
+                new_area_hc += c->state.area_preferential();
             }
         }
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
@@ -850,9 +850,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         double area = 0.;
         double area_sc = 0;
         for (const auto& c : cells) {
-            area += c->state.area_preferential;
+            area += c->state.area_preferential();
             if (c->state.type == CellType::support) {
-                area_sc += c->state.area_preferential;
+                area_sc += c->state.area_preferential();
             }
         }
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
@@ -862,9 +862,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         double new_area = 0.;
         double new_area_sc = 0;
         for (const auto& c : cells) {
-            new_area += c->state.area_preferential;
+            new_area += c->state.area_preferential();
             if (c->state.type == CellType::support) {
-                new_area_sc += c->state.area_preferential;
+                new_area_sc += c->state.area_preferential();
             }
         }
         SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
@@ -1106,38 +1106,38 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         auto cell_support = cells[2];
         cell_support->state.type = CellType::support;
 
-        cell->state.area_preferential = 2. * am.area_of(cell);
-        cell_hair->state.area_preferential = 2. * am.area_of(cell_hair);
-        cell_support->state.area_preferential = 2. * am.area_of(cell_support);
+        cell->state._area_preferential = 2. * am.area_of(cell);
+        cell_hair->state._area_preferential = 2. * am.area_of(cell_hair);
+        cell_support->state._area_preferential = 2. * am.area_of(cell_support);
 
         operation(vertex_model);
 
         // A_0' / A = 2 - 0.1 * (A_0 / A - 1) = 1.9
-        BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell), 1.9,
-                          1e-8);
-        BOOST_CHECK_CLOSE((cell_hair->state.area_preferential
+        BOOST_CHECK_CLOSE(cell->state.area_preferential() / am.area_of(cell),
+                          1.9, 1e-8);
+        BOOST_CHECK_CLOSE((cell_hair->state.area_preferential()
                            / am.area_of(cell_hair)),
                           1.9, 1e-8);
-        BOOST_CHECK_CLOSE((  cell_support->state.area_preferential
+        BOOST_CHECK_CLOSE((  cell_support->state.area_preferential()
                            / am.area_of(cell_support)),
                           1.9, 1e-8);
 
                           
         // random cell for that A_0 is different from A
         // A_0 / A = 2
-        cell->state.area_preferential = 0.5 * am.area_of(cell);
+        cell->state._area_preferential = 0.5 * am.area_of(cell);
 
         operation(vertex_model);
 
         // A_0' / A = 0.5 - 0.1 * (A_0 / A - 1) = 0.55
-        BOOST_CHECK_CLOSE(cell->state.area_preferential / am.area_of(cell),
+        BOOST_CHECK_CLOSE(cell->state.area_preferential() / am.area_of(cell),
                           0.55, 1e-8);
 
         
-        // use minimum area preferential
-        cell->state.area_preferential = 100.;
-        cell_hair->state.area_preferential = 100.;
-        cell_support->state.area_preferential = 100.;
+        // use minimum area preferential    
+        cell->state._area_preferential = 100.;
+        cell_hair->state._area_preferential = 100.;
+        cell_support->state._area_preferential = 100.;
 
         const std::string name_min = "relax_area_minimum";
         auto [operation_min, params_min] = build_relax_area(
@@ -1146,14 +1146,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         operation_min(vertex_model);
 
         // relax instantly, but only to minimum
-        BOOST_CHECK_CLOSE(cell->state.area_preferential, 12., 1e-8);
-        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential, 18., 1e-8);
-        BOOST_CHECK_CLOSE(cell_support->state.area_preferential, 16., 1e-8);
+        BOOST_CHECK_CLOSE(cell->state.area_preferential(), 12., 1e-8);
+        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential(), 18., 1e-8);
+        BOOST_CHECK_CLOSE(cell_support->state.area_preferential(), 16., 1e-8);
         
         // use maximum area preferential
-        cell->state.area_preferential = 0.001;
-        cell_hair->state.area_preferential = 0.001;
-        cell_support->state.area_preferential = 0.001;
+        cell->state._area_preferential = 0.001;
+        cell_hair->state._area_preferential = 0.001;
+        cell_support->state._area_preferential = 0.001;
 
         const std::string name_max = "relax_area_maximum";
         auto [operation_max, params_max] = build_relax_area(
@@ -1162,9 +1162,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         operation_max(vertex_model);
 
         // relax instantly, but only to maximum
-        BOOST_CHECK_CLOSE(cell->state.area_preferential, 0.4, 1e-8);
-        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential, 0.3, 1e-8);
-        BOOST_CHECK_CLOSE(cell_support->state.area_preferential, 0.2, 1e-8);
+        BOOST_CHECK_CLOSE(cell->state.area_preferential(), 0.4, 1e-8);
+        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential(), 0.3, 1e-8);
+        BOOST_CHECK_CLOSE(cell_support->state.area_preferential(), 0.2, 1e-8);
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {
@@ -1182,7 +1182,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         std::vector<double> areas;
         areas.reserve(cells.size());
         for (const auto& cell : cells) {
-            areas.push_back(cell->state.area_preferential);
+            areas.push_back(cell->state.area_preferential());
         }
         auto [mean, stddev] = get_statistics(areas);
 
@@ -1205,10 +1205,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         for (const auto& cell : cells) {
         auto cell_hair = cells[0];
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
             else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();
@@ -1239,10 +1239,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs_partial.push_back(cell->state.area_preferential);
+                areas_HCs_partial.push_back(cell->state.area_preferential());
             }
             else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs_partial.shrink_to_fit();
@@ -1276,10 +1276,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
             else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();
@@ -1319,10 +1319,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
             else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();
@@ -1372,10 +1372,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         areas_SCs.reserve(cells.size());
         for (const auto& cell : cells) {
             if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential);
+                areas_HCs.push_back(cell->state.area_preferential());
             }
             else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential);
+                areas_SCs.push_back(cell->state.area_preferential());
             }
         }
         areas_HCs.shrink_to_fit();

@@ -297,11 +297,17 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
  
     apply_rule<Update::sync>(update_position, _am.vertices());
 
-    if (not adaptive_step and _distr_temperature.param().stddev() > 0) {
-        apply_rule<Update::sync>(update_brownian_motion, _am.vertices());
-    }
-    if (not adaptive_step and std::get<1>(_linetension_fluctuations) > 0) {
-        apply_rule<Update::sync>(update_lintension_ornstein, _am.edges());
+    if (not adaptive_step) {
+        if (_distr_temperature.param().stddev() > 0) {
+            apply_rule<Update::sync>(update_brownian_motion, _am.vertices());
+        }
+        if (std::get<1>(_linetension_fluctuations) > 0) {
+            apply_rule<Update::sync>(update_linetension_ornstein, _am.edges());
+        }
+        if (std::get<1>(_area_fluctuations) > 0) {
+            apply_rule<Update::sync>(update_area_preferential_ornstein,
+                                     _am.cells());
+        }
     }
 
     if (not adaptive_step) {
