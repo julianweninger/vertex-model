@@ -283,6 +283,11 @@ private:
                         build_enable_transitions(
                             name, op_cfg, _minimization_params));
                 }
+                else if (name == "evolve_area") {
+                    _operations.push_back(
+                        build_evolve_area(
+                            name, op_cfg, _minimization_params));
+                }
                 else if (name == "fix_boundary") {
                     _operations.push_back(
                         build_fix_boundary(name, op_cfg, _minimization_params));
