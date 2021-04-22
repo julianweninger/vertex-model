@@ -461,10 +461,16 @@ _cell_neighbourhood:
     set_labels:
       x: number of neighbours
       y: mean area
+    set_limits:
+      y: [0., 4.]
+      x: [4, 11]
   helpers_frame_shape_index:
     set_labels:
       x: number of neighbours
       y: mean shape index
+    set_limits:
+      x: [4, 11]
+      y: [3.54, 4.1]
 
   animation:
     enabled: true
