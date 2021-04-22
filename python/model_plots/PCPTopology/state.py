@@ -53,30 +53,63 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         ValueError: On mismatch of data shapes
     """
     
-    continuous_time = uni['data'][continuous_time_path]
-
-    if map_to_continuous_time:
-        times = ["%.0f" % continuous_time.sel(time=time) \
-                 for time in continuous_time.time]
-        ax1 = hlpr.ax.twiny()
-        ax1.set_xlim(hlpr.ax.get_xlim())
-        ax1.set_xticks(continuous_time.time)
-        ax1.set_xticklabels(times, rotation=90)
-        ax1.set_xlabel("Continuous time")
-
-    if map_to_discrete_time:
-        ax1 = hlpr.ax.twiny()
-        ax1.set_xlim(hlpr.ax.get_xlim())
-        ax1.set_xticks(continuous_time.data)
-        ax1.set_xticklabels(["%.0f" % time for time in continuous_time.time],
-                            rotation=90)
-
-        ax1.set_xlabel("Time of operations")
-
-    hlpr.select_axis(0, 0)
+    continuous_time = uni['data'][continuous_time_path].data
 
     transitions_base(dm, uni=uni, hlpr=hlpr, model_name=model_name,
                      **plot_kwargs)
+
+    if map_to_continuous_time:
+        ax = hlpr.ax
+
+        ax1 = ax.twiny()
+        ax1.set_xlim(ax.get_xlim())
+        
+        # use same ticks on both axis
+        ticks = ax.get_xticks()
+        ax1.set_xticks(ticks)
+
+        # the mapped times
+        cticks = []
+        for tick in ticks:
+            if round(tick) != tick:
+                cticks.append("")
+            else:
+                cticks.append("%.0f" % continuous_time.sel(time=tick))
+        print(continuous_time)
+        print(cticks)
+        ax1.set_xticklabels(cticks, rotation=90)
+        
+        ax1.set_xlabel("Continuous time")
+
+    if map_to_discrete_time:
+        ax = hlpr.ax
+
+        ax1 = ax.twiny()
+        
+        # reduce number of ticks
+        num_ticks = 15 * (1 -   continuous_time[0]
+                              / continuous_time[-1])
+        d_len = len(continuous_time)
+        slice_step = max(int(d_len/num_ticks), 1)
+        
+        # the continuous time for every operation, reduced in length
+        ctime = continuous_time[::slice_step]
+        
+        # the tick labels and where to place them
+        labels = ["%.0f" % time.time for time in ctime]
+        times = [time.data for time in ctime]
+
+        # append the last tick, for correct scaling
+        if times[-1] != continuous_time[-1]:
+            labels.append("%.0f" % continuous_time[-1].time)
+            times.append(continuous_time[-1])
+
+        ax1.set_xlim(ax.get_xlim())
+        
+        ax1.set_xticks(times)
+        ax1.set_xticklabels(labels, rotation=90)
+
+        ax1.set_xlabel("Time of operations")
 
     hlpr.fig.tight_layout()
 

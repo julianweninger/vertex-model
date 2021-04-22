@@ -25,6 +25,10 @@ transitions_continuous:
     - transitions
 
   model_name: PCPTopology/PCPVertex
+  
+  map_to_continuous_time: False
+  map_to_discrete_time: True
+
 
 # --- Average seeds -----------------------------------------------------------
 
