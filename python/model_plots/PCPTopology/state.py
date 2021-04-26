@@ -73,10 +73,10 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         for tick in ticks:
             if round(tick) != tick:
                 cticks.append("")
+            elif tick > continuous_time.time[-1]:
+                cticks.append("")
             else:
                 cticks.append("%.0f" % continuous_time.sel(time=tick))
-        print(continuous_time)
-        print(cticks)
         ax1.set_xticklabels(cticks, rotation=90)
         
         ax1.set_xlabel("Continuous time")
@@ -543,7 +543,11 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
         plot_std = plot_spec.pop('plot_std', True)
         plot_min_max = plot_spec.pop('plot_min_max', False)
         d = data[key]
-        prop = d.sel(property=property)
+        if property:
+            prop = d.sel(property=property)
+        else:
+            prop = d
+        
         if plot_std and (property + '__stddev') in d.property.data:
             std = d.sel(property=property+'__stddev')
         else:
