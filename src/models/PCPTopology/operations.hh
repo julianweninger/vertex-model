@@ -892,9 +892,8 @@ OperationBundle build_evolve_area (
             }
         }
 
-        PCPVertex::RuleFuncCell update = [vertex_model,
-                                          prog, hair, _support, increment]
-                (const auto& cell) mutable
+        PCPVertex::RuleFuncCell update = [prog, hair, _support, increment]
+                (const auto& cell)
         {
             auto state = cell->state;
             double A0 = state._area_preferential;
@@ -1924,18 +1923,26 @@ OperationBundle build_set_area (
             };
 
             auto state = cell->state;
+            double new_A = 0.;
+            double mean = 0.;
             if (state.type == CellType::progenitor and prog > 0.) {
-                state._area_preferential = new_area(prog, stddev_prog,
-                                                   dist_prog);
+                mean = prog;
+                new_A = new_area(prog, stddev_prog, dist_prog);
             }
             else if (state.type == CellType::hair and hair > 0.) {
-                state._area_preferential = new_area(hair, stddev_hair,
-                                                   dist_hair);
+                mean = hair;
+                new_A = new_area(hair, stddev_hair, dist_hair);
             }
             else if (state.type == CellType::support and support > 0.) {
-                state._area_preferential = new_area(support, stddev_support,
-                                                   dist_support);
+                mean = support;
+                new_A = new_area(support, stddev_support, dist_support);
             }
+
+            if (mean > 0.) {
+                state._area_preferential = mean;
+                state._area_preferential_fluctuations = new_A - mean;
+            }
+
             return state;
         };
         
