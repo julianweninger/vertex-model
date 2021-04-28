@@ -347,7 +347,7 @@ private:
 
     std::pair<double, double> _linetension_fluctuations;
 
-    std::pair<double, double> _area_fluctuations;
+    std::tuple<double, double, double> _area_fluctuations;
 
 
     // -- Mechanical parameters -----------------------------------------------
@@ -569,7 +569,7 @@ public:
         _distr_temperature(_default_minimization_params.temperature),
         _linetension_fluctuations(
             _default_minimization_params.linetension_fluctuations),
-        _area_fluctuations(std::make_pair(0., 0.)),
+        _area_fluctuations(std::make_tuple(0., 0., 0.)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -1272,10 +1272,12 @@ private:
         double tau = std::get<0>(this->_area_fluctuations);
         double dA = (  std::get<1>(this->_area_fluctuations)
                      * cell->state._area_preferential);
+        double A_min = std::get<2>(this->_area_fluctuations);
+        double tmp_A = cell->state.area_preferential() - A_min;
 
-        auto distr = get_lognormal_distribution(cell->state.area_preferential(),
-                                                dA);
-        double rn = distr(*this->_rng) - cell->state.area_preferential();
+        auto distr = get_lognormal_distribution(tmp_A, dA);
+        double rn = distr(*this->_rng) - tmp_A;
+        // NOTE the distribution has mean 0, min A_min, and stddev dA
         
         double rand_A = sqrt(2. * _dt / tau) * rn;
 
@@ -2060,8 +2062,10 @@ public:
         _boundary_param.stripe_curvature = kappa_max * rel_curvature;
     }
 
-    void set_area_fluctuations(double stddev, double tau = 1.) {
-        _area_fluctuations = std::make_pair(tau, stddev);
+    void set_area_fluctuations(double stddev, double tau = 1.,
+                               double A_min = 0.)
+    {
+        _area_fluctuations = std::make_tuple(tau, stddev, A_min);
     }
 
 

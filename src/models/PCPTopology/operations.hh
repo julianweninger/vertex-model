@@ -837,6 +837,7 @@ OperationBundle build_evolve_area (
 
     double stddev(get_as<double>("relative_stddev", cfg));
     double tau(get_as<double>("tau", cfg, 1.));
+    double A_min(get_as<double>("A_min", cfg, 0.));
 
     double prog(get_as<double>("progenitor", cfg, 0.));
     double hair(get_as<double>("hair", cfg, 0.));
@@ -858,7 +859,7 @@ OperationBundle build_evolve_area (
             "`relax_domain` and `relax_domain_PD_axis` can be true!");
     }
 
-    Operation operation = [prog, hair, support, stddev, tau, increment,
+    Operation operation = [prog, hair, support, stddev, tau, increment, A_min,
                            adapt_support, relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
     {
@@ -892,8 +893,9 @@ OperationBundle build_evolve_area (
             }
         }
 
-        PCPVertex::RuleFuncCell update = [prog, hair, _support, increment]
-                (const auto& cell)
+        PCPVertex::RuleFuncCell update = [prog, hair, _support, increment,
+                                          A_min]
+        (const auto& cell)
         {
             auto state = cell->state;
             double A0 = state._area_preferential;
@@ -912,9 +914,10 @@ OperationBundle build_evolve_area (
             if (increment) {
                 new_A0 += A0;
             }
-            if (new_A0 <= 0.) {
-                throw std::runtime_error("Cannot evolve preferential area, as "
-                    "target value is negative!");
+            if (new_A0 <= A_min) {
+                throw std::runtime_error(fmt::format("Cannot evolve "
+                    "preferential area, as target value is smaller than "
+                    "specified minimum area {}!", A_min));
             }
 
             double dA0 = new_A0 - A0;
@@ -928,7 +931,7 @@ OperationBundle build_evolve_area (
         
         apply_rule<Update::sync>(update, cells);
 
-        vertex_model.set_area_fluctuations(stddev, tau);
+        vertex_model.set_area_fluctuations(stddev, tau, A_min);
 
         if (relax_domain) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,
