@@ -29,6 +29,13 @@ transitions_continuous:
   map_to_continuous_time: False
   map_to_discrete_time: True
 
+equilibrium_cellular_structure:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+  universes:
+    seed: 0
+
 
 # --- Average seeds -----------------------------------------------------------
 
@@ -69,8 +76,72 @@ cell_area_mv: !pspace &Property_MV
     set_labels:
       x: time
       y: average area
+    set_limits:
+      x: [0, 300]
+      y: [0, 5.]
 
-cell_pref_area_mv: !pspace
+cell_area_ratio_mv: !pspace
+  <<: *Property_MV
+
+  to_plot: 
+    ratio:
+      label: ~
+
+  transform:
+    - div:
+      args: [!dag_tag hair_cells, !dag_tag support_cells]
+    - .squeeze:
+      args: [!dag_prev ]
+      tag: ratio
+
+  helpers:
+    set_labels:
+      x: time
+      y: area av HC / av SC
+    set_limits:
+      y: [0, 10.]
+
+cell_area_fraction_mv: !pspace
+  <<: *Property_MV
+
+  to_plot: 
+    fraction:
+      label: ~
+  average_dim: seed
+
+  transform:
+    - mul:
+      args: [0.26, 64]
+      tag: N_HC
+    - sub:
+      args: [64, !dag_tag N_HC]
+      tag: N_SC
+      
+    - mul:
+      args: [!dag_tag hair_cells, !dag_tag N_HC]
+      tag: hc_area
+    - mul:
+      args: [!dag_tag support_cells, !dag_tag N_SC]
+      tag: sc_area
+
+    - add:
+      args: [!dag_tag hc_area, !dag_tag sc_area]
+      tag: tot_area
+
+    - div:
+      args: [!dag_tag hc_area, !dag_tag tot_area]
+    - .squeeze:
+      args: [!dag_prev ]
+      tag: fraction
+
+  helpers:
+    set_labels:
+      x: time
+      y: area fraction covered by HCs
+    set_limits:
+      y: [0, 1.]
+
+cell_area_pref_mv: !pspace
   based_on: cell_area_mv
 
   property: area_preferential
@@ -79,6 +150,8 @@ cell_pref_area_mv: !pspace
     set_labels:
       x: time
       y: average pref. area
+    set_limits:
+      y: [0, 5.]
 
 cell_shape_mv: !pspace
   based_on: cell_area_mv
@@ -89,6 +162,8 @@ cell_shape_mv: !pspace
     set_labels:
       x: time
       y: average shape index
+    set_limits:
+      y: [3.72, 4.3]
 
 HC_neighbors_mv: !pspace
   <<: *Property_MV
@@ -107,6 +182,9 @@ HC_neighbors_mv: !pspace
     set_labels:
       x: time
       y: average hair cell neighbors
+    set_limits:
+      x: [0, 300]
+      y: [0., 3.2]
 
 neighbors_mv: !pspace
   based_on: HC_neighbors_mv
@@ -117,6 +195,9 @@ neighbors_mv: !pspace
     set_labels:
       x: time
       y: average neighbors
+    set_limits:
+      y: [3., 10.]
+
 
 
 hexatic_order_mv: !pspace
@@ -132,16 +213,138 @@ hexatic_order_mv: !pspace
     set_labels:
       x: time
       y: average hexatic_order
+    set_limits:
+      x: [0, 300]
+      y: [0., 1.]
+
 
 rotation_mv: !pspace
   based_on: hexatic_order_mv
 
   property: rotation
 
+  enabled: false
+
   helpers:
     set_labels:
       x: time
       y: average rotation
+
+
+neighbors_vs_area_mv: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - multiverse
+
+  module: model_plots.PCPTopology
+  plot_func: scatter_xy_data
+
+  plot_time_color_gradient: true
+  cmap: plasma
+
+  select_and_combine:
+    fields:
+      bulk_hair_cells:
+        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: area
+      bulk_support_cells:
+        path: data/PCPTopology/Statistics/Bulk_support_cell_stats
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: area
+      _y:
+        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: num_neighbors
+    subspace:
+      p0: !sweep
+        default: 3.62
+        values: [3.62, 3.72, 3.77, 3.81]
+        name: p0
+          
+  transform:
+    - .mean:
+      args: [!dag_tag bulk_hair_cells]
+      kwargs:
+        dim: seed
+      tag: mean_hcs
+    - .mean:
+      args: [!dag_tag bulk_support_cells]
+      kwargs:
+        dim: seed
+      tag: mean_scs
+    - div:
+      args: [!dag_tag mean_hcs, !dag_tag mean_scs]
+      tag: x
+    - .mean:
+      args: [!dag_tag _y]
+      kwargs:
+        dim: seed
+      tag: y
+
+
+  helpers:
+    set_labels:
+      x: area av HC / av SC
+      y: average hair cell neighbors
+    set_limits:
+      x: [1., 7.]
+      y: [5.5, 15]
+
+neighbors_vs_area_frac_mv: !pspace
+  based_on:
+    - neighbors_vs_area_mv
+      
+  transform:
+    - mul:
+      args: [0.26, 64]
+      tag: N_HC
+    - sub:
+      args: [1, !dag_tag N_HC]
+      tag: N_SC
+      
+    - mul:
+      args: [!dag_tag bulk_hair_cells, !dag_tag N_HC]
+      tag: hc_area
+    - mul:
+      args: [!dag_tag bulk_support_cells, !dag_tag N_SC]
+      tag: sc_area
+    - add:
+      args: [!dag_tag hc_area, !dag_tag sc_area]
+      tag: tot_area
+
+    - div:
+      args: [!dag_tag hc_area, !dag_tag tot_area]
+    - .mean:
+      args: [!dag_prev ]
+      kwargs:
+        dim: seed
+    - .squeeze:
+      args: [!dag_prev ]
+      tag: x
+
+    - .mean:
+      args: [!dag_tag _y]
+      kwargs:
+        dim: seed
+      tag: y
+
+  helpers:
+    set_labels:
+      x: area of HCs / total area
+      y: average hair cell neighbors
+    set_limits:
+      x: [0., 1.]
+      y: [4., 10]
 
 cell_neighbourhood_mv: !pspace
   based_on:
@@ -151,7 +354,12 @@ cell_neighbourhood_mv: !pspace
 
   stack_dims: [seed]
 
-  only_type: all
+  only_type: !sweep
+    default: all
+    values:
+      - all
+      - hair
+      - support
 
   select_and_combine:
     fields:
@@ -215,42 +423,42 @@ cell_area: &Property
           - .sel:
             args: [!dag_prev ]
             kwargs:
-              time: 1
+              time: &END_TIME 1
       hair_cells:
         path: data/PCPTopology/Statistics/Hair_cell_stats
         transform:
           - .sel:
             args: [!dag_prev ]
             kwargs:
-              time: 1
+              time: *END_TIME
       support_cells:
         path: data/PCPTopology/Statistics/Support_cell_stats
         transform:
           - .sel:
             args: [!dag_prev ]
             kwargs:
-              time: 1
+              time: *END_TIME
       bulk_cells:
         path: data/PCPTopology/Statistics/Bulk_cell_stats
         transform:
           - .sel:
             args: [!dag_prev ]
             kwargs:
-              time: 1
+              time: *END_TIME
       bulk_hair_cells:
         path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
         transform:
           - .sel:
             args: [!dag_prev ]
             kwargs:
-              time: 1
+              time: *END_TIME
       bulk_support_cells:
         path: data/PCPTopology/Statistics/Bulk_support_cell_stats
         transform:
           - .sel:
             args: [!dag_prev ]
             kwargs:
-              time: 1
+              time: *END_TIME
 
   property: area
   average_dim: seed
@@ -268,7 +476,68 @@ cell_area: &Property
       x: p0
       y: average area
 
-cell_pref_area:
+cell_area_ratio: !pspace
+  <<: *Property
+
+  to_plot: 
+    ratio:
+      label: ~
+
+  transform:
+    - div:
+      args: [!dag_tag hair_cells, !dag_tag support_cells]
+    - .squeeze:
+      args: [!dag_prev ]
+      tag: ratio
+
+  helpers:
+    set_labels:
+      x: time
+      y: area av HC / av SC
+    set_limits:
+      y: [0, 10.]
+
+cell_area_fraction: !pspace
+  <<: *Property
+
+  to_plot: 
+    fraction:
+      label: ~
+  average_dim: seed
+
+  transform:
+    - mul:
+      args: [0.26, 64]
+      tag: N_HC
+    - sub:
+      args: [64, !dag_tag N_HC]
+      tag: N_SC
+      
+    - mul:
+      args: [!dag_tag hair_cells, !dag_tag N_HC]
+      tag: hc_area
+    - mul:
+      args: [!dag_tag support_cells, !dag_tag N_SC]
+      tag: sc_area
+
+    - add:
+      args: [!dag_tag hc_area, !dag_tag sc_area]
+      tag: tot_area
+
+    - div:
+      args: [!dag_tag hc_area, !dag_tag tot_area]
+    - .squeeze:
+      args: [!dag_prev ]
+      tag: fraction
+
+  helpers:
+    set_labels:
+      x: time
+      y: area fraction covered by HCs
+    set_limits:
+      y: [0, 1.]
+
+cell_area_pref:
   based_on: cell_area
 
   property: area_preferential  
