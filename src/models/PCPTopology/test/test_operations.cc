@@ -1076,6 +1076,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         auto [operation, params] = build_proliferate(
             name, get_as<Config>(name, cfg), default_minim_params);
 
+        auto domain_0 = vertex_model.get_space()->get_domain_size();
+        double area_0 = domain_0[0] * domain_0[1];
+
         const auto time = vertex_model.get_time();
         const auto& cells = vertex_model.get_am().cells();
         const auto num_cells = cells.size();
@@ -1085,6 +1088,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_TEST(vertex_model.get_time() > time);
         BOOST_TEST(cells.size() == num_cells + 1);
         // NOTE the procedure of division itself is tested in PCPVertex
+
+
+        auto domain = vertex_model.get_space()->get_domain_size();
+        double area = domain[0] * domain[1];
+
+        if (vertex_model.get_space()->periodic) {
+            BOOST_CHECK_CLOSE(area - area_0, 1., 1.e-5);
+        }
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_relax_area)
@@ -1307,12 +1318,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         auto [operation, params] = build_set_area(
             name, get_as<Config>(name, cfg), default_minim_params);
 
+        const auto& cells = vertex_model.get_am().cells();
+
         SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
 
         op_diff(vertex_model);
         operation(vertex_model);
 
-        const auto& cells = vertex_model.get_am().cells();
         std::vector<double> areas_HCs;
         std::vector<double> areas_SCs;
         areas_HCs.reserve(cells.size());

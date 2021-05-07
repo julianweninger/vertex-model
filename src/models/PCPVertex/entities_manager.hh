@@ -315,7 +315,7 @@ public:
 
     auto length_of (const std::shared_ptr<Edge>& edge, double beta) const
     {
-        if (beta == 0) {
+        if (beta < 1.e-14) {
             return distance(edge->custom_links().a, edge->custom_links().b);
         }
         else {
@@ -392,7 +392,7 @@ public:
         else { reference = e->custom_links().b; }
 
         SpaceVec ref;
-        if (beta == 0.) {
+        if (beta < 1.e-14) {
             ref = position_of(reference);
         }
         else {
@@ -400,7 +400,7 @@ public:
         }
 
         double area = 0.;
-        if (beta == 0.) {
+        if (beta < 1.e-14) {
             for (const auto [e, flip] : boundary) {
                 SpaceVec a = position_of(e->custom_links().a);
                 SpaceVec b = position_of(e->custom_links().b);
@@ -436,7 +436,7 @@ public:
 
         if constexpr (not get_sign) {
             // With beta = 0, negative area not allowed
-            if (area < 0. and beta == 0.) {
+            if (area < 1.e-12 and beta < 1.e-12) {
                 throw std::runtime_error(fmt::format(
                     "Negative area ({}) of a boundary defining a cell with "
                     "{} edges!", area, boundary.size()));
@@ -517,7 +517,7 @@ public:
             center += (a + b) * da;
         }
         area /= 2;
-        if (area == 0) { area += 1e-12; }
+        if (area < 1.e-12) { area += 1e-12; }
         return _space->map_into_space(center / (6 * area));
     }
 

@@ -325,7 +325,7 @@ OperationBundle build_differentiate_random (
     double probability(get_as<double>("probability", cfg, 0.));
     double fraction(get_as<double>("fraction", cfg, 0.));
 
-    if (probability > 0 and fraction > 0) {
+    if (probability > 1.e-12 and fraction > 1.e-12) {
         throw std::invalid_argument(fmt::format(
             "In operation `differentiate random: "
             "Received probability and fraction > 0, choose either! "
@@ -353,7 +353,7 @@ OperationBundle build_differentiate_random (
 
     std::uniform_real_distribution<double> prob_distr(0., 1.);
 
-    if (fraction > 0) {
+    if (fraction > 1.e-12) {
         Operation operation = [fraction, prob_distr{std::move(prob_distr)}]
                 (PCPVertex& vertex_model) mutable
         {
@@ -849,7 +849,7 @@ OperationBundle build_evolve_area (
     bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
                                            cfg, false));
 
-    if (adapt_support and support > 0.) {
+    if (adapt_support and support > 1.e-12) {
         throw std::invalid_argument("In operation `evolve_area` with "
             "`adapt_support=true`, the `support` must be 0.");
     }
@@ -1799,7 +1799,7 @@ OperationBundle build_relax_area (
             // general maximum and minimum
             state._area_preferential = std::max(state._area_preferential,
                                                 minimum);
-            if (maximum > 0.) {
+            if (maximum > 1.e-12) {
                 state._area_preferential = std::min(state._area_preferential,
                                                     maximum);
             }
@@ -1808,7 +1808,7 @@ OperationBundle build_relax_area (
             if (state.type == CellType::hair) {
                 state._area_preferential = std::max(state._area_preferential,
                                                     minimum_HC);
-                if (maximum_HC > 0.) {
+                if (maximum_HC > 1.e-12) {
                     state._area_preferential = 
                         std::min(state._area_preferential, maximum_HC);
                 }
@@ -1817,7 +1817,7 @@ OperationBundle build_relax_area (
             else if (state.type == CellType::support) {
                 state._area_preferential = std::max(state._area_preferential,
                                                     minimum_SC);
-                if (maximum_SC > 0.) {
+                if (maximum_SC > 1.e-12) {
                     state._area_preferential = 
                         std::min(state._area_preferential, maximum_SC);
                 }
@@ -1893,13 +1893,13 @@ OperationBundle build_set_area (
         const auto& cells = am.cells();
 
         std::lognormal_distribution<> dist_prog, dist_hair, dist_support;
-        if (prog > 0.0 and stddev_prog > 0.) {
+        if (prog > 1.e-12 and stddev_prog > 1.e-12) {
             dist_prog = get_lognormal_distribution(prog, stddev_prog);
         }
-        if (hair > 0.0 and stddev_hair > 0.) {
+        if (hair > 1.e-12 and stddev_hair > 1.e-12) {
             dist_hair = get_lognormal_distribution(hair, stddev_hair);
         }
-        if (support > 0.0 and stddev_support > 0.) {
+        if (support > 1.e-12 and stddev_support > 1.e-12) {
             dist_support = get_lognormal_distribution(support, stddev_support);
         }
 
@@ -1917,7 +1917,7 @@ OperationBundle build_set_area (
                 [vertex_model](double mean, double stddev,
                                std::lognormal_distribution<>& distr)
             {
-                if (stddev > 0.) {
+                if (stddev > 1.e-12) {
                     return distr(*vertex_model.get_rng());
                 }
                 else {
@@ -1928,20 +1928,20 @@ OperationBundle build_set_area (
             auto state = cell->state;
             double new_A = 0.;
             double mean = 0.;
-            if (state.type == CellType::progenitor and prog > 0.) {
+            if (state.type == CellType::progenitor and prog > 1.e-12) {
                 mean = prog;
                 new_A = new_area(prog, stddev_prog, dist_prog);
             }
-            else if (state.type == CellType::hair and hair > 0.) {
+            else if (state.type == CellType::hair and hair > 1.e-12) {
                 mean = hair;
                 new_A = new_area(hair, stddev_hair, dist_hair);
             }
-            else if (state.type == CellType::support and support > 0.) {
+            else if (state.type == CellType::support and support > 1.e-12) {
                 mean = support;
                 new_A = new_area(support, stddev_support, dist_support);
             }
 
-            if (mean > 0.) {
+            if (mean > 1.e-12) {
                 state._area_preferential = mean;
                 state._area_preferential_fluctuations = new_A - mean;
             }
@@ -1954,7 +1954,7 @@ OperationBundle build_set_area (
         if (relax_domain) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
-                                return val + cell->state._area_preferential;
+                                return val + cell->state.area_preferential();
                             });
 
             PCPVertex::SpaceVec domain_size = 
@@ -1966,7 +1966,7 @@ OperationBundle build_set_area (
         else if (relax_domain_PD_axis) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
-                                return val + cell->state._area_preferential;
+                                return val + cell->state.area_preferential();
                             });
 
             PCPVertex::SpaceVec domain_size = 

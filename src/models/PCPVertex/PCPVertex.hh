@@ -137,7 +137,7 @@ struct MinimizationParams {
                 jiggle_tolerance, tolerance));
         }
 
-        if (    temperature.param().stddev() > 0
+        if (    temperature.param().stddev() > 1.e-12
             and update_scheme != UpdateScheme::SteepestGradient)
         {
             throw Utopia::KeyError("temperature", cfg, fmt::format("Random "
@@ -641,7 +641,7 @@ public:
         //         "cell_initialisation_protein_level", this->_cfg));
 
         double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
-        if (initial_jiggle > 0.) {
+        if (initial_jiggle > 1.e-12) {
             jiggle_vertices(initial_jiggle);
         }
         
@@ -732,7 +732,7 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
-        if (edge->state.linetension() == 0.) {
+        if (fabs(edge->state.linetension()) < 1.e-12) {
             return edge->state;
         }
 
@@ -761,7 +761,7 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        if (edge->state.contractility() == 0.) {
+        if (fabs(edge->state.contractility()) < 1.e-12) {
             return edge->state;
         }
 
@@ -941,7 +941,9 @@ private:
     void set_grad_boundary_area_elasticity
             (const OrderedEdgeContainer& boundary)
     {
-        if (_space->periodic or _boundary_param.area_elasticity == 0.) {
+        if (   _space->periodic
+            or fabs(_boundary_param.area_elasticity) < 1.e-12)
+        {
             return;
         }
 
@@ -997,7 +999,9 @@ private:
     void set_grad_boundary_shape_elasticity 
             (const OrderedEdgeContainer& boundary)
     {
-        if (_space->periodic or _boundary_param.shape_elasticity == 0.) {
+        if (   _space->periodic
+            or fabs(_boundary_param.shape_elasticity)< 1.e-12)
+        {
             return;
         }
 
@@ -1061,7 +1065,8 @@ private:
 
     /// Derivative of a quadratic boundary potential
     void set_grad_boundary_stripe () {
-        if (_space->periodic or _boundary_param.stripe_potential_constant == 0.)
+        if (   _space->periodic
+            or fabs(_boundary_param.stripe_potential_constant) < 1.e-12)
         {
             return;
         }
@@ -1509,7 +1514,7 @@ public:
         _dt = params.dt;
         _distr_temperature = params.temperature;
         _linetension_fluctuations = params.linetension_fluctuations;
-        if (std::get<1>(_linetension_fluctuations) == 0.) {
+        if (std::get<1>(_linetension_fluctuations) < 1.e-12) {
             for (const auto& e : _am.edges()) {
                 e->state._linetension_fluctuation = 0.;
             }
@@ -1527,7 +1532,7 @@ public:
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
             // jiggle vertices if required
-            if (params.jiggle_intensity > 0) {
+            if (params.jiggle_intensity > 1.e-12) {
                 _status = Status::Jiggled;
                 this->jiggle_vertices(params.jiggle_intensity);
                 this->increment_time();

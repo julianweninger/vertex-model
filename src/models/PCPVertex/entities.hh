@@ -263,7 +263,7 @@ struct CellState {
     {
         double area_preferential_var = get_as<double>("area_preferential_var",
                                                       cfg, 0.);
-        if (area_preferential_var > 0) {
+        if (area_preferential_var > 1.e-12) {
             auto dist = get_lognormal_distribution(_area_preferential,
                                                    area_preferential_var);
             _area_preferential_fluctuations = dist(*rng) - _area_preferential;

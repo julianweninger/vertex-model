@@ -82,10 +82,7 @@ parameter_space:
       agent_manager:
         setup_method: hexagonal
         setup_params:
-          single:
-            size: 0.62
           hexagonal:
-            hexagon_size: 0.62
             lattice_rows: 4
             lattice_columns: 4
         cell_manager:
