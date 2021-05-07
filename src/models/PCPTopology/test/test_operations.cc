@@ -885,7 +885,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         const auto& edges = am.edges();
 
         for (const auto& edge : edges) {
-            BOOST_TEST(edge->state.contractility == 0.11);
+            BOOST_TEST(edge->state.contractility() == 0.11);
         }
 
         auto [op_diff, params_diff] = build_differentiate_random(
@@ -903,16 +903,16 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             if (a->state.type == CellType::hair and
                 b->state.type == CellType::hair)
             {
-                BOOST_TEST(edge->state.contractility == 0.11);
+                BOOST_TEST(edge->state.contractility() == 0.11);
             }
             else if (a->state.type == CellType::support and
                      b->state.type == CellType::support)
             {
-                BOOST_TEST(edge->state.contractility == 0.11);
+                BOOST_TEST(edge->state.contractility() == 0.11);
             }
             else if (a->state.type != b->state.type)
             {
-                BOOST_TEST(edge->state.contractility == 0.11);
+                BOOST_TEST(edge->state.contractility() == 0.11);
             }
         }
 
@@ -925,16 +925,16 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             if (a->state.type == CellType::hair and
                 b->state.type == CellType::hair)
             {
-                BOOST_TEST(edge->state.contractility / 2 == 0.22);
+                BOOST_TEST(edge->state.contractility()/ 2 == 0.22);
             }
             else if (a->state.type == CellType::support and
                      b->state.type == CellType::support)
             {
-                BOOST_TEST(edge->state.contractility / 2 == 0.33);
+                BOOST_TEST(edge->state.contractility()/ 2 == 0.33);
             }
             else if (a->state.type != b->state.type)
             {
-                BOOST_TEST(edge->state.contractility / 2 == 0.23);
+                BOOST_TEST(edge->state.contractility()/ 2 == 0.23);
             }
         }
     }

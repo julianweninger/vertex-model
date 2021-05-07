@@ -55,7 +55,7 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    if (edge->state.contractility == 0.) {
+    if (edge->state.contractility() == 0.) {
         return 0.;
     }
 
@@ -70,7 +70,7 @@ double PCPVertex::edge_contractility_energy (
                                         _am.position_of(edge->custom_links().b));
     }
     
-    return 0.5 * edge->state.contractility * pow(length, 2);
+    return 0.5 * edge->state.contractility() * pow(length, 2);
 };
 
 /// The energy associated with area elasticity per cell

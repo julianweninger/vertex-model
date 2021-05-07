@@ -100,7 +100,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         cell->state._area_preferential = 0.314;
         cell->state.type = PCPVertex::CellType::support;
         cell->state.shape_index_preferential = 4.;
-        cell->state.contractility = 0.114;
+        cell->state._contractility = 0.114;
         model.divide_cell(cell, 0.);
 
         const auto cells_new = am.cells();

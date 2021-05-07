@@ -65,7 +65,18 @@ struct EdgeState {
     };
 
     /// The contractility parameter
-    double contractility;
+    double _contractility;
+
+    double contractility() const {
+        if (not contractility_on) {
+            return 0.;
+        }
+        else {
+            return _contractility;
+        }
+    }
+
+    bool contractility_on;
 
     /// The time T1 transition was last attempted
     /** 0 if never attempted */
@@ -94,7 +105,8 @@ struct EdgeState {
     :
         _linetension(get_as<double>("linetension", cfg)),
         _linetension_fluctuation(0.),
-        contractility(get_as<double>("contractility", cfg)),
+        _contractility(get_as<double>("contractility", cfg)),
+        contractility_on(true),
         last_T1_attempt(0),
         sigma_a(0.), sigma_b(0.),
         d_sigma_a(0.), d_sigma_b(0.),
@@ -105,7 +117,7 @@ struct EdgeState {
         Utopia::DataIO::Config cfg;
 
         cfg["linetension"] = _linetension;
-        cfg["contractility"] = contractility;
+        cfg["contractility"] = _contractility;
 
         return cfg;
     }

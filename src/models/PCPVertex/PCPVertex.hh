@@ -67,6 +67,17 @@ struct MinimizationParams {
      */
     std::pair<double, double> linetension_fluctuations;
 
+    /// How to evolve the activity of edge contractility
+    /** Defines the activation and deactivation rate of contractility on every
+     *  edge.
+     * 
+     * Global steady state density expected as
+     * \f$
+     *      \rho_c^\star = \frac{a}{a + b}
+     * \f$.
+     */
+    std::pair<double, double> contractility_activity;
+
     /// The number of jiggling the vertices
     /** \details The first jiggle is applied before the first minimization,
      *           then the energy is minimized up to `jiggle_tolerance`.
@@ -104,6 +115,12 @@ struct MinimizationParams {
             std::make_pair(
                 get_as<double>("linetension_fluctuation_tau", cfg, 1.),
                 get_as<double>("linetension_fluctuation", cfg, 0.)
+            )
+        ),
+        contractility_activity(
+            std::make_pair(
+                get_as<double>("contractility_activation", cfg, 1.),
+                get_as<double>("contractility_deactivation", cfg, 0.)
             )
         ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
@@ -150,6 +167,14 @@ struct MinimizationParams {
                     std::get<0>(defaults.linetension_fluctuations)),
                 get_as<double>("linetension_fluctuation", cfg,
                     std::get<1>(defaults.linetension_fluctuations))
+            )
+        ),
+        contractility_activity(
+            std::make_pair(
+                get_as<double>("contractility_activation", cfg,
+                    std::get<0>(defaults.contractility_activity)),
+                get_as<double>("contractility_deactivation", cfg,
+                    std::get<1>(defaults.contractility_activity))
             )
         ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
@@ -345,8 +370,15 @@ private:
      */
     std::normal_distribution<double> _distr_temperature;
 
+    /// The timescale and amplitude of Ornstein-Uhlenbeck fluctuations on
+    /// linetension
     std::pair<double, double> _linetension_fluctuations;
 
+    /// The activation and deactivation rate of edge contractility
+    std::pair<double, double> _contractility_activity;
+
+    /// The timescale, amplitude, and lower area limit of Ornstein-Uhlenbeck
+    /// fluctuations on preferential area using a lognormal distribution
     std::tuple<double, double, double> _area_fluctuations;
 
 
@@ -569,6 +601,8 @@ public:
         _distr_temperature(_default_minimization_params.temperature),
         _linetension_fluctuations(
             _default_minimization_params.linetension_fluctuations),
+        _contractility_activity(
+            _default_minimization_params.contractility_activity),
         _area_fluctuations(std::make_tuple(0., 0., 0.)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
@@ -727,14 +761,14 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        if (edge->state.contractility == 0.) {
+        if (edge->state.contractility() == 0.) {
             return edge->state;
         }
 
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
-        SpaceVec force = edge->state.contractility *
+        SpaceVec force = edge->state.contractility() *
                          this->_am.displacement(a, b);
 
         a->state.f += force;
@@ -1247,13 +1281,13 @@ private:
         return vertex->state;
     };
 
+    /// Update linetension fluctuation in an Ornstein-Uhlenbeck process
     const RuleFuncEdge update_linetension_ornstein =
     [this](const auto& edge)
     {
         double linetension = edge->state._linetension_fluctuation;
 
-        double tau = std::get<0>(this->_linetension_fluctuations);
-        double dL = std::get<1>(this->_linetension_fluctuations);
+        auto [tau, dL] = this->_linetension_fluctuations;
         
         double rand_l = dL * sqrt(2. * _dt / tau) * _normal_distr(*this->_rng);
 
@@ -1264,15 +1298,33 @@ private:
         return edge->state;
     };
 
+    const RuleFuncEdge update_edge_contractility =
+    [this](const auto& edge)
+    {
+        auto state = edge->state;
+
+        const auto [act, deact] = this->_contractility_activity;
+
+        if (not state.contractility_on) {
+            state.contractility_on = (_prob_distr(*this->_rng) < act);
+        }
+        else {
+            state.contractility_on = (_prob_distr(*this->_rng) > deact);
+        }
+
+        return state;
+    };
+
+    /// Update area preferential fluctuation in an Ornstein-Uhlenbeck process
+    /** \note A^(0) > 0 required. Hence using a lognormal distribution enforcing
+     *        A^(0) > A_min
+     */
     const RuleFuncCell update_area_preferential_ornstein =
     [this](const auto& cell)
     {
         double A0 = cell->state._area_preferential_fluctuations;
 
-        double tau = std::get<0>(this->_area_fluctuations);
-        double dA = (  std::get<1>(this->_area_fluctuations)
-                     * cell->state._area_preferential);
-        double A_min = std::get<2>(this->_area_fluctuations);
+        auto [tau, dA, A_min] = this->_area_fluctuations;
         double tmp_A = cell->state.area_preferential() - A_min;
 
         auto distr = get_lognormal_distribution(tmp_A, dA);
@@ -1460,6 +1512,12 @@ public:
         if (std::get<1>(_linetension_fluctuations) == 0.) {
             for (const auto& e : _am.edges()) {
                 e->state._linetension_fluctuation = 0.;
+            }
+        }
+        _contractility_activity = params.contractility_activity;
+        if (std::get<1>(_contractility_activity) < 1.e-10) {
+            for (const auto& e : _am.edges()) {
+                e->state.contractility_on = true;
             }
         }
 
@@ -1933,7 +1991,7 @@ public:
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
                 if (a and b) {
-                    state.contractility = this->_edge_contractility(
+                    state._contractility = this->_edge_contractility(
                         a->state.type, b->state.type);
                 }
                 return state;
