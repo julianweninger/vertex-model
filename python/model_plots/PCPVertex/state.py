@@ -431,8 +431,4 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # end update here
             yield
 
-            # remove colorbar
-            if property:
-                cbar.remove()
-
     hlpr.register_animation_update(update)
