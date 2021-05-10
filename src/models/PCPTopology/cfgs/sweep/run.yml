@@ -66,6 +66,13 @@ parameter_space:
             mode: manual
       # END differentiation
 
+      - jiggle: 
+          times: [1]
+          minimization:
+            jiggle_intensity: 1.e-1
+            num_repeat: 2
+            tolerance: 1.e-8
+            jiggle_tolerance: 1.e-6
     PCPVertex:
       log_level: warning
 
@@ -75,10 +82,7 @@ parameter_space:
       agent_manager:
         setup_method: hexagonal
         setup_params:
-          single:
-            size: 0.62
           hexagonal:
-            hexagon_size: 0.62
             lattice_rows: 4
             lattice_columns: 4
         cell_manager:

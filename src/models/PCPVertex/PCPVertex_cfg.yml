@@ -26,9 +26,9 @@ agent_manager:
   setup_method: hexagonal
   setup_params:
     single:
-      size: 0.62
+      size: !expr (2 / 3**1.5)**0.5
     hexagonal:
-      hexagon_size: 0.62
+      hexagon_size: !expr (2 / 3**1.5)**0.5
       lattice_rows: 4
       lattice_columns: 4
   vertex_manager: ~

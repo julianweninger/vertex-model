@@ -89,6 +89,54 @@ cell_area:
       x: time
       y: average area
 
+cell_area_ratio:
+  based_on:
+    - .default_style_and_helpers
+    - universe
+    - cell_property
+    - select_cells
+
+  to_plot: 
+    ratio:
+      label: data
+      plot_std: false
+
+  property: ~
+
+  transform:
+    - .sel:
+      args: [!dag_tag hair_cells]
+      kwargs:
+        property: area
+      tag: hair_area
+    - .sel:
+      args: [!dag_tag hair_cells]
+      kwargs:
+        property: area__stddev
+    - div:
+      args: [!dag_prev , !dag_tag hair_area]
+      tag: hair_area__stddev
+    - .sel:
+      args: [!dag_tag support_cells]
+      kwargs:
+        property: area
+      tag: support_area
+    - .sel:
+      args: [!dag_tag support_cells]
+      kwargs:
+        property: area__stddev
+    - div:
+      args: [!dag_prev , !dag_tag support_area]
+      tag: support_area__stddev
+    - div:
+      args: [!dag_tag hair_area, !dag_tag support_area]
+      tag: ratio
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
 cell_pref_area:
   based_on: cell_area
 
@@ -368,8 +416,48 @@ cellular_structure__property: !pspace
     cmap: Reds
 
 cell_neighbourhood: !pspace
-  based_on: cell_neighbourhood
-  
+  based_on:
+    - .default_style_and_helpers
+    - universe
+    - _cell_neighbourhood
+
+  select: &select_cell_neighbourhood
+    area:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: area
+    cell_type:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: cell_type
+    shape_index:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: shape_index
+    num_neighbors:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: num_neighbors
+    num_hair_neighbors:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: num_hair_neighbors
+
   only_type: !sweep
     default: all
     values:
@@ -404,3 +492,5 @@ NotchDelta_densities:
       y: density
     set_limits:
       y: [0,1.]
+
+    

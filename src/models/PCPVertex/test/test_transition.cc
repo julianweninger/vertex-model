@@ -97,8 +97,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         }
 
         // set arbitrary values and check inheritance
-        cell->state.area_preferential = 0.314;
-        cell->state.area_preferential_var = 0.;
+        cell->state._area_preferential = 0.314;
         cell->state.type = PCPVertex::CellType::support;
         cell->state.shape_index_preferential = 4.;
         cell->state.contractility = 0.114;
@@ -115,10 +114,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         for (auto new_cell : {cells_new[cells_new.size() - 2],
                               cells_new[cells_new.size() - 1]})
         {
-            BOOST_TEST(new_cell->state.area_preferential
-                       ==  cell->state.area_preferential);
-            BOOST_TEST(new_cell->state.area_preferential_var
-                       ==  cell->state.area_preferential_var);
+            BOOST_TEST(new_cell->state.area_preferential()
+                       ==  cell->state.area_preferential());
             BOOST_TEST(new_cell->state.type
                        ==  cell->state.type);
             BOOST_TEST(new_cell->state.shape_index_preferential
@@ -180,7 +177,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                 return val + c->custom_links().edges.size();
             }) - adj_a_num_es - adj_b_num_es;
 
-        edge->state.linetension = 200.;
+        edge->state._linetension = 200.;
 
         // move both vertices to the center of the edge
         auto a = edge->custom_links().a;
@@ -291,7 +288,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
 
-        edge->state.linetension = 200.;
+        edge->state._linetension = 200.;
 
         // information to identify new objects
         const std::size_t max_edge_id = (*std::max_element(edges.begin(),
@@ -429,7 +426,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
 
-        edge->state.linetension = 200.;
+        edge->state._linetension = 200.;
 
         // information to identify new objects
         const std::size_t max_vertex_id = (*std::max_element(vertices.begin(),
@@ -503,7 +500,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         for (int i = 0; i < 9; i++) {
             if (not cell) { break; }
 
-            cell->state.area_preferential -= 0.1;
+            cell->state._area_preferential -= 0.1;
             
             for (int i = 0; i < 250; i++) {
                 model.iterate();
@@ -511,7 +508,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         }
 
         if (cell) {
-            cell->state.area_preferential -= 0.075;
+            cell->state._area_preferential -= 0.075;
             
             for (int i = 0; i < 10; i++) {
                 model.iterate();
@@ -556,7 +553,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         for (int i = 0; i < 9; i++) {
             if (not cell) { break; }
 
-            cell->state.area_preferential -= 0.1;
+            cell->state._area_preferential -= 0.1;
             
             for (int i = 0; i < 250; i++) {
                 model.iterate();
@@ -564,7 +561,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         }
 
         if (cell) {
-            cell->state.area_preferential -= 0.075;
+            cell->state._area_preferential -= 0.075;
             
             for (int i = 0; i < 10; i++) {
                 model.iterate();

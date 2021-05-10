@@ -1,6 +1,8 @@
 #ifndef UTOPIA_MODELS_PCPVERTEX_ENTITIES_HH
 #define UTOPIA_MODELS_PCPVERTEX_ENTITIES_HH
 
+#include "utils.hh"
+
 namespace Utopia::Models::PCPVertex {
 
 /// The Vertex
@@ -51,11 +53,30 @@ struct VertexState {
  *  have only one.
  */
 struct EdgeState {
-    /// The linetension parameter property to this edge
-    double linetension;
+    /// The linetension parameter
+    double _linetension;
+
+    /// Fluctuations to the linetension parameter (Ornstein-Uhlenbeck process)
+    double _linetension_fluctuation;
+
+    /// The linetension property to this edge
+    double linetension() const { 
+        return _linetension + _linetension_fluctuation;
+    };
 
     /// The contractility parameter
-    double contractility;
+    double _contractility;
+
+    double contractility() const {
+        if (not contractility_on) {
+            return 0.;
+        }
+        else {
+            return _contractility;
+        }
+    }
+
+    bool contractility_on;
 
     /// The time T1 transition was last attempted
     /** 0 if never attempted */
@@ -82,13 +103,24 @@ struct EdgeState {
      */
     EdgeState (const Utopia::DataIO::Config& cfg)
     :
-        linetension(get_as<double>("linetension", cfg)),
-        contractility(get_as<double>("contractility", cfg)),
+        _linetension(get_as<double>("linetension", cfg)),
+        _linetension_fluctuation(0.),
+        _contractility(get_as<double>("contractility", cfg)),
+        contractility_on(true),
         last_T1_attempt(0),
         sigma_a(0.), sigma_b(0.),
         d_sigma_a(0.), d_sigma_b(0.),
         remove(false)
     { }
+
+    Utopia::DataIO::Config get_cfg() const {
+        Utopia::DataIO::Config cfg;
+
+        cfg["linetension"] = _linetension;
+        cfg["contractility"] = _contractility;
+
+        return cfg;
+    }
 };
 
 
@@ -142,12 +174,14 @@ struct CellState {
     } type;
 
     /// The preferential area of the cell
-    /** In absolute coordinates
-     */
-    double area_preferential;
+    double _area_preferential;
 
-    /// The variance of the area preferential
-    double area_preferential_var;
+    /// Fluctuation of the A0 parameter (Ornstein-Uhlenbeck process)
+    double _area_preferential_fluctuations;
+
+    double area_preferential () const {
+        return _area_preferential + _area_preferential_fluctuations;
+    }
 
     /// The reference shape index
     double shape_index_preferential;
@@ -174,8 +208,7 @@ struct CellState {
     /// Create a config from the cell's properties
     DataIO::Config create_cfg_from_props () const {
         DataIO::Config cfg;
-        cfg["area_preferential"] = area_preferential;
-        cfg["area_preferential_var"] = area_preferential_var;
+        cfg["area_preferential"] = _area_preferential;
         cfg["shape_index_preferential"] = shape_index_preferential;
         cfg["contractility"] = contractility;
         cfg["protein_concentration"] = protein_concentration;
@@ -218,8 +251,8 @@ struct CellState {
                const std::shared_ptr<RNGType>& rng)
     :
         type(setup_type(cfg)),
-        area_preferential(get_as<double>("area_preferential", cfg)),
-        area_preferential_var(get_as<double>("area_preferential_var", cfg, 0.)),
+        _area_preferential(get_as<double>("area_preferential", cfg)),
+        _area_preferential_fluctuations(0.),
         shape_index_preferential(get_as<double>("shape_index_preferential",
                                  cfg)),
         contractility(get_as<double>("contractility", cfg)),
@@ -228,23 +261,20 @@ struct CellState {
         protein_concentration(get_as<double>("protein_concentration", cfg, 0.)),
         remove(false)
     {
-        if (area_preferential_var > 0) {
-            std::normal_distribution<> dist{area_preferential,
-                                            area_preferential_var};
-            area_preferential = dist(*rng);
-
-            // give it another try
-            if (area_preferential <= 0.) {
-                area_preferential = dist(*rng);
-            }
+        double area_preferential_var = get_as<double>("area_preferential_var",
+                                                      cfg, 0.);
+        if (area_preferential_var > 1.e-12) {
+            auto dist = get_lognormal_distribution(_area_preferential,
+                                                   area_preferential_var);
+            _area_preferential_fluctuations = dist(*rng) - _area_preferential;
         }
 
         // give it another try, but negative area_preferential wont work ..
-        if (area_preferential <= 0.)
+        if (area_preferential() <= 0.)
         {
             throw std::invalid_argument(fmt::format("Cannot construct a cell "
                 "with negative or 0 preferential area! Received preferential "
-                "area: {}", area_preferential));
+                "area: {}", area_preferential()));
         }
         if (shape_index_preferential <= 0.) {
             throw std::invalid_argument(fmt::format("Cannot construct a cell "

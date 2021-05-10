@@ -11,8 +11,48 @@ equilibrium_cellular_structure:
   based_on: cellular_structure
 
 cell_neighbourhood: !pspace
-  based_on: cell_neighbourhood
-  
+  based_on:
+    - .default_style_and_helpers
+    - universe
+    - _cell_neighbourhood
+
+  select: &select_cell_neighbourhood
+    area:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: area
+    cell_type:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: cell_type
+    shape_index:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: shape_index
+    num_neighbors:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: num_neighbors
+    num_hair_neighbors:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: num_hair_neighbors
+
   only_type: !sweep
     default: all
     values:
@@ -20,6 +60,7 @@ cell_neighbourhood: !pspace
       - hair
       - support
       - support_hair
+      - hair_hair
 
 Collier_densities:
   based_on: .basic_uni.lineplots

@@ -19,6 +19,7 @@
 #include "entities_manager.hh"
 #include "initialisation.hh"
 #include "transitions.hh"
+#include "utils.hh"
 
 namespace Utopia {
 namespace Models {
@@ -53,6 +54,30 @@ struct MinimizationParams {
      */
     std::normal_distribution<double> temperature;
 
+    /// Linetension fluctuation parameter
+    /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
+     * 
+     *  \f$  \frac{d\Lambda_{mn}}{dt} = - \frac{1}{\tau_\Lambda}
+     *      (\Lambda_{mn}(t) - \Lambda_0)
+     *      + \Delta \Lambda \sqrt{2 / \tau_\Lambda} \Theta_{mn}(t)
+     *  \f$
+     * 
+     *  with the first value \f$ \tau \f$ and the second value
+     *  \f$ \Delta \Lambda \f$.
+     */
+    std::pair<double, double> linetension_fluctuations;
+
+    /// How to evolve the activity of edge contractility
+    /** Defines the activation and deactivation rate of contractility on every
+     *  edge.
+     * 
+     * Global steady state density expected as
+     * \f$
+     *      \rho_c^\star = \frac{a}{a + b}
+     * \f$.
+     */
+    std::pair<double, double> contractility_activity;
+
     /// The number of jiggling the vertices
     /** \details The first jiggle is applied before the first minimization,
      *           then the energy is minimized up to `jiggle_tolerance`.
@@ -86,6 +111,18 @@ struct MinimizationParams {
         max_steps(get_as<std::size_t>("max_steps", cfg)),
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
         temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.))),
+        linetension_fluctuations(
+            std::make_pair(
+                get_as<double>("linetension_fluctuation_tau", cfg, 1.),
+                get_as<double>("linetension_fluctuation", cfg, 0.)
+            )
+        ),
+        contractility_activity(
+            std::make_pair(
+                get_as<double>("contractility_activation", cfg, 1.),
+                get_as<double>("contractility_deactivation", cfg, 0.)
+            )
+        ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg, tolerance)),
         jiggle_intensity(get_as<double>("jiggle_intensity", cfg, 0.))
@@ -100,7 +137,7 @@ struct MinimizationParams {
                 jiggle_tolerance, tolerance));
         }
 
-        if (    temperature.param().stddev() > 0
+        if (    temperature.param().stddev() > 1.e-12
             and update_scheme != UpdateScheme::SteepestGradient)
         {
             throw Utopia::KeyError("temperature", cfg, fmt::format("Random "
@@ -124,6 +161,22 @@ struct MinimizationParams {
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
         temperature(0., 0.),
+        linetension_fluctuations(
+            std::make_pair(
+                get_as<double>("linetension_fluctuation_tau", cfg,
+                    std::get<0>(defaults.linetension_fluctuations)),
+                get_as<double>("linetension_fluctuation", cfg,
+                    std::get<1>(defaults.linetension_fluctuations))
+            )
+        ),
+        contractility_activity(
+            std::make_pair(
+                get_as<double>("contractility_activation", cfg,
+                    std::get<0>(defaults.contractility_activity)),
+                get_as<double>("contractility_deactivation", cfg,
+                    std::get<1>(defaults.contractility_activity))
+            )
+        ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
                                         defaults.jiggle_tolerance)),
@@ -317,6 +370,17 @@ private:
      */
     std::normal_distribution<double> _distr_temperature;
 
+    /// The timescale and amplitude of Ornstein-Uhlenbeck fluctuations on
+    /// linetension
+    std::pair<double, double> _linetension_fluctuations;
+
+    /// The activation and deactivation rate of edge contractility
+    std::pair<double, double> _contractility_activity;
+
+    /// The timescale, amplitude, and lower area limit of Ornstein-Uhlenbeck
+    /// fluctuations on preferential area using a lognormal distribution
+    std::tuple<double, double, double> _area_fluctuations;
+
 
     // -- Mechanical parameters -----------------------------------------------
 
@@ -456,10 +520,13 @@ private:
 
     /// Interaction parameter of cell-internal polarity interaction
     double _cell_polarity_exclusion;
-    
+
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
+
+    /// A [0,1]-range uniform distribution used for evaluating probabilities
+    std::normal_distribution<double> _normal_distr;
 
     // .. Temporary objects ...................................................
 protected:
@@ -532,6 +599,11 @@ public:
         _update_scheme(_default_minimization_params.update_scheme),
         _minimization_tolerance(_default_minimization_params.tolerance),
         _distr_temperature(_default_minimization_params.temperature),
+        _linetension_fluctuations(
+            _default_minimization_params.linetension_fluctuations),
+        _contractility_activity(
+            _default_minimization_params.contractility_activity),
+        _area_fluctuations(std::make_tuple(0., 0., 0.)),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -554,6 +626,7 @@ public:
         _cell_polarity_exclusion(get_as<double>(
             "cell_polarity_exclusion", this->_cfg)),
         _prob_distr(0.,1.),
+        _normal_distr(0.,1.),
         _energy_previous_step(std::numeric_limits<double>::max()),
         _energy(0.),
         _num_T1s(0),
@@ -568,7 +641,7 @@ public:
         //         "cell_initialisation_protein_level", this->_cfg));
 
         double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
-        if (initial_jiggle > 0.) {
+        if (initial_jiggle > 1.e-12) {
             jiggle_vertices(initial_jiggle);
         }
         
@@ -659,7 +732,7 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
-        if (edge->state.linetension == 0.) {
+        if (fabs(edge->state.linetension()) < 1.e-12) {
             return edge->state;
         }
 
@@ -669,7 +742,7 @@ private:
         SpaceVec displ = this->_am.displacement(a, b);
         auto length = arma::norm(displ);
 
-        SpaceVec force = edge->state.linetension * displ / length;
+        SpaceVec force = edge->state.linetension() * displ / length;
 
         a->state.f += force;
         b->state.f -= force;
@@ -688,14 +761,14 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        if (edge->state.contractility == 0.) {
+        if (fabs(edge->state.contractility()) < 1.e-12) {
             return edge->state;
         }
 
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
-        SpaceVec force = edge->state.contractility *
+        SpaceVec force = edge->state.contractility() *
                          this->_am.displacement(a, b);
 
         a->state.f += force;
@@ -718,7 +791,7 @@ private:
         const auto state = cell->state;
 
         const auto rel_cell_area = (  this->_am.area_of(cell)
-                                    / state.area_preferential);
+                                    / state.area_preferential());
         const SpaceVec cell_center = this->_am.barycenter_of(cell);
         
         const auto& edges = cell->custom_links().edges;
@@ -763,7 +836,7 @@ private:
 
             SpaceVec force = (  -1. * this->_area_elasticity
                               * (rel_cell_area - 1) * dA_dx
-                              / state.area_preferential);
+                              / state.area_preferential());
 
             v_center->state.f += force;
         }
@@ -868,7 +941,9 @@ private:
     void set_grad_boundary_area_elasticity
             (const OrderedEdgeContainer& boundary)
     {
-        if (_space->periodic or _boundary_param.area_elasticity == 0.) {
+        if (   _space->periodic
+            or fabs(_boundary_param.area_elasticity) < 1.e-12)
+        {
             return;
         }
 
@@ -924,7 +999,9 @@ private:
     void set_grad_boundary_shape_elasticity 
             (const OrderedEdgeContainer& boundary)
     {
-        if (_space->periodic or _boundary_param.shape_elasticity == 0.) {
+        if (   _space->periodic
+            or fabs(_boundary_param.shape_elasticity)< 1.e-12)
+        {
             return;
         }
 
@@ -988,7 +1065,8 @@ private:
 
     /// Derivative of a quadratic boundary potential
     void set_grad_boundary_stripe () {
-        if (_space->periodic or _boundary_param.stripe_potential_constant == 0.)
+        if (   _space->periodic
+            or fabs(_boundary_param.stripe_potential_constant) < 1.e-12)
         {
             return;
         }
@@ -1208,6 +1286,65 @@ private:
         return vertex->state;
     };
 
+    /// Update linetension fluctuation in an Ornstein-Uhlenbeck process
+    const RuleFuncEdge update_linetension_ornstein =
+    [this](const auto& edge)
+    {
+        double linetension = edge->state._linetension_fluctuation;
+
+        auto [tau, dL] = this->_linetension_fluctuations;
+        
+        double rand_l = dL * sqrt(2. * _dt / tau) * _normal_distr(*this->_rng);
+
+        linetension += rand_l - _dt / tau * linetension;
+
+        edge->state._linetension_fluctuation = linetension;
+        
+        return edge->state;
+    };
+
+    const RuleFuncEdge update_edge_contractility =
+    [this](const auto& edge)
+    {
+        auto state = edge->state;
+
+        const auto [act, deact] = this->_contractility_activity;
+
+        if (not state.contractility_on) {
+            state.contractility_on = (_prob_distr(*this->_rng) < act);
+        }
+        else {
+            state.contractility_on = (_prob_distr(*this->_rng) > deact);
+        }
+
+        return state;
+    };
+
+    /// Update area preferential fluctuation in an Ornstein-Uhlenbeck process
+    /** \note A^(0) > 0 required. Hence using a lognormal distribution enforcing
+     *        A^(0) > A_min
+     */
+    const RuleFuncCell update_area_preferential_ornstein =
+    [this](const auto& cell)
+    {
+        double A0 = cell->state._area_preferential_fluctuations;
+
+        auto [tau, dA, A_min] = this->_area_fluctuations;
+        double tmp_A = cell->state.area_preferential() - A_min;
+
+        auto distr = get_lognormal_distribution(tmp_A, dA);
+        double rn = distr(*this->_rng) - tmp_A;
+        // NOTE the distribution has mean 0, min A_min, and stddev dA
+        
+        double rand_A = sqrt(2. * _dt / tau) * rn;
+
+        A0 += rand_A - _dt / tau * A0;
+
+        cell->state._area_preferential_fluctuations = A0;
+        
+        return cell->state;
+    };
+
     /** The update of polarity protein levels
      * 
      *  Change polarity level proportional to the gradient of energy (force)
@@ -1372,12 +1509,30 @@ public:
                           time_0, params.num_repeat);
         _status = Status::Minimization;
 
+
+        _update_scheme = params.update_scheme;
+        _dt = params.dt;
+        _distr_temperature = params.temperature;
+        _linetension_fluctuations = params.linetension_fluctuations;
+        if (std::get<1>(_linetension_fluctuations) < 1.e-12) {
+            for (const auto& e : _am.edges()) {
+                e->state._linetension_fluctuation = 0.;
+            }
+        }
+        _contractility_activity = params.contractility_activity;
+        if (std::get<1>(_contractility_activity) < 1.e-10) {
+            for (const auto& e : _am.edges()) {
+                e->state.contractility_on = true;
+            }
+        }
+
+
         const double energy_after_perturbation = this->get_energy();
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
             // jiggle vertices if required
-            if (params.jiggle_intensity > 0) {
+            if (params.jiggle_intensity > 1.e-12) {
                 _status = Status::Jiggled;
                 this->jiggle_vertices(params.jiggle_intensity);
                 this->increment_time();
@@ -1395,10 +1550,7 @@ public:
             bool minimum_reached = false;
 
             this->init_minimization();
-
-            _update_scheme = params.update_scheme;
             _dt = params.dt;
-            _distr_temperature = params.temperature;
 
             double tolerance;
             if (i+1 == params.num_repeat) {
@@ -1805,7 +1957,7 @@ public:
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
                 if (a and b) {
-                    state.linetension = this->_linetension(a->state.type,
+                    state._linetension = this->_linetension(a->state.type,
                                                            b->state.type);
                 }
                 return state;
@@ -1844,7 +1996,7 @@ public:
                 auto state = edge->state;
                 const auto& [a, b] = this->_am.adjoints_of(edge);
                 if (a and b) {
-                    state.contractility = this->_edge_contractility(
+                    state._contractility = this->_edge_contractility(
                         a->state.type, b->state.type);
                 }
                 return state;
@@ -1971,6 +2123,12 @@ public:
                                          fabs(min_x - origin_x));
 
         _boundary_param.stripe_curvature = kappa_max * rel_curvature;
+    }
+
+    void set_area_fluctuations(double stddev, double tau = 1.,
+                               double A_min = 0.)
+    {
+        _area_fluctuations = std::make_tuple(tau, stddev, A_min);
     }
 
 

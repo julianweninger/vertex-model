@@ -25,7 +25,7 @@ void PCPVertex::jiggle_vertices(double intensity)
     else {
         domain_area = 0.;
         for (const auto& c : this->_am.cells()) {
-            domain_area += c->state.area_preferential;
+            domain_area += c->state.area_preferential();
         }
     }
     intensity *= sqrt(domain_area / num_cells);
@@ -128,7 +128,7 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
         const RuleFuncCell compensate_dA = [dA](const auto& cell) {
             auto state = cell->state;
             if (state.type != CellType::hair) {
-                state.area_preferential += dA;
+                state._area_preferential += dA;
             }
             return state;
         };
@@ -144,7 +144,7 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
         const RuleFuncCell compensate_dA = [dA](const auto& cell) {
             auto state = cell->state;
             if (state.type != CellType::support) {
-                state.area_preferential += dA;
+                state._area_preferential += dA;
             }
             return state;
         };
@@ -154,7 +154,7 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
         const auto num_cells = cells.size();
         double dA = area_change / num_cells;
         const RuleFuncCell compensate_dA = [dA](const auto& cell) {
-            cell->state.area_preferential += dA;
+            cell->state._area_preferential += dA;
             return cell->state;
         };
         apply_rule<Update::sync>(compensate_dA, cells);

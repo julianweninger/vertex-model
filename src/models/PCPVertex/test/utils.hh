@@ -108,9 +108,9 @@ void test_custom_links_periodic(PCPVertex& model) {
 
         double area = am.area_of(c);
         BOOST_TEST(not isnan(area));
-        BOOST_TEST(area > 0);
+        BOOST_TEST(area > 1.e-12);
 
-        BOOST_TEST(am.perimeter_of(c) > 0.);
+        BOOST_TEST(am.perimeter_of(c) > 1.e-12);
         
         const auto& edges = c->custom_links().edges;
         const auto& vertices = c->custom_links().vertices;
@@ -245,9 +245,9 @@ void test_custom_links_non_periodic(PCPVertex& model) {
         // test the cell
         double area = am.area_of(c);
         BOOST_TEST(not isnan(area));
-        BOOST_TEST(area > 0);
+        BOOST_TEST(area > 1.e-12);
 
-        BOOST_TEST(am.perimeter_of(c) > 0.);
+        BOOST_TEST(am.perimeter_of(c) > 1.e-12);
 
         // test vertices
         BOOST_TEST(vertices.size() == edges.size());
@@ -301,8 +301,8 @@ void test_custom_links_non_periodic(PCPVertex& model) {
     }
     const auto boundary = am.get_boundary_edges();
     BOOST_TEST(boundary.size() > 0);
-    BOOST_TEST(am.area_of(boundary) > 0.);
-    BOOST_TEST(am.shape_index_of(boundary) > 0.);
+    BOOST_TEST(am.area_of(boundary) > 1.e-12);
+    BOOST_TEST(am.shape_index_of(boundary) > 1.e-12);
     for (const auto [e, flip] : boundary) {
         BOOST_TEST(am.is_boundary(e));
         BOOST_TEST(am.is_boundary(e->custom_links().a));

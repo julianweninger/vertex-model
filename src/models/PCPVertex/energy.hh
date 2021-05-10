@@ -21,12 +21,12 @@ namespace PCPVertex {
 double PCPVertex::line_tension_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    if (edge->state.linetension == 0.) {
+    if (fabs(edge->state.linetension()) < 1.e-12) {
         return 0.;
     }
 
     double length;
-    if (beta > 0) {
+    if (beta > 1.e-14) {
         const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
         const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
         length = this->_space->distance(a, b);
@@ -37,7 +37,7 @@ double PCPVertex::line_tension_energy (
             _am.position_of(edge->custom_links().b));
     }
     
-    return edge->state.linetension * length;
+    return edge->state.linetension() * length;
 };
 
 /// The energy associated with contractility per edge
@@ -55,12 +55,12 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    if (edge->state.contractility == 0.) {
+    if (fabs(edge->state.contractility()) < 1.e-12) {
         return 0.;
     }
 
     double length;
-    if (beta > 0) {
+    if (beta > 1.e-14) {
         const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
         const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
         length = this->_space->distance(a, b);
@@ -70,7 +70,7 @@ double PCPVertex::edge_contractility_energy (
                                         _am.position_of(edge->custom_links().b));
     }
     
-    return 0.5 * edge->state.contractility * pow(length, 2);
+    return 0.5 * edge->state.contractility() * pow(length, 2);
 };
 
 /// The energy associated with area elasticity per cell
@@ -90,7 +90,7 @@ double PCPVertex::area_elasticity_energy (
 {
     // for beta = 0, returns same as area_of(cell)
     double rel_area = (  _am.area_of(cell, beta)
-                       / cell->state.area_preferential);
+                       / cell->state.area_preferential());
     return 0.5 * _area_elasticity * pow(rel_area - 1., 2);
 };
 
@@ -304,7 +304,9 @@ double PCPVertex::get_energy_cell_contractility(
 /** Similar to a cell, the domain's area has quadratic energy contribution
  */ 
 double PCPVertex::get_boundary_area_energy (double beta) const {
-    if (_space->periodic or _boundary_param.area_elasticity == 0.) {
+    if (   _space->periodic
+        or fabs(_boundary_param.area_elasticity) < 1.e-12)
+    {
         return 0.;
     }
 
@@ -322,7 +324,9 @@ double PCPVertex::get_boundary_area_energy (double beta) const {
 /** Similar to a cell, the boundaries shape has quadratic energy contribution
  */ 
 double PCPVertex::get_boundary_shape_energy(double beta) const {
-    if (_space->periodic or _boundary_param.shape_elasticity == 0.) {
+    if (   _space->periodic
+        or fabs(_boundary_param.shape_elasticity) < 1.e-12)
+    {
         return 0.;
     }
     
@@ -340,7 +344,9 @@ double PCPVertex::get_boundary_shape_energy(double beta) const {
 /** A quadratic potential for boundary vertices that are outside a stripe
  */ 
 double PCPVertex::get_boundary_stripe_energy (double beta) const {
-    if (_space->periodic or _boundary_param.stripe_potential_constant == 0.) {
+    if (   _space->periodic
+        or fabs(_boundary_param.stripe_potential_constant) < 1.e-12)
+    {
         return 0.;
     }
 

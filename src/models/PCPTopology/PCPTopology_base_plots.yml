@@ -438,12 +438,9 @@ cellular_structure:
     axes.grid: false
 
 
-cell_neighbourhood:
+_cell_neighbourhood:
   module: model_plots.PCPTopology
-  creator: universe
-  universes: all
   plot_func: cell_neighbourhood
-  file_ext: png
 
   only_type: all
   plot_hist: True
@@ -464,10 +461,16 @@ cell_neighbourhood:
     set_labels:
       x: number of neighbours
       y: mean area
+    set_limits:
+      y: [0., 4.]
+      x: [4, 11]
   helpers_frame_shape_index:
     set_labels:
       x: number of neighbours
       y: mean shape index
+    set_limits:
+      x: [4, 11]
+      y: [3.54, 4.1]
 
   animation:
     enabled: true

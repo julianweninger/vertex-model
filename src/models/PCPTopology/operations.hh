@@ -7,6 +7,7 @@
 
 #include <utopia/core/types.hh>
 
+#include "../PCPVertex/utils.hh"
 #include "../PCPVertex/PCPVertex.hh"
 
 namespace Utopia {
@@ -324,7 +325,7 @@ OperationBundle build_differentiate_random (
     double probability(get_as<double>("probability", cfg, 0.));
     double fraction(get_as<double>("fraction", cfg, 0.));
 
-    if (probability > 0 and fraction > 0) {
+    if (probability > 1.e-12 and fraction > 1.e-12) {
         throw std::invalid_argument(fmt::format(
             "In operation `differentiate random: "
             "Received probability and fraction > 0, choose either! "
@@ -352,7 +353,7 @@ OperationBundle build_differentiate_random (
 
     std::uniform_real_distribution<double> prob_distr(0., 1.);
 
-    if (fraction > 0) {
+    if (fraction > 1.e-12) {
         Operation operation = [fraction, prob_distr{std::move(prob_distr)}]
                 (PCPVertex& vertex_model) mutable
         {
@@ -798,6 +799,170 @@ OperationBundle build_enable_transitions (
     return std::make_pair(operation, params);
 }
 
+/// The operation to evolve preferential area in Ornstein-Uhlenbeck process
+/** \details The following parameter are extracted from cfg 
+ *           (besides those passed to `OperationParams`):
+ *               - `tau` (double, default: 1.): The timescale of the underlying
+ *                      Ornstein-Uhlenbeck process.
+ *               - `increment` (bool): Whether to increment provided values.
+ *                      If false, the value will be set, otherwise incremented.
+ *               - `relative_stddev` (double): relative stddev for cells
+ *                      of type progenitor; using lognormal distribution
+ *               - `progenitor` (double, default: 0.): new value for
+ *                      cells of type progenitor. Value 0. is ignored and
+ *                      previous value of preferential area kept.
+ *               - `hair` (double, default: 0.): new value for cells
+ *                      of type hair. Value 0. is ignored and
+ *                      previous value of preferential area kept.
+ *               - `support` (double, default: 0.): new value for cells
+ *                      of type support. Value 0. is ignored and
+ *                      previous value of preferential area kept.
+ *               - `adapt_support` (bool, default: false): Whether to adapt
+ *                      areas of SCs to maintain constant total tissue area.
+ *               - `relax_domain` (bool, default: false): If true, the domain
+ *                      size is adapted to fit the cells as per preferential 
+ *                      area.
+ *               - `relax_domain_PD_axis` (bool, default: false): If true,
+ *                      the domain size is adapted to fit the cells as per
+ *                      preferential area. Domain size changes only in PD (x)
+ *                      axis.
+ */
+OperationBundle build_evolve_area (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    bool increment(get_as<bool>("increment", cfg));
+
+    double stddev(get_as<double>("relative_stddev", cfg));
+    double tau(get_as<double>("tau", cfg, 1.));
+    double A_min(get_as<double>("A_min", cfg, 0.));
+
+    double prog(get_as<double>("progenitor", cfg, 0.));
+    double hair(get_as<double>("hair", cfg, 0.));
+    double support(get_as<double>("support", cfg, 0.));
+
+
+    bool adapt_support(get_as<bool>("adapt_support", cfg, false));
+    bool relax_domain(get_as<bool>("relax_domain", cfg, false));
+    bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
+                                           cfg, false));
+
+    if (adapt_support and support > 1.e-12) {
+        throw std::invalid_argument("In operation `evolve_area` with "
+            "`adapt_support=true`, the `support` must be 0.");
+    }
+
+    if (relax_domain and relax_domain_PD_axis) {
+        throw std::invalid_argument("In operation `set area` only one of cfgs "
+            "`relax_domain` and `relax_domain_PD_axis` can be true!");
+    }
+
+    Operation operation = [prog, hair, support, stddev, tau, increment, A_min,
+                           adapt_support, relax_domain, relax_domain_PD_axis]
+            (PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+
+        double _support = support;
+
+        if (adapt_support) {
+            double total_area = 0.;
+            std::size_t num_hcs = 0;
+            for (const auto& cell : cells) {
+                total_area += cell->state._area_preferential;
+                if (cell->state.type == CellType::hair) {
+                    ++num_hcs;
+                }
+            }
+
+            if (increment) {
+                _support = - hair * num_hcs / (cells.size() - num_hcs);
+            }
+            else {
+                _support = (  (total_area - hair * num_hcs)
+                           / (cells.size() - num_hcs));
+            }
+
+            if (num_hcs == cells.size()) {
+                _support = 0.;
+            }
+        }
+
+        PCPVertex::RuleFuncCell update = [prog, hair, _support, increment,
+                                          A_min]
+        (const auto& cell)
+        {
+            auto state = cell->state;
+            double A0 = state._area_preferential;
+            
+            double new_A0 = 0.;
+            if (state.type == CellType::progenitor) {
+                new_A0 = prog;
+            }
+            else if (state.type == CellType::hair) {
+                new_A0 = hair;
+            }
+            else if (state.type == CellType::support) {
+                new_A0 = _support;
+            }
+            
+            if (increment) {
+                new_A0 += A0;
+            }
+            if (new_A0 <= A_min) {
+                throw std::runtime_error(fmt::format("Cannot evolve "
+                    "preferential area, as target value is smaller than "
+                    "specified minimum area {}!", A_min));
+            }
+
+            double dA0 = new_A0 - A0;
+            state._area_preferential += dA0;
+            state._area_preferential_fluctuations -= dA0;
+            // NOTE state.area_preferential() is constant and evolves in 
+            //      Ornstein-Uhlenbeck process
+
+            return state;
+        };
+        
+        apply_rule<Update::sync>(update, cells);
+
+        vertex_model.set_area_fluctuations(stddev, tau, A_min);
+
+        if (relax_domain) {
+            double area = std::accumulate(cells.begin(), cells.end(), 0.,
+                            [](const double& val, const auto& cell) {
+                                return val + cell->state._area_preferential; });
+
+            PCPVertex::SpaceVec domain_size = 
+                    vertex_model.get_space()->get_domain_size();
+            vertex_model.increase_domain_size(
+                    area - domain_size[0]*domain_size[1]
+            );
+        }
+        else if (relax_domain_PD_axis) {
+            double area = std::accumulate(cells.begin(), cells.end(), 0.,
+                            [](const double& val, const auto& cell) {
+                                return val + cell->state._area_preferential; });
+
+            PCPVertex::SpaceVec domain_size = 
+                    vertex_model.get_space()->get_domain_size();
+            double dA = area - domain_size[0]*domain_size[1];
+
+            vertex_model.stretch_domain({dA/domain_size[1], 0.},
+                                        false, false, false);
+        }
+
+        return;
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// An operation to fix boundary vertices in space
 /** Sets the fix_boundary in the vertex model and is updated continuously
  *  in update
@@ -958,13 +1123,14 @@ OperationBundle build_increment_area (
         {
             auto state = cell->state;
             if (state.type == CellType::progenitor) {
-                state.area_preferential += dist_prog(*vertex_model.get_rng());
+                state._area_preferential += dist_prog(*vertex_model.get_rng());
             }
             else if (state.type == CellType::support) {
-                state.area_preferential += dist_support(*vertex_model.get_rng());
+                state._area_preferential += dist_support(
+                                                *vertex_model.get_rng());
             }
             else if (state.type == CellType::hair) {
-                state.area_preferential += dist_hair(*vertex_model.get_rng());
+                state._area_preferential += dist_hair(*vertex_model.get_rng());
             }
             return state;
         };
@@ -977,7 +1143,8 @@ OperationBundle build_increment_area (
 
         double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
-                                return val + cell->state.area_preferential; });
+                                return val + cell->state._area_preferential;
+                            });
 
         PCPVertex::SpaceVec domain_size = 
                 vertex_model.get_space()->get_domain_size();
@@ -1401,27 +1568,27 @@ OperationBundle build_proliferate (
         
         auto cell = current_generation[int_dist(*vertex_model.get_rng())];
 
-        double area_preferential = cell->state.area_preferential;
+        double area_preferential = cell->state.area_preferential();
         if (num_increases > 0) {
-            double dA = cell->state.area_preferential / num_increases;
+            double dA = cell->state.area_preferential() / num_increases;
             for (unsigned int i = 0; i < num_increases; i++) {            
                 vertex_model.increase_domain_size(dA);
-                cell->state.area_preferential += dA;
+                cell->state._area_preferential += dA;
                 vertex_model.minimize_energy(minimization_after_increase);
             }
 
-            if (am.area_of(cell) < threshold * cell->state.area_preferential)
+            if (am.area_of(cell) < threshold * cell->state.area_preferential())
             {
                 throw std::runtime_error(fmt::format("Cell division failed! "
                     "Cell did not grow to area larger than threshold. "
                     "For division requested minimal area: {}. \n"
                     "For division preferred area: {}. \n"
                     "Area reached: {}.",
-                    threshold * cell->state.area_preferential,
-                    cell->state.area_preferential, am.area_of(cell)));
+                    threshold * cell->state.area_preferential(),
+                    cell->state.area_preferential(), am.area_of(cell)));
             }
 
-            cell->state.area_preferential = area_preferential;
+            cell->state._area_preferential = area_preferential;
         }
         else {
             vertex_model.increase_domain_size(area_preferential);
@@ -1619,40 +1786,40 @@ OperationBundle build_relax_area (
         (const auto& cell)
         {
             auto state = cell->state;
-            double A0 = state.area_preferential;
-            state.area_preferential += factor * (am.area_of(cell) - A0);
+            double A0 = state.area_preferential();
+            state._area_preferential += factor * (am.area_of(cell) - A0);
             if (state.type == CellType::hair) {
-                state.area_preferential += factor_type * (average_HC - A0);
+                state._area_preferential += factor_type * (average_HC - A0);
             }
             else if (state.type == CellType::support) {
-                state.area_preferential += factor_type * (average_SC - A0);
+                state._area_preferential += factor_type * (average_SC - A0);
             }
-            state.area_preferential += factor_tissue * (target_area - average);
+            state._area_preferential += factor_tissue * (target_area - average);
 
             // general maximum and minimum
-            state.area_preferential = std::max(state.area_preferential,
-                                               minimum);
-            if (maximum > 0.) {
-                state.area_preferential = std::min(state.area_preferential,
-                                                   maximum);
+            state._area_preferential = std::max(state._area_preferential,
+                                                minimum);
+            if (maximum > 1.e-12) {
+                state._area_preferential = std::min(state._area_preferential,
+                                                    maximum);
             }
 
             // hair cell maximum and minimum 
             if (state.type == CellType::hair) {
-                state.area_preferential = std::max(state.area_preferential,
-                                                   minimum_HC);
-                if (maximum_HC > 0.) {
-                    state.area_preferential = std::min(state.area_preferential,
-                                                       maximum_HC);
+                state._area_preferential = std::max(state._area_preferential,
+                                                    minimum_HC);
+                if (maximum_HC > 1.e-12) {
+                    state._area_preferential = 
+                        std::min(state._area_preferential, maximum_HC);
                 }
             }
             // hair cell maximum and minimum 
             else if (state.type == CellType::support) {
-                state.area_preferential = std::max(state.area_preferential,
-                                                   minimum_SC);
-                if (maximum_SC > 0.) {
-                    state.area_preferential = std::min(state.area_preferential,
-                                                       maximum_SC);
+                state._area_preferential = std::max(state._area_preferential,
+                                                    minimum_SC);
+                if (maximum_SC > 1.e-12) {
+                    state._area_preferential = 
+                        std::min(state._area_preferential, maximum_SC);
                 }
             }
 
@@ -1725,35 +1892,15 @@ OperationBundle build_set_area (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        std::function<std::pair<double, double>(double, double)> m_s = 
-            [](double mean, double stddev)
-        {
-            if (mean < 0.) {
-                throw std::invalid_argument(fmt::format("Cannot construct "
-                    "lognormal distribution with mean {} <= 0!", stddev));
-            }
-            if (stddev <= 0.) {
-                throw std::invalid_argument(fmt::format("Cannot construct "
-                    "lognormal distribution with stddev {} <= 0!", stddev));
-            }
-            double m = log(  std::pow(mean, 2)
-                           / sqrt(std::pow(stddev, 2) + std::pow(mean, 2)));
-            double s = sqrt(log(std::pow(stddev, 2) / std::pow(mean, 2) + 1));
-            return std::make_pair(m, s);
-        };
-
         std::lognormal_distribution<> dist_prog, dist_hair, dist_support;
-        if (prog > 0.0 and stddev_prog > 0.) {
-            auto [m, s] = m_s(prog, stddev_prog);
-            dist_prog = std::lognormal_distribution<>(m, s);
+        if (prog > 1.e-12 and stddev_prog > 1.e-12) {
+            dist_prog = get_lognormal_distribution(prog, stddev_prog);
         }
-        if (hair > 0.0 and stddev_hair > 0.) {
-            auto [m, s] = m_s(hair, stddev_hair);
-            dist_hair = std::lognormal_distribution<>(m, s);
+        if (hair > 1.e-12 and stddev_hair > 1.e-12) {
+            dist_hair = get_lognormal_distribution(hair, stddev_hair);
         }
-        if (support > 0.0 and stddev_support > 0.) {
-            auto [m, s] = m_s(support, stddev_support);
-            dist_support = std::lognormal_distribution<> (m, s);            
+        if (support > 1.e-12 and stddev_support > 1.e-12) {
+            dist_support = get_lognormal_distribution(support, stddev_support);
         }
 
         PCPVertex::RuleFuncCell update = [vertex_model,
@@ -1770,7 +1917,7 @@ OperationBundle build_set_area (
                 [vertex_model](double mean, double stddev,
                                std::lognormal_distribution<>& distr)
             {
-                if (stddev > 0.) {
+                if (stddev > 1.e-12) {
                     return distr(*vertex_model.get_rng());
                 }
                 else {
@@ -1779,18 +1926,26 @@ OperationBundle build_set_area (
             };
 
             auto state = cell->state;
-            if (state.type == CellType::progenitor and prog > 0.) {
-                state.area_preferential = new_area(prog, stddev_prog,
-                                                   dist_prog);
+            double new_A = 0.;
+            double mean = 0.;
+            if (state.type == CellType::progenitor and prog > 1.e-12) {
+                mean = prog;
+                new_A = new_area(prog, stddev_prog, dist_prog);
             }
-            else if (state.type == CellType::hair and hair > 0.) {
-                state.area_preferential = new_area(hair, stddev_hair,
-                                                   dist_hair);
+            else if (state.type == CellType::hair and hair > 1.e-12) {
+                mean = hair;
+                new_A = new_area(hair, stddev_hair, dist_hair);
             }
-            else if (state.type == CellType::support and support > 0.) {
-                state.area_preferential = new_area(support, stddev_support,
-                                                   dist_support);
+            else if (state.type == CellType::support and support > 1.e-12) {
+                mean = support;
+                new_A = new_area(support, stddev_support, dist_support);
             }
+
+            if (mean > 1.e-12) {
+                state._area_preferential = mean;
+                state._area_preferential_fluctuations = new_A - mean;
+            }
+
             return state;
         };
         
@@ -1799,7 +1954,8 @@ OperationBundle build_set_area (
         if (relax_domain) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
-                                return val + cell->state.area_preferential; });
+                                return val + cell->state.area_preferential();
+                            });
 
             PCPVertex::SpaceVec domain_size = 
                     vertex_model.get_space()->get_domain_size();
@@ -1810,7 +1966,8 @@ OperationBundle build_set_area (
         else if (relax_domain_PD_axis) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
-                                return val + cell->state.area_preferential; });
+                                return val + cell->state.area_preferential();
+                            });
 
             PCPVertex::SpaceVec domain_size = 
                     vertex_model.get_space()->get_domain_size();
