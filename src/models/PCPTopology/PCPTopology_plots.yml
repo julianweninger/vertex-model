@@ -67,12 +67,13 @@ transitions_continuous:
   
   map_to_discrete_time: True
 
-cell_area:
+# Cell properties from cell statistics ----------------------------------------
+cell_stats/area:
   based_on:
     - .default_style_and_helpers
     - universe
     - cell_property
-    - select_cells
+    - select_cell_stats
 
   to_plot: 
     cells:
@@ -89,12 +90,12 @@ cell_area:
       x: time
       y: average area
 
-cell_area_ratio:
+cell_stats/area_ratio:
   based_on:
     - .default_style_and_helpers
     - universe
     - cell_property
-    - select_cells
+    - select_cell_stats
 
   to_plot: 
     ratio:
@@ -137,32 +138,30 @@ cell_area_ratio:
       x: time
       y: average area
 
-cell_pref_area:
-  based_on: cell_area
+cell_stats/pref_area:
+  based_on: cell_stats/area
 
   property: area_preferential
 
   helpers:
     set_labels:
-      x: time
       y: average pref. area
 
-cell_shape:
-  based_on: cell_area
+cell_stats/shape:
+  based_on: cell_stats/area
 
   property: shape_index
 
   helpers:
     set_labels:
-      x: time
       y: average shape index
 
-HC_neighbors:
+cell_stats/HC_neighbors:
   based_on:
     - .default_style_and_helpers
     - universe
     - cell_property
-    - select_cells
+    - select_cell_stats
 
   to_plot:
     bulk_cells:
@@ -179,22 +178,21 @@ HC_neighbors:
       x: time
       y: average hair cell neighbors
 
-neighbors:
-  based_on: HC_neighbors
+cell_stats/neighbors:
+  based_on: cell_stats/HC_neighbors
 
   property: num_neighbors
 
   helpers:
     set_labels:
-      x: time
       y: average neighbors
 
-hexatic_order:
+cell_stats/hexatic_order:
   based_on:
     - .default_style_and_helpers
     - universe
     - cell_property
-    - select_cells
+    - select_cell_stats
 
   to_plot: 
     bulk_hair_cells:
@@ -208,12 +206,12 @@ hexatic_order:
       x: time
       y: average hexatic_order
 
-rotation:
+cell_stats/rotation:
   based_on:
     - .default_style_and_helpers
     - universe
     - cell_property
-    - select_cells
+    - select_cell_stats
 
   to_plot: 
     bulk_cells:
@@ -226,7 +224,7 @@ rotation:
       x: time
       y: average rotation
 
-neighbors_vs_area:
+cell_stats/neighbors_vs_area:
   based_on:
     - .basic_uni.lineplot
     - universe
@@ -271,9 +269,155 @@ neighbors_vs_area:
       x: area av HC / av SC
       y: average hair cell neighbors
     set_limits:
-      x: [1., 7.]
-      y: [5.5, 15]
+      x: [0., 7.]
+      y: [3., 15]
 
+# Cell properties from cell data ----------------------------------------------
+cell_properties/area:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - universe
+    - select_cells_properties
+
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , area]
+
+  x: time
+  y: area
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+cell_properties/pref_area:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area_preferential}]
+        - .rename: [!dag_prev , area_preferential]
+  y: area_preferential
+  helpers:
+    set_labels:
+      y: average pref. area
+
+cell_properties/shape:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: shape_index}]
+        - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+
+cell_properties/HC_neighbors:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: num_hair_neighbors}]
+        - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+  helpers:
+    set_labels:
+      y: average hair neighbors
+
+cell_properties/neighbors:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: num_neighbors}]
+        - .rename: [!dag_prev , num_neighbors]
+  y: num_neighbors
+  helpers:
+    set_labels:
+      y: average neighbors
+
+cell_properties/hexatic_order:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: hexatic_order}]
+        - .rename: [!dag_prev , hexatic_order]
+  y: hexatic_order
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells_bulk
+      label: hair cells
+  helpers:
+    set_labels:
+      y: average hexatic order
+
+cell_properties/rotation:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: rotation}]
+        - .rename: [!dag_prev , rotation]
+  y: rotation
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells_bulk
+      label: hair cells
+  helpers:
+    set_labels:
+      y: average rotation
+
+cell_properties/neighbors_vs_area:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - universe
+    - select_cells_properties.xy_data
+
+  select:
+    x:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , area]
+    y:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: num_neighbors}]
+        - .rename: [!dag_prev , num_neighbors]
+
+  to_plot:
+    - function: sns.scatterplot
+      data: !dag_result all_cells
+
+  x: area
+  y: num_neighbors
+  hue: time
       
 energy_vs_SCHC_contacts: &energy_vs_contacts
   based_on: .basic_uni.lineplot

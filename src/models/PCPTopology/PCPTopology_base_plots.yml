@@ -35,7 +35,15 @@ energy:
       x: time
       y: energy [a.u.]
 
-select_cells:
+cell_property: &CELL_PROP
+  module: model_plots.PCPTopology
+  plot_func: errorbars
+
+  helpers:
+    set_labels:
+      x: time
+
+select_cell_stats:
   select:
     cells:
       path: data/PCPTopology/Statistics/Cell_stats
@@ -50,7 +58,23 @@ select_cells:
     bulk_support_cells:
       path: data/PCPTopology/Statistics/Bulk_support_cell_stats
 
-select_cell_properties:
+select_cell_stats_mv:
+  select_and_combine:
+    fields:
+      cells:
+        path: data/PCPTopology/Statistics/Cell_stats
+      hair_cells:
+        path: data/PCPTopology/Statistics/Hair_cell_stats
+      support_cells:
+        path: data/PCPTopology/Statistics/Support_cell_stats
+      bulk_cells:
+        path: data/PCPTopology/Statistics/Bulk_cell_stats
+      bulk_hair_cells:
+        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+      bulk_support_cells:
+        path: data/PCPTopology/Statistics/Bulk_support_cell_stats
+
+select_cells_properties:
   select:
     # NOTE the order in which datasets are created is alphabetically!
     #      (underscores) `_` are treated first
@@ -98,83 +122,78 @@ select_cell_properties:
     
     
   transform:
+    # the data for all cells
+    - .to_dataframe: [!dag_tag property]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
     # the data for hair cells
-    - .where:
-      args: [!dag_tag property, !dag_tag _hair_cells]
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
       tag: hair_cells
+
     # the data for support cells
-    - .where:
-      args: [!dag_tag property, !dag_tag _support_cells]
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
       tag: support_cells
 
-    # the mean and mean__std data
-    - .mean:
-      args: [!dag_tag property , id]
-      kwargs:
-        skipna: True
-      tag: cells_mean
-    - .std:
-      args: [!dag_tag property, id]
-      kwargs:
-        skipna: True
-      tag: cells_mean__std
-    - .max:
-      args: [!dag_tag property , id]
-      kwargs:
-        skipna: True
-      tag: cells_max
-    - .min:
-      args: [!dag_tag property , id]
-      kwargs:
-        skipna: True
-      tag: cells_min
+    # the data for bulk cells
+    - .where: [!dag_tag property, !dag_tag _is_bulk]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells_bulk
     
-    # the mean and mean__std data for hair cells
-    - .mean:
-      args: [!dag_tag hair_cells ,id]
-      kwargs:
-        skipna: True
-      tag: hair_cells_mean
-    - .std:
-      args: [!dag_tag hair_cells ,id]
-      kwargs:
-        skipna: True
-      tag: hair_cells_mean__std
-    - .max:
-      args: [!dag_tag hair_cells ,id]
-      kwargs:
-        skipna: True
-      tag: hair_cells_max
-    - .min:
-      args: [!dag_tag hair_cells ,id]
-      kwargs:
-        skipna: True
-      tag: hair_cells_min
+    - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells_bulk
+    
+    - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells_bulk
 
-    # the mean and mean__std data for support cells
-    - .mean:
-      args: [!dag_tag support_cells ,id]
-      kwargs:
-        skipna: True
-      tag: support_cells_mean
-    - .std:
-      args: [!dag_tag support_cells ,id]
-      kwargs:
-        skipna: True
-      tag: support_cells_mean__std
-    - .max:
-      args: [!dag_tag support_cells ,id]
-      kwargs:
-        skipna: True
-      tag: support_cells_max
-    - .min:
-      args: [!dag_tag support_cells ,id]
-      kwargs:
-        skipna: True
-      tag: support_cells_min
+
+select_cells_properties.xy_data:
+  based_on: select_cells_properties
+
+  transform:
+    # the data for support and hair cells
+    - .where: [!dag_tag x, !dag_tag _hair_cells]
+      tag: HC_x
+    - .where: [!dag_tag x, !dag_tag _support_cells]
+      tag: SC_x
+
+    - .where: [!dag_tag y, !dag_tag _hair_cells]
+      tag: HC_y
+    - .where: [!dag_tag y, !dag_tag _support_cells]
+      tag: SC_y
+
+    # create xy data
+    - xr.merge: [[!dag_tag x, !dag_tag y]]
+      kwargs: {compat: 'override'}
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    - xr.merge: [[!dag_tag HC_x, !dag_tag HC_y]]
+      kwargs: {compat: 'override'}
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    - xr.merge: [[!dag_tag SC_x, !dag_tag SC_y]]
+      kwargs: {compat: 'override'}
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
 
       
-select_cells_multiverse:
+select_cells_properties_mv:
   select_and_combine:
     fields:
       _cells: data/PCPTopology/Cells
@@ -201,202 +220,130 @@ select_cells_multiverse:
             args: [!dag_prev , is_boundary]
     
   transform:
+    # stack the seeds
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
              {ids: [seed, id]}]
-    - .squeeze:
-      args: [!dag_prev ]
+    - .squeeze: [!dag_prev ]
       tag: property
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
 
+    # a mask to select only hair / support cells
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
              {ids: [seed, id]}]
-    - .squeeze:
-      args: [!dag_prev ]
+    - .squeeze: [!dag_prev ]
       tag: cell_type
-
-    # a mask to select only hair cells
-    - create_mask:
-      args: [!dag_tag cell_type, ==, 1]
+    - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
-    
-    # a mask to select only support cells
-    - create_mask:
-      args: [!dag_tag cell_type, ==, 2]
+    - create_mask: [!dag_tag cell_type, ==, 2]
       tag: _support_cells
 
     # mask for bulk cells
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
              {ids: [seed, id]}]
-    - .squeeze:
-      args: [!dag_prev ]
-    - create_mask:
-      args: [!dag_prev , <, 0.5] # not boundary
-    - .rename:
-      args: [!dag_prev , is_bulk]
+    - .squeeze: [!dag_prev ]
+    - create_mask: [!dag_prev , <, 0.5] # not boundary
+    - .rename: [!dag_prev , is_bulk]
       tag: _is_bulk
 
     # the data for hair cells
-    - .where:
-      args: [!dag_tag property, !dag_tag _hair_cells]
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
       tag: hair_cells
     # the data for support cells
-    - .where:
-      args: [!dag_tag property, !dag_tag _support_cells]
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
       tag: support_cells
+    
     # the data for bulk cells
-    - .where:
-      args: [!dag_tag property, !dag_tag _is_bulk]
-      tag: bulk_cells
-    # the data for bulk hair cells
-    - .where:
-      args: [!dag_tag hair_cells, !dag_tag _is_bulk]
+    - .where: [!dag_tag property, !dag_tag _is_bulk]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells_bulk
+      
+    - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
       tag: hair_cells_bulk
-    # the data for bulk support cells
-    - .where:
-      args: [!dag_tag support_cells, !dag_tag _is_bulk]
+      
+    - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
       tag: support_cells_bulk
 
-    # the mean and mean__std data
-    - .mean:
-      args: [!dag_tag property , ids]
-      kwargs:
-        skipna: True
-      tag: cells_mean
-    - .std:
-      args: [!dag_tag property, ids]
-      kwargs:
-        skipna: True
-      tag: cells_mean__std
-    - .max:
-      args: [!dag_tag property , ids]
-      kwargs:
-        skipna: True
-      tag: cells_max
-    - .min:
-      args: [!dag_tag property , ids]
-      kwargs:
-        skipna: True
-      tag: cells_min
-    
-    # the mean and mean__std data for hair cells
-    - .mean:
-      args: [!dag_tag hair_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_mean
-    - .std:
-      args: [!dag_tag hair_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_mean__std
-    - .max:
-      args: [!dag_tag hair_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_max
-    - .min:
-      args: [!dag_tag hair_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_min
+select_cells_properties_mv.xy_data:
+  based_on: select_cells_properties_mv
 
-    # the mean and mean__std data for support cells
-    - .mean:
-      args: [!dag_tag support_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_mean
-    - .std:
-      args: [!dag_tag support_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_mean__std
-    - .max:
-      args: [!dag_tag support_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_max
-    - .min:
-      args: [!dag_tag support_cells ,ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_min
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _x,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: x
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _y,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: y
 
-    # the mean and mean__std data for bulk cells (non-boundary)
-    - .mean:
-      args: [!dag_tag bulk_cells , ids]
-      kwargs:
-        skipna: True
-      tag: cells_bulk_mean
-    - .std:
-      args: [!dag_tag bulk_cells, ids]
-      kwargs:
-        skipna: True
-      tag: cells_bulk_mean__std
-    - .max:
-      args: [!dag_tag bulk_cells , ids]
-      kwargs:
-        skipna: True
-      tag: cells_bulk_max
-    - .min:
-      args: [!dag_tag bulk_cells , ids]
-      kwargs:
-        skipna: True
-      tag: cells_bulk_min
-    
-    # the mean and mean__std data for hair cells (bulk)
-    - .mean:
-      args: [!dag_tag hair_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_bulk_mean
-    - .std:
-      args: [!dag_tag hair_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_bulk_mean__std
-    - .max:
-      args: [!dag_tag hair_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_bulk_max
-    - .min:
-      args: [!dag_tag hair_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: hair_cells_bulk_min
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
 
-    # the mean and mean__std data for support cells (bulk)
-    - .mean:
-      args: [!dag_tag support_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_bulk_mean
-    - .std:
-      args: [!dag_tag support_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_bulk_mean__std
-    - .max:
-      args: [!dag_tag support_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_bulk_max
-    - .min:
-      args: [!dag_tag support_cells_bulk , ids]
-      kwargs:
-        skipna: True
-      tag: support_cells_bulk_min
+    # mask for bulk cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - create_mask: [!dag_prev , <, 0.5] # not boundary
+    - .rename: [!dag_prev , is_bulk]
+      tag: _is_bulk
 
-cell_property: &CELL_PROP
-  module: model_plots.PCPTopology
-  plot_func: errorbars
+    # the data for support and hair cells
+    - .where: [!dag_tag x, !dag_tag _hair_cells]
+      tag: HC_x
+    - .where: [!dag_tag x, !dag_tag _support_cells]
+      tag: SC_x
 
-  helpers:
-    set_labels:
-      x: time
+    - .where: [!dag_tag y, !dag_tag _hair_cells]
+      tag: HC_y
+    - .where: [!dag_tag y, !dag_tag _support_cells]
+      tag: SC_y
+
+    # create xy data
+    - xr.merge: [[!dag_tag x, !dag_tag y]]
+      kwargs: {compat: 'override'}
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    - xr.merge: [[!dag_tag HC_x, !dag_tag HC_y]]
+      kwargs: {compat: 'override'}
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    - xr.merge: [[!dag_tag SC_x, !dag_tag SC_y]]
+      kwargs: {compat: 'override'}
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
 
 cellular_structure:
   creator: universe

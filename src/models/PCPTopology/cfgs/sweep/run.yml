@@ -16,7 +16,7 @@ paths:
 perform_sweep: true
 
 parameter_space:
-  num_steps: 1
+  num_steps: 10
 
   seed: !sweep
     default: 42
@@ -108,6 +108,6 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 21, 1]
+              - [0, 101, 1]
       triggers:
         build_interval: *interval
