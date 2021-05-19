@@ -12,7 +12,7 @@ paths:
   model_note: default_Collier
 
 parameter_space:
-  num_steps: 10
+  num_steps: 3
 
   PCPTopology:
     operations:
@@ -36,7 +36,7 @@ parameter_space:
 
       - differentiate_Collier:
           times: !listgen [11]
-          steps: 5000
+          steps: 500
 
           minimization:
             mode: manual
