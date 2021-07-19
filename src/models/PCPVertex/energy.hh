@@ -112,9 +112,29 @@ double PCPVertex::cell_contractility_energy (
         const std::shared_ptr<Cell>& cell, double beta) const
 {
     const auto state = cell->state;
-    double shape_index = _am.shape_index_of(cell, beta);
-    return (  0.5 * state.contractility
-            * std::pow(shape_index - state.shape_index_preferential, 2));
+
+    if (fabs(state.contractility) < 1.e-12)
+    {
+        return 0.;
+    }
+
+    if (this->_cell_contractility_impl == Contractile) {
+        double perimeter = _am.perimeter_of(cell, beta);
+        return (  0.5 * state.contractility
+                * std::pow(  perimeter / sqrt(state.area_preferential())
+                           - state.shape_index_preferential, 2));
+    }
+    else if (this->_cell_contractility_impl == Shape_elastic) {
+        double shape_index = _am.shape_index_of(cell, beta);
+        return (  0.5 * state.contractility
+                * std::pow(shape_index - state.shape_index_preferential, 2));
+    }
+    else {
+        throw std::runtime_error(fmt::format(
+            "Not Implemented Error: "
+            "Cell Contractility Implementation {}!",
+            this->_cell_contractility_impl));
+    }
 };
 
 // /// The energy associated with cell-cell polarity
@@ -311,10 +331,11 @@ double PCPVertex::get_boundary_area_energy (double beta) const {
     }
 
     const auto boundary = _am.get_boundary_edges();
+    const auto N = _am.cells().size();
 
     double area = _am.area_of(boundary, beta);
 
-    double rel_area = area / _boundary_param.area_preferential;
+    double rel_area = area / this->_boundary_param.area_preferential(N);
     double area_elasticity = _boundary_param.area_elasticity;
 
     return 0.5 * area_elasticity * std::pow(rel_area - 1., 2);
@@ -325,18 +346,33 @@ double PCPVertex::get_boundary_area_energy (double beta) const {
  */ 
 double PCPVertex::get_boundary_shape_energy(double beta) const {
     if (   _space->periodic
-        or fabs(_boundary_param.shape_elasticity) < 1.e-12)
+        or fabs(_boundary_param.contractility) < 1.e-12)
     {
         return 0.;
     }
     
     const auto boundary = _am.get_boundary_edges();
-
-    double shape_elasticity = _boundary_param.shape_elasticity;
-    double shape_index = _am.shape_index_of(boundary, beta);
+    double contractility = _boundary_param.contractility;
+    double shape_index;
     double shape_index_pref = _boundary_param.shape_index_preferential;
 
-    return (  0.5 * shape_elasticity
+    if (this->_cell_contractility_impl == Contractile) {
+        const auto N = _am.cells().size();
+        double perimeter = _am.perimeter_of(boundary, beta);
+        shape_index = perimeter / sqrt(_boundary_param.area_preferential(N));
+    }
+    else if (this->_cell_contractility_impl == Shape_elastic) {
+        shape_index = _am.shape_index_of(boundary, beta);
+    }
+    else {
+        throw std::runtime_error(fmt::format(
+            "Not Implemented Error: "
+            "Cell Contractility Implementation {}!",
+            this->_cell_contractility_impl));
+    }
+
+
+    return (  0.5 * contractility
             * std::pow(shape_index - shape_index_pref, 2.));
 }
 

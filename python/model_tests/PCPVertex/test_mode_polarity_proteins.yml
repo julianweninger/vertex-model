@@ -20,7 +20,6 @@ parameter_space:
         Energy_cell_contractility: *energy
         Energy_edge_contractility: *energy
         Energy_boundary_area_elasticity: *energy
-        Energy_boundary_shape_elasticity: *energy
         Energy_cell_cell_polarity: *energy
         Energy_polarity_exclusion: *energy
         Energy_lagrange_net_polarisation: *energy

@@ -8,7 +8,7 @@ PCPVertex:
   agent_manager:
     cell_manager:
       agent_params: {area_preferential: 1.0, area_preferential_var: 0.0, cell_type: progenitor,
-        contractility: 0.0, shape_index_preferential: 3.6}
+        contractility: 1.0, shape_index_preferential: 3.6}
     edge_manager:
       agent_params: {contractility: 0.02, linetension: 0.1}
     setup_method: hexagonal
@@ -17,14 +17,15 @@ PCPVertex:
       single: {size: 0.6204032394013997}
     vertex_manager: ~
   area_elasticity: 1.0
+  cell_shape_implementation: contractile
   cell_cell_polarity_interaction: 0.0
   cell_initialisation_protein_level: 0.0
   cell_polarity_exclusion: 0.0
   boundary_parameter:
     area_elasticity: 1.
-    area_preferential: 64
-    shape_elasticity: 0.1
-    shape_index_preferential: 4.
+    area_preferential: 1.
+    contractility: 0.1
+    shape_index_preferential: 3.62
   data_manager:
     deciders:
       write_always: {type: always}
@@ -36,7 +37,7 @@ PCPVertex:
         type: once
   minimization: &Minimization
     update_scheme: steepest_gradient
-    dt: 0.01
+    dt: 0.001
     jiggle_intensity: 0.01
     jiggle_tolerance: 1e-06
     max_steps: 15000

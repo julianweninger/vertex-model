@@ -59,12 +59,15 @@ minimization:
 # can be steepest_gradient, steepest_gradient_adaptive, conjugate_gradient
 
 area_elasticity: 1.
+cell_shape_implementation: contractile
+# can be contractile or shape_elastic
+# shape index normalization is to cell area and target cell area, resp.
 
 boundary_parameter:
   area_elasticity: 0.
-  area_preferential: 0.
-  shape_elasticity: 0.
-  shape_index_preferential: 0.
+  area_preferential: 1.
+  contractility: 0.
+  shape_index_preferential: 3.62
 
 # Polarity interaction
 gamma: 0.

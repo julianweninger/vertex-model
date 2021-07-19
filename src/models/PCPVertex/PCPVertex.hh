@@ -407,14 +407,26 @@ private:
     /// Area elasticity constant K
     double _area_elasticity;
 
+    /// Cell contractility implementation
+    enum CellContractility {
+        /// Normalize shape index to target cell area
+        Contractile,
+
+        /// Normalize shape index to cell area
+        Shape_elastic
+    } _cell_contractility_impl;
+
     /// Mechanical parameters for boundary
     /** The boundary of the domain is treated as one cell
      */
     struct BoundaryParam {
         double area_elasticity;
-        double area_preferential;
+        double _area_preferential; /// Per cell averaged target area
+        double area_preferential(std::size_t N) const {
+            return _area_preferential * static_cast<double>(N);
+        };
 
-        double shape_elasticity;
+        double contractility;
         double shape_index_preferential;
 
         // -- A quadratic boundary potential in the shape of a stripe of
@@ -446,8 +458,8 @@ private:
         BoundaryParam (const Config& cfg)
         :
             area_elasticity(get_as<double>("area_elasticity", cfg)),
-            area_preferential(get_as<double>("area_preferential", cfg)),
-            shape_elasticity(get_as<double>("shape_elasticity", cfg)),
+            _area_preferential(get_as<double>("area_preferential", cfg)),
+            contractility(get_as<double>("contractility", cfg)),
             shape_index_preferential(get_as<double>("shape_index_preferential",
                                                     cfg)),
             stripe_potential_constant(
@@ -607,6 +619,9 @@ public:
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
+        _cell_contractility_impl(setup_cell_contractility_impl(
+            get_as<std::string>("cell_shape_implementation", this->_cfg)
+        )),
         _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
         _enable_transitions(
             get_as<bool>("enable_transitions", this->_cfg, true)),
@@ -673,6 +688,24 @@ private:
         
         CellCellPropertyMatrix matrix;
         return matrix.fill(contractility);
+    }
+
+    CellContractility setup_cell_contractility_impl (const std::string& impl)
+    {
+        if (impl == "contractile") {
+            return CellContractility::Contractile;
+        }
+        else if (impl == "shape_elastic") {
+            return CellContractility::Shape_elastic;
+        }
+        else {
+            throw std::invalid_argument(fmt::format(
+                "While setting up cell contractility implementation, received "
+                "invalid configuration. {} is not a valid implementation. "
+                "Choose one of the following: 'contractile', 'shape_elastic'.",
+                impl
+            ));
+        }
     }
 
     // /// Initialise the polarity proteins with random levels
@@ -844,10 +877,14 @@ private:
         return state;
     };
 
-    /// Constriction on the cell's shape index
-    const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
+    const RuleFuncCell set_grad_shape_elasticity = [this](const auto& cell)
     {
         auto state = cell->state;
+
+        if (fabs(state.contractility) < 1.e-12) {
+            return state;
+        }
+
         const double area = _am.area_of(cell);
         const double perimeter = this->_am.perimeter_of(cell);
         const double shape_index = perimeter / sqrt(area);
@@ -893,14 +930,14 @@ private:
                                                     _am.position_of(v_post));
 
             // calculate dA / dx_i
-            SpaceVec displ = post - prior;
-            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
+            SpaceVec curv = post - prior;
+            SpaceVec dA_dx({0.5 * curv[1], -0.5 * curv[0]});
 
             // calculate dP / dx_i
-            SpaceVec displ_2 = this->_space->displacement(prior, center);
-            SpaceVec displ_3 = this->_space->displacement(center, post);
-            SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
-                              - displ_3 / arma::norm(displ_3));
+            SpaceVec displ_e_0 = this->_space->displacement(prior, center);
+            SpaceVec displ_e_1 = this->_space->displacement(center, post);
+            SpaceVec dP_dx = (  displ_e_0 / arma::norm(displ_e_0)
+                              - displ_e_1 / arma::norm(displ_e_1));
 
             SpaceVec dE_dx = (  state.contractility
                               * (shape_index - state.shape_index_preferential)
@@ -908,6 +945,38 @@ private:
                                  - 0.5 * dA_dx * shape_index / area));
 
             v_center->state.f -= dE_dx;
+        }
+
+        return state;
+    };
+
+    /// Constriction on the cell's shape index
+    const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
+    {
+        auto state = cell->state;
+
+        if (fabs(state.contractility) < 1.e-12) {
+            return state;
+        }
+
+        double perimeter = this->_am.perimeter_of(cell);
+
+        for (auto [e, flip] : cell->custom_links().edges) {
+            auto a = e->custom_links().a;
+            auto b = e->custom_links().b;
+            if (flip) { std::swap(a, b); }
+
+            SpaceVec displ = this->_am.displacement(a, b);
+            double length = arma::norm(displ);
+
+            SpaceVec force = (  state.contractility
+                              * (  perimeter / sqrt(state.area_preferential())
+                                 - state.shape_index_preferential)
+                              * displ / length / sqrt(state.area_preferential())
+                             );
+
+            a->state.f += force;
+            b->state.f -= force;
         }
 
         return state;
@@ -948,8 +1017,9 @@ private:
         }
 
         double area = _am.area_of(boundary);
+        double N = _am.cells().size();
 
-        const auto rel_area = area / _boundary_param.area_preferential;
+        const auto rel_area = area / _boundary_param.area_preferential(N);
         
         for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++) {
             std::shared_ptr<Edge> e0; bool e0_flip;
@@ -988,7 +1058,7 @@ private:
 
             SpaceVec force = (  -1. * _boundary_param.area_elasticity
                               * (rel_area - 1) * dA_dx
-                              / _boundary_param.area_preferential);
+                              / _boundary_param.area_preferential(N));
 
             v_center->state.f += force;
         }
@@ -1000,7 +1070,7 @@ private:
             (const OrderedEdgeContainer& boundary)
     {
         if (   _space->periodic
-            or fabs(_boundary_param.shape_elasticity)< 1.e-12)
+            or fabs(_boundary_param.contractility) < 1.e-12)
         {
             return;
         }
@@ -1051,13 +1121,48 @@ private:
             SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
                               - displ_3 / arma::norm(displ_3));
 
-            SpaceVec dE_dx = (  _boundary_param.shape_elasticity
+            SpaceVec dE_dx = (  _boundary_param.contractility
                               * (  shape_index
                                  - _boundary_param.shape_index_preferential)
                               * (  dP_dx / sqrt(area)
                                  - 0.5 * dA_dx * shape_index / area));
 
             v_center->state.f -= dE_dx;
+        }
+
+        return;
+    };
+
+    void set_grad_boundary_contractility
+            (const OrderedEdgeContainer& boundary)
+    {
+        if (   _space->periodic
+            or fabs(_boundary_param.contractility) < 1.e-12)
+        {
+            return;
+        }
+
+        const double perimeter = this->_am.perimeter_of(boundary, 0.);
+        const auto N = _am.cells().size();
+        
+        for (auto [e, flip] : boundary) {
+            auto a = e->custom_links().a;
+            auto b = e->custom_links().b;
+            if (flip) { std::swap(a, b); }
+
+            SpaceVec displ = this->_am.displacement(a, b);
+            double length = arma::norm(displ);
+
+            SpaceVec force = (  _boundary_param.contractility
+                              * (    perimeter
+                                   / sqrt(_boundary_param.area_preferential(N))
+                                 - _boundary_param.shape_index_preferential)
+                              * displ / length
+                              / sqrt(_boundary_param.area_preferential(N))
+                             );
+
+            a->state.f += force;
+            b->state.f -= force;
         }
 
         return;
@@ -1212,14 +1317,37 @@ private:
                                                 _am.edges());
         apply_rule<Update::async, Shuffle::off>(set_grad_area_elasticity,
                                                 _am.cells());
-        apply_rule<Update::async, Shuffle::off>(set_grad_cell_contractility,
-                                                _am.cells());
+        if (this->_cell_contractility_impl == Contractile) {
+            apply_rule<Update::async, Shuffle::off>(set_grad_cell_contractility,
+                                                    _am.cells());
+        }
+        else if (this->_cell_contractility_impl == Shape_elastic) {
+            apply_rule<Update::async, Shuffle::off>(set_grad_shape_elasticity,
+                                                    _am.cells());
+        }
+        else {
+            throw std::runtime_error(fmt::format(
+                "Not Implemented Error: "
+                "Cell Contractility Implementation {}!",
+                this->_cell_contractility_impl));
+        }
 
         // apply boundary forces
         if (not _space->periodic) {
             const auto boundary = _am.get_boundary_edges();
             set_grad_boundary_area_elasticity(boundary);
-            set_grad_boundary_shape_elasticity(boundary);
+            if (this->_cell_contractility_impl == Contractile) {
+                set_grad_boundary_contractility(boundary);
+            }
+            else if (this->_cell_contractility_impl == Shape_elastic) {
+                set_grad_boundary_shape_elasticity(boundary);
+            }
+            else {
+                throw std::runtime_error(fmt::format(
+                    "Not Implemented Error: "
+                    "Cell Contractility Implementation {}!",
+                    this->_cell_contractility_impl));
+            }
             set_grad_boundary_stripe();
         }
 
