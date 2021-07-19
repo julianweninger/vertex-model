@@ -46,6 +46,10 @@ parameter_space:
       update_scheme: !sweep
         default: steepest_gradient
         values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
+
+      cell_shape_implementation: !sweep
+        default: contractile
+        values: [contractile, shape_elastic]
       
       space:
         periodic: !coupled-sweep

@@ -19,7 +19,7 @@ parameter_space:
   num_steps: 10
 
   seed: !sweep
-    default: 42
+    default: 1
     range: [2]
 
   PCPTopology:
@@ -88,8 +88,8 @@ parameter_space:
         cell_manager:
           agent_params:
             shape_index_preferential: !sweep
-              default: 3.62
-              values: [3.62, 3.72, 3.77, 3.81]
+              default: 3.77
+              values: [3.62, 3.72, 3.77, 3.805]
               name: p0
 
       data_manager:

@@ -20,7 +20,13 @@
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex;
 
-template<bool periodic>
+enum Cases {
+    periodic,
+    non_periodic,
+    shape_elastic // non-periodic with shape elasticity term
+};
+
+template<Cases C>
 struct Fixture {    
     Models::PCPVertex::PCPVertex vertex_model;
 
@@ -39,13 +45,18 @@ struct Fixture {
     PCPVertex model_factory() {
         using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
 
-        if constexpr (periodic) {
+        if constexpr (C == periodic) {
             Utopia::PseudoParent pp("test_periodic.yml");
             return PCPVertex("PCPVertex", pp, {},
                             std::make_tuple(time_energy_adaptor));
         }
-        else {
+        else if constexpr (C == non_periodic) {
             Utopia::PseudoParent pp("test.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
+        else if constexpr (C == shape_elastic) {
+            Utopia::PseudoParent pp("test_shape_elastic.yml");
             return PCPVertex("PCPVertex", pp, {},
                             std::make_tuple(time_energy_adaptor));
         }
@@ -88,7 +99,7 @@ public:
      *  iteration with step size dt.
      */
     void test_energy_prediction() {
-        const double precision = 1e-10;
+        const double precision = 1e-9;
 
         auto minim_cfg = get_as<Config>("minimization", this->_cfg);
         std::string update_scheme(get_as<std::string>("update_scheme",
@@ -190,7 +201,10 @@ public:
     }
 };
 
-typedef boost::mpl::vector<Fixture<false>, Fixture<true>> Fixtures;
+typedef boost::mpl::vector< Fixture<Cases::non_periodic>,
+                            Fixture<Cases::periodic>,
+                            Fixture<Cases::shape_elastic>
+                          > Fixtures;
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 

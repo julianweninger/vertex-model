@@ -223,8 +223,8 @@ PCPVertex:
 
   boundary_parameter:
     area_elasticity: 0.
-    area_preferential: 25.
-    shape_elasticity: 100.
+    area_preferential: 1. # per cell
+    contractility: 100.
     shape_index_preferential: 3.54491 # 2 sqrt(pi)
 
   # --- Initialization parameters
@@ -256,6 +256,9 @@ PCPVertex:
   minimization: *Minimization
 
   area_elasticity: 1.
+  cell_shape_implementation: contractile
+  # can be contractile or shape_elastic
+  # shape index normalization is to cell area and target cell area, resp.
 
   # Polarity interaction
   gamma: 0.
@@ -342,6 +345,7 @@ PCPVertex:
 data_manager:
   deciders:
     write_always: {type: always}
+    write_stats: {type: always}
     write_interval: &interval
       type: interval
       args:
@@ -385,7 +389,7 @@ data_manager:
     Cell_stats: &Statistics
       active: true
       trigger: build_once
-      decider: write_always
+      decider: write_stats
     Hair_cell_stats: *Statistics
     Support_cell_stats: *Statistics
     Bulk_cell_stats: *Statistics
