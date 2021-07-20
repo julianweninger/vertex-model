@@ -89,6 +89,81 @@ apply_operation_epilog:
 jiggle:
   times: []
 
+jiggle__linetension_fluctuations_1:
+  times: []
+  minimization:
+    update_scheme: steepest_gradient
+    jiggle_intensity: 0.
+    linetension_fluctuation: 0.3
+    linetension_fluctuation_tau: 1.
+
+    dt: 0.01
+    num_steps: 1
+
+
+jiggle__linetension_fluctuations_2:
+  times: []
+  minimization:
+    update_scheme: steepest_gradient
+    jiggle_intensity: 0.
+    linetension_fluctuation: 0.
+    linetension_fluctuation_tau: 1.
+
+    dt: 0.01
+    num_steps: 1
+
+jiggle__linetension_fluctuations_3:
+  times: []
+  minimization:
+    update_scheme: steepest_gradient
+    jiggle_intensity: 0.
+    linetension_fluctuation: 0.4
+    linetension_fluctuation_tau: 1.
+
+    dt: 0.02
+    num_steps: 1
+
+jiggle__area_fluctuations_1:
+  times: []
+  minimization:
+    update_scheme: steepest_gradient
+    jiggle_intensity: 0.
+    linetension_fluctuation: 0.
+
+    dt: 0.01
+    num_steps: 1
+    area_fluctuation: 0.3
+    area_fluctuation_A_min: 0.4
+    area_fluctuation_tau: 1.
+
+
+jiggle__area_fluctuations_2:
+  times: []
+  minimization:
+    update_scheme: steepest_gradient
+    jiggle_intensity: 0.
+    linetension_fluctuation: 0.
+
+    dt: 0.01
+    num_steps: 1
+    area_fluctuation: 0.
+    area_fluctuation_A_min: 0.4
+    area_fluctuation_tau: 1.
+
+jiggle__area_fluctuations_3:
+  times: []
+  minimization:
+    update_scheme: steepest_gradient
+    jiggle_intensity: 0.
+    linetension_fluctuation: 0.
+
+    dt: 0.02
+    num_steps: 1
+    area_fluctuation: 0.35
+    area_fluctuation_A_min: 0.3
+    area_fluctuation_tau: 1.
+
+
 differentiate_random:
   times: []
   probability: 0.25
