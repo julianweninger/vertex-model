@@ -137,6 +137,203 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         operation(vertex_model);
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_jiggle__linetension_fluctuations) {
+        std::string name = "jiggle__linetension_fluctuations_1";
+        auto [operation, params] = build_jiggle(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        const auto& edges = vertex_model.get_am().edges();
+
+        operation(vertex_model);
+
+        for (const auto& e : edges) {
+            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
+            BOOST_TEST(fabs(e->state._linetension_fluctuation) < 1.e-12);
+        }
+        
+        std::size_t t;
+        // spin up
+        for (t = 0; t < 300; t++) {
+            vertex_model.minimize_energy(params.minimization_params);
+        }
+
+        // target linetension does not change
+        for (const auto& e : edges) {
+            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
+        }
+
+        std::vector<double> values{};
+        values.reserve(200 * edges.size());
+        for (t = 300; t < 500; t++) {
+            vertex_model.minimize_energy(params.minimization_params);
+
+            std::transform(edges.begin(), edges.end(),
+                           std::back_inserter(values),
+                           [](const auto& e) -> double
+                           { return e->state.linetension(); });
+        }
+
+        auto [mean, stddev] = get_statistics(values);
+        BOOST_TEST(fabs(mean) < 0.01);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 5);
+
+
+        name = "jiggle__linetension_fluctuations_2";
+        auto [operation_2, params_2] = build_jiggle(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation_2(vertex_model);
+
+        for (t = 500; t < 600; t++) {
+            vertex_model.minimize_energy(params_2.minimization_params);
+        }
+
+        // target linetension does not change
+        for (const auto& e : edges) {
+            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
+            BOOST_TEST(fabs(e->state._linetension_fluctuation) < 1.e-12);
+        }
+
+
+        name = "jiggle__linetension_fluctuations_3";
+        auto [operation_3, params_3] = build_jiggle(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation_3(vertex_model);
+
+        for (const auto& e : edges) {
+            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
+            BOOST_TEST(fabs(e->state._linetension_fluctuation) < 1.e-12);
+        }
+        
+        // spin up
+        for (t = 600; t < 900; t++) {
+            vertex_model.minimize_energy(params_3.minimization_params);
+        }
+
+        // target area does not change
+        for (const auto& e : edges) {
+            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
+        }
+
+
+        values.clear();
+        for (t = 900; t < 1100; t++) {
+            vertex_model.minimize_energy(params_3.minimization_params);
+
+            std::transform(edges.begin(), edges.end(),
+                           std::back_inserter(values),
+                           [](const auto& e) -> double
+                           { return e->state.linetension(); });
+        }
+
+        std::tie(mean, stddev) = get_statistics(values);
+        BOOST_TEST(fabs(mean) < 0.01);
+        BOOST_CHECK_CLOSE(stddev, 0.4, 5);
+    }
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_jiggle__area_fluctuations) {
+        std::string name = "jiggle__area_fluctuations_1";
+        auto [operation, params] = build_jiggle(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        const auto& cells = vertex_model.get_am().cells();
+
+        operation(vertex_model);
+
+        for (const auto& c : cells) {
+            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
+            BOOST_TEST(fabs(c->state._area_preferential_fluctuations) < 1.e-12);
+        }
+        
+        std::size_t t;
+        // spin up
+        for (t = 0; t < 300; t++) {
+            vertex_model.minimize_energy(params.minimization_params);
+        }
+
+        // target area does not change
+        for (const auto& c : cells) {
+            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
+        }
+
+        std::vector<double> values{};
+        values.reserve(200 * cells.size());
+        for (t = 300; t < 500; t++) {
+            vertex_model.minimize_energy(params.minimization_params);
+
+            std::transform(cells.begin(), cells.end(),
+                           std::back_inserter(values),
+                           [](const auto& c) -> double
+                           { return c->state.area_preferential(); });
+        }
+
+        auto [mean, stddev] = get_statistics(values);
+        BOOST_CHECK_CLOSE(mean, 1., 5);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 5);
+        for (const auto& v : values) {
+            BOOST_TEST(v >= 0.4);
+        }
+
+
+        name = "jiggle__area_fluctuations_2";
+        auto [operation_2, params_2] = build_jiggle(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation_2(vertex_model);
+
+        for (t = 500; t < 600; t++) {
+            vertex_model.minimize_energy(params_2.minimization_params);
+        }
+
+        // target area does not change
+        for (const auto& c : cells) {
+            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
+            BOOST_TEST(  fabs(c->state._area_preferential_fluctuations)
+                        < 1.e-12);
+        }
+
+
+        name = "jiggle__area_fluctuations_3";
+        auto [operation_3, params_3] = build_jiggle(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation_3(vertex_model);
+
+        for (const auto& c : cells) {
+            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
+            BOOST_TEST(fabs(c->state._area_preferential_fluctuations) < 1.e-12);
+        }
+        
+        // spin up
+        for (t = 600; t < 900; t++) {
+            vertex_model.minimize_energy(params_3.minimization_params);
+        }
+
+        // target area does not change
+        for (const auto& c : cells) {
+            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
+        }
+
+
+        values.clear();
+        for (t = 900; t < 1100; t++) {
+            vertex_model.minimize_energy(params_3.minimization_params);
+
+            std::transform(cells.begin(), cells.end(),
+                           std::back_inserter(values),
+                           [](const auto& c) -> double
+                           { return c->state.area_preferential(); });
+        }
+
+        std::tie(mean, stddev) = get_statistics(values);
+        BOOST_CHECK_CLOSE(mean, 1., 5);
+        BOOST_CHECK_CLOSE(stddev, 0.35, 5);
+        for (const auto& v : values) {
+            BOOST_TEST(v >= 0.3);
+        }
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_random) {
         const std::string name = "differentiate_random";
         auto [operation, params] = build_differentiate_random(

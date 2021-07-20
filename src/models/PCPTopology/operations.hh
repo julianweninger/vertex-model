@@ -835,10 +835,8 @@ OperationBundle build_evolve_area (
 
     bool increment(get_as<bool>("increment", cfg));
 
-    double stddev(get_as<double>("relative_stddev", cfg));
-    double tau(get_as<double>("tau", cfg, 1.));
     double A_min(get_as<double>("A_min", cfg, 0.));
-
+    
     double prog(get_as<double>("progenitor", cfg, 0.));
     double hair(get_as<double>("hair", cfg, 0.));
     double support(get_as<double>("support", cfg, 0.));
@@ -859,7 +857,7 @@ OperationBundle build_evolve_area (
             "`relax_domain` and `relax_domain_PD_axis` can be true!");
     }
 
-    Operation operation = [prog, hair, support, stddev, tau, increment, A_min,
+    Operation operation = [prog, hair, support, increment, A_min,
                            adapt_support, relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
     {
@@ -930,8 +928,6 @@ OperationBundle build_evolve_area (
         };
         
         apply_rule<Update::sync>(update, cells);
-
-        vertex_model.set_area_fluctuations(stddev, tau, A_min);
 
         if (relax_domain) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,

@@ -67,6 +67,20 @@ struct MinimizationParams {
      */
     std::pair<double, double> linetension_fluctuations;
 
+    /// Area fluctuation parameter
+    /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
+     * 
+     *  \f$  \frac{dA_{i}}{dt} = - \frac{1}{\tau_A}
+     *      (A_{i}(t) - A_0)
+     *      + \Delta A * A_0 \sqrt{2 / \tau_A} \Theta_{i}(t)
+     *  \f$
+     * 
+     *  with the first value \f$ \tau \f$,
+     *  the second value the \f$ \Delta A \f$ relative fluctuations, 
+     *  and the third value the minimum area (using a lognormal distribution).
+     */
+    std::tuple<double, double, double> area_fluctuations;
+
     /// How to evolve the activity of edge contractility
     /** Defines the activation and deactivation rate of contractility on every
      *  edge.
@@ -115,6 +129,13 @@ struct MinimizationParams {
             std::make_pair(
                 get_as<double>("linetension_fluctuation_tau", cfg, 1.),
                 get_as<double>("linetension_fluctuation", cfg, 0.)
+            )
+        ),
+        area_fluctuations(
+            std::make_tuple(
+                get_as<double>("area_fluctuation_tau", cfg, 1.),
+                get_as<double>("area_fluctuation", cfg, 0.),
+                get_as<double>("area_fluctuation_A_min", cfg, 0.)
             )
         ),
         contractility_activity(
@@ -167,6 +188,16 @@ struct MinimizationParams {
                     std::get<0>(defaults.linetension_fluctuations)),
                 get_as<double>("linetension_fluctuation", cfg,
                     std::get<1>(defaults.linetension_fluctuations))
+            )
+        ),
+        area_fluctuations(
+            std::make_tuple(
+                get_as<double>("area_fluctuation_tau", cfg,
+                    std::get<0>(defaults.area_fluctuations)),
+                get_as<double>("area_fluctuation", cfg,
+                    std::get<1>(defaults.area_fluctuations)),
+                get_as<double>("area_fluctuation_A_min", cfg,
+                    std::get<2>(defaults.area_fluctuations))
             )
         ),
         contractility_activity(
@@ -615,7 +646,8 @@ public:
             _default_minimization_params.linetension_fluctuations),
         _contractility_activity(
             _default_minimization_params.contractility_activity),
-        _area_fluctuations(std::make_tuple(0., 0., 0.)),
+        _area_fluctuations(
+            _default_minimization_params.area_fluctuations),
         _linetension(this->setup_linetension(this->_cfg)),
         _edge_contractility(this->setup_edge_contractility(this->_cfg)),
         _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
@@ -1455,20 +1487,23 @@ private:
     const RuleFuncCell update_area_preferential_ornstein =
     [this](const auto& cell)
     {
-        double A0 = cell->state._area_preferential_fluctuations;
+        double A_fluc = cell->state._area_preferential_fluctuations;
+        double A_targ = cell->state._area_preferential;
 
+        // the timescale, relative fluctuation amplitude, and minimum area
         auto [tau, dA, A_min] = this->_area_fluctuations;
-        double tmp_A = cell->state.area_preferential() - A_min;
-
-        auto distr = get_lognormal_distribution(tmp_A, dA);
-        double rn = distr(*this->_rng) - tmp_A;
-        // NOTE the distribution has mean 0, min A_min, and stddev dA
         
-        double rand_A = sqrt(2. * _dt / tau) * rn;
+        // shift lognormal distribution to account for A_min
+        double mean_distr = cell->state.area_preferential() - A_min;
 
-        A0 += rand_A - _dt / tau * A0;
+        auto distr = get_lognormal_distribution(mean_distr, dA * A_targ);
+        double rn = distr(*this->_rng) - mean_distr;
+        // NOTE the rns have mean 0, min A_min, and stddev dA * A_targ
 
-        cell->state._area_preferential_fluctuations = A0;
+        // the Ornstein Uhlenbeck step for fluctuations
+        A_fluc += sqrt(2. * _dt / tau) * rn - _dt / tau * A_fluc;
+
+        cell->state._area_preferential_fluctuations = A_fluc;
         
         return cell->state;
     };
@@ -1642,9 +1677,15 @@ public:
         _dt = params.dt;
         _distr_temperature = params.temperature;
         _linetension_fluctuations = params.linetension_fluctuations;
+        _area_fluctuations = params.area_fluctuations;
         if (std::get<1>(_linetension_fluctuations) < 1.e-12) {
             for (const auto& e : _am.edges()) {
                 e->state._linetension_fluctuation = 0.;
+            }
+        }
+        if (std::get<1>(_area_fluctuations) < 1.e-12) {
+            for (const auto& c : _am.cells()) {
+                c->state._area_preferential_fluctuations = 0.;
             }
         }
         _contractility_activity = params.contractility_activity;
@@ -2251,12 +2292,6 @@ public:
                                          fabs(min_x - origin_x));
 
         _boundary_param.stripe_curvature = kappa_max * rel_curvature;
-    }
-
-    void set_area_fluctuations(double stddev, double tau = 1.,
-                               double A_min = 0.)
-    {
-        _area_fluctuations = std::make_tuple(tau, stddev, A_min);
     }
 
 
