@@ -350,13 +350,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             color = ['red' if d == 1 else 'grey' for d in cell_type]
             hlpr.ax.scatter(x, y, c=color, s=cell_marker_size,
                             alpha=0.5)
-
-            # # cell polarity plots
-            # pol_x = 0 # c_data.sel(property="polarity_x")
-            # pol_y = 0 # c_data.sel(property="polarity_y")
-            # dx = pol_x / 5.
-            # dy = pol_y / 5.
-            # hlpr.ax.quiver(x - dx/2, y - dy/2., dx, dy, hlpr.ax)
             
             # gather the data for property interpolation
             # for the energies of the cells

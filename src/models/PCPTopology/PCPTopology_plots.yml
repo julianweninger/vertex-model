@@ -32,21 +32,6 @@ energy_boundary_continuous:
     Energy/Boundary_shape_elasticity: 
       label: Boundary shape-elasticity
 
-energy_polarity_continuous:
-  based_on: energy
-  model_name: PCPTopology/PCPVertex
-  enabled: false
-
-  to_plot:
-    Energy/Cell_cell_polarity: 
-      label: cell-cell-polarity
-    Energy/Polarity_exclusion: 
-      label: polarity-exclusion
-    Energy/Lagrange_net_polarisation: 
-      label: lagrange-net-polarisation
-    Energy/Lagrange_const_concentration: 
-      label: lagrange-const-concentration
-
 transitions:
   based_on:
     - universe

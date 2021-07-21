@@ -69,12 +69,6 @@ boundary_parameter:
   contractility: 0.
   shape_index_preferential: 3.62
 
-# Polarity interaction
-gamma: 0.
-cell_cell_polarity_interaction: 0.
-cell_polarity_exclusion: 0.
-cell_initialisation_protein_level: 0.
-
 T1_threshold: 0.03
 T1_separation_factor: 1.05
 T1_probability: 1.
@@ -137,20 +131,6 @@ data_manager:
     Energy_boundary_area_elasticity: *energy
     Energy_boundary_shape_elasticity: *energy
     Energy_time: *energy
-
-    # The polarity energies
-    Energy_cell_cell_polarity: 
-      <<: *energy
-      active: false
-    Energy_polarity_exclusion: 
-      <<: *energy
-      active: false
-    Energy_lagrange_net_polarisation: 
-      <<: *energy
-      active: false
-    Energy_lagrange_const_concentration: 
-      <<: *energy
-      active: false
 
     transitions: *energy
 

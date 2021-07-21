@@ -28,9 +28,6 @@ PCPVertex:
     contractility: 0.
     shape_index_preferential: 3.62
   cell_shape_implementation: contractile
-  cell_cell_polarity_interaction: 0.0
-  cell_initialisation_protein_level: 0.0
-  cell_polarity_exclusion: 0.0
   data_manager:
     deciders:
       write_always: {type: always}
@@ -48,7 +45,6 @@ PCPVertex:
     max_steps: 15000
     num_repeat: 5
     tolerance: 1e-08
-  gamma: 0.0
   initial_jiggle: 0.05
   space:
     extent: [1.0, 1.0]

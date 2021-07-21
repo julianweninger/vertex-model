@@ -260,12 +260,6 @@ PCPVertex:
   # can be contractile or shape_elastic
   # shape index normalization is to cell area and target cell area, resp.
 
-  # Polarity interaction
-  gamma: 0.
-  cell_cell_polarity_interaction: 0.
-  cell_polarity_exclusion: 0.
-  cell_initialisation_protein_level: 0.
-
   T1_threshold: 0.03
   T1_separation_factor: 1.05
   T1_probability: 1.
@@ -301,20 +295,6 @@ PCPVertex:
       Energy_boundary_area_elasticity: *energy_continuous
       Energy_boundary_shape_elasticity: *energy_continuous
       Energy_time: *energy_continuous
-
-      # the polarity energies
-      Energy_cell_cell_polarity: 
-        <<: *energy_continuous
-        active: false
-      Energy_polarity_exclusion: 
-        <<: *energy_continuous
-        active: false
-      Energy_lagrange_net_polarisation: 
-        <<: *energy_continuous
-        active: false
-      Energy_lagrange_const_concentration: 
-        <<: *energy_continuous
-        active: true
 
       transitions: *energy_continuous
 
@@ -374,15 +354,6 @@ data_manager:
     Energy_boundary_shape_elasticity: *energy
     Energy_time: *energy
     Continuous_time: *energy
-
-    # the polarity energies
-    Energy_cell_cell_polarity: &polarity_energy
-      active: false
-      trigger: build_once
-      decider: write_always
-    Energy_polarity_exclusion: *polarity_energy
-    Energy_lagrange_net_polarisation: *polarity_energy
-    Energy_lagrange_const_concentration: *polarity_energy
     
     transitions: *energy
         

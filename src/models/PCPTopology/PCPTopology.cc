@@ -16,8 +16,6 @@ auto model_factory(ParentType parent) {
         linetension_adaptor, areaelasticity_adaptor,
         cell_contractility_adaptor, edge_contractility_adaptor,
         boundary_area_elasticity_adaptor, boundary_shape_elasticity_adaptor,
-        cell_cell_polarity_adaptor, polarity_exclusion_adaptor,
-        lagrange_net_polarisation_adaptor, lagrange_const_concentration_adaptor,
         // transitions
         transition_adaptor,
         // statistics
