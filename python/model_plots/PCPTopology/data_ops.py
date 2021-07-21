@@ -8,6 +8,8 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 
+log = logging.getLogger(__name__)
+
 # -----------------------------------------------------------------------------
 
 def stack(d, *a, **k):
@@ -168,6 +170,14 @@ def stack_xls_sheets(path: str, *, label: str, label_sheets: str,
                      convert_sheet_labels_to_float: bool=False, **kwargs):
     """Read a excel (xls) file and stack sheets. Returns a pandas dataframe.
     """
+    if path is None:
+        log.warning("No path provided to stack_xls_sheets! Returning empty "
+                    "dataframe.")
+        return pd.DataFrame({label_sheets: [],
+                             'id': [],
+                             label_columns: [],
+                             label: []})
+
     data = pd.read_excel(path, sheet_name=None, **kwargs)
 
     def stack_sheet(d):
