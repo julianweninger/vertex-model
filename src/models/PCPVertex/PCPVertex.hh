@@ -380,9 +380,6 @@ private:
     /// timestep scaling
     double _dt;
 
-    /// timestep scaling for polarity
-    double _gamma;
-
     /// The update scheme for energy minimization
     /** Currently implemented update schemes:
      *      -# steepest_gradient : Steepest gradient update at fixed step size
@@ -555,15 +552,6 @@ private:
     /// Cells with area smaller than this value are removed in T2 transition
     double _T2_threshold;
 
-
-    // -- polarity parameters -----------------------------------------------
-
-    /// Interaction parameter of cell-cell polarity interaction
-    double _cell_cell_polarity_interaction;
-
-    /// Interaction parameter of cell-internal polarity interaction
-    double _cell_polarity_exclusion;
-
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -638,7 +626,6 @@ public:
         _default_minimization_params(get_as<Config>("minimization",
                                                     this->_cfg)),
         _dt(_default_minimization_params.dt),
-        _gamma(get_as<double>("gamma", this->_cfg)),
         _update_scheme(_default_minimization_params.update_scheme),
         _minimization_tolerance(_default_minimization_params.tolerance),
         _distr_temperature(_default_minimization_params.temperature),
@@ -668,10 +655,6 @@ public:
         _enable_T2_transitions(
             get_as<bool>("enable_T2_transitions", this->_cfg, true)),
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
-        _cell_cell_polarity_interaction(get_as<double>(
-            "cell_cell_polarity_interaction",this->_cfg)),
-        _cell_polarity_exclusion(get_as<double>(
-            "cell_polarity_exclusion", this->_cfg)),
         _prob_distr(0.,1.),
         _normal_distr(0.,1.),
         _energy_previous_step(std::numeric_limits<double>::max()),
@@ -684,9 +667,6 @@ public:
         _num_T2s_total(0),
         _num_minimizations(0)
     {
-        // this->initialise_polarity_random(get_as<double>(
-        //         "cell_initialisation_protein_level", this->_cfg));
-
         double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
         if (initial_jiggle > 1.e-12) {
             jiggle_vertices(initial_jiggle);
@@ -740,12 +720,6 @@ private:
         }
     }
 
-    // /// Initialise the polarity proteins with random levels
-    // /** This initialisation fulfills the polarity constrains of zero net
-    //  *  polarisation and constant level of proteins per cell
-    //  */
-    // void initialise_polarity_random (double initialisation_protein_level);
-
 
     // ..energy terms .........................................................
     // See energy.hh for implementation
@@ -759,13 +733,6 @@ private:
     double cell_contractility_energy (const std::shared_ptr<Cell>& cell,
                                       double beta = 0.) const;
 
-    // double cell_cell_polarity_energy (Edge_ptr &e) const;
-    // double polarity_exclusion_energy (Edge_ptr &a, Edge_ptr &b,
-    //                                   const Cell_ptr &cell) const;
-    // double cell_polarity_exclusion_energy (Cell_ptr &c) const;
-    // double lagrange_net_polarisation_energy (Cell_ptr &c) const;
-    // double lagrange_const_concentration_energy (Cell_ptr &c) const;
-
     // .. Force setter functions ..............................................
     /// Resets the forces of this vertex
     const RuleFuncVertex reset_forces = [] (const auto& vertex)
@@ -773,16 +740,6 @@ private:
         auto state = vertex->state;
         state.f.zeros();
         state.virtual_pos = std::make_pair(0, state.f);
-        return state;
-    };
-
-    /// Reset the forces associated with polarity-proteins
-    const RuleFuncEdge reset_polarity_change = [](const auto& edge) {
-        auto state = edge->state;
-        
-        state.d_sigma_a = 0.;
-        state.d_sigma_b = 0.;
-        
         return state;
     };
 
@@ -1235,104 +1192,6 @@ private:
     };
 
 
-    // /// Set forces from cell-cell polarity interaction
-    // /** 
-    //  *  \return PCPVertex::cell_cell_polarity_energy
-    //  */
-    // std::function<void(Edge_ptr&)> set_cell_cell_polarity = [this](Edge_ptr &e) {
-    //     e->d_sigma_a -= _cell_cell_polarity_interaction * e->sigma_b;
-    //     e->d_sigma_b -= _cell_cell_polarity_interaction * e->sigma_a;
-    // };
-
-    // /// Set forces from cell intrinsic exclusion of polarity proteins
-    // /** \return PCPVertex::polarity_exclusion_energy
-    //  */
-    // std::function<void(Edge_ptr&, Edge_ptr&,
-    //                      const Cell_ptr&)> set_polarity_exclusion = 
-    //         [this](Edge_ptr &a, Edge_ptr &b, const Cell_ptr &cell)
-    // {
-    //     double sigma_a = a->get_sigma(cell);
-    //     double sigma_b = b->get_sigma(cell);
-
-    //     double d_sigma_a = _cell_polarity_exclusion * sigma_b;
-    //     double d_sigma_b = _cell_polarity_exclusion * sigma_a;
-
-    //     a->set_d_sigma(cell, a->get_d_sigma(cell) + d_sigma_a);
-    //     b->set_d_sigma(cell, b->get_d_sigma(cell) + d_sigma_b);
-    // };
-
-    // /// Applies cell intrinsic exclusion of polarity proteins for a cell
-    // /** Pairwise calculation of PCPVertex::polarity_exclusion for all edges of c
-    //  */
-    // std::function<void(Cell_ptr&)> apply_polarity_exclusion = 
-    //         [this](Cell_ptr &c)
-    // {
-    //     EdgeContainer edges;
-    //     for (auto [e, flip] : c->edges_ordered) {
-    //         edges.push_back(e);
-    //     }
-    //     std::function<void(int, int)> factory = [c, edges, this](
-    //             int pos_a, int pos_b)
-    //     {
-    //         auto a = edges[pos_a];
-    //         auto b = edges[pos_b];
-
-    //         this->set_polarity_exclusion(a, b, c);
-    //     };
-    //     for (int i = 1; i < edges.size(); i++) {
-    //         factory(i-1, i);
-    //     }
-    //     factory(edges.size()-1, 0);
-    // };
-
-    // /// Set forces from constraint of zero net polarisation
-    // /** Within a cell the net polarisation is zero.
-    //  *  Included via lagrange multiplier I
-    //  * 
-    //  *  \f$ E = -\lambda_I^\alpha \sum_i \sigma_i^\alpha \f$
-    //  * 
-    //  *  \warning There is no argument available why 
-    //  *           \f$\dot{\lambda} = \gamma dE/d\lambda\f$
-    //  *           instead of \f$\dot{\lambda} = -\gamma dE/d\lambda\f$
-    //  */
-    // std::function<void(Cell_ptr&)> set_lagrange_net_polarisation =
-    //         [this](Cell_ptr &c)
-    // {
-    //     double cum_sigma = 0.;
-    //     double lagrange = c->lagrange_net_polarisation;
-    //     for (auto [e, flip] : c->edges_ordered) {
-    //         double sigma = e->get_sigma(c);
-    //         e->set_d_sigma(c, e->get_d_sigma(c) + lagrange);      
-
-    //         cum_sigma += sigma;
-    //     }
-    //     // update the lagrangian
-    //     c->lagrange_net_polarisation -= cum_sigma * this->_gamma;
-    // };
-    
-    // /// Set forces from constraint of constant protein level
-    // /** Within a cell the concentration of proteins is constant
-    //  *  Included via lagrange multiplier II     * 
-    //  * 
-    //  *  \f$ E = -\lambda_{II}^\alpha (\sum_i (\sigma_i^\alpha)^2 - c^\alpha) \f$
-    //  */
-    // std::function<void(Cell_ptr&)> set_lagrange_const_concentration =
-    //         [this](Cell_ptr &c)
-    // {
-    //     double concentration = 0.;
-    //     double lagrange = c->lagrange_const_concentration;
-    //     for (auto [e, flip] : c->edges_ordered) {
-    //         double sigma = e->get_sigma(c);
-    //         double d_sigma = 2 * sigma * lagrange;
-    //         e->set_d_sigma(c, e->get_d_sigma(c) + d_sigma);         
-
-    //         concentration += std::pow(sigma, 2);
-    //     }
-    //     // update the lagrangian
-    //     c->lagrange_const_concentration -= (concentration - 
-    //                                      c->protein_concentration) * this->_gamma;
-    // };
-
     /// Set the gradient of energy within the vertices
     /** \details This function applies the forces arising from the different
      *           energy terms.
@@ -1507,17 +1366,6 @@ private:
         
         return cell->state;
     };
-
-    /** The update of polarity protein levels
-     * 
-     *  Change polarity level proportional to the gradient of energy (force)
-     * 
-     *  @param e    The pointer to the edge to update
-     */
-    // std::function<void(Edge_ptr&)> update_polarity = [this](Edge_ptr &e) {
-    //     e->sigma_a += e->d_sigma_a * _gamma;
-    //     e->sigma_b += e->d_sigma_b * _gamma;
-    // };
     
 
     // -- The algorithm    ----------------------------------------------------
@@ -1606,22 +1454,6 @@ public:
         _energy = perform_update_step(_update_scheme);
 
         apply_rule<Update::sync>(track_rotation, _am.cells());
-        
-        // if (_gamma > 0) {
-        //     throw std::logic_error("Polarity proteins update not implemented!");
-        //     apply_rule<Update::sync>(reset_polarity_change, _am.edges());
-
-        //     std::for_each(_edges.begin(), _edges.end(),
-        //                   set_cell_cell_polarity);
-        //     std::for_each(_cells.begin(), _cells.end(),
-        //         apply_polarity_exclusion);
-        //     std::for_each(_cells.begin(), _cells.end(),
-        //         set_lagrange_net_polarisation);
-        //     std::for_each(_cells.begin(), _cells.end(),
-        //         set_lagrange_const_concentration);
-
-        //     std::for_each(_edges.begin(), _edges.end(), update_polarity);
-        // }
 
         this->_log->trace("Energy changed by {}",
                           get_rel_energy_change(_energy,
@@ -2028,27 +1860,6 @@ public:
                       const AgentContainer<Cell>& cs) const {
         return get_energy(es, cs, 0.);
     }
-    
-    // double get_energy_cell_cell_polarity(const EdgeContainer& es) const;
-    // double get_energy_cell_cell_polarity() const {
-    //     return get_energy_cell_cell_polarity(_edges);
-    // }
-    
-    // double get_energy_polarity_exclusion (const CellContainer& cs) const;
-    // double get_energy_polarity_exclusion () const {
-    //     return get_energy_polarity_exclusion(_cells);
-    // }
-    
-    // double get_energy_lagrange_net_polarisation(const CellContainer& cs) const;
-    // double get_energy_lagrange_net_polarisation() const {
-    //     return get_energy_lagrange_net_polarisation(_cells);
-    // }
-    
-    // double get_energy_lagrange_const_concentration(
-    //         const CellContainer& cs) const;
-    // double get_energy_lagrange_const_concentration() const {
-    //     return get_energy_lagrange_const_concentration(_cells);
-    // }
 
     
     // .. Counter for transitions, etc.. ......................................
@@ -2297,32 +2108,6 @@ public:
 
 }; // class PCPVertex
 
-
-
-// void PCPVertex::initialise_polarity_random (
-//         double initialisation_protein_level)
-// {
-//     for (auto c : _cells) {
-//         std::vector<double> rn(6);
-//         double sum = 0.;
-//         double sum_squares = 0.;
-//         for (int i = 0; i < 5; i++) {
-//             rn[i] = 2*_prob_distr(*this->_rng) - 1.;
-//             sum += rn[i];
-//             sum_squares += std::pow(rn[i], 2);
-//         }
-//         rn[5] = -sum;
-//         sum_squares += std::pow(rn[5], 2);
-
-//         std::shuffle(rn.begin(), rn.end(), *this->_rng);
-
-//         int it = 0;
-//         for (auto [e, flip] : c->edges_ordered) {
-//             double norm = initialisation_protein_level / sqrt(sum_squares); 
-//             e->set_sigma(c, rn[it++] * norm) ;
-//         }
-//     }
-// }
 
 } // namespace PCPVertex
 } // namespace Models

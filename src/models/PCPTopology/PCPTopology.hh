@@ -167,10 +167,6 @@ public:
                 DataIO::edge_contractility_adaptor,
                 DataIO::boundary_area_elasticity_adaptor,
                 DataIO::boundary_shape_elasticity_adaptor,
-                DataIO::cell_cell_polarity_adaptor,
-                DataIO::polarity_exclusion_adaptor,
-                DataIO::lagrange_net_polarisation_adaptor,
-                DataIO::lagrange_const_concentration_adaptor,
                 // transition adaptors
                 DataIO::transition_adaptor,
                 // statistics
@@ -758,19 +754,6 @@ public:
     double get_boundary_energy() const {
         return _vertex_model.get_boundary_energy();
     }
-    
-    // double get_energy_cell_cell_polarity() const {
-    //     return _vertex_model.get_energy_cell_cell_polarity();
-    // }
-    // double get_energy_polarity_exclusion () const {
-    //     return _vertex_model.get_energy_polarity_exclusion();
-    // }
-    // double get_energy_lagrange_net_polarisation() const {
-    //     return _vertex_model.get_energy_lagrange_net_polarisation();
-    // }
-    // double get_energy_lagrange_const_concentration() const {
-    //     return _vertex_model.get_energy_lagrange_const_concentration();
-    // }
 
     std::size_t get_num_T1s() const {
         return _num_T1s;

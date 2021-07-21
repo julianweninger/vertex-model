@@ -82,18 +82,6 @@ struct EdgeState {
     /** 0 if never attempted */
     std::size_t last_T1_attempt;
 
-    /// Polartity protein level on side to cell a
-    double sigma_a;
-
-    /// Polartity protein level on side to cell b
-    double sigma_b;
-
-    /// Steepest descent in protein level (side a)
-    double d_sigma_a;
-
-    /// Steepest descent in protein level (side b)
-    double d_sigma_b;
-
     /// Whether this object is to be removed 
     bool remove;
 
@@ -108,8 +96,6 @@ struct EdgeState {
         _contractility(get_as<double>("contractility", cfg)),
         contractility_on(true),
         last_T1_attempt(0),
-        sigma_a(0.), sigma_b(0.),
-        d_sigma_a(0.), d_sigma_b(0.),
         remove(false)
     { }
 
@@ -189,19 +175,6 @@ struct CellState {
     /// The contractility of the cell
     double contractility;
 
-    /// Lagrange multiplier I
-    /** Constraint of zero net polarisation
-     */
-    double lagrange_net_polarisation;
-
-    /// Lagrange multiplier II
-    /** Constraint of constant protein level
-     */
-    double lagrange_const_concentration;
-
-    /// The initial protein concentration
-    double protein_concentration;
-
     /// Whether this object is to be removed 
     bool remove;
 
@@ -211,7 +184,6 @@ struct CellState {
         cfg["area_preferential"] = _area_preferential;
         cfg["shape_index_preferential"] = shape_index_preferential;
         cfg["contractility"] = contractility;
-        cfg["protein_concentration"] = protein_concentration;
         
         if (type == CellType::progenitor) {
             cfg["cell_type"] = "progenitor";
@@ -241,7 +213,6 @@ struct CellState {
      *              p0 = Perimeter0 / sqrt(area preferential)
      *      -  `contractility` (double): The contractility of the cell
      *              associated with contractility of the actin-myosin ring
-     *      - `protein_concentration` (double, unused): Currently unused
      *      -  `cell_type` (str): The type of cell. See CellState::setup_type.
      * 
      *  \param rng      A random number generator
@@ -256,9 +227,6 @@ struct CellState {
         shape_index_preferential(get_as<double>("shape_index_preferential",
                                  cfg)),
         contractility(get_as<double>("contractility", cfg)),
-        lagrange_net_polarisation(0.),
-        lagrange_const_concentration(0.),
-        protein_concentration(get_as<double>("protein_concentration", cfg, 0.)),
         remove(false)
     {
         double area_preferential_var = get_as<double>("area_preferential_var",

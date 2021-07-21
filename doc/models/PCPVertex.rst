@@ -72,30 +72,6 @@ In the following i and j denote edges, :math:`\alpha` and :math:`\beta` denot ce
 
 
 
-**PCP protein interaction**
-    from Aigouy et al. [2010]. These add a layer of development without coupling
-    to the tissue mechanics.
-
-    Cell-cell polarity interaction between two cells across a common bond
-
-    .. math::
-        E = J_1 \sum_i \sigma_i^\alpha \sigma_i^\beta
-
-    Cell intrinsic polarity exclusion on two neighbouring edges
-
-    .. math::
-        E = - J_2 \sum_{<i, j>} \sigma_i^\alpha \sigma_j^\alpha
-
-    Lagrange constrain of zero net polarisation per cell
-
-    .. math::
-        E = - \sum_\alpha \lambda_I^\alpha \sum_i \sigma_i^\alpha
-
-    Lagrange constrain of constant levels of proteins per cell
-
-    .. math::
-        E = - \sum_\alpha \lambda_{II}^\alpha (\sum_i (\sigma_i^\alpha)^2 - c) 
-
 
 Implementation Details
 ----------------------
@@ -109,7 +85,6 @@ Process ordering
 #. Linetension on edges
 #. Area elasticity on cells
 #. Update vertex positions on vertices
-#. If activated: polarity terms in above order, then their update.
 
 
 Default Model Configuration
@@ -120,9 +95,6 @@ Below are the default configuration parameters for the ``PCPVertex`` model.
 .. literalinclude:: ../../src/models/PCPVertex/PCPVertex_cfg.yml
    :language: yaml
    :start-after: ---
-
-Polarity proteins are only activated if :math:`\gamma > 0`. For efficiency, deactivate the corresponding energy-datasets.
-deactivate
 
 References
 ----------

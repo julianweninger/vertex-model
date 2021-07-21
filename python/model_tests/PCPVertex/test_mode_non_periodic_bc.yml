@@ -1,7 +1,0 @@
-# The model configuration for the heterogeneous Savanna Model
----
-parameter_space:  
-  PCPVertex: !model
-    model_name: PCPVertex
-    
-    periodic_bc: false

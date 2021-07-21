@@ -17,14 +17,6 @@ energy:
       label: cell contractility
     Energy/Edge_contractility:
       label: edge contractility
-    # Energy/Cell_cell_polarity: 
-    #   label: cell-cell-polarity
-    # Energy/Polarity_exclusion: 
-    #   label: polarity-exclusion
-    # Energy/Lagrange_net_polarisation: 
-    #   label: lagrange-net-polarisation
-    # Energy/Lagrange_const_concentration: 
-    #   label: lagrange-const-concentration
 
 energy_mechanics:
   based_on: energy
@@ -47,23 +39,9 @@ energy_boundary:
 
   to_plot:
     Energy/Boundary_area_elasticity: 
-      label: cell-cell-polarity
+      label: area elasticity (boundary)
     Energy/Boundary_shape_elasticity: 
-      label: polarity-exclusion
-
-energy_polarity:
-  based_on: energy
-  enabled: false
-
-  to_plot:
-    Energy/Cell_cell_polarity: 
-      label: cell-cell-polarity
-    Energy/Polarity_exclusion: 
-      label: polarity-exclusion
-    Energy/Lagrange_net_polarisation: 
-      label: lagrange-net-polarisation
-    Energy/Lagrange_const_concentration: 
-      label: lagrange-const-concentration
+      label: shape elasticity (boundary)
 
 transitions:
   based_on: transitions

@@ -16,10 +16,6 @@ using namespace Utopia::DataIO;
  *          - Energy_areaelasticity
  *          - Energy_cell_contractility
  *          - Energy_edge_contractility
- *          - Energy_cell_cell_polarity
- *          - Energy_polarity_exclusion
- *          - Energy_lagrange_net_polarisation
- *          - Energy_lagrange_const_concentration
  *          - transitions
  *      - Vertices (time series groups)
  *      - Cells (time series groups)
@@ -321,142 +317,6 @@ auto boundary_shape_elasticity_adaptor = std::make_tuple(
     }
 ); // end cell_contractility_adaptor
 
-/// Datamanager adaptor for cell-cell polarity energy
-auto cell_cell_polarity_adaptor = std::make_tuple(
-
-    // name of the task
-    "Energy_cell_cell_polarity",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Energy");
-    },
-
-    // writer function
-    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
-        // dataset->write(model.get_energy_cell_cell_polarity() / 
-        //                model.get_am().cells().size());
-    },
-
-    // builder function
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Cell_cell_polarity");
-    },
-    
-    // attribute writer for basegroup
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
-    ,
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time");
-    }
-); // end cell_cell_polarity_adaptor
-
-/// Datamanager adaptor for polarity exclusion energy
-auto polarity_exclusion_adaptor = std::make_tuple(
-
-    // name of the task
-    "Energy_polarity_exclusion",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Energy");
-    },
-
-    // writer function
-    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
-        // dataset->write(model.get_energy_polarity_exclusion() / 
-        //                model.get_am().cells().size());
-    },
-
-    // builder function
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Polarity_exclusion");
-    },
-    
-    // attribute writer for basegroup
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
-    ,
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time");
-    }
-); // end polarity_exclusion_adaptor
-
-/// Datamanager adaptor for lagrange net polarization energy
-auto lagrange_net_polarisation_adaptor = std::make_tuple(
-
-    // name of the task
-    "Energy_lagrange_net_polarisation",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Energy");
-    },
-
-    // writer function
-    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
-        // dataset->write(model.get_energy_lagrange_net_polarisation() / 
-        //                model.get_am().cells().size());
-    },
-
-    // builder function
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Lagrange_net_polarisation");
-    },
-    
-    // attribute writer for basegroup
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
-    ,
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time");
-    }
-); // end lagrange_net_polarisation_adaptor
-
-/// Datamanager adaptor for lagrange const concentration energy
-auto lagrange_const_concentration_adaptor = std::make_tuple(
-
-    // name of the task
-    "Energy_lagrange_const_concentration",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Energy");
-    },
-
-    // writer function
-    []([[maybe_unused]] auto& dataset, [[maybe_unused]] auto& model) {
-        // dataset->write(model.get_energy_lagrange_const_concentration() / 
-        //                model.get_am().cells().size());
-    },
-
-    // builder function
-    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("Lagrange_const_concentration");
-    },
-    
-    // attribute writer for basegroup
-    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
-    ,
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "time");
-        hdfdataset->add_attribute("coords_mode__time", "linked");
-        hdfdataset->add_attribute("coords__time", "Time");
-    }
-); // end lagrange_const_concentration_adaptor
-
 
 /// Datamanager adaptor for vertex properties
 /** \details Properties are
@@ -626,28 +486,6 @@ auto cells_adaptor = std::make_tuple(
             [am](const auto& cell) {
                 return static_cast<double>(am.is_boundary(cell));
             });
-
-        // the polarity
-        // std::vector<SpaceVec> polarities;
-        // for (const auto& c : cells) {
-        //     SpaceVec polarity(arma::fill::zeros);
-        //     for (auto [e, flip] : c->custom_links().edges) {
-        //         auto a = e->a->position(), b = e->b->position();
-        //         if (flip) {
-        //             std::swap(a, b);
-        //         }
-        //         auto disp = model.get_space()->displacement(a, b);
-
-        //         double sigma = e->state.get_sigma(c);
-                
-        //         polarity += sigma * disp;
-        //     }
-        //     polarities.push_back(std::make_pair(polarity_x, polarity_y));
-        // }
-        // dataset->write(polarities.begin(), polarities.end(),
-        //                [](auto&& pos) { return pos[0]; });
-        // dataset->write(polarities.begin(), polarities.end(),
-        //                [](auto&& pos) { return pos[1]; });
     },
 
     // builder function
@@ -678,8 +516,6 @@ auto cells_adaptor = std::make_tuple(
                     "rotation",
                     "is_boundary"
                 }));
-                    // "polarity_x",
-                    // "polarity_y"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");
         const auto& cells = model.get_am().cells();
