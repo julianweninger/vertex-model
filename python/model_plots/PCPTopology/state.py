@@ -153,7 +153,7 @@ def plot_neighbourhood(*, num_neighbors, num_hair_neighbors,
                                  (shape_index plot)
     """
 
-    bins = range(3, 12)
+    bins = range(3, 14)
 
     # use num_neighbors
     if only_type == 'hair':
@@ -543,10 +543,8 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
         plot_std = plot_spec.pop('plot_std', True)
         plot_min_max = plot_spec.pop('plot_min_max', False)
         d = data[key]
-        if property:
-            prop = d.sel(property=property)
-        else:
-            prop = d
+        prop = d.sel(property=property)
+        cnt = d.sel(property="count")
         
         if plot_std and (property + '__stddev') in d.property.data:
             std = d.sel(property=property+'__stddev')
@@ -566,17 +564,15 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
                 raise KeyError("No dimension '{}' in data '{}'. "
                                "Available dims: {}"
                                "".format(average_dim, d.name, d.dims))
-            prop = prop.sum(dim=average_dim) / prop.count(dim=average_dim)
-            if std is not None:
-                std = std.sum(dim=average_dim) / std.count(dim=average_dim)
-                std = std.squeeze()
-            if min is not None:
-                min = min.sum(dim=average_dim) / min.count(dim=average_dim)
-                min = min.squeeze()
-            if max is not None:
-                max = max.sum(dim=average_dim) / max.count(dim=average_dim)
-                max = max.squeeze()
+            prop = (prop * cnt).sum(dim=average_dim) / cnt.sum(dim=average_dim)
             prop = prop.squeeze()
+            if std is not None:
+                std = (  (std * cnt).sum(dim=average_dim)
+                       / cnt.sum(dim=average_dim)).squeeze()
+            if min is not None:
+                min = min.min(dim=average_dim).squeeze()
+            if max is not None:
+                max = max.max(dim=average_dim).squeeze()
    
         _errorbar(hlpr=hlpr, data=prop, std=std, min=min, max=max, **plot_spec,
                   **add_kwargs, **errorbar_kwargs)

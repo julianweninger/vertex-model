@@ -45,34 +45,23 @@ cell_property: &CELL_PROP
 
 select_cell_stats:
   select:
-    cells:
-      path: data/PCPTopology/Statistics/Cell_stats
-    hair_cells:
-      path: data/PCPTopology/Statistics/Hair_cell_stats
-    support_cells:
-      path: data/PCPTopology/Statistics/Support_cell_stats
-    bulk_cells:
-      path: data/PCPTopology/Statistics/Bulk_cell_stats
-    bulk_hair_cells:
-      path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-    bulk_support_cells:
-      path: data/PCPTopology/Statistics/Bulk_support_cell_stats
+    cells: data/PCPTopology/Statistics/Cell_stats
+    hair_cells: data/PCPTopology/Statistics/Hair_cell_stats
+    support_cells: data/PCPTopology/Statistics/Support_cell_stats
+    bulk_cells: data/PCPTopology/Statistics/Bulk_cell_stats
+    bulk_hair_cells: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+    bulk_support_cells: data/PCPTopology/Statistics/Bulk_support_cell_stats
 
 select_cell_stats_mv:
   select_and_combine:
+    allow_missing_or_failing: True
     fields:
-      cells:
-        path: data/PCPTopology/Statistics/Cell_stats
-      hair_cells:
-        path: data/PCPTopology/Statistics/Hair_cell_stats
-      support_cells:
-        path: data/PCPTopology/Statistics/Support_cell_stats
-      bulk_cells:
-        path: data/PCPTopology/Statistics/Bulk_cell_stats
-      bulk_hair_cells:
-        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-      bulk_support_cells:
-        path: data/PCPTopology/Statistics/Bulk_support_cell_stats
+      cells: data/PCPTopology/Statistics/Cell_stats
+      hair_cells: data/PCPTopology/Statistics/Hair_cell_stats
+      support_cells: data/PCPTopology/Statistics/Support_cell_stats
+      bulk_cells: data/PCPTopology/Statistics/Bulk_cell_stats
+      bulk_hair_cells: data/PCPTopology/Statistics/Bulk_hair_cell_stats
+      bulk_support_cells: data/PCPTopology/Statistics/Bulk_support_cell_stats
 
 select_cells_properties:
   select:
@@ -195,9 +184,8 @@ select_cells_properties.xy_data:
       
 select_cells_properties_mv:
   select_and_combine:
+    allow_missing_or_failing: True
     fields:
-      _cells: data/PCPTopology/Cells
-
       # the type of the cells
       _cell_type:
         path: data/PCPTopology/Cells
@@ -345,6 +333,83 @@ select_cells_properties_mv.xy_data:
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
 
+
+select_cells_properties_mv.map_stage:
+  based_on: select_cells_properties_mv
+
+  select_and_combine:
+    fields:
+      _area:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: area
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+
+    # HC area as mapping
+    - .where: [!dag_tag area, !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+      tag: HC_area
+    
+
+    # mask for bulk cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - create_mask: [!dag_prev , <, 0.5] # not boundary
+    - .rename: [!dag_prev , is_bulk]
+      tag: _is_bulk
+
+    # the data for support and hair cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, map_stage,
+             !dag_tag property, !dag_tag HC_area]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, map_stage,
+             !dag_prev , !dag_tag HC_area]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, map_stage,
+             !dag_prev , !dag_tag HC_area]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
+
+
 cellular_structure:
   creator: universe
   universes: all
@@ -359,9 +424,6 @@ cellular_structure:
   cell_marker_size: 60
 
   helpers:
-    set_labels:
-      x: x [a.u.]
-      y: y [a.u.]
     save_figure: {bbox_inches: tight}
 
   animation:

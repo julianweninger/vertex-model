@@ -23,7 +23,8 @@ from ..tools import save_and_close
 
 @is_plot_func(creator_type=UniversePlotCreator)
 def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
-                model_name: str='PCPVertex', **plot_kwargs):
+                model_name: str='PCPVertex', 
+                cumsum_transitions: bool=True, **plot_kwargs):
     """Performs a plot of the T1 and T2 transitions over time together with 
     the energy
     
@@ -58,6 +59,10 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     num_T1s = transitions.sel(property="num_T1s")
     num_T1s_attempted = transitions.sel(property="num_T1s_attempted")
     num_T2s = transitions.sel(property="num_T2s")
+    if cumsum_transitions:
+        num_T1s = num_T1s.cumsum()
+        num_T1s_attempted = num_T1s_attempted.cumsum()
+        num_T2s = num_T2s.cumsum()
 
 
     # Create the line plot of energy
@@ -81,8 +86,8 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Plot the T1s
     ax2 = ax1.twinx()
     
-    ax2.plot(num_T1s_attempted.time, num_T1s_attempted.cumsum(), color='gray', label='#T1 attempted')
-    ax2.plot(num_T1s.time, num_T1s.cumsum(), color='black', label='#T1')
+    ax2.plot(num_T1s_attempted.time, num_T1s_attempted, color='gray', label='#T1 attempted')
+    ax2.plot(num_T1s.time, num_T1s, color='black', label='#T1')
 
     ax2.set_ylabel("T1 transitions")
     ax2.set_ylim(bottom=0)
@@ -91,7 +96,7 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     # Plot the T2s
     ax3 = ax1.twinx()
     
-    ax3.plot(num_T2s.time, num_T2s.cumsum(), color='seagreen', label='#T2')
+    ax3.plot(num_T2s.time, num_T2s, color='seagreen', label='#T2')
     
     ax3.set_ylabel("T2 transitions")
     ax3.set_ylim(bottom=0)
@@ -410,6 +415,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
+            hlpr.invoke_helper('set_labels',
+                               x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
 
             if (vertex_cfg['space']['periodic']):
                 hlpr.invoke_helper('set_limits', x=(-0.1,Lx+.05), y=(-0.1,Ly+.05))
