@@ -1,0 +1,100 @@
+# The evaluation of default_proliferation_minimal
+---
+energy:
+  based_on: energy
+
+energy_continuous:
+  based_on: energy
+  model_name: PCPTopology/PCPVertex
+
+transitions:
+  based_on:
+    - universe
+
+  model_name: PCPTopology
+  module: model_plots.PCPTopology
+  plot_func: transitions
+
+  map_to_continuous_time: True
+
+transitions_continuous:
+  based_on:
+    - universe
+
+  model_name: PCPTopology/PCPVertex
+  module: model_plots.PCPTopology
+  plot_func: transitions
+  
+  map_to_discrete_time: True
+
+cell_area: &CELLAREA
+  based_on:
+    - .default_style_and_helpers
+    - cell_property
+
+  enabled: false
+  # WARNING: does not work with TimeSeriesGroup of flexible cell number
+
+  to_plot: 
+    cells:
+      label: all cells
+    hair_cells:
+      label: hair cells
+    support_cells:
+      label: support cells
+
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: area
+      tag: _property
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+      tag: _cell_kind
+
+    - .mean:
+      args: [!dag_tag _property, id]
+      tag: cells
+    - .std:
+      args: [!dag_tag _property, id]
+      tag: cells__std
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+cell_shape:
+  <<: *CELLAREA
+
+  transform:
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: shape_index
+      tag: _property
+    - .sel:
+      args: [!dag_tag _cells]
+      kwargs:
+        property: cell_type
+      tag: _cell_kind
+
+    - .mean:
+      args: [!dag_tag _property, id]
+      tag: cells
+    - .std:
+      args: [!dag_tag _property, id]
+      tag: cells__std
+
+  helpers:
+    set_labels:
+      x: time
+      y: average shape index
+      
+equilibrium_cellular_structure:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure

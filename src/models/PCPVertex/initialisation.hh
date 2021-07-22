@@ -310,5 +310,91 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     this->_log->info("Initialised hexagonal cells.");
 }
 
+
+/// Create vertices, edges, and cells in a side view columnar arrangement
+template<class Model>
+void EntitiesManager<Model>::setup_agents_column (const Config& cfg)
+{
+    if (_space->dim != 2) {
+        throw std::invalid_argument("Initialisation of columnar cell "
+            "arrangement only defined in 2 dimensional space!");
+    }
+
+    this->_log->debug("Setting up cells in columnar structure ...");
+
+    auto num_cells = get_as<std::size_t>("num_cells", cfg);
+
+    // determine the cell shape
+    auto size = get_as<double>("size", cfg);
+    auto height = get_as<double>("height", cfg);
+    double width = size / height;
+    double _offset = get_as<double>("offset", cfg);
+
+    SpaceVec cell_shape({width, height});
+
+    if (_space->periodic) {        
+        _space->set_domain_size(  SpaceVec({double(num_cells), 2 * _offset + 1})
+                                % cell_shape);
+    }
+
+    // Add vertices
+    // NOTE one more column of vertices initialized in
+    //      non-periodic bc this will be undone before initializing edges  
+    //      and cells
+    // NOTE some of these vertices have to be removed eventually
+    std::size_t num_columns = num_cells;
+    std::size_t lim_columns = num_cells;
+    if (not _space->periodic) {
+        lim_columns += 1;
+    }
+    
+    SpaceVec offset({0., 0.});
+    if (_space->periodic) {
+        offset = SpaceVec({0., _offset}) % cell_shape;
+    }
+    for (std::size_t q = 0; q < lim_columns; ++q) {
+        SpaceVec position = SpaceVec({double(q), 0.}) % cell_shape;
+        this->add_vertex(position + offset);
+        
+        position = SpaceVec({double(q), 1.}) % cell_shape;
+        this->add_vertex(position + offset);
+    }
+    const auto& vertices = this->vertices();
+
+    // Add edges
+    for (std::size_t q = 0; q < num_columns; ++q) {
+        // left edge
+        this->add_edge(vertices[2 * q], vertices[2 * q + 1]);
+
+        // lower edge
+        this->add_edge(vertices[2 * q], vertices[2 * ((q + 1) % lim_columns)]);
+        
+        // upper edge
+        this->add_edge(vertices[2 * q + 1],
+                       vertices[2 * ((q + 1) % lim_columns) + 1]);
+    }
+    if (not _space->periodic) {
+        // right edge
+        this->add_edge(vertices[2 * num_columns],
+                       vertices[2 * num_columns + 1]);
+    }
+    const auto& edges = this->edges();
+
+    // Add cells
+    for (std::size_t q = 0; q < num_columns; q++) {
+        this->add_cell(
+            SpaceVec({q + 0.5, 0.5}) % cell_shape,
+            {
+              edges[3 * q],       // left
+              edges[3 * q + 1],   // lower
+              edges[3 * ((q + 1) % lim_columns)], // right
+              edges[3 * q + 2]    // upper
+            });
+    }
+
+    this->_log->info("Initialised {} cells in columnar structure.",
+                     this->cells().size());
+}
+
 } // namespace Utopia::Models::PCPVertex
 #endif

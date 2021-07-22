@@ -12,9 +12,15 @@ add_model_tests(# Use consistent capitalization for the model name!
                 # Optional: Files to be copied to the build directory
                 AUX_FILES
                     "space_test.yml"
+                    
+                    # test cases
                     "test.yml"
                     "test_periodic.yml"
                     "test_shape_elastic.yml"
+                    "test_columnar.yml"
+                    "test_columnar_periodic.yml"
+                    
+                    # test transitions
                     "test_transitions.yml"
                     "test_transitions_periodic.yml")
 

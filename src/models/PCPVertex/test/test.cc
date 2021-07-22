@@ -23,7 +23,9 @@ using namespace Utopia::Models::PCPVertex;
 enum Cases {
     periodic,
     non_periodic,
-    shape_elastic // non-periodic with shape elasticity term
+    shape_elastic, // non-periodic with shape elasticity term
+    columnar,      // Columnar initialisation  
+    columnar_periodic
 };
 
 template<Cases C>
@@ -57,6 +59,49 @@ struct Fixture {
         }
         else if constexpr (C == shape_elastic) {
             Utopia::PseudoParent pp("test_shape_elastic.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
+        else if constexpr (C == columnar) {
+            Utopia::PseudoParent pp("test_columnar.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
+        else if constexpr (C == columnar_periodic) {
+            Utopia::PseudoParent pp("test_columnar_periodic.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
+    }
+};
+
+
+template<bool periodic>
+struct FixtureColumnar {    
+    Models::PCPVertex::PCPVertex vertex_model;
+
+    FixtureColumnar ()
+    :
+        vertex_model(model_factory())
+    { }
+
+    ~FixtureColumnar()
+    {
+        vertex_model.get_logger()->info("Tearing down ...");
+        std::remove("test_data.h5");
+        spdlog::drop_all();
+    }
+    
+    PCPVertex model_factory() {
+        using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
+
+        if constexpr (periodic) {
+            Utopia::PseudoParent pp("test_column_periodic.yml");
+            return PCPVertex("PCPVertex", pp, {},
+                            std::make_tuple(time_energy_adaptor));
+        }
+        else {
+            Utopia::PseudoParent pp("test_column.yml");
             return PCPVertex("PCPVertex", pp, {},
                             std::make_tuple(time_energy_adaptor));
         }
@@ -203,7 +248,9 @@ public:
 
 typedef boost::mpl::vector< Fixture<Cases::non_periodic>,
                             Fixture<Cases::periodic>,
-                            Fixture<Cases::shape_elastic>
+                            Fixture<Cases::shape_elastic>,
+                            Fixture<Cases::columnar>,
+                            Fixture<Cases::columnar_periodic>
                           > Fixtures;
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
