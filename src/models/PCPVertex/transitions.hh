@@ -535,7 +535,18 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         edge_cfg["contractility"] = contractility.at(adj_cell_c->state.type,
                                                      adj_cell_d->state.type);
     }
-    // else use default
+    else if (adj_cell_c) {
+        edge_cfg["linetension"] = linetension.at(adj_cell_c->state.type,
+                                                 CellType::num_cell_types);
+        edge_cfg["contractility"] = contractility.at(adj_cell_c->state.type,
+                                                     CellType::num_cell_types);
+    }
+    else if (adj_cell_d) {
+        edge_cfg["linetension"] = linetension.at(adj_cell_d->state.type,
+                                                 CellType::num_cell_types);
+        edge_cfg["contractility"] = contractility.at(adj_cell_d->state.type,
+                                                     CellType::num_cell_types);
+    }
 
     auto new_edge = add_edge(new_v_a, new_v_b, edge_cfg);
     _edges_adjoint_cells[new_edge->id()] = std::make_pair(adj_cell_c,

@@ -392,6 +392,16 @@ double PCPVertex::conjugate_gradient_step ()
 double PCPVertex::perform_update_step(
         UpdateScheme update_scheme)
 {
+    if (this->_apical_contractility) {
+        const auto [apical,
+                    basal] = this->_am.get_apical_basal_boundary_edges();
+
+        for (const auto& [e, flip] : basal) {
+            e->state.contractility_on = false;
+        }
+    }
+
+
     if (update_scheme == UpdateScheme::SteepestGradient) {
         return steepest_gradient_step(false);
     }

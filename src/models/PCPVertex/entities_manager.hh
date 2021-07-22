@@ -1,6 +1,9 @@
 #ifndef UTOPIA_MODELS_PCPVERTEX_ENTITIESMANAGER_HH
 #define UTOPIA_MODELS_PCPVERTEX_ENTITIESMANAGER_HH
 
+#include <vector>
+#include <numeric>
+
 #include "../Collier/Collier.hh"
 #include "../NotchDelta/NotchDelta.hh"
 
@@ -104,6 +107,15 @@ public:
     using RuleFuncCell = std::function<typename Cell::State(
                                                const std::shared_ptr<Cell>&)>;
 
+    /// The layout of the cellular agents
+    enum Layout {
+        /// A 2D apical view of a single layer of cells
+        Apical,
+
+        /// A 2D side view of a single layer of cells
+        Columnar
+    };
+
 
 private:
     /// The logger (same as the model this manager resides in)
@@ -114,6 +126,8 @@ private:
 
     /// The physical space the agents are to reside in
     const std::shared_ptr<Space> _space;
+
+    const Layout _layout;
 
     /// The manager of the vertices
     Utopia::AgentManager<VertexTraits, Model> _vertex_manager;
@@ -144,6 +158,7 @@ public:
                                      + ".entities_manager")),
         _cfg(setup_cfg(model, custom_cfg)),
         _space(model.get_space()),
+        _layout(setup_layout(_cfg)),
         _vertex_manager(model, setup_vertex_cfg()),
         _edge_manager(model, setup_edge_cfg()),
         _cell_manager(model, setup_cell_cfg()),
@@ -166,9 +181,15 @@ public:
     }
 
     // -- Public interface ----------------------------------------------------
+    /// Getter for space object pointer
     const auto& get_space() const {
         return _space;
-    }    
+    }
+    
+    /// Getter for the layout structure
+    const auto& get_layout() const {
+        return _layout;
+    }
     
     /// Return const reference to the managed vertices
     const auto& vertices () const {
@@ -277,6 +298,30 @@ public:
     SpaceVec displacement (const std::shared_ptr<Cell>& a,
                            const std::shared_ptr<Cell>& b) const {
         return _space->displacement(barycenter_of(a), barycenter_of(b));
+    }
+
+    /// The displacement between the barycenter defined by an edge
+    /** \details see Utopia::Space::displacement
+     */
+    SpaceVec displacement (const std::shared_ptr<Edge>& e,
+                           bool flip = false) const
+    {
+        if (not flip) {
+            return displacement(e->custom_links().a, e->custom_links().b);
+        }
+        else {
+            return displacement(e->custom_links().b, e->custom_links().a);
+        }
+    }
+
+    /// The displacement between the barycenter defined by an edge
+    /** \details see Utopia::Space::displacement
+     */
+    SpaceVec displacement (const std::pair<std::shared_ptr<Edge>,
+                                           bool> e_pair) const
+    {
+        auto [e, flip] = e_pair;
+        return displacement(e, flip);
     }
 
     /// The distance between two vertices
@@ -881,6 +926,128 @@ public:
         return boundary;
     }
 
+    std::pair<OrderedEdgeContainer,
+              OrderedEdgeContainer> get_apical_basal_boundary_edges () const
+    {
+        if (_layout != Columnar) {
+            return std::make_pair(OrderedEdgeContainer{},
+                                  OrderedEdgeContainer{});
+        }
+        if (not _space->periodic) {
+            throw std::runtime_error("Apical boundary edges not defined in "
+                                     "non-periodic space!");
+        }
+
+        // A function to gather connected boundary edges starting at edge
+        std::function<OrderedEdgeContainer(std::shared_ptr<Edge>)>
+        gather_boundary = [this](auto edge) {
+            OrderedEdgeContainer boundary{};
+
+            auto start = edge->custom_links().a;
+            auto iter = edge->custom_links().b;
+
+            // determine orientation of edge in adjoint cell
+            auto [adj_cell, _adj_cell] = this->adjoints_of(edge);
+            if (not adj_cell) {
+                std::swap(adj_cell, _adj_cell);
+            }
+            auto [_e, flip] = *std::find_if(
+                adj_cell->custom_links().edges.begin(),
+                adj_cell->custom_links().edges.end(),
+                [edge](const auto& e_pair) {
+                    return std::get<0>(e_pair) == edge;
+                });
+            if (flip) {
+                std::swap(start, iter);
+            }
+            boundary.push_back(std::make_pair(edge, flip));
+
+            while (iter != start) {
+                const auto tmp_edges = adjoint_edges_of(iter);
+                auto edge_it = std::find_if(
+                    tmp_edges.begin(), tmp_edges.end(),
+                    [this, edge](const auto& e_it) {
+                        if (e_it == edge) {
+                            return false;
+                        }
+                        return this->is_1_cell_boundary_edge(e_it);
+                    });
+                if (edge_it == tmp_edges.end()) {
+                    throw std::runtime_error("No 1 cell boundary edge found to "
+                        "continue iteration of boundary!");
+                }
+                edge = *edge_it;
+
+                if (iter == edge->custom_links().a) {
+                    boundary.push_back(std::make_pair(edge, false));
+                    iter = edge->custom_links().b;
+                }
+                else if (iter == edge->custom_links().b) {
+                    boundary.push_back(std::make_pair(edge, true));
+                    iter = edge->custom_links().a;
+                }
+                else {
+                    throw std::runtime_error(fmt::format("Failed to iterate "
+                        "boundary with edge {} ({} -> {}) not starting at vertex {}",
+                        edge->id(),
+                        edge->custom_links().a->id(),
+                        edge->custom_links().b->id(),
+                        iter->id()));
+                }
+
+                if (boundary.size() > edges().size()) {
+                    throw std::runtime_error("Failed to determine tissue boundary!");
+                }
+            }
+
+            return boundary;
+        };
+
+        auto edges = this->edges();
+
+        // get boundary for one boundary edge
+        auto edge = *std::find_if(
+            edges.begin(), edges.end(),
+            [this](const auto& edge) {
+                return this->is_1_cell_boundary_edge(edge);
+            });
+        auto boundary_0 = gather_boundary(edge);
+
+        // get the boundary for the other boundary
+        auto edge_it = std::find_if(
+            edges.begin(), edges.end(),
+            [this, boundary_0](const auto& edge) {
+                return (    this->is_1_cell_boundary_edge(edge)
+                        and std::find_if(boundary_0.begin(), boundary_0.end(),
+                                         [edge](const auto& e_pair) {
+                                             return std::get<0>(e_pair) == edge;
+                                         }) == boundary_0.end()
+                       );
+            });
+        if (edge_it == edges.end()) {
+            throw std::runtime_error("No 1 cell boundary edge found to "
+                                     "determine second boundary!");
+        }
+        edge = *edge_it;
+
+        auto boundary_1 = gather_boundary(edge);
+
+        // determine which boundary points left, which right
+        double sign = std::accumulate(
+            boundary_0.begin(), boundary_0.end(), 0.,
+            [this](double val, const auto& e_pair) -> double {
+                return val + this->displacement(e_pair)[0];
+            });
+        
+        // apical boundary points left (sign < 0)
+        if (sign < 0) {
+            return std::make_pair(boundary_0, boundary_1);
+        }
+        else {
+            return std::make_pair(boundary_1, boundary_0);
+        }
+    }
+
 
 private:
     // -- Setup functions -----------------------------------------------------
@@ -910,6 +1077,28 @@ private:
         }
 
         return cfg;
+    }
+
+    /// Setup the layout from cfg
+    Layout setup_layout(const Config& cfg) {        
+        auto method = get_as<std::string>("setup_method", cfg);
+
+        // call the requested method
+        if (method == "hexagonal") {
+            return Apical;
+        }
+        else if (method == "single") {
+            return Apical;
+        }
+        else if (method == "column") {
+            return Columnar;
+        }
+        // method not found!
+        else {
+            throw KeyError(method, cfg, "Cannot extract layout of agents! "
+                           "Please choose one of the following setup "
+                           "methods: 'hexagonal', 'single', 'column'.");
+        }
     }
 
     /// Setup vertex manager
@@ -998,16 +1187,20 @@ private:
         else if (method == "single") {
             this->setup_agents_single_hexagon(_cfg["setup_params"]["single"]);
         }
+        else if (method == "column") {
+            this->setup_agents_column(_cfg["setup_params"]["column"]);
+        }
         // method not found!
         else {
             throw KeyError(method, _cfg, "Method not implemented to setup agent "
                            "manager! Please choose one of the following setup "
-                           "methods: 'hexagonal', 'single'.");
+                           "methods: 'hexagonal', 'single', 'column'.");
         }
     }
 
     // see initialisation.hh
     void setup_agents_hexagonal_structure(const Config& cfg);
+    void setup_agents_column(const Config& cfg);
 
     /// Setup a single cell of hexagonal shape in center of space
     /** Requires the config entry `size`, the length of an edge of the hexagon.

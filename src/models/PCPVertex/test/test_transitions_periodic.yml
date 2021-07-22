@@ -19,8 +19,8 @@ PCPVertex:
     setup_params:
       hexagonal: {hexagon_size: 0.6204032394013997, lattice_columns: 4, lattice_rows: 4}
       single: {size: 0.6204032394013997}
+      column: {size: 1., height: 1., num_cells: 4, offset: 1.}
     vertex_manager: ~
-
   area_elasticity: 1.0
   boundary_parameter:
     area_elasticity: 0.

@@ -1288,9 +1288,12 @@ OperationBundle build_increment_edge_contractility (
     double incr_prog_prog(get_as<double>("progenitor_progenitor", cfg, 0.));
     double incr_prog_hair(get_as<double>("progenitor_hair", cfg, 0.));
     double incr_prog_supp(get_as<double>("progenitor_support", cfg, 0.));
+    double incr_prog_bnd(get_as<double>("progenitor_boundary", cfg, 0.));
     double incr_hair_hair(get_as<double>("hair_hair", cfg, 0.));
     double incr_hair_supp(get_as<double>("hair_support", cfg, 0.));
+    double incr_hair_bnd(get_as<double>("hair_boundary", cfg, 0.));
     double incr_supp_supp(get_as<double>("support_support", cfg, 0.));
+    double incr_supp_bnd(get_as<double>("support_boundary", cfg, 0.));
 
     if (cfg["hair_progenitor"]) {
         double incr_hair_prog = get_as<double>("hair_progenitor", cfg);
@@ -1318,7 +1321,8 @@ OperationBundle build_increment_edge_contractility (
     }
 
     Operation operation = [incr_prog_prog, incr_prog_hair, incr_prog_supp,
-                           incr_hair_hair, incr_hair_supp, incr_supp_supp]
+                           incr_hair_hair, incr_hair_supp, incr_supp_supp,
+                           incr_prog_bnd, incr_hair_bnd, incr_supp_bnd]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1330,15 +1334,28 @@ OperationBundle build_increment_edge_contractility (
         contractility(CellType::progenitor, CellType::hair) += incr_prog_hair;
         contractility(CellType::progenitor,
                       CellType::support) += incr_prog_supp;
+        contractility(CellType::progenitor,
+                      CellType::num_cell_types) += incr_prog_bnd;
         
         contractility(CellType::hair, CellType::progenitor) += incr_prog_hair;
         contractility(CellType::hair, CellType::hair) += incr_hair_hair;
         contractility(CellType::hair, CellType::support) += incr_hair_supp;
+        contractility(CellType::hair,
+                      CellType::num_cell_types) += incr_hair_bnd;
         
         contractility(CellType::support,
                       CellType::progenitor) += incr_prog_supp;
         contractility(CellType::support, CellType::hair) += incr_hair_supp;
         contractility(CellType::support, CellType::support) += incr_supp_supp;
+        contractility(CellType::support,
+                      CellType::num_cell_types) += incr_supp_bnd;
+                      
+        contractility(CellType::num_cell_types,
+                      CellType::progenitor) += incr_prog_bnd;
+        contractility(CellType::num_cell_types,
+                      CellType::hair) += incr_hair_bnd;
+        contractility(CellType::num_cell_types,
+                      CellType::support) += incr_supp_bnd;
 
         // set the contractility and update the edge properties
         vertex_model.set_edge_contractility(contractility, true);
@@ -1375,9 +1392,12 @@ OperationBundle build_increment_linetension (
     double incr_prog_prog(get_as<double>("progenitor_progenitor", cfg, 0.));
     double incr_prog_hair(get_as<double>("progenitor_hair", cfg, 0.));
     double incr_prog_supp(get_as<double>("progenitor_support", cfg, 0.));
+    double incr_prog_bnd(get_as<double>("progenitor_boundary", cfg, 0.));
     double incr_hair_hair(get_as<double>("hair_hair", cfg, 0.));
     double incr_hair_supp(get_as<double>("hair_support", cfg, 0.));
+    double incr_hair_bnd(get_as<double>("hair_boundary", cfg, 0.));
     double incr_supp_supp(get_as<double>("support_support", cfg, 0.));
+    double incr_supp_bnd(get_as<double>("support_boundary", cfg, 0.));
 
     if (cfg["hair_progenitor"]) {
         double incr_hair_prog = get_as<double>("hair_progenitor", cfg);
@@ -1405,7 +1425,8 @@ OperationBundle build_increment_linetension (
     }
 
     Operation operation = [incr_prog_prog, incr_prog_hair, incr_prog_supp,
-                           incr_hair_hair, incr_hair_supp, incr_supp_supp]
+                           incr_hair_hair, incr_hair_supp, incr_supp_supp,
+                           incr_prog_bnd, incr_hair_bnd, incr_supp_bnd]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1416,14 +1437,27 @@ OperationBundle build_increment_linetension (
                     CellType::progenitor) += incr_prog_prog;
         linetension(CellType::progenitor, CellType::hair) += incr_prog_hair;
         linetension(CellType::progenitor, CellType::support) += incr_prog_supp;
+        linetension(CellType::progenitor,
+                    CellType::num_cell_types) += incr_prog_bnd;
         
         linetension(CellType::hair, CellType::progenitor) += incr_prog_hair;
         linetension(CellType::hair, CellType::hair) += incr_hair_hair;
         linetension(CellType::hair, CellType::support) += incr_hair_supp;
+        linetension(CellType::hair,
+                    CellType::num_cell_types) += incr_hair_bnd;
         
         linetension(CellType::support, CellType::progenitor) += incr_prog_supp;
         linetension(CellType::support, CellType::hair) += incr_hair_supp;
         linetension(CellType::support, CellType::support) += incr_supp_supp;
+        linetension(CellType::support,
+                    CellType::num_cell_types) += incr_supp_bnd;
+                    
+        linetension(CellType::num_cell_types,
+                    CellType::progenitor) += incr_prog_bnd;
+        linetension(CellType::num_cell_types,
+                    CellType::hair) += incr_hair_bnd;
+        linetension(CellType::num_cell_types,
+                    CellType::support) += incr_supp_bnd;
 
         // set the contractility and update the edge properties
         vertex_model.set_linetension(linetension, true);

@@ -31,6 +31,11 @@ agent_manager:
       hexagon_size: !expr (2 / 3**1.5)**0.5
       lattice_rows: 4
       lattice_columns: 4
+    column:
+      size: 1.
+      height: 1.
+      num_cells: 8
+      offset: 1.
   vertex_manager: ~
 
   edge_manager:

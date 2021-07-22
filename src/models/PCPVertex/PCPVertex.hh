@@ -357,8 +357,8 @@ public:
 
     /// A matrix for properties depending on the state of 2 cells 
     using CellCellPropertyMatrix = 
-            arma::Mat<double>::fixed<CellType::num_cell_types,
-                                     CellType::num_cell_types>;
+            arma::Mat<double>::fixed<CellType::num_cell_types + 1,
+                                     CellType::num_cell_types + 1>;
 
     using UpdateScheme = MinimizationParams::UpdateScheme;
 
@@ -404,6 +404,9 @@ private:
 
     /// The activation and deactivation rate of edge contractility
     std::pair<double, double> _contractility_activity;
+
+    /// Whether edge contractility only aplies to apical boundary edges
+    bool _apical_contractility;
 
     /// The timescale, amplitude, and lower area limit of Ornstein-Uhlenbeck
     /// fluctuations on preferential area using a lognormal distribution
@@ -490,26 +493,14 @@ private:
             contractility(get_as<double>("contractility", cfg)),
             shape_index_preferential(get_as<double>("shape_index_preferential",
                                                     cfg)),
-            stripe_potential_constant(
-                get_as<double>("stripe_potential_constant", cfg, 0.)),
-            stripe_width(
-                get_as<double>("stripe_width", cfg,
-                               std::numeric_limits<double>::max())),
-            stripe_curvature(
-                get_as<double>("stripe_curvature", cfg, 0.)),
-            stripe_curvature_center(
-                get_as<double>("stripe_curvature_center", cfg, 0.5)),
+            
+            // NOTE use operations to update
+            stripe_potential_constant(0.),
+            stripe_width(0.),
+            stripe_curvature(0.),
 
             fix_boundary(get_as<bool>("fix_boundary", cfg, false))
-        {
-            if (stripe_curvature_center < 0. or stripe_curvature_center > 1.) {
-                throw std::invalid_argument(fmt::format(
-                    "In boundary parameter constructor"
-                    ", `stripe_curvature_center` must be in [0., 1.], "
-                    "a relative proximal-distal coordianate, but was {}!",
-                    stripe_curvature_center));
-            }
-        }
+        { }
 
     } _boundary_param;
 
@@ -633,6 +624,8 @@ public:
             _default_minimization_params.linetension_fluctuations),
         _contractility_activity(
             _default_minimization_params.contractility_activity),
+        _apical_contractility(
+            get_as<bool>("apical_edge_contractility", this->_cfg, false)),
         _area_fluctuations(
             _default_minimization_params.area_fluctuations),
         _linetension(this->setup_linetension(this->_cfg)),
@@ -1917,8 +1910,8 @@ public:
     void set_linetension (CellCellPropertyMatrix linetension,
                           bool update_edges)
     {
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i + 1; j < CellType::num_cell_types; j++) {
+        for (int i = 0; i < CellType::num_cell_types + 1; i++) {
+            for (int j = i + 1; j < CellType::num_cell_types + 1; j++) {
                 if (linetension(i, j) != linetension(j, i)) {
                     throw std::invalid_argument(fmt::format(
                             "Cannot set edge linetension! "
@@ -1935,10 +1928,22 @@ public:
             RuleFuncEdge update = [this] (const auto& edge)
             {
                 auto state = edge->state;
-                const auto& [a, b] = this->_am.adjoints_of(edge);
+                auto [a, b] = this->_am.adjoints_of(edge);
                 if (a and b) {
                     state._linetension = this->_linetension(a->state.type,
                                                            b->state.type);
+                }
+                else {
+                    if (not a) {
+                        std::swap(a, b);
+                    }
+                    if (not a) {
+                        throw std::runtime_error(fmt::format(
+                            "Adjoints of edge {} are two nullptr!",
+                            edge->id()));
+                    }
+                    state._linetension = this->_linetension(
+                        a->state.type, CellType::num_cell_types);
                 }
                 return state;
             };
@@ -1956,8 +1961,8 @@ public:
     void set_edge_contractility (CellCellPropertyMatrix contractility,
                                  bool update_edges) 
     {
-        for (int i = 0; i < CellType::num_cell_types; i++) {
-            for (int j = i + 1; j < CellType::num_cell_types; j++) {
+        for (int i = 0; i < CellType::num_cell_types + 1; i++) {
+            for (int j = i + 1; j < CellType::num_cell_types + 1; j++) {
                 if (contractility(i, j) != contractility(j, i)) {
                     throw std::invalid_argument(fmt::format(
                             "Cannot set edge contractility! "
@@ -1974,10 +1979,22 @@ public:
             RuleFuncEdge update = [this] (const auto& edge)
             {
                 auto state = edge->state;
-                const auto& [a, b] = this->_am.adjoints_of(edge);
+                auto [a, b] = this->_am.adjoints_of(edge);
                 if (a and b) {
                     state._contractility = this->_edge_contractility(
                         a->state.type, b->state.type);
+                }
+                else {
+                    if (not a) {
+                        std::swap(a, b);
+                    }
+                    if (not a) {
+                        throw std::runtime_error(fmt::format(
+                            "Adjoints of edge {} are two nullptr!",
+                            edge->id()));
+                    }
+                    state._contractility = this->_edge_contractility(
+                        a->state.type, CellType::num_cell_types);
                 }
                 return state;
             };
@@ -2019,7 +2036,7 @@ public:
         _enable_transitions = (enable_T1_transitions or enable_T2_transitions);
     }
 
-    void init_stripe_boundary(bool force_update= false) {
+    void init_stripe_boundary(bool force_update = false) {
         if (_boundary_param.stripe_origin) {
             if (not force_update) {
                 return;

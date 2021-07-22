@@ -1,0 +1,96 @@
+# A minimal configuration to do cell proliferation 
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_columnar
+
+parameter_space:
+  num_steps: 10
+
+  PCPTopology:
+    PCPVertex:
+      log_level: warning
+      agent_manager:
+        setup_method: column
+        setup_params:
+          column:
+            num_cells: 24
+        cell_manager:
+          agent_params:
+            shape_index_preferential: 4.
+            contractility: 0.1
+
+      # edge contractility only applies to boundary edges that are apical
+      apical_edge_contractility: True
+
+
+    operations:
+      - jiggle:
+          times: []
+          iterations_prolog: 1
+
+      # Differentiate hair and support cells
+      - differentiate_random:
+          times: []
+          iterations_prolog: 1
+          fraction: 0.26
+          minimization:
+            mode: manual
+      - differentiate_NotchDelta:
+          times: []
+          iterations_prolog: 1
+          discard_initialisation: True
+          # NOTE: Notch model skipped because random differentiation terminal
+          #       Swap removes HC-HC contacts partially
+          
+          steps: 2000
+
+          minimization:
+            mode: manual
+      # END differentiation
+
+      - increment_linetension:
+          times: []
+          iterations_prolog: 1
+
+          # exclude hair-hair contacts
+          hair_hair: 1000
+
+          # boundary condition: minimize horizontal length
+          progenitor_boundary: 1.
+          hair_boundary: 1.
+          support_boundary: 1.
+
+      # increment apical edge contractility of support cells
+      - increment_edge_contractility:
+          times: [1]
+          support_boundary: 0.8
+
+      - jiggle: 
+          times: !listgen [2, 101]
+
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.01
+      num_repeat: 1
+      num_steps: 100
+      jiggle_intensity: 0.
+      linetension_fluctuation: 0.06
+
+    data_manager:
+      deciders:
+        write_interval: &Interval
+          type: interval
+          args:
+            intervals:
+              - [0, 10, 1]
+              - [10, 101, 5]
+      triggers:
+        build_interval: *Interval
