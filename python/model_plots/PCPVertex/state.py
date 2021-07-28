@@ -117,7 +117,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        property_support_cells_only: bool=False,
                        property_bulk_cells_only: bool=False,
                        property_interpolation_kwargs: dict={},
-                       property_interpolation_plot_kwargs: dict={}):
+                       property_interpolation_plot_kwargs: dict={},
+                       edge_property: str=None,
+                       quiver_kwargs: dict=None):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -141,6 +143,11 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             scipy.interpolate.griddata.
         property_interpolation_plot_kwargs (dict, optional): Kwargs passed on to
             imshow on interpolated griddata,
+        edge_property (std, optional): An additional edge property to plot.
+            Data is edge data where property=edge_property or
+            Edge_energy where energy_term=edge_property if edge_property
+            is one of the edge energies.
+        quiver_kwargs (dict, optional): Updates the quiver kwargs used.
     """
     def adjustFigAspect(fig,aspect=1):
         '''
@@ -254,10 +261,39 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 mask = (dy <= -0.5 * Ly)
                 dy += mask * (+Ly)
             
-            quiverkwargs = dict(headlength=0., headaxislength=0., headwidth=0.,
-                                scale=1, scale_units='xy',
-                                color='black')
-            hlpr.ax.quiver(ax, ay, dx, dy, **quiverkwargs)
+            quiver_args = [ax, ay, dx, dy]
+            _quiver_kwargs = dict(headlength=0., headaxislength=0.,
+                                  headwidth=0., scale=1, scale_units='xy',
+                                  color='black')
+            if quiver_kwargs:
+                _quiver_kwargs.update(quiver_kwargs)
+            
+            # for the energies of the edges
+            if (   edge_property == 'linetension'
+                or edge_property == 'edge_contractility'):
+                e_prop_data = grp['Edge_energies'][time]
+                e_prop_data = e_prop_data.sel(energy_term=edge_property).squeeze()
+                e_prop_data = e_prop_data.assign_coords({'x': (ax + dx / 2.),
+                                                         'y': (ay + dy / 2.)})
+
+                # append coloring
+                quiver_args.append(e_prop_data)
+
+            # for other cell data
+            elif edge_property:
+                e_prop_data = e_data.sel(property=edge_property)
+                e_prop_data = e_prop_data.assign_coords({'x': (ax + dx / 2.),
+                                                         'y': (ay + dy / 2.)})
+
+                # append coloring
+                quiver_args.append(e_prop_data)
+
+            quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+
+            if (len(quiver_args) == 5):
+                cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax, extend='both')
+                cbar.set_label(label=edge_property)
+                cbar.minorticks_on()
 
             # need duplicates of periodic edges
             if (vertex_cfg['space']['periodic']):
@@ -303,7 +339,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 mask = (dy_tmp <= -0.5 * Ly)
                 dy_tmp += mask * (+Ly)
                 
-                hlpr.ax.quiver(bx_tmp, by_tmp, dx_tmp, dy_tmp, **quiverkwargs)
+                quiver_args = [bx_tmp, by_tmp, dx_tmp, dy_tmp]
+                if edge_property:
+                    quiver_args.append(e_prop_data)
+                hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
                 # only those edges which cross both boundaries
                 # i.e. those which are not whithin the domain
@@ -337,10 +376,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 mask_3 = (by_tmp < 0.5 * Ly)
                 mask_4 = (by_tmp > 0.5 * Ly)
 
-                hlpr.ax.quiver(bx_tmp + mask_1 * Lx - mask_2 * Lx, by_tmp,
-                               dx_tmp, dy_tmp, **quiverkwargs)
-                hlpr.ax.quiver(bx_tmp, by_tmp + mask_3 * Ly - mask_4 * Ly,
-                               dx_tmp, dy_tmp, **quiverkwargs)
+                quiver_args = [bx_tmp + mask_1 * Lx - mask_2 * Lx,
+                               by_tmp,
+                               dx_tmp,
+                               dy_tmp]
+                if edge_property:
+                    quiver_args.append(e_prop_data)
+                hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+                
+                quiver_args = [bx_tmp,
+                               by_tmp + mask_3 * Ly - mask_4 * Ly,
+                               dx_tmp,
+                               dy_tmp]
+                if edge_property:
+                    quiver_args.append(e_prop_data)
+                hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
 
             ### plot cells
