@@ -502,7 +502,7 @@ equilibrium_cellular_structure:
     - .default_style_and_helpers
     - cellular_structure
 
-equilibrium_cellular_structure__area_elasticity: &Property
+equilibrium_cellular_structure__area_elasticity:
   based_on:
     - .default_style_and_helpers
     - cellular_structure
@@ -517,20 +517,35 @@ equilibrium_cellular_structure__area_elasticity: &Property
     cmap: Reds
 
 equilibrium_cellular_structure__cell_contractility:
-  <<: *Property
+  based_on: equilibrium_cellular_structure__area_elasticity
+  enabled: false
+
   property: cell_contractility
+
 equilibrium_cellular_structure__linetension:
-  <<: *Property
-  property: linetension
+  based_on: equilibrium_cellular_structure__area_elasticity
+  enabled: false
+
+  property: ~
+  edge_property: linetension
+
 equilibrium_cellular_structure__edge_contractility:
-  <<: *Property
-  property: edge_contractility
+  based_on: equilibrium_cellular_structure__linetension
+  enabled: false
+
+  edge_property: edge_contractility
+
 equilibrium_cellular_structure__hexatic_order:
-  <<: *Property
+  based_on: equilibrium_cellular_structure__area_elasticity
+  enabled: false
+
   property: hexatic_order
   property_hair_cells_only: True
+  
 equilibrium_cellular_structure__rotation:
-  <<: *Property
+  based_on: equilibrium_cellular_structure__area_elasticity
+  enabled: false
+
   cell_marker_size: 0.
   property: rotation
   property_interpolation_plot_kwargs:

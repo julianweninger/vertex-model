@@ -32,3 +32,15 @@ def test_run_and_eval_cfgs():
         mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
 
         print("Succeeded running and evaluating '{}'.\n".format(cfg_name))
+
+def test_disabled_plots():
+    mv, dm = mtc.create_run_load(
+        plot_only=[
+            "equilibrium_cellular_structure__area_elasticity",
+            "equilibrium_cellular_structure__cell_contractility",
+            "equilibrium_cellular_structure__linetension",
+            "equilibrium_cellular_structure__edge_contractility",
+            "equilibrium_cellular_structure__hexatic_order",
+            "equilibrium_cellular_structure__rotation"
+        ]
+    )
