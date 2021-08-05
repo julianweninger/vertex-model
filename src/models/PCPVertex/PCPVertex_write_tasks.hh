@@ -480,6 +480,11 @@ auto cells_adaptor = std::make_tuple(
                 }
                 return cell->custom_links().rotation_state->tracked_rotation;
             });
+
+        dataset->write(cells.begin(), cells.end(),
+                       [](const auto& cell) {
+                           return cell->state.polarity;
+                       });
         
         dataset->write(
             cells.begin(), cells.end(),
@@ -491,7 +496,7 @@ auto cells_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {12, m.get_am().cells().size()});
+            {13, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -514,6 +519,7 @@ auto cells_adaptor = std::make_tuple(
                     "num_hair_neighbors",
                     "hexatic_order",
                     "rotation",
+                    "polarity",
                     "is_boundary"
                 }));
         hdfdataset->add_attribute("dim_name__1", "id");

@@ -297,6 +297,32 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
  
     apply_rule<Update::sync>(update_position, _am.vertices());
 
+    apply_rule<Update::sync>(
+        [this](const auto& cell) {
+            auto state = cell->state;
+            if (state.fix_polarity) {
+                return state;
+            }
+
+            SpaceVec polarity({sin(state.polarity), -cos(state.polarity)});
+            polarity += state.force_polarity * _dt;
+
+            // rotate 90 deg anti-clockwise
+            polarity = SpaceVec({-polarity[1], polarity[0]});
+
+            if (polarity[1] <= 0.) {
+                state.polarity = - acos(polarity[0] / arma::norm(polarity));
+            }
+            else {
+                state.polarity =   acos(polarity[0] / arma::norm(polarity));
+            }
+
+            return state;
+        },
+        _am.cells()
+    );
+
+
     if (not adaptive_step) {
         if (_distr_temperature.param().stddev() > 1.e-12) {
             apply_rule<Update::sync>(update_brownian_motion, _am.vertices());

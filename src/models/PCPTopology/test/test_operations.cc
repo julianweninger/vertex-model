@@ -1136,6 +1136,68 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
     }
     
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_edge_contractility_het) {
+        using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+        // differentiate heterogeneous cell types
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+        op_diff(vertex_model);
+
+        const std::string name = "increment_edge_contractility_heterogeneous";
+        auto [operation, params] = build_increment_edge_contractility(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation(vertex_model);
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+        const auto& edges = am.edges();
+
+        for (const auto& edge : edges) {
+            BOOST_TEST(edge->state.contractility() == 0.0);
+        }
+
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                for (const auto& [e, flip] : cell->custom_links().edges) {
+                    BOOST_TEST(  vertex_model.get_energy_edge_contractility({e})
+                               < 1.e-10);
+                }
+            }
+        }
+
+        // the adjoint cells. cell_a is hair cell if one of a and b is.
+        for (const auto& edge : edges) {
+            const auto [cell_a, cell_b] = am.adjoints_of(edge);
+            if (    cell_a->state.type == CellType::hair
+                and cell_b->state.type == CellType::support)
+            {
+                BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
+                           < 1.e-10);
+            }
+            else if (    cell_a->state.type == CellType::support
+                     and cell_b->state.type == CellType::hair)
+            {
+                BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
+                           < 1.e-10);
+            }
+            else if (    cell_a->state.type == CellType::support
+                     and cell_b->state.type == CellType::support)
+            {
+                BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
+                           > 1.e-10);
+            }
+            else {
+                BOOST_TEST(
+                    fabs(vertex_model.get_energy_edge_contractility({edge}))
+                    < 1.e-12
+                );
+            }
+        }
+    }
+    
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_linetension) {
         using CellType = Models::PCPVertex::PCPVertex::CellType;
 
