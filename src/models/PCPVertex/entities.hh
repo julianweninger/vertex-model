@@ -151,6 +151,8 @@ struct RotationCellState {
 
 /// The Cell defined by its id, its vertices and its area
 struct CellState {
+    using SpaceVec = Utopia::SpaceVecType<2>;
+
     /// The type of a cell
     enum CellType {
         progenitor,
@@ -175,6 +177,13 @@ struct CellState {
     /// The contractility of the cell
     double contractility;
 
+    /// An intrinsic polarity angle wrt x axis
+    double polarity;
+
+    SpaceVec force_polarity;
+
+    bool fix_polarity;
+
     /// Whether this object is to be removed 
     bool remove;
 
@@ -184,6 +193,7 @@ struct CellState {
         cfg["area_preferential"] = _area_preferential;
         cfg["shape_index_preferential"] = shape_index_preferential;
         cfg["contractility"] = contractility;
+        cfg["polarity"] = polarity;
         
         if (type == CellType::progenitor) {
             cfg["cell_type"] = "progenitor";
@@ -227,6 +237,8 @@ struct CellState {
         shape_index_preferential(get_as<double>("shape_index_preferential",
                                  cfg)),
         contractility(get_as<double>("contractility", cfg)),
+        polarity(get_as<double>("polarity", cfg, -M_PI_2)),
+        fix_polarity(false),
         remove(false)
     {
         double area_preferential_var = get_as<double>("area_preferential_var",

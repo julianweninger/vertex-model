@@ -1,16 +1,18 @@
 """SavannaHeterogeneous-model specific plot function for the state / density"""
 
 import logging
-from typing import Tuple
+from typing import Tuple, Union
 
 from math import floor, ceil
 import numpy as np
+from numpy.lib.function_base import select
 import xarray as xr
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import griddata
 
 from utopya import DataManager, UniverseGroup
@@ -18,6 +20,7 @@ from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
 
 from ..tools import save_and_close
 
+log = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 
@@ -110,6 +113,7 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 @is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
 def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath: str='PCPVertex', cfgpath: str='PCPVertex',
+                       select_times: list=None,
                        cell_marker_size: int=60,
                        plot_vertices: bool=False,
                        property: str=None,
@@ -119,7 +123,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        property_interpolation_kwargs: dict={},
                        property_interpolation_plot_kwargs: dict={},
                        edge_property: str=None,
-                       quiver_kwargs: dict=None):
+                       quiver_kwargs: dict=None,
+                       polarity_HC: bool=False):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -128,6 +133,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         hlpr (PlotHelper): The PlotHelper
         datapath (str): Path to the cell manager's data
         cfgpath (str): Path to the vertex model's configuration
+        select_times (list, optional): Timepoints to select for plotting.
+            If None, all timepoints are plotted
         cell_marker_size (int, default 60): Marker size for the cell-centers.
             Only used for HCs (red) and SCs (gray).
         plot_vertices (bool, default: false): Whether to plot the vertices
@@ -148,6 +155,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             Edge_energy where energy_term=edge_property if edge_property
             is one of the edge energies.
         quiver_kwargs (dict, optional): Updates the quiver kwargs used.
+        polarity_HC (bool, default: false): Whether to plot the polarity of HC
+            as a vector at the HC center of mass.
     """
     def adjustFigAspect(fig,aspect=1):
         '''
@@ -208,10 +217,26 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     domain_size_max_y,
                     grp['Vertices'][time].sel(property="y").max())
 
-        for time in grp['Vertices']:
-            hlpr.ax.clear()            
+        if select_times is not None:
+            times = [str(time) for time in select_times]
+        else:
+            times = [time for time in grp['Vertices']]
+
+        for time in times:
+            hlpr.ax.clear()
             hlpr.ax.set_aspect('auto')
 
+            
+            if not time in grp['Vertices']:
+                log.warning("Requested time {} is not available in data. "
+                            "Available timepoints: {}."
+                            "Continuing ..."
+                            "".format(time,
+                                      [int(time) for time in grp['Vertices']]))
+                hlpr.invoke_helper('set_title', title="Time {}".format(time))
+                yield
+                continue
+            
             v_data = grp['Vertices'][time]
             e_data = grp['Edges'][time]
             c_data = grp['Cells'][time]
@@ -455,6 +480,11 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
                 cbar.set_label(label=property)
                 cbar.minorticks_on()
+
+            if polarity_HC:
+                dx = np.cos(c_data.sel(property="polarity")).where(cell_type == 1)
+                dy = np.sin(c_data.sel(property="polarity")).where(cell_type == 1)
+                hlpr.ax.quiver(x, y, dx, dy)
 
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))

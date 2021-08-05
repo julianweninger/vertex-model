@@ -338,6 +338,12 @@ increment_edge_contractility: &edge_props
   hair_support: 0.23
   support_support: 0.33
 
+increment_edge_contractility_heterogeneous:
+  times: []
+  set_ppMLC: 0.1
+  set_ppMLC_angle: 1.5708 # pi / 2
+  set_pMLC: -0.2  # NOTE non-physical
+
 increment_linetension: *edge_props
 
 increment_shape_index:

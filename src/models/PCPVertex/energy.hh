@@ -55,22 +55,88 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    if (fabs(edge->state.contractility()) < 1.e-12) {
+    auto [ppMLC_contract, ppMLC_axis] = _ppMLC_contractility;
+    
+    if (    fabs(edge->state.contractility()) < 1.e-12
+        and fabs(ppMLC_contract) < 1.e-12
+        and fabs(_pMLC_contractility) < 1.e-12)
+    {
         return 0.;
     }
 
-    double length;
+    SpaceVec a, b;
     if (beta > 1.e-14) {
-        const SpaceVec &a = _am.displace_virtual(edge->custom_links().a, beta);
-        const SpaceVec &b = _am.displace_virtual(edge->custom_links().b, beta);
-        length = this->_space->distance(a, b);
+        a = _am.displace_virtual(edge->custom_links().a, beta);
+        b = _am.displace_virtual(edge->custom_links().b, beta);
     }
     else {
-        length = this->_space->distance(_am.position_of(edge->custom_links().a),
-                                        _am.position_of(edge->custom_links().b));
+        a = _am.position_of(edge->custom_links().a);
+        b = _am.position_of(edge->custom_links().b);
     }
+
+    double length = this->_space->distance(a, b);
     
-    return 0.5 * edge->state.contractility() * pow(length, 2);
+    double tot_contract = 0.5 * edge->state.contractility() * pow(length, 2);
+
+    if (_am.is_1_cell_boundary_edge(edge)) {
+        return tot_contract;
+    }
+    // NOTE below not defined for 1 cell boundary edges
+    // TODO perform check that non-nullptr before accessing state
+
+
+    auto [cell_a, cell_b] = _am.adjoints_of(edge);
+
+    // horizontal ppMLC contractility
+    if (    fabs(ppMLC_contract) > 1.e-12
+        and cell_a->state.type == CellType::support
+        and cell_b->state.type == CellType::support)
+    {
+        SpaceVec displ = this->_space->displacement(a, b);
+
+        // Gamma -> Gamma * cos^2 (theta), where theta angle with p-d axis
+        double x = arma::dot(displ, ppMLC_axis);
+        tot_contract += 0.5 * ppMLC_contract * pow(x, 2);
+    }
+    // polar pMLC contractility
+    else if (    fabs(_pMLC_contractility) > 1.e-12
+             and cell_a->state.type != cell_b->state.type)
+    {
+        std::shared_ptr<Cell> HC;            
+        if (cell_a->state.type == CellType::hair) {
+            HC = cell_a;
+        }
+        else {
+            HC = cell_b;
+        }
+
+        auto e_pair = *std::find_if(
+            HC->custom_links().edges.begin(),
+            HC->custom_links().edges.end(),
+            [edge](const auto& ep) {
+                return std::get<0>(ep) == edge;
+            });
+        
+        bool flip = std::get<bool>(e_pair);
+        if (flip) {
+            std::swap(a, b);
+        }
+
+        SpaceVec displ = this->_space->displacement(a, b);
+        // polarity rotated by 90 deg clockwise
+        SpaceVec pol = SpaceVec({ sin(HC->state.polarity),
+                                 -cos(HC->state.polarity)});
+
+        double x = arma::dot(displ, pol) / length / arma::norm(pol);
+        double gamma = 0.5 * _pMLC_contractility * (x + 1.);
+        tot_contract += 0.5 * gamma * std::pow(arma::norm(displ), 2);
+
+        if (flip) {
+            std::swap(a, b);
+        }
+    }
+
+    return tot_contract;
 };
 
 /// The energy associated with area elasticity per cell

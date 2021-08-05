@@ -1276,6 +1276,19 @@ OperationBundle build_increment_domain (
  *      - `support_support` (double, default: 0.): Incremental value for 
  *              edges between cells of types support and support.
  * 
+ *  The following paramter are excluded and passed on to the Vertex model
+ *      - `set_ppMLC` (double, default: 0.): The contractility of SC-SC
+ *              junctions with a specified orientation.
+ *              See PCPVertex::set_ppMLC_contractility.
+ *      - `set_ppMLC_angle` (double, default: 0.): The angle of the ppMLC
+ *              contractility orientation, where 0 is the (1, 0) axis and
+ *              Pi the (-1, 0) axis.
+ *              See PCPVertex::set_ppMLC_contractility.
+ *      - `set_pMLC` (double, default: 0.): The contractility of HC-SC junctions
+ *              where the orientation is specified by the HC's polarity vector.
+ *              See PCPVertex::set_pMLC_contractility.
+ *              
+ * 
  *  \note This increments the matrix of contractility, hence affects current and
  *        future edges between cells of corresponding type.
  */
@@ -1283,6 +1296,8 @@ OperationBundle build_increment_edge_contractility (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
+    using SpaceVec = PCPVertex::SpaceVec;
+
     OperationParams params(name, cfg, default_minim_params);
     
     double incr_prog_prog(get_as<double>("progenitor_progenitor", cfg, 0.));
@@ -1294,6 +1309,20 @@ OperationBundle build_increment_edge_contractility (
     double incr_hair_bnd(get_as<double>("hair_boundary", cfg, 0.));
     double incr_supp_supp(get_as<double>("support_support", cfg, 0.));
     double incr_supp_bnd(get_as<double>("support_boundary", cfg, 0.));
+
+    double ppMLC(get_as<double>("set_ppMLC", cfg, 0.));
+    double ppMLC_angle(get_as<double>("set_ppMLC_angle", cfg, 0.));
+    auto ppMLC_axis = SpaceVec({cos(ppMLC_angle), sin(ppMLC_angle)});
+
+    double pMLC(get_as<double>("set_pMLC", cfg, 0.));
+    auto reset_HC_polarity(get_as<std::pair<bool, double>>(
+        "reset_HC_polarity", cfg, std::make_pair(false, -M_PI_2)));
+    auto reset_HC_polarity_random(get_as<bool>(
+        "reset_HC_polarity_random", cfg, false));
+    if (reset_HC_polarity_random and std::get<bool>(reset_HC_polarity)) {
+        throw KeyError("", cfg, fmt::format("Received contradicting "
+            "values: reset_polarity and reset_polarity_random!"));
+    }
 
     if (cfg["hair_progenitor"]) {
         double incr_hair_prog = get_as<double>("hair_progenitor", cfg);
@@ -1322,7 +1351,9 @@ OperationBundle build_increment_edge_contractility (
 
     Operation operation = [incr_prog_prog, incr_prog_hair, incr_prog_supp,
                            incr_hair_hair, incr_hair_supp, incr_supp_supp,
-                           incr_prog_bnd, incr_hair_bnd, incr_supp_bnd]
+                           incr_prog_bnd, incr_hair_bnd, incr_supp_bnd,
+                           ppMLC, ppMLC_axis, pMLC,
+                           reset_HC_polarity, reset_HC_polarity_random]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1359,6 +1390,29 @@ OperationBundle build_increment_edge_contractility (
 
         // set the contractility and update the edge properties
         vertex_model.set_edge_contractility(contractility, true);
+
+        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis);
+        vertex_model.set_pMLC_contractility(pMLC);
+
+        if (std::get<bool>(reset_HC_polarity)) {
+            const auto& cells = vertex_model.get_am().cells();
+            apply_rule<Update::sync>(
+                [reset_HC_polarity](const auto& cell){
+                    auto state = cell->state;
+                    state.polarity = std::get<double>(reset_HC_polarity);
+                    return state;
+                },
+                cells
+            );
+        }
+        if (reset_HC_polarity_random) {
+            auto distr = std::uniform_real_distribution<double>(-M_PI, M_PI);
+            const auto& cells = vertex_model.get_am().cells();
+            const auto& rng = vertex_model.get_rng();
+            for (const auto& cell : cells) {
+                cell->state.polarity = distr(*rng);
+            }
+        }
     };
 
     return std::make_pair(operation, params);

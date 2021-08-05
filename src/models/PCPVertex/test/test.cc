@@ -20,12 +20,14 @@
 using namespace Utopia;
 using namespace Utopia::Models::PCPVertex;
 
+using SpaceVec = typename PCPVertex::SpaceVec;
+
 enum Cases {
     periodic,
     non_periodic,
     shape_elastic, // non-periodic with shape elasticity term
-    columnar,      // Columnar initialisation  
-    columnar_periodic
+    columnar_periodic,
+    columnar      // Columnar initialisation  
 };
 
 template<Cases C>
@@ -71,6 +73,10 @@ struct Fixture {
             Utopia::PseudoParent pp("test_columnar_periodic.yml");
             return PCPVertex("PCPVertex", pp, {},
                             std::make_tuple(time_energy_adaptor));
+        }
+        else {
+            throw std::runtime_error(fmt::format("Testcase {} not implemented",
+                                                 C));
         }
     }
 };
@@ -119,22 +125,32 @@ public:
     :
         PCPVertex(name, parent_model, custom_cfg,
              std::make_tuple(Utopia::Models::PCPVertex::DataIO::time_energy_adaptor))
-    {
+    { }
+
+    /** Runs the full test */
+    void run_test() {
         this->prolog();
 
+        this->perform_test();
+
+        this->epilog();
+    }
+
+    /** Performs the full test */
+    void perform_test() {
         // test the energy prediction throughout time
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             test_energy_prediction();
             // NOTE involves iteration
 
-            if ((i % 100) == 0) {
-                this->jiggle_vertices(0.2);
+            if ((i % 40) == 0) {
+                this->jiggle_vertices(0.02);
             }
         }
         
         // compare dE with energy prediction
         this->jiggle_vertices(0.02);
-        for (std::size_t i = 0; i < 500; i++) {
+        for (std::size_t i = 0; i < 100; i++) {
             test_energy_gradient();
         }
     }
@@ -246,11 +262,11 @@ public:
     }
 };
 
-typedef boost::mpl::vector< Fixture<Cases::non_periodic>,
-                            Fixture<Cases::periodic>,
+typedef boost::mpl::vector< Fixture<Cases::periodic>,
+                            Fixture<Cases::non_periodic>,
                             Fixture<Cases::shape_elastic>,
-                            Fixture<Cases::columnar>,
-                            Fixture<Cases::columnar_periodic>
+                            Fixture<Cases::columnar_periodic>,
+                            Fixture<Cases::columnar>
                           > Fixtures;
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
@@ -267,13 +283,16 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         Utopia::DataIO::Config minimization_cfg;
 
+        std::cout << std::endl << "Beginning test of minimization in "
+                                  "steepest gradient scheme .. \n\n";
+
         minimization_cfg["tolerance"] = 1e-6;
         minimization_cfg["update_scheme"] = "steepest_gradient";
         minimization_cfg["dt"] = 1e-2;
         minimization_cfg["max_steps"] = 10000;
         minimization_cfg["num_repeat"] = 2;
         minimization_cfg["jiggle_tolerance"] = 5e-6;
-        minimization_cfg["jiggle_intensity"] = 0.01;
+        minimization_cfg["jiggle_intensity"] = 0.001;
         MinimizationParams minimization(minimization_cfg);
 
         model.minimize_energy(minimization);
@@ -281,41 +300,63 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         BOOST_TEST(model.get_time() >= 5);
         BOOST_TEST(model.get_rel_energy_change() < minimization.tolerance);
 
-        auto time_start = model.get_time();
 
-        minimization_cfg["update_scheme"] = "steepest_gradient";
-        minimization_cfg["num_steps"] = 100;
-        minimization_cfg["temperature"] = 0.0001;
+        std::cout << std::endl << "Beginning test of minimization in "
+                                  "conjugate gradient scheme .. \n\n";
 
-        minimization = MinimizationParams(minimization_cfg);
-        model.minimize_energy(minimization);
-
-        BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
-
-        time_start = model.get_time();
 
         minimization_cfg["update_scheme"] = "conjugate_gradient";
-        minimization_cfg["num_steps"] = 0;
-        minimization_cfg["temperature"] = 0.;
 
+        auto time_start = model.get_time();
         minimization = MinimizationParams(minimization_cfg);
         model.minimize_energy(minimization);
 
         BOOST_TEST(model.get_time() - time_start >= 5);
         BOOST_TEST(model.get_rel_energy_change() < minimization.tolerance);
 
+
+        std::cout << std::endl << "Beginning test of minimization in "
+                                  "steepest gradient noisy scheme .. \n\n";
+
+        minimization_cfg["update_scheme"] = "steepest_gradient";
+        minimization_cfg["num_steps"] = 100;
+        minimization_cfg["temperature"] = 0.0001;
+        minimization_cfg["linetension_fluctuation"] = 0.0001;
+        minimization_cfg["area_fluctuation"] = 0.0001;
+
+        time_start = model.get_time();
+        minimization = MinimizationParams(minimization_cfg);
+        model.minimize_energy(minimization);
+
+        BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_prediction_periodic)
     {
         Utopia::PseudoParent pp("test_periodic.yml");
         TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
+
+        test_model.run_test();
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_prediction)
     {
         Utopia::PseudoParent pp("test.yml");
         TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
+
+        test_model.prolog();
+
+        test_model.perform_test();
+
+
+        std::cout << std::endl << "Adding heterogeneities .. \n\n";
+
+        test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}));
+        test_model.set_pMLC_contractility(0.2);
+
+        test_model.perform_test();
+
+        test_model.epilog();
     }
 
 

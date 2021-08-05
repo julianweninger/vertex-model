@@ -408,6 +408,21 @@ private:
     /// Whether edge contractility only aplies to apical boundary edges
     bool _apical_contractility;
 
+    /// Contractility on SC-SC junctions that is distributed with cos^2(theta)
+    /** Where theta is the angle between the junction and the axis defined
+     *  by the SpaceVec
+     */
+    std::pair<double, SpaceVec> _ppMLC_contractility;
+
+    /// Contractility on HC-SC junctions with heterogeneous distribution
+    /** The distribution is 0.5 * (sin theta + 1), where theta is the angle 
+     *  between the junction and a polarity vector defined for the adjacent HC.
+     *  The orientation of the junction is anti-clockwise in the boundary 
+     *  of the adjacent HC. Hence if polarity = {0., 1.}, sin(theta) = 0 for 
+     *  lower boundary and 1 for upper boundary.
+     */
+    double _pMLC_contractility;
+
     /// The timescale, amplitude, and lower area limit of Ornstein-Uhlenbeck
     /// fluctuations on preferential area using a lognormal distribution
     std::tuple<double, double, double> _area_fluctuations;
@@ -626,6 +641,8 @@ public:
             _default_minimization_params.contractility_activity),
         _apical_contractility(
             get_as<bool>("apical_edge_contractility", this->_cfg, false)),
+        _ppMLC_contractility(std::make_pair(0., SpaceVec({1., 0.}))),
+        _pMLC_contractility(0.),
         _area_fluctuations(
             _default_minimization_params.area_fluctuations),
         _linetension(this->setup_linetension(this->_cfg)),
@@ -776,18 +793,87 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        if (fabs(edge->state.contractility()) < 1.e-12) {
+        auto [ppMLC_contract, ppMLC_axis] = _ppMLC_contractility;
+
+        if (    fabs(edge->state.contractility()) < 1.e-12
+            and fabs(ppMLC_contract) < 1.e-12
+            and fabs(_pMLC_contractility) < 1.e-12)
+        {
             return edge->state;
         }
 
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
 
-        SpaceVec force = edge->state.contractility() *
-                         this->_am.displacement(a, b);
+        SpaceVec displ = this->_am.displacement(a, b);
+        SpaceVec dE_dx = edge->state.contractility() * displ;
 
-        a->state.f += force;
-        b->state.f -= force;
+        a->state.f += dE_dx;
+        b->state.f -= dE_dx;
+
+        if (_am.is_1_cell_boundary_edge(edge)) {
+            return edge->state;
+        }
+        // NOTE below not defined for 1 cell boundary edges
+        // TODO perform check that non-nullptr before accessing state
+
+
+        auto [cell_a, cell_b] = _am.adjoints_of(edge);
+
+        // horizontal ppMLC contractility
+        if (    fabs(ppMLC_contract) > 1.e-12
+            and cell_a->state.type == CellType::support
+            and cell_b->state.type == CellType::support)
+        {
+            SpaceVec dE_dx = (  ppMLC_contract * arma::dot(displ, ppMLC_axis)
+                              * ppMLC_axis);
+            
+            a->state.f += dE_dx;
+            b->state.f -= dE_dx;
+        }
+        // polar pMLC contractility
+        else if (    fabs(_pMLC_contractility) > 1.e-12
+                 and cell_a->state.type != cell_b->state.type)
+        {
+            std::shared_ptr<Cell> HC;            
+            if (cell_a->state.type == CellType::hair) {
+                HC = cell_a;
+            }
+            else {
+                HC = cell_b;
+            }
+
+            // polarity rotated by 90 deg clockwise
+            SpaceVec pol = SpaceVec({ sin(HC->state.polarity),
+                                     -cos(HC->state.polarity)});
+
+            auto e_pair = *std::find_if(
+                HC->custom_links().edges.begin(),
+                HC->custom_links().edges.end(),
+                [edge](const auto& ep) {
+                    return std::get<0>(ep) == edge;
+                });
+            
+            bool flip = std::get<bool>(e_pair);
+            if (flip) {
+                std::swap(a, b);
+            }
+
+            SpaceVec displ = this->_am.displacement(a, b);
+            double length = arma::norm(displ);
+
+            SpaceVec T1 = pol * length;
+            SpaceVec T2 = arma::dot(displ, pol) * displ / length;
+            SpaceVec T3 = 2 * displ;
+            SpaceVec dE_dx = 0.25 * _pMLC_contractility * (T1 + T2 + T3);
+
+            a->state.f += dE_dx;
+            b->state.f -= dE_dx;
+
+            if (flip) {
+                std::swap(a, b);
+            }
+        }
 
         return edge->state;
     };
@@ -959,6 +1045,33 @@ private:
 
             a->state.f += force;
             b->state.f -= force;
+        }
+
+        if (    fabs(_pMLC_contractility) > 1.e-12
+            and state.type == CellType::hair)
+        {
+            // polarity rotated by 90 deg clockwise
+            SpaceVec pol = SpaceVec({ sin(state.polarity),
+                                     -cos(state.polarity)});
+
+            SpaceVec dp({0., 0.});
+
+            for (auto [e, flip] : cell->custom_links().edges) {
+                auto a = e->custom_links().a;
+                auto b = e->custom_links().b;
+                if (flip) { std::swap(a, b); }
+
+                SpaceVec displ = this->_am.displacement(a, b);
+                double length = arma::norm(displ);
+
+                SpaceVec T1 = displ / length;
+                SpaceVec T2 = arma::dot(displ, pol) / length * pol;
+                dp += std::pow(length, 2) * (T1 - T2);
+            }
+            state.force_polarity = -0.25 * _pMLC_contractility * dp;
+        }
+        else {
+            state.force_polarity = SpaceVec({0., 0.});
         }
 
         return state;
@@ -2122,7 +2235,13 @@ public:
         _boundary_param.stripe_curvature = kappa_max * rel_curvature;
     }
 
+    void set_ppMLC_contractility (double ppMLC, SpaceVec axis) {
+        _ppMLC_contractility = std::make_pair(ppMLC, axis);
+    }
 
+    void set_pMLC_contractility (double pMLC) {
+        _pMLC_contractility = pMLC;
+    }
 }; // class PCPVertex
 
 
