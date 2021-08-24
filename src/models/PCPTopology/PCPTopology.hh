@@ -256,6 +256,11 @@ private:
                             _minimization_params, _collier,
                             _collier_prolog));
                 }
+                else if (name == "differentiate_hair_cluster") {
+                    _operations.push_back(
+                        build_differentiate_hair_cluster(name, op_cfg,
+                                                         _minimization_params));
+                }
                 else if (name == "differentiate_NotchDelta") {
                     this->setup_notch_delta(
                             get_as<Config>("NotchDelta", op_cfg, {}));
@@ -268,11 +273,6 @@ private:
                     _operations.push_back(
                         build_differentiate_random(name, op_cfg,
                                                    _minimization_params));
-                }
-                else if (name == "differentiate_hair_cluster") {
-                    _operations.push_back(
-                        build_differentiate_hair_cluster(name, op_cfg,
-                                                         _minimization_params));
                 }
                 else if (name == "enable_transitions") {
                     _operations.push_back(
@@ -368,9 +368,9 @@ private:
                             "brownian_noise, "
                             "convergence_and_extension, "
                             "differentiate_Collier, "
+                            "differentiate_hair_cluster, "
                             "differentiate_NotchDelta, "
                             "differentiate_random, "
-                            "differentiate_hair_cluster, "
                             "enable_transitions, "
                             "fix_boundary, "
                             "increment_area, "

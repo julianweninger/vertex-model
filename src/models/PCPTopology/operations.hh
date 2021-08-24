@@ -300,132 +300,6 @@ OperationBundle build_convergence_and_extension (
 
     return std::make_pair(operation, params);
 }
-
-/// The operation to differentiate the types of cells randomly
-/** Progenitor cells turn to hair cell with given probability and to support
- *  cell otherwise.
- * 
- *  The following parameter are extracted from cfg 
- *  (besides those passed to `OperationParams`):
- *      - `probability` (double): The probability for a cell to differentiate
- *              to a hair cell; otherwise support cell. Gives a fraction of 
- *              hair cells for large enough number of cells.
- *      - `fraction` (double): Similar to `probability`, but a fraction of the 
- *              cells is selected for HC differentiation. Resulting HC fraction
- *              is fixed. Number of cells is rounded to next smaller integer.
- * 
- *  \note The entities properties do not change during differentiation.
- */
-OperationBundle build_differentiate_random (
-        std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
-{
-    OperationParams params(name, cfg, default_minim_params);
-    
-    double probability(get_as<double>("probability", cfg, 0.));
-    double fraction(get_as<double>("fraction", cfg, 0.));
-
-    if (probability > 1.e-12 and fraction > 1.e-12) {
-        throw std::invalid_argument(fmt::format(
-            "In operation `differentiate random: "
-            "Received probability and fraction > 0, choose either! "
-            "Probability was {} and fraction was {}",
-            probability, fraction));
-    }
-    if (fraction > 1 or fraction < 0) {
-        throw std::invalid_argument(fmt::format(
-            "In operation `differentiate random: `fraction` needs to be in "
-            "[0, 1], but was {}!",
-            fraction));
-    }
-    
-    if (params.iterations_prolog + params.iterations_epilog +
-        params.iterations * (params.times.size()) > 1)
-    {
-        throw std::invalid_argument(fmt::format(
-            "In operation `differentiate random: "
-            "Differentiate can be applied only once, because terminal "
-            "process. Iterations in prolog: {}, in run {}, in epilog",
-            params.iterations_prolog,
-            params.iterations * (params.times.size()),
-            params.iterations_epilog));
-    }
-
-    std::uniform_real_distribution<double> prob_distr(0., 1.);
-
-    if (fraction > 1.e-12) {
-        Operation operation = [fraction, prob_distr{std::move(prob_distr)}]
-                (PCPVertex& vertex_model) mutable
-        {
-            using CellType = PCPVertex::CellType;
-
-            // Differentiate cell as HCs
-            PCPVertex::RuleFuncCell update_HCs = [
-                            vertex_model,
-                            prob_distr{std::move(prob_distr)}]
-                    (const auto& cell) mutable
-            {
-                cell->state.type = CellType::hair;
-
-                return cell->state;
-            };
-
-            // Pick n = f*N random cells 
-            auto cells = vertex_model.get_am().cells();
-            std::shuffle(cells.begin(), cells.end(), *vertex_model.get_rng());
-            cells.erase(cells.begin() + std::size_t(fraction*cells.size()),
-                        cells.end());
-
-            // Differentiate n cells as HCs
-            apply_rule<Update::sync>(update_HCs, cells);
-
-            // Differentiate others as SCs
-            PCPVertex::RuleFuncCell update_SCs = [
-                            vertex_model,
-                            prob_distr{std::move(prob_distr)}]
-                    (const auto& cell) mutable
-            {
-                auto state = cell->state;
-                if (state.type == CellType::progenitor) {
-                    state.type = CellType::support;
-                }
-
-                return state;
-            };
-            apply_rule<Update::sync>(update_SCs, vertex_model.get_am().cells());
-
-        };
-
-        return std::make_pair(operation, params);
-    }
-    else {
-        Operation operation = [probability, prob_distr{std::move(prob_distr)}]
-                (PCPVertex& vertex_model) mutable
-        {
-            using CellType = PCPVertex::CellType;
-
-            // differentiate cell HC with probability p
-            PCPVertex::RuleFuncCell update = [vertex_model, probability,
-                                              prob_distr{std::move(prob_distr)}]
-                    (const auto& cell) mutable
-            {
-                auto state = cell->state;
-                if (prob_distr(*vertex_model.get_rng()) < probability) {
-                    state.type = CellType::hair;
-                }
-                else {
-                    state.type = CellType::support;
-                }
-                return state;
-            };
-
-            apply_rule<Update::sync>(update, vertex_model.get_am().cells());
-        };
-
-        return std::make_pair(operation, params);
-    }
-}
-
 /// The operation differentiate cells using the Collier model
 /** \details The differentiation occurs as in the Collier model.
  *  The geometric properties and cell states are synchronized after n (`steps`)
@@ -553,6 +427,99 @@ OperationBundle build_differentiate_Collier (
 
     return std::make_pair(operation, params);
 }
+
+/// The operation to differentiate two hair cells in contact
+/** The remaining cells become type progenitor
+ * 
+ *  \note mainly for testing purposes, i.e. which mechanism can separate two
+ *        hair cells?
+ *  
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `num_seeds` (std::size_t): The number of seeds for new clusters
+ *      - `cluster_size` (std::size_t): How many next neighbours to add to the 
+ *              cluster
+ * 
+ *  \note The entities properties do not change during differentiation.
+ * 
+ *  \warning not continuously tested
+ */
+OperationBundle build_differentiate_hair_cluster (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+    
+    auto num_seeds(get_as<std::size_t>("num_seeds", cfg));
+    auto cluster_size(get_as<std::size_t>("cluster_size", cfg));
+    
+    if (params.iterations_prolog + params.iterations_epilog +
+        params.iterations * (params.times.size()) > 1)
+    {
+        throw std::invalid_argument(fmt::format(
+            "Differentiate can be applied only once, because terminal "
+            "process. Iterations in prolog: {}, in run {}, in epilog",
+            params.iterations_prolog,
+            params.iterations * (params.times.size()),
+            params.iterations_epilog));
+    }
+
+
+    Operation operation = [num_seeds, cluster_size](PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+        
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+        AgentContainer<PCPVertex::Cell> cluster_seeds{};
+        cluster_seeds.reserve(num_seeds);
+        std::sample(cells.begin(), cells.end(),
+                    std::back_inserter(cluster_seeds),
+                    num_seeds, *vertex_model.get_rng());
+
+        for (const auto& cell : cluster_seeds) {
+            AgentContainer<PCPVertex::Cell> cluster({cell});
+            std::size_t iterations = 0;
+            while (    (cluster.size() < cluster_size)
+                   and (iterations++ < 10 * cluster_size))
+            {
+                std::uniform_int_distribution<> int_distr(0, cluster.size() - 1);
+                const auto& n = cluster[int_distr(*vertex_model.get_rng())];
+                auto nbs = am.neighbors_of(n);
+                int_distr = std::uniform_int_distribution<>(0, nbs.size() - 1);
+                const auto& new_cell = nbs[int_distr(*vertex_model.get_rng())];
+
+                if ((   std::find(cluster.begin(), cluster.end(), new_cell)
+                     == cluster.end()))
+                {
+                    cluster.push_back(new_cell);
+                }
+            }
+
+            PCPVertex::RuleFuncCell differentiate = [](const auto& cell)
+            {
+                cell->state.type = CellType::hair;
+                return cell->state;
+            };
+
+            apply_rule<Update::sync>(differentiate, cluster);
+        }
+
+        PCPVertex::RuleFuncCell differentiate_others = [](const auto& cell)
+        {
+            auto state = cell->state;
+            if (state.type == CellType::progenitor) {
+                state.type = CellType::support;
+            }
+            return state;
+        };
+
+        apply_rule<Update::sync>(differentiate_others, cells);
+    };
+
+    return std::make_pair(operation, params);
+}
+
 
 /// The operation differentiate cells using the NotchDelta model
 /** \details The differentiation occurs as in the NotchDelta model.
@@ -684,35 +651,51 @@ OperationBundle build_differentiate_NotchDelta (
 
     return std::make_pair(operation, params);
 }
-/// The operation to differentiate two hair cells in contact
-/** The remaining cells become type progenitor
+
+
+/// The operation to differentiate the types of cells randomly
+/** Progenitor cells turn to hair cell with given probability and to support
+ *  cell otherwise.
  * 
- *  \note mainly for testing purposes, i.e. which mechanism can separate two
- *        hair cells?
- *  
  *  The following parameter are extracted from cfg 
  *  (besides those passed to `OperationParams`):
- *      - `num_seeds` (std::size_t): The number of seeds for new clusters
- *      - `cluster_size` (std::size_t): How many next neighbours to add to the 
- *              cluster
+ *      - `probability` (double): The probability for a cell to differentiate
+ *              to a hair cell; otherwise support cell. Gives a fraction of 
+ *              hair cells for large enough number of cells.
+ *      - `fraction` (double): Similar to `probability`, but a fraction of the 
+ *              cells is selected for HC differentiation. Resulting HC fraction
+ *              is fixed. Number of cells is rounded to next smaller integer.
  * 
  *  \note The entities properties do not change during differentiation.
- * 
- *  \warning not continuously tested
  */
-OperationBundle build_differentiate_hair_cluster (
+OperationBundle build_differentiate_random (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
     OperationParams params(name, cfg, default_minim_params);
     
-    auto num_seeds(get_as<std::size_t>("num_seeds", cfg));
-    auto cluster_size(get_as<std::size_t>("cluster_size", cfg));
+    double probability(get_as<double>("probability", cfg, 0.));
+    double fraction(get_as<double>("fraction", cfg, 0.));
+
+    if (probability > 1.e-12 and fraction > 1.e-12) {
+        throw std::invalid_argument(fmt::format(
+            "In operation `differentiate random: "
+            "Received probability and fraction > 0, choose either! "
+            "Probability was {} and fraction was {}",
+            probability, fraction));
+    }
+    if (fraction > 1 or fraction < 0) {
+        throw std::invalid_argument(fmt::format(
+            "In operation `differentiate random: `fraction` needs to be in "
+            "[0, 1], but was {}!",
+            fraction));
+    }
     
     if (params.iterations_prolog + params.iterations_epilog +
         params.iterations * (params.times.size()) > 1)
     {
         throw std::invalid_argument(fmt::format(
+            "In operation `differentiate random: "
             "Differentiate can be applied only once, because terminal "
             "process. Iterations in prolog: {}, in run {}, in epilog",
             params.iterations_prolog,
@@ -720,60 +703,79 @@ OperationBundle build_differentiate_hair_cluster (
             params.iterations_epilog));
     }
 
+    std::uniform_real_distribution<double> prob_distr(0., 1.);
 
-    Operation operation = [num_seeds, cluster_size](PCPVertex& vertex_model)
-    {
-        using CellType = PCPVertex::CellType;
-        
-        const auto& am = vertex_model.get_am();
-        const auto& cells = am.cells();
-        AgentContainer<PCPVertex::Cell> cluster_seeds{};
-        cluster_seeds.reserve(num_seeds);
-        std::sample(cells.begin(), cells.end(),
-                    std::back_inserter(cluster_seeds),
-                    num_seeds, *vertex_model.get_rng());
+    if (fraction > 1.e-12) {
+        Operation operation = [fraction, prob_distr{std::move(prob_distr)}]
+                (PCPVertex& vertex_model) mutable
+        {
+            using CellType = PCPVertex::CellType;
 
-        for (const auto& cell : cluster_seeds) {
-            AgentContainer<PCPVertex::Cell> cluster({cell});
-            std::size_t iterations = 0;
-            while (    (cluster.size() < cluster_size)
-                   and (iterations++ < 10 * cluster_size))
-            {
-                std::uniform_int_distribution<> int_distr(0, cluster.size() - 1);
-                const auto& n = cluster[int_distr(*vertex_model.get_rng())];
-                auto nbs = am.neighbors_of(n);
-                int_distr = std::uniform_int_distribution<>(0, nbs.size() - 1);
-                const auto& new_cell = nbs[int_distr(*vertex_model.get_rng())];
-
-                if ((   std::find(cluster.begin(), cluster.end(), new_cell)
-                     == cluster.end()))
-                {
-                    cluster.push_back(new_cell);
-                }
-            }
-
-            PCPVertex::RuleFuncCell differentiate = [](const auto& cell)
+            // Differentiate cell as HCs
+            PCPVertex::RuleFuncCell update_HCs = [
+                            vertex_model,
+                            prob_distr{std::move(prob_distr)}]
+                    (const auto& cell) mutable
             {
                 cell->state.type = CellType::hair;
+
                 return cell->state;
             };
 
-            apply_rule<Update::sync>(differentiate, cluster);
-        }
+            // Pick n = f*N random cells 
+            auto cells = vertex_model.get_am().cells();
+            std::shuffle(cells.begin(), cells.end(), *vertex_model.get_rng());
+            cells.erase(cells.begin() + std::size_t(fraction*cells.size()),
+                        cells.end());
 
-        PCPVertex::RuleFuncCell differentiate_others = [](const auto& cell)
-        {
-            auto state = cell->state;
-            if (state.type == CellType::progenitor) {
-                state.type = CellType::support;
-            }
-            return state;
+            // Differentiate n cells as HCs
+            apply_rule<Update::sync>(update_HCs, cells);
+
+            // Differentiate others as SCs
+            PCPVertex::RuleFuncCell update_SCs = [
+                            vertex_model,
+                            prob_distr{std::move(prob_distr)}]
+                    (const auto& cell) mutable
+            {
+                auto state = cell->state;
+                if (state.type == CellType::progenitor) {
+                    state.type = CellType::support;
+                }
+
+                return state;
+            };
+            apply_rule<Update::sync>(update_SCs, vertex_model.get_am().cells());
+
         };
 
-        apply_rule<Update::sync>(differentiate_others, cells);
-    };
+        return std::make_pair(operation, params);
+    }
+    else {
+        Operation operation = [probability, prob_distr{std::move(prob_distr)}]
+                (PCPVertex& vertex_model) mutable
+        {
+            using CellType = PCPVertex::CellType;
 
-    return std::make_pair(operation, params);
+            // differentiate cell HC with probability p
+            PCPVertex::RuleFuncCell update = [vertex_model, probability,
+                                              prob_distr{std::move(prob_distr)}]
+                    (const auto& cell) mutable
+            {
+                auto state = cell->state;
+                if (prob_distr(*vertex_model.get_rng()) < probability) {
+                    state.type = CellType::hair;
+                }
+                else {
+                    state.type = CellType::support;
+                }
+                return state;
+            };
+
+            apply_rule<Update::sync>(update, vertex_model.get_am().cells());
+        };
+
+        return std::make_pair(operation, params);
+    }
 }
 
 /// Enable or disable topological transitions
@@ -1313,6 +1315,7 @@ OperationBundle build_increment_edge_contractility (
     double ppMLC(get_as<double>("set_ppMLC", cfg, 0.));
     double ppMLC_angle(get_as<double>("set_ppMLC_angle", cfg, 0.));
     auto ppMLC_axis = SpaceVec({cos(ppMLC_angle), sin(ppMLC_angle)});
+    bool inhibit_ppMLC(get_as<bool>("inhibit_ppMLC", cfg, false));
 
     double pMLC(get_as<double>("set_pMLC", cfg, 0.));
     auto reset_HC_polarity(get_as<std::pair<bool, double>>(
@@ -1352,7 +1355,7 @@ OperationBundle build_increment_edge_contractility (
     Operation operation = [incr_prog_prog, incr_prog_hair, incr_prog_supp,
                            incr_hair_hair, incr_hair_supp, incr_supp_supp,
                            incr_prog_bnd, incr_hair_bnd, incr_supp_bnd,
-                           ppMLC, ppMLC_axis, pMLC,
+                           ppMLC, ppMLC_axis, inhibit_ppMLC, pMLC,
                            reset_HC_polarity, reset_HC_polarity_random]
             (PCPVertex& vertex_model)
     {
@@ -1391,7 +1394,7 @@ OperationBundle build_increment_edge_contractility (
         // set the contractility and update the edge properties
         vertex_model.set_edge_contractility(contractility, true);
 
-        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis);
+        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis, inhibit_ppMLC);
         vertex_model.set_pMLC_contractility(pMLC);
 
         if (std::get<bool>(reset_HC_polarity)) {
@@ -1413,6 +1416,19 @@ OperationBundle build_increment_edge_contractility (
                 cell->state.polarity = distr(*rng);
             }
         }
+        if (false) {
+            const auto& am = vertex_model.get_am();
+            const auto& cells = am.cells();
+            for (const auto& cell : cells) {
+                SpaceVec pos = am.barycenter_of(cell);
+                if (pos[0] < 2) {
+                    cell->state.polarity = - M_PI_2;
+                    cell->state.fix_polarity = true;
+                }
+            }
+        }
+
+
     };
 
     return std::make_pair(operation, params);
