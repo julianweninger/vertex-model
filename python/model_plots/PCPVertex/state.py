@@ -122,6 +122,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        property_bulk_cells_only: bool=False,
                        property_interpolation_kwargs: dict={},
                        property_interpolation_plot_kwargs: dict={},
+                       property_ignore_nan: bool=False,
+                       property_resolution: Tuple[int, int]=[512,512],
                        edge_property: str=None,
                        quiver_kwargs: dict=None,
                        polarity_HC: bool=False):
@@ -150,6 +152,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             scipy.interpolate.griddata.
         property_interpolation_plot_kwargs (dict, optional): Kwargs passed on to
             imshow on interpolated griddata,
+        property_ignore_nan (bool, default: False): Whether to generate the
+            interpolation ignoring nan values, e.g. when selecting only 
+            cell type. Nan values will interrupt the interpolation, i.e. 
+            the location will remain empty.
+        property_resolution (tuple of int, default: [512, 512]): The resolution
+            in horizontal and vertical direction of the interpolation meshwork.
         edge_property (std, optional): An additional edge property to plot.
             Data is edge data where property=edge_property or
             Edge_energy where energy_term=edge_property if edge_property
@@ -448,6 +456,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 prop_data = c_data.sel(property=property)
                 prop_data = prop_data.assign_coords({'x': x, 'y': y})
 
+
             # perform the interpolation
             if property:
                 if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
@@ -459,12 +468,18 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 if property_bulk_cells_only:
                     is_boundary = c_data.sel(property="is_boundary").round()
                     prop_data = prop_data.where(is_boundary == 0)
-                
+                if property_ignore_nan:
+                    prop_data = prop_data.dropna(dim='id')
+
                 min_x = floor(domain_size_min_x)
                 max_x = ceil(domain_size_max_x)
                 min_y = floor(domain_size_min_y)
                 max_y = ceil(domain_size_max_y)
-                grid_x, grid_y = np.mgrid[min_x:max_x:512j, min_y:max_y:512j]
+                
+                Nx = property_resolution[0]
+                Ny = property_resolution[1]
+                
+                grid_x, grid_y = np.mgrid[min_x:max_x:Nx*1j, min_y:max_y:Ny*1j]
                 grid_z1 = griddata((prop_data.x, prop_data.y), prop_data,
                                     (grid_x, grid_y),
                                     **property_interpolation_kwargs)
