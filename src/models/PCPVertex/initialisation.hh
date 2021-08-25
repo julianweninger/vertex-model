@@ -84,8 +84,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     }
 
     double size = get_as<double>("hexagon_size", cfg);
-    int num_rows = get_as<int>("lattice_rows", cfg);
-    int num_columns = get_as<int>("lattice_columns", cfg);
+    std::size_t num_rows = get_as<int>("lattice_rows", cfg);
+    std::size_t num_columns = get_as<int>("lattice_columns", cfg);
 
     SpaceVec cell_shape = SpaceVec({sqrt(3), 2}) * size;
 
@@ -106,16 +106,16 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     //      non-periodic bc this will be undone before initializing edges  
     //      and cells
     // NOTE some of these vertices have to be removed eventually
-    int lim_rows = num_rows;
-    int lim_columns = num_columns;
+    std::size_t lim_rows = num_rows;
+    std::size_t lim_columns = num_columns;
     if (not _space->periodic) {
         lim_columns += 1;
         lim_rows += 1;
     }
-    for (int r = 0; r < lim_rows; r += 1) {
+    for (std::size_t r = 0; r < lim_rows; r += 1) {
         // pair rows
         if (r % 2 == 0) {
-        for (int q = 0; q < lim_columns; ++q) {
+        for (std::size_t q = 0; q < lim_columns; ++q) {
             SpaceVec position = SpaceVec({double(q),
                                          (.75*r + .25)}) % cell_shape;
             this->add_vertex(position);
@@ -126,7 +126,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         }
         // impair rows
         else {
-        for (int q = 0; q < lim_columns; ++q) {
+        for (std::size_t q = 0; q < lim_columns; ++q) {
             SpaceVec position = SpaceVec({double(q), r * 0.75}) % cell_shape;
             this->add_vertex(position);
             
@@ -138,7 +138,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
 
     // Add edges
     const auto vertices = this->vertices();
-    for (int r = 0; r < lim_rows; r++) {
+    for (std::size_t r = 0; r < lim_rows; r++) {
         /** pair rows
          *  The edges are created as the lower left, lower right and
          *  left edge of every cell.
@@ -154,8 +154,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
          *  Note that the last to edges originate from impair rows
          */
         if (r % 2 == 0) {
-            int c_id; // id of the resp cell
-            for (int q = 0; q < lim_columns; ++q) {
+            std::size_t c_id; // id of the resp cell
+            for (std::size_t q = 0; q < lim_columns; ++q) {
                 // id of the cell
                 c_id = q + r * lim_columns;
                 // lower left edge
@@ -182,8 +182,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
          */
         else {
             // handle last column separately
-            int c_id;
-            for (int q = 0; q < lim_columns; ++q) {
+            std::size_t c_id;
+            for (std::size_t q = 0; q < lim_columns; ++q) {
                 // id of the cell
                 c_id = q + r * lim_columns;
                 // lower left edge
@@ -204,11 +204,11 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     const auto edges = this->edges();
     // ** add cells
     // handle last row separately
-    for (int r = 0; r < num_rows; r++) {
+    for (std::size_t r = 0; r < num_rows; r++) {
         // pair rows
         if (r % 2 == 0) {
-            for (int q = 0; q < num_columns; q++) {
-                int c_id = q + r * lim_columns;
+            for (std::size_t q = 0; q < num_columns; q++) {
+                std::size_t c_id = q + r * lim_columns;
                 this->add_cell(
                     SpaceVec({q + 0.5, 0.75 * r + 0.5}) % cell_shape,
                     { edges[3*c_id], // lower left
@@ -221,8 +221,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
         }
         else { // impare rows
-            for (int q = 0; q < num_columns; q++) {
-                int c_id = q + r * lim_columns;
+            for (std::size_t q = 0; q < num_columns; q++) {
+                std::size_t c_id = q + r * lim_columns;
                 this->add_cell(
                     SpaceVec({q + 1., 0.75 * r + 0.5}) % cell_shape,
                     { edges[3*c_id + 1], // lower left
@@ -254,7 +254,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
 
         // edges
         AgentContainer<Edge> edges_remove;
-        for (int r = 0; r < lim_rows; r++) {
+        for (std::size_t r = 0; r < lim_rows; r++) {
             if (r % 2 == 0) {
                 if (r == 0) {
                     edges_remove.push_back(edges[3*(lim_columns - 1)]);
@@ -264,7 +264,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
 
                 if (r == lim_rows - 1) {
                     edges_remove.push_back(edges[3*(r*lim_columns)]);
-                    for (int q = 0; q < lim_columns; ++q) {
+                    for (std::size_t q = 0; q < lim_columns; ++q) {
                         edges_remove.push_back(
                             edges[3*(q + r*lim_columns) + 2]);
                     }
@@ -276,7 +276,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                 if (r == lim_rows - 1) {
                     edges_remove.push_back(edges[3*(lim_rows*lim_columns - 1)]);
 
-                    for (int q = 0; q < lim_columns; ++q) {
+                    for (std::size_t q = 0; q < lim_columns; ++q) {
                         edges_remove.push_back(
                             edges[3*(q + r*lim_columns) + 2]);
                     }
@@ -308,6 +308,132 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     }
 
     this->_log->info("Initialised hexagonal cells.");
+
+    auto structure_str = get_as<std::string>("HC_structure", cfg, "");
+    if (structure_str.length() > 0) {
+        this->_log->info("Initialising HC in '{}' structure ...",
+                         structure_str);
+
+        if (structure_str == "ratio_1_to_2") {
+            if (_space->periodic and num_columns % 3 != 0) {
+                throw std::invalid_argument(fmt::format(
+                    "Failed to set up HC structure '{}' on a hexagonal lattice "
+                    "with {} columns. Columns needs to be a multiple of 3!",
+                    structure_str, num_columns
+                ));
+            }
+            for (std::size_t row = 0; row < num_rows; row++) {
+                for (std::size_t col = 0; col < num_columns; col++) {
+                    auto id = row * num_columns + col;
+                    if (   (row % 2 == 0 and col % 3 == 0)
+                        or (row % 2 == 1 and col % 3 == 1))
+                    {
+                        this->cells()[id]->state.type = CellType::hair;
+                    }
+                    else {
+                        this->cells()[id]->state.type = CellType::support;
+                    }
+                }
+            }
+        }
+        else if (structure_str == "ratio_1_to_3") {
+            for (std::size_t row = 0; row < num_rows; row++) {
+                for (std::size_t col = 0; col < num_columns; col++) {
+                    auto id = row * num_columns + col;
+                    if (row % 2 == 0 and col % 2 == 0) {
+                        this->cells()[id]->state.type = CellType::hair;
+                    }
+                    else {
+                        this->cells()[id]->state.type = CellType::support;
+                    }
+                }
+            }
+        }
+        else if (structure_str == "ratio_1_to_4") {
+            if (_space->periodic and num_columns % 5 != 0) {
+                throw std::invalid_argument(fmt::format(
+                    "Failed to set up HC structure '{}' on a hexagonal lattice "
+                    "with {} columns. Columns needs to be a multiple of 5!",
+                    structure_str, num_columns
+                ));
+            }
+            for (std::size_t row = 0; row < num_rows; row++) {
+                for (std::size_t col = 0; col < num_columns; col++) {
+                    auto id = row * num_columns + col;
+                    if (   (row % 2 == 0 and col % 5 == 0)
+                        or (row % 2 == 1 and col % 5 == 2)) {
+                        this->cells()[id]->state.type = CellType::hair;
+                    }
+                    else {
+                        this->cells()[id]->state.type = CellType::support;
+                    }
+                }
+            }
+        }
+        else if (structure_str == "ratio_1_to_5") {
+            if (    _space->periodic
+                and (num_columns % 3 != 0 or num_rows % 4 != 0)) {
+                throw std::invalid_argument(fmt::format(
+                    "Failed to set up HC structure '{}' on a hexagonal lattice "
+                    "with {} columns and {} rows. Columns and rows need to be "
+                    "a multiple of 3 and 4, respectively!",
+                    structure_str, num_columns, num_rows
+                ));
+            }
+            for (std::size_t row = 0; row < num_rows; row++) {
+                for (std::size_t col = 0; col < num_columns; col++) {
+                    auto id = row * num_columns + col;
+                    if (row % 2 == 0 and col % 3 == (row % 6) / 2)
+                    {
+                        this->cells()[id]->state.type = CellType::hair;
+                    }
+                    else {
+                        this->cells()[id]->state.type = CellType::support;
+                    }
+                }
+            }
+        }
+        else if (structure_str == "ratio_1_to_6") {
+            if (    _space->periodic
+                and (num_columns % 14 != 0 or num_rows % 14 != 0)) {
+                throw std::invalid_argument(fmt::format(
+                    "Failed to set up HC structure '{}' on a hexagonal lattice "
+                    "with {} columns and {} rows. Columns and rows need to be "
+                    "both a multiple of 14!",
+                    structure_str, num_columns, num_rows
+                ));
+            }
+            for (int m = -num_rows; m < int(num_rows); m++) {
+                for (int n = -num_columns; n < int(num_columns); n++) {
+                    int row = 2 * m + n;
+                    int col = 4 * n + m + row / 2;
+
+                    if (    row >= 0 and row < int(num_rows)
+                        and col >= 0 and col < int(num_columns))
+                    {
+                        auto id = row * num_columns + col;
+                        this->cells()[id]->state.type = CellType::hair;
+                    }
+                }
+            }
+            for (const auto& cell : cells()) {
+                if (cell->state.type == CellType::progenitor) {
+                    cell->state.type = CellType::support;
+                }
+            }
+        }
+        else {
+            throw std::invalid_argument(fmt::format(
+                "Invalid HC structure '{}' in initialisation of hexagonal "
+                "lattice! Available structures are: "
+                    "ratio_1_to_2, "
+                    "ratio_1_to_3, "
+                    "ratio_1_to_4, "
+                    "ratio_1_to_5, "
+                    "ratio_1_to_6.",
+                structure_str));
+        }
+    }
 }
 
 

@@ -1315,7 +1315,6 @@ OperationBundle build_increment_edge_contractility (
     double ppMLC(get_as<double>("set_ppMLC", cfg, 0.));
     double ppMLC_angle(get_as<double>("set_ppMLC_angle", cfg, 0.));
     auto ppMLC_axis = SpaceVec({cos(ppMLC_angle), sin(ppMLC_angle)});
-    bool inhibit_ppMLC(get_as<bool>("inhibit_ppMLC", cfg, false));
 
     double pMLC(get_as<double>("set_pMLC", cfg, 0.));
     auto reset_HC_polarity(get_as<std::pair<bool, double>>(
@@ -1355,7 +1354,7 @@ OperationBundle build_increment_edge_contractility (
     Operation operation = [incr_prog_prog, incr_prog_hair, incr_prog_supp,
                            incr_hair_hair, incr_hair_supp, incr_supp_supp,
                            incr_prog_bnd, incr_hair_bnd, incr_supp_bnd,
-                           ppMLC, ppMLC_axis, inhibit_ppMLC, pMLC,
+                           ppMLC, ppMLC_axis, pMLC,
                            reset_HC_polarity, reset_HC_polarity_random]
             (PCPVertex& vertex_model)
     {
@@ -1394,7 +1393,7 @@ OperationBundle build_increment_edge_contractility (
         // set the contractility and update the edge properties
         vertex_model.set_edge_contractility(contractility, true);
 
-        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis, inhibit_ppMLC);
+        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis);
         vertex_model.set_pMLC_contractility(pMLC);
 
         if (std::get<bool>(reset_HC_polarity)) {
