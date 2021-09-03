@@ -801,166 +801,6 @@ OperationBundle build_enable_transitions (
     return std::make_pair(operation, params);
 }
 
-/// The operation to evolve preferential area in Ornstein-Uhlenbeck process
-/** \details The following parameter are extracted from cfg 
- *           (besides those passed to `OperationParams`):
- *               - `tau` (double, default: 1.): The timescale of the underlying
- *                      Ornstein-Uhlenbeck process.
- *               - `increment` (bool): Whether to increment provided values.
- *                      If false, the value will be set, otherwise incremented.
- *               - `relative_stddev` (double): relative stddev for cells
- *                      of type progenitor; using lognormal distribution
- *               - `progenitor` (double, default: 0.): new value for
- *                      cells of type progenitor. Value 0. is ignored and
- *                      previous value of preferential area kept.
- *               - `hair` (double, default: 0.): new value for cells
- *                      of type hair. Value 0. is ignored and
- *                      previous value of preferential area kept.
- *               - `support` (double, default: 0.): new value for cells
- *                      of type support. Value 0. is ignored and
- *                      previous value of preferential area kept.
- *               - `adapt_support` (bool, default: false): Whether to adapt
- *                      areas of SCs to maintain constant total tissue area.
- *               - `relax_domain` (bool, default: false): If true, the domain
- *                      size is adapted to fit the cells as per preferential 
- *                      area.
- *               - `relax_domain_PD_axis` (bool, default: false): If true,
- *                      the domain size is adapted to fit the cells as per
- *                      preferential area. Domain size changes only in PD (x)
- *                      axis.
- */
-OperationBundle build_evolve_area (
-        std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
-{
-    OperationParams params(name, cfg, default_minim_params);
-
-    bool increment(get_as<bool>("increment", cfg));
-
-    double A_min(get_as<double>("A_min", cfg, 0.));
-    
-    double prog(get_as<double>("progenitor", cfg, 0.));
-    double hair(get_as<double>("hair", cfg, 0.));
-    double support(get_as<double>("support", cfg, 0.));
-
-
-    bool adapt_support(get_as<bool>("adapt_support", cfg, false));
-    bool relax_domain(get_as<bool>("relax_domain", cfg, false));
-    bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
-                                           cfg, false));
-
-    if (adapt_support and support > 1.e-12) {
-        throw std::invalid_argument("In operation `evolve_area` with "
-            "`adapt_support=true`, the `support` must be 0.");
-    }
-
-    if (relax_domain and relax_domain_PD_axis) {
-        throw std::invalid_argument("In operation `set area` only one of cfgs "
-            "`relax_domain` and `relax_domain_PD_axis` can be true!");
-    }
-
-    Operation operation = [prog, hair, support, increment, A_min,
-                           adapt_support, relax_domain, relax_domain_PD_axis]
-            (PCPVertex& vertex_model)
-    {
-        using CellType = PCPVertex::CellType;
-
-        const auto& am = vertex_model.get_am();
-        const auto& cells = am.cells();
-
-        double _support = support;
-
-        if (adapt_support) {
-            double total_area = 0.;
-            std::size_t num_hcs = 0;
-            for (const auto& cell : cells) {
-                total_area += cell->state._area_preferential;
-                if (cell->state.type == CellType::hair) {
-                    ++num_hcs;
-                }
-            }
-
-            if (increment) {
-                _support = - hair * num_hcs / (cells.size() - num_hcs);
-            }
-            else {
-                _support = (  (total_area - hair * num_hcs)
-                           / (cells.size() - num_hcs));
-            }
-
-            if (num_hcs == cells.size()) {
-                _support = 0.;
-            }
-        }
-
-        PCPVertex::RuleFuncCell update = [prog, hair, _support, increment,
-                                          A_min]
-        (const auto& cell)
-        {
-            auto state = cell->state;
-            double A0 = state._area_preferential;
-            
-            double new_A0 = 0.;
-            if (state.type == CellType::progenitor) {
-                new_A0 = prog;
-            }
-            else if (state.type == CellType::hair) {
-                new_A0 = hair;
-            }
-            else if (state.type == CellType::support) {
-                new_A0 = _support;
-            }
-            
-            if (increment) {
-                new_A0 += A0;
-            }
-            if (new_A0 <= A_min) {
-                throw std::runtime_error(fmt::format("Cannot evolve "
-                    "preferential area, as target value is smaller than "
-                    "specified minimum area {}!", A_min));
-            }
-
-            double dA0 = new_A0 - A0;
-            state._area_preferential += dA0;
-            state._area_preferential_fluctuations -= dA0;
-            // NOTE state.area_preferential() is constant and evolves in 
-            //      Ornstein-Uhlenbeck process
-
-            return state;
-        };
-        
-        apply_rule<Update::sync>(update, cells);
-
-        if (relax_domain) {
-            double area = std::accumulate(cells.begin(), cells.end(), 0.,
-                            [](const double& val, const auto& cell) {
-                                return val + cell->state._area_preferential; });
-
-            PCPVertex::SpaceVec domain_size = 
-                    vertex_model.get_space()->get_domain_size();
-            vertex_model.increase_domain_size(
-                    area - domain_size[0]*domain_size[1]
-            );
-        }
-        else if (relax_domain_PD_axis) {
-            double area = std::accumulate(cells.begin(), cells.end(), 0.,
-                            [](const double& val, const auto& cell) {
-                                return val + cell->state._area_preferential; });
-
-            PCPVertex::SpaceVec domain_size = 
-                    vertex_model.get_space()->get_domain_size();
-            double dA = area - domain_size[0]*domain_size[1];
-
-            vertex_model.stretch_domain({dA/domain_size[1], 0.},
-                                        false, false, false);
-        }
-
-        return;
-    };
-
-    return std::make_pair(operation, params);
-}
-
 /// An operation to fix boundary vertices in space
 /** Sets the fix_boundary in the vertex model and is updated continuously
  *  in update
@@ -1027,16 +867,10 @@ OperationBundle build_increment_curvature (
  *           (besides those passed to `OperationParams`):
  *               - `progenitor` (double, default: 0.): incremental value for
  *                      cells of type progenitor
- *               - `stddev_progenitor` (double, default: 0.): stddev for cells
- *                      of type progenitor; using normal distribution
  *               - `hair` (double, default: 0.): incremental value for cells
  *                      of type hair
- *               - `stddev_hair` (double, default: 0.): stddev for cells
- *                      of type hair; using normal distribution
  *               - `support` (double, default: 0.): incremental value for cells
  *                      of type support
- *               - `stddev_support` (double, default: 0.): stddev for cells
- *                      of type support; using normal distribution
  *               - `adapt_support` (bool, default: false): If true, the total
  *                      area of hair and support cells remains constant, hence
  *                      support cells compensate area changes from hair cells.
@@ -1053,32 +887,29 @@ OperationBundle build_increment_area (
 {
     OperationParams params(name, cfg, default_minim_params);
 
-    double incr_prog(get_as<double>("progenitor", cfg, 0.));
-    double stddev_prog(get_as<double>("stddev_progenitor", cfg, 0.));
-    double incr_hair(get_as<double>("hair", cfg, 0.));
-    double stddev_hair(get_as<double>("stddev_hair", cfg, 0.));
-    double incr_support(get_as<double>("support", cfg, 0.));
-    double stddev_support(get_as<double>("stddev_support", cfg, 0.));
+    double prog(get_as<double>("progenitor", cfg, 0.));
+    double hair(get_as<double>("hair", cfg, 0.));
+    double support(get_as<double>("support", cfg, 0.));
     bool adapt_support(get_as<bool>("adapt_support", cfg, false));
     bool relax_domain(get_as<bool>("relax_domain", cfg, false));
+    bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
+                                           cfg, false));
     
-    if (adapt_support and incr_support != 0) {
+    if (adapt_support and fabs(support) > 1.e-12) {
         throw std::invalid_argument(fmt::format(
             "In cfg {}: If `adapt_support = True`, "
             "then the increment value for the support cells "
-            "`support` must be zero, but was {}!", name, incr_support));
+            "`support` must be zero, but was {}!", name, support));
     }
 
-    if (adapt_support and relax_domain) {
+    if (adapt_support + relax_domain + relax_domain_PD_axis > 1) {
         throw std::invalid_argument(fmt::format(
             "In cfg {}: `adapt_support` and `relax_domain` cannot both be "
             "true!", name));
     }
 
-    Operation operation = [incr_prog, stddev_prog,
-                           incr_hair, stddev_hair,
-                           incr_support, stddev_support, adapt_support,
-                           relax_domain]
+    Operation operation = [prog, hair, support, adapt_support,
+                           relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1086,11 +917,9 @@ OperationBundle build_increment_area (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
-        std::normal_distribution<> dist_prog{incr_prog, stddev_prog};
-        std::normal_distribution<> dist_hair{incr_hair, stddev_hair};
-        std::normal_distribution<> dist_support;
+        double _support = support;
+
         if (adapt_support) {
-            double incr_support;
             std::size_t num_hcs = std::count_if(
                 cells.begin(), cells.end(), 
                 [](const auto& c) {
@@ -1098,55 +927,55 @@ OperationBundle build_increment_area (
                 });
 
             if (num_hcs < cells.size()) {
-                incr_support = -1. * incr_hair * num_hcs /
-                               (cells.size() - num_hcs);
+                _support = -1. * hair * num_hcs / (cells.size() - num_hcs);
             }
-            else {
-                incr_support = 0;
-            }
-            
-            dist_support = std::normal_distribution<>(incr_support,
-                                                      stddev_support);
-        }
-        else {
-            dist_support = std::normal_distribution<>(incr_support,
-                                                      stddev_support);
         }
 
-        PCPVertex::RuleFuncCell update = [vertex_model,
-                                          dist_prog{std::move(dist_prog)},
-                                          dist_hair{std::move(dist_hair)},
-                                          dist_support{std::move(dist_support)}]
-                (const auto& cell) mutable
+        PCPVertex::RuleFuncCell update = [vertex_model, prog, hair, _support]
+                (const auto& cell)
         {
             auto state = cell->state;
+            
+            double dA0 = 0.;
             if (state.type == CellType::progenitor) {
-                state._area_preferential += dist_prog(*vertex_model.get_rng());
-            }
-            else if (state.type == CellType::support) {
-                state._area_preferential += dist_support(
-                                                *vertex_model.get_rng());
+                dA0 = prog;
             }
             else if (state.type == CellType::hair) {
-                state._area_preferential += dist_hair(*vertex_model.get_rng());
+                dA0 = hair;
             }
+            else if (state.type == CellType::support) {
+                dA0 = _support;
+            }
+
+            state._area_preferential += dA0;
             return state;
         };
         
         apply_rule<Update::sync>(update, cells);
 
-        if (not relax_domain) {
-            return;
+        if (relax_domain) {
+            double area = std::accumulate(cells.begin(), cells.end(), 0.,
+                                [](const double& val, const auto& cell) {
+                                    return val + cell->state._area_preferential;
+                                });
+
+            PCPVertex::SpaceVec domain_size = 
+                    vertex_model.get_space()->get_domain_size();
+            vertex_model.increase_domain_size(
+                area - domain_size[0]*domain_size[1]);
         }
-
-        double area = std::accumulate(cells.begin(), cells.end(), 0.,
+        else if (relax_domain_PD_axis) {
+            double area = std::accumulate(cells.begin(), cells.end(), 0.,
                             [](const double& val, const auto& cell) {
-                                return val + cell->state._area_preferential;
-                            });
+                                return val + cell->state._area_preferential; });
 
-        PCPVertex::SpaceVec domain_size = 
-                vertex_model.get_space()->get_domain_size();
-        vertex_model.increase_domain_size(area - domain_size[0]*domain_size[1]);
+            PCPVertex::SpaceVec domain_size = 
+                    vertex_model.get_space()->get_domain_size();
+            double dA = area - domain_size[0]*domain_size[1];
+
+            vertex_model.stretch_domain({dA/domain_size[1], 0.},
+                                        false, false, false);
+        }
 
         return;
     };

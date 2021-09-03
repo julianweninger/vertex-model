@@ -267,26 +267,20 @@ increment_area:
   times: []
 
   progenitor: 1.
-  stddev_progenitor: 0.1
   hair: 2.
-  stddev_hair: 0.2
   support: 3.
-  stddev_support: 0.3
 
 increment_area_adapt:
   times: []
 
   hair: 1.
-  stddev_hair: 0.1
   adapt_support: True
 
 increment_area_relax:
   times: []
 
   hair: 1.
-  stddev_hair: 0.1
   support: 2.
-  stddev_support: 0.3
   relax_domain: True
 
 increment_cell_contractility:
