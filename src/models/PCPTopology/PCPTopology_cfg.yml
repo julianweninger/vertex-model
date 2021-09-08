@@ -222,7 +222,7 @@ PCPVertex:
   space: *SPACE
 
   boundary_parameter:
-    area_elasticity: 0.
+    area_elasticity: 1.
     area_preferential: 1. # per cell
     contractility: 100.
     shape_index_preferential: 3.54491 # 2 sqrt(pi)

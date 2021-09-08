@@ -12,7 +12,7 @@
 ---
 perform_sweep: true
 paths:
-  model_note: default__evolve_area
+  model_note: default__increment_area
 
 worker_manager:
   nonzero_exit_handling: warn_all
@@ -96,7 +96,7 @@ parameter_space:
       # END Differential junctional properties
 
 
-      - evolve_area:
+      - increment_area:
           times: !listgen [1501]
           hair: !coupled-sweep
             target_name: direction
@@ -109,11 +109,7 @@ parameter_space:
             name: direction
             order: 2
           
-          increment: true
           adapt_support: True
-          
-          A_min: 0.2
-
           
 
     # --- Dynamics
