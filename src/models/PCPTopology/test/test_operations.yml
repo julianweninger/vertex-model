@@ -283,6 +283,12 @@ increment_area_relax:
   support: 2.
   relax_domain: True
 
+increment_area_gradient:
+  times: []
+
+  hair_gradient: 1.
+  adapt_support: True
+
 increment_cell_contractility:
   times: []
 

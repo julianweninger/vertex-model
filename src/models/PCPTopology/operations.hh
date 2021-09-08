@@ -877,6 +877,15 @@ OperationBundle build_increment_curvature (
  *               - `relax_domain` (bool, default: false): If true, the domain
  *                      size is adapted to fit the cells as per preferential 
  *                      area.
+ *               - `hair_gradient` (double, default: 0.): The difference between
+ *                      the cells that grow the most and the least. Using a
+ *                      negative slope for non-periodic and a cos(x)**2 in 
+ *                      periodic BC along the horizontal (P-D) axis.
+ *                      If `adapt_support`, the total A0 of all cells remains
+ *                      constant (uniform substraction of the change)
+ *               - `hair_gradient_center` (double, default: 0.5): The relative 
+ *                      position of dA = 0 in non-periodic BC and the relative 
+ *                      position of dA = max in periodic BC.
  * 
  *  \note This affects the current entities properties, it does not overwrite
  *        changes in the past.
@@ -894,6 +903,8 @@ OperationBundle build_increment_area (
     bool relax_domain(get_as<bool>("relax_domain", cfg, false));
     bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
                                            cfg, false));
+    double hair_gradient(get_as<double>("hair_gradient", cfg, 0.));
+    double hair_gradient_center(get_as<double>("hair_gradient_center", cfg, 0.5));
     
     if (adapt_support and fabs(support) > 1.e-12) {
         throw std::invalid_argument(fmt::format(
@@ -908,11 +919,13 @@ OperationBundle build_increment_area (
             "true!", name));
     }
 
-    Operation operation = [prog, hair, support, adapt_support,
+    Operation operation = [prog, hair, support, adapt_support, hair_gradient,
+                           hair_gradient_center, 
                            relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
+        using SpaceVec = PCPVertex::SpaceVec;
 
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
@@ -952,6 +965,62 @@ OperationBundle build_increment_area (
         };
         
         apply_rule<Update::sync>(update, cells);
+
+        if (fabs(hair_gradient) > 1.e-12) {
+            auto [min, max] = am.get_extent();
+
+            double L = (max - min)[0];
+            double x_min = min[0];
+
+            std::function<double(const SpaceVec&)> map;
+            if (not vertex_model.get_space()->periodic) {
+                map = 
+                    [hair_gradient, hair_gradient_center, L, x_min]
+                    (const SpaceVec& pos)
+                    {
+                        double rel_x = (pos[0] - x_min) / L;
+                        double fac = (hair_gradient_center - rel_x);
+                        return hair_gradient * fac;
+                    };
+            }
+            else {
+                map = 
+                    [hair_gradient, hair_gradient_center, L, x_min]
+                    (const SpaceVec& pos)
+                    {
+                        double rel_x = (  (pos[0] - x_min) / L
+                                        - hair_gradient_center);
+                        double fac = std::pow(cos(rel_x * M_PI), 2);
+                        return hair_gradient * fac;
+                    };
+            }
+
+            double area = std::accumulate(
+                cells.begin(), cells.end(), 0.,
+                [](const double& val, const auto& cell){
+                    return val + cell->state._area_preferential;
+                });
+
+            for (const auto& cell : cells) {
+                if (cell->state.type == CellType::hair) {
+                    SpaceVec pos = am.barycenter_of(cell);
+                    double dA = map(pos);
+                    cell->state._area_preferential += dA;
+                }
+            }
+            if (adapt_support) {
+                double new_area = std::accumulate(
+                    cells.begin(), cells.end(), 0.,
+                    [](const double& val, const auto& cell){
+                        return val + cell->state._area_preferential;
+                    });
+
+                for (const auto& cell : cells) {
+                    cell->state._area_preferential -= (  (new_area - area)
+                                                       / cells.size());
+                }
+            }
+        }
 
         if (relax_domain) {
             double area = std::accumulate(cells.begin(), cells.end(), 0.,

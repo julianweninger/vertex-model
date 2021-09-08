@@ -788,6 +788,44 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_gradient) {
+        const std::string name = "increment_area_gradient";
+        auto [operation, params] = build_increment_area(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        const auto& cells = vertex_model.get_am().cells();
+                   
+        auto [op_diff, params_diff] = build_differentiate_random(
+            "differentiate_random", get_as<Config>("differentiate_random", cfg),
+            default_minim_params);
+
+        op_diff(vertex_model);
+
+        operation(vertex_model);
+        
+        double max = std::numeric_limits<double>::min();
+        double min = std::numeric_limits<double>::max();
+        std::shared_ptr<double> SC = nullptr;
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                max = std::max(max, cell->state._area_preferential);
+                min = std::min(min, cell->state._area_preferential);
+            }
+            else {
+                if (SC == nullptr) {
+                    SC = std::make_shared<double>(cell->state._area_preferential);
+                }
+                else {
+                    BOOST_CHECK_CLOSE(*SC, cell->state._area_preferential,
+                                      1.e-6);
+                }
+            }
+        }
+
+        BOOST_CHECK_CLOSE(max, *SC + 1., 5); // close to 5 percent
+        BOOST_CHECK_CLOSE(min, *SC, 10); // close to 10 percent        
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_cell_contractility) {
         const std::string name = "increment_cell_contractility";
         auto [operation, params] = build_increment_cell_contractility(

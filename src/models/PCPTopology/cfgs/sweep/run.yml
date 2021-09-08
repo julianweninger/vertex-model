@@ -23,10 +23,6 @@ parameter_space:
     range: [2]
 
   PCPTopology:
-    space: &SPACE
-      periodic: false
-      extent: [30, 30]
-
     operations:
       - jiggle: 
           times: []
@@ -75,8 +71,6 @@ parameter_space:
             jiggle_tolerance: 1.e-6
     PCPVertex:
       log_level: warning
-
-      space: *SPACE
 
       # --- Initialization parameters
       agent_manager:

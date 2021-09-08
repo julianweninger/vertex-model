@@ -60,6 +60,15 @@ def map_directional_time(d: xr.DataArray):
     d = d.assign_coords(direction=("time", direction))
     
     return d.sortby("time")
+
+def groupby_bins(HC, *, bins: int, **kwargs):
+    """Forward to xarray.DataArray.groupby_bins using the beginning of the bins
+    as coordinate """
+    if kwargs.pop("labels", None) is not None:
+        log.warning("Overwriting labels entry!")
+
+    kwargs["labels"] = np.linspace(HC.x.min(), HC.x.max(), bins, endpoint=False)
+    return HC.groupby_bins("x", bins=bins, **kwargs)
     
 
 def map_stage(data: xr.DataArray, area: xr.DataArray, *,
