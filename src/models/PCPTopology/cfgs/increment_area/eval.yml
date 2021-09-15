@@ -10,7 +10,7 @@
 definitions: 
   enabled: false
 
-  num_cells: &NUM_CELLS 64
+  num_cells: &NUM_CELLS 32
 
   # limits in over time plots
   time_min: &TIME_MIN ~
@@ -34,7 +34,7 @@ definitions:
   subspace_slice: &subspace_slice
     Gamma: !sweep
       default: 0.
-      values: [0., 0.8]
+      values: [0., 0.5]
     # Gamma: !sweep
     #   default: 1.
     #   linspace: [0., 1., 6]
@@ -60,7 +60,7 @@ definitions:
     seed: 0
     rho: 0.2
     # remove for full space
-    Gamma: [0., 0.8]
+    Gamma: [0., 0.5]
     # remove for full space
 
   # which statistics to evaluate in cell_neighborhood
