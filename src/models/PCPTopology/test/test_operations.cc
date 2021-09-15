@@ -334,6 +334,29 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_domain) {
+        const std::string name = "differentiate_domain";
+        auto [operation, params] = build_differentiate_domain(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation(vertex_model);
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+        auto cnt = std::count_if(cells.begin(), cells.end(),
+                                 [](const auto& cell) {
+                                        return cell->state.type == 
+                                               CellType::hair; });
+
+        BOOST_CHECK_CLOSE(double(cnt)/cells.size(), 0.5*0.75, 10);
+        
+        cnt = std::count_if(cells.begin(), cells.end(),
+                            [](const auto& cell) {
+                                return cell->state.type == 
+                                        CellType::progenitor; });
+        BOOST_TEST(cnt == 0);
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_random) {
         const std::string name = "differentiate_random";
         auto [operation, params] = build_differentiate_random(
