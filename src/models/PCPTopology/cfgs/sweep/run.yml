@@ -20,7 +20,7 @@ parameter_space:
 
   seed: !sweep
     default: 1
-    range: [2]
+    range: [1]
 
   PCPTopology:
     operations:
@@ -36,10 +36,11 @@ parameter_space:
       - proliferate_quick_and_dirty:
           times: []
           iterations_prolog: 1
-          target_num_cells: 64
+          target_num_cells: 48
           minimization_quick: *JiggleQuickDirty
           minimization:
-            num_repeat: 15
+            num_repeat: 3
+            # NOTE 25 recommended
             jiggle_intensity: 0.1
       # END of quick-proliferate
 

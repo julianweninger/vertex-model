@@ -70,7 +70,7 @@ cell_stats/cell_area: !pspace &cell_stats
       x: time
       y: average area
     set_limits:
-      x: [0, &TIME_MAX 10]
+      x: [0, &TIME_MAX 2]
       y: [0, 5.]
 
 cell_stats/cell_area_pref: !pspace
@@ -390,6 +390,8 @@ cell_neighbourhood_mv: !pspace
 
   stack_dims: [seed]
 
+  enabled: false
+
   only_type: !sweep
     default: all
     values:
@@ -545,67 +547,6 @@ cell_area: &Property
     set_labels:
       x: p0
       y: average area
-
-cell_area_ratio: !pspace
-  <<: *Property
-
-  to_plot: 
-    ratio:
-      label: ~
-
-  transform:
-    - div:
-      args: [!dag_tag hair_cells, !dag_tag support_cells]
-    - .squeeze:
-      args: [!dag_prev ]
-      tag: ratio
-
-  helpers:
-    set_labels:
-      x: time
-      y: area av HC / av SC
-    set_limits:
-      y: [0, 10.]
-
-cell_area_fraction: !pspace
-  <<: *Property
-
-  to_plot: 
-    fraction:
-      label: ~
-  average_dim: seed
-
-  transform:
-    - mul:
-      args: [0.26, 64]
-      tag: N_HC
-    - sub:
-      args: [64, !dag_tag N_HC]
-      tag: N_SC
-      
-    - mul:
-      args: [!dag_tag hair_cells, !dag_tag N_HC]
-      tag: hc_area
-    - mul:
-      args: [!dag_tag support_cells, !dag_tag N_SC]
-      tag: sc_area
-
-    - add:
-      args: [!dag_tag hc_area, !dag_tag sc_area]
-      tag: tot_area
-
-    - div:
-      args: [!dag_tag hc_area, !dag_tag tot_area]
-    - .squeeze:
-      args: [!dag_prev ]
-      tag: fraction
-
-  helpers:
-    set_labels:
-      x: time
-      y: area fraction covered by HCs
-    set_limits:
-      y: [0, 1.]
 
 cell_area_pref:
   based_on: cell_area

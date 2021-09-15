@@ -27,11 +27,11 @@ parameter_space:
   #   default: 350
   #   values: [1500, 375]
 
-  num_cells: &NUM_CELLS 64     # The final number of cells
+  num_cells: &NUM_CELLS 32     # The final number of cells
 
   seed: !sweep
     default: 42
-    range: [2]
+    range: [1]
     order: -1
 
   PCPTopology:  
@@ -48,6 +48,7 @@ parameter_space:
           minimization_quick: ~
           minimization:
             num_repeat: &equilibration_time 5
+            # NOTE 50 recommended
       # END proliferation
 
       # Differentiate hair and support cells
@@ -56,7 +57,7 @@ parameter_space:
           iterations_prolog: 1
           fraction: !sweep
             default: 0.2
-            values: [0.1, 0.2, 0.26]        # The HC densities
+            values: [0.2, 0.26]        # The HC densities
             name: rho
           minimization:
             mode: manual
@@ -89,7 +90,8 @@ parameter_space:
           iterations_prolog: 1
           support_support: !sweep
             default: 0.
-            linspace: [0., 1., 6]
+            linspace: [0., 1., 3]
+            # 6 datapoints recommended
             name: Gamma
           minimization:
             num_repeat: *equilibration_time
