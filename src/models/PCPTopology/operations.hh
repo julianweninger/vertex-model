@@ -300,6 +300,86 @@ OperationBundle build_convergence_and_extension (
 
     return std::make_pair(operation, params);
 }
+
+
+/// The operation to differentiate the types of cells randomly
+/** Progenitor cells turn to hair cell with given probability and to support
+ *  cell otherwise.
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `probability` (double): The probability for a cell to differentiate
+ *              to a hair cell; otherwise support cell. Gives a fraction of 
+ *              hair cells for large enough number of cells.
+ *      - `fraction` (double): Similar to `probability`, but a fraction of the 
+ *              cells is selected for HC differentiation. Resulting HC fraction
+ *              is fixed. Number of cells is rounded to next smaller integer
+ * 
+ *  \note The entities properties do not change during differentiation.
+ */
+OperationBundle build_differentiate_domain (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+    
+    double x(get_as<double>("relative_width", cfg));
+    double y(get_as<double>("relative_height", cfg, 1.));
+
+    Operation operation = [x, y](PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+        using SpaceVec = PCPVertex::SpaceVec;
+        
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+
+        double abs_x, abs_y;
+        if (vertex_model.get_space()->periodic) {
+            SpaceVec domain = vertex_model.get_space()->get_domain_size();
+            abs_x = x * domain[0];
+            abs_y = y * domain[1];
+        }
+        else {
+            double min_x = std::numeric_limits<double>::max();
+            double max_x = std::numeric_limits<double>::min();
+            double min_y = std::numeric_limits<double>::max();
+            double max_y = std::numeric_limits<double>::min();
+            for (const auto& vertex : am.vertices()) {
+                SpaceVec pos = am.position_of(vertex);
+                min_x = std::min(min_x, pos[0]);
+                max_x = std::max(max_x, pos[0]);
+
+                min_y = std::min(min_y, pos[1]);
+                max_y = std::max(max_y, pos[1]);
+            }
+            abs_x = x * (max_x - min_x) - min_x;
+            abs_y = y * (max_y - min_y) - max_x;
+        }
+
+        // Pick cells in lower left rectangle         
+        apply_rule<Update::sync>(
+            [am, abs_x, abs_y](const auto& cell)
+            {
+                auto state = cell->state;
+                SpaceVec pos = am.barycenter_of(cell);
+
+                if (pos[0] < abs_x and pos[1] < abs_y) {
+                    state.type = CellType::hair;
+                }
+                else {
+                    state.type = CellType::support;
+                }
+
+                return state;
+            },
+            cells
+        );
+    };
+
+    return std::make_pair(operation, params);
+}
+
 /// The operation differentiate cells using the Collier model
 /** \details The differentiation occurs as in the Collier model.
  *  The geometric properties and cell states are synchronized after n (`steps`)

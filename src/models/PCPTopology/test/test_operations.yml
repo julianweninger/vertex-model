@@ -164,6 +164,12 @@ jiggle__area_fluctuations_3:
     area_fluctuation_tau: 1.
 
 
+differentiate_domain:
+  times: []
+  relative_width: 0.5
+  relative_height: 0.75
+  probability: 0.25
+
 differentiate_random:
   times: []
   probability: 0.25

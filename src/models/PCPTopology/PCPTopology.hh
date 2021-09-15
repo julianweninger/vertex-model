@@ -180,7 +180,7 @@ public:
                 // position adaptors
                 DataIO::vertices_adaptor<SpaceVec>,
                 DataIO::cells_adaptor<SpaceVec, CellType>,
-                DataIO::edges_adaptor,
+                DataIO::edges_adaptor<SpaceVec>,
                 DataIO::cell_energies_adaptor,
                 DataIO::edge_energies_adaptor
                 ),
@@ -255,6 +255,11 @@ private:
                         build_differentiate_Collier(name, op_cfg,
                             _minimization_params, _collier,
                             _collier_prolog));
+                }
+                else if (name == "differentiate_domain") {
+                    _operations.push_back(
+                        build_differentiate_domain(name, op_cfg,
+                                                   _minimization_params));
                 }
                 else if (name == "differentiate_hair_cluster") {
                     _operations.push_back(
@@ -363,6 +368,7 @@ private:
                             "brownian_noise, "
                             "convergence_and_extension, "
                             "differentiate_Collier, "
+                            "differentiate_domain, "
                             "differentiate_hair_cluster, "
                             "differentiate_NotchDelta, "
                             "differentiate_random, "

@@ -538,6 +538,7 @@ auto cells_adaptor = std::make_tuple(
 ); // end cell position adaptor
 
 /// Datamanager adaptor for edges properties
+template <typename SpaceVec>
 auto edges_adaptor = std::make_tuple(
 
     // name of the task
@@ -550,23 +551,56 @@ auto edges_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& edges = model.get_am().edges();
+        const auto& am = model.get_am();
+        const auto& edges = am.edges();
         dataset->write(edges.begin(), edges.end(),
                        [](const auto& edge) {
-                           return static_cast<int>(
+                           return static_cast<double>(
                                     edge->custom_links().a->id());
                        });
         dataset->write(edges.begin(), edges.end(),
                        [](const auto& edge) {
-                           return static_cast<int>(
+                           return static_cast<double>(
                                     edge->custom_links().b->id());
                        });
+        
+        dataset->write(edges.begin(), edges.end(),
+                       [am](const auto& edge) {
+                           return static_cast<double>(am.length_of(edge));
+                       });        
+        dataset->write(edges.begin(), edges.end(),
+                       [am](const auto& edge) {
+                           SpaceVec displ = am.displacement(edge);
+                           displ /= arma::norm(displ);
+                           SpaceVec axis({1., 0.});
+
+                            // nematic angle in [0, pi / 2]
+                           double angle = std::acos(arma::dot(displ, axis));
+
+                           return static_cast<double>(angle);
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [am](const auto& edge) {
+                           const auto& [a, b] = am.adjoints_of(edge);
+
+                           if (a == nullptr) { return static_cast<double>(-1); }
+                           return static_cast<double>(a->state.type);
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [am](const auto& edge) {
+                           const auto& [a, b] = am.adjoints_of(edge);
+
+                           if (b == nullptr) { return static_cast<double>(-1); }
+                           return static_cast<double>(b->state.type);
+                       });
+
+
     },
                 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().edges().size()});
+            {6, m.get_am().edges().size()});
     },
 
     // attribute writer for basegroup
@@ -578,7 +612,11 @@ auto edges_adaptor = std::make_tuple(
         hdfdataset->add_attribute("dim_name__0", "property");
         hdfdataset->add_attribute("coords__property", 
                                   std::vector<std::string>({"vertex_a",
-                                                            "vertex_b"}));
+                                                            "vertex_b",
+                                                            "length",
+                                                            "orientation",
+                                                            "type_alpha",
+                                                            "type_beta"}));
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");
         const auto& edges = model.get_am().edges();
