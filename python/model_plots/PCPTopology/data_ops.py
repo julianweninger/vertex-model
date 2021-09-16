@@ -7,6 +7,7 @@ from typing import Tuple
 import numpy as np
 import xarray as xr
 import pandas as pd
+import math
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ def drop_duplicates(d: xr.DataArray, *a, **k):
 def sortby(d: xr.DataArray, *a, **k):
     """Forward to xarray.DataArray.sortby"""
     return d.sortby(*a, **k)
+
+def apply(d, f, *a, **k):
+    return d.apply(f, *a, **k)
 
 def map_directional_time(d: xr.DataArray):
     if 'direction' not in d.dims:
@@ -87,6 +91,18 @@ def map_stage(data: xr.DataArray, area: xr.DataArray, *,
                                         **kwargs_interp)
     
     return data.sel(time=time_to_stage.dropna(dim="stage"))
+
+def align_polarity(data: xr.DataArray):
+    def flip(d: xr.DataArray):
+        mean = d.mean(dim='id')
+        if (mean.data < 0):
+            d = (d + math.pi) % (2 *math.pi)
+        else:
+            d = (d + 2 * math.pi) % (2 * math.pi)
+        return d
+    data = data.unstack(dim='ids')
+    data = data.groupby('seed').apply(flip)
+    return data
 
 
 def concat_exp_coordination(data: xr.DataArray, *, coordins: xr.DataArray=None):

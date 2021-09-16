@@ -123,9 +123,9 @@ double PCPVertex::edge_contractility_energy (
         }
 
         SpaceVec displ = this->_space->displacement(a, b);
+        
         // polarity rotated by 90 deg clockwise
-        SpaceVec pol = SpaceVec({ sin(HC->state.polarity),
-                                 -cos(HC->state.polarity)});
+        SpaceVec pol = HC->state.polarity_vec(-M_PI_2);
 
         double x = arma::dot(displ, pol) / length / arma::norm(pol);
         double gamma = 0.5 * _pMLC_contractility * (x + 1.);

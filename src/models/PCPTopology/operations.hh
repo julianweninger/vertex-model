@@ -1297,12 +1297,12 @@ OperationBundle build_increment_edge_contractility (
     double pMLC(get_as<double>("set_pMLC", cfg, 0.));
     auto reset_HC_polarity(get_as<std::pair<bool, double>>(
         "reset_HC_polarity", cfg, std::make_pair(false, -M_PI_2)));
-    auto reset_HC_polarity_random(get_as<bool>(
-        "reset_HC_polarity_random", cfg, false));
-    if (reset_HC_polarity_random and std::get<bool>(reset_HC_polarity)) {
-        throw KeyError("", cfg, fmt::format("Received contradicting "
-            "values: reset_polarity and reset_polarity_random!"));
-    }
+    std::size_t reset_HC_polarity_antispin_nshift = get_as<std::size_t>(
+        "reset_HC_polarity_antispin_nshift", cfg, 0);
+    std::size_t reset_HC_polarity_antispin_n = get_as<std::size_t>(
+        "reset_HC_polarity_antispin_n", cfg, 0);
+    auto reset_HC_polarity_shuffle(get_as<double>(
+        "reset_HC_polarity_shuffle", cfg, 0.));
 
     if (cfg["hair_progenitor"]) {
         double incr_hair_prog = get_as<double>("hair_progenitor", cfg);
@@ -1333,7 +1333,10 @@ OperationBundle build_increment_edge_contractility (
                            incr_hair_hair, incr_hair_supp, incr_supp_supp,
                            incr_prog_bnd, incr_hair_bnd, incr_supp_bnd,
                            ppMLC, ppMLC_axis, pMLC,
-                           reset_HC_polarity, reset_HC_polarity_random]
+                           reset_HC_polarity, 
+                           reset_HC_polarity_antispin_nshift,
+                           reset_HC_polarity_antispin_n,
+                           reset_HC_polarity_shuffle]
             (PCPVertex& vertex_model)
     {
         using CellType = PCPVertex::CellType;
@@ -1376,32 +1379,48 @@ OperationBundle build_increment_edge_contractility (
 
         if (std::get<bool>(reset_HC_polarity)) {
             const auto& cells = vertex_model.get_am().cells();
-            apply_rule<Update::sync>(
-                [reset_HC_polarity](const auto& cell){
-                    auto state = cell->state;
-                    state.polarity = std::get<double>(reset_HC_polarity);
-                    return state;
-                },
-                cells
-            );
+
+            std::size_t nshift = reset_HC_polarity_antispin_nshift;
+            std::size_t n = reset_HC_polarity_antispin_n;
+
+            std::size_t cell_cnt = 0;
+            for (const auto& cell : cells) {
+                if (cell->state.type == CellType::support) {
+                    continue;
+                }
+                auto state = cell->state;
+                state._polarity = std::get<double>(reset_HC_polarity);
+                state._polarity_fluctuations = 0.;
+
+                std::size_t flip = 0;
+                // in a flip row
+                if (nshift > 0 and (cell_cnt / nshift) % 2 == 1) {
+                    flip++;
+                }
+                // in a row flip each nth
+                if (n > 0 and cell_cnt % n == n - 1) {
+                    flip++;
+                }
+                if (flip % 2 == 1) {
+                    state._polarity = std::fmod(state._polarity + M_PI, 
+                                                2 * M_PI);
+                }
+                cell->state = state;
+
+                cell_cnt += 1;
+            }
         }
-        if (reset_HC_polarity_random) {
-            auto distr = std::uniform_real_distribution<double>(-M_PI, M_PI);
+
+        if (fabs(reset_HC_polarity_shuffle) > 1.e-12) {
+            auto distr = std::uniform_real_distribution<double>(
+                -reset_HC_polarity_shuffle, reset_HC_polarity_shuffle);
             const auto& cells = vertex_model.get_am().cells();
             const auto& rng = vertex_model.get_rng();
             for (const auto& cell : cells) {
-                cell->state.polarity = distr(*rng);
-            }
-        }
-        if (false) {
-            const auto& am = vertex_model.get_am();
-            const auto& cells = am.cells();
-            for (const auto& cell : cells) {
-                SpaceVec pos = am.barycenter_of(cell);
-                if (pos[0] < 2) {
-                    cell->state.polarity = - M_PI_2;
-                    cell->state.fix_polarity = true;
-                }
+                cell->state._polarity = std::fmod(
+                    cell->state._polarity + distr(*rng) + 2 * M_PI, 
+                    2 * M_PI);
+                cell->state._polarity_fluctuations = 0.;
             }
         }
 
