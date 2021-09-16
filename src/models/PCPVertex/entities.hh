@@ -178,9 +178,21 @@ struct CellState {
     double contractility;
 
     /// An intrinsic polarity angle wrt x axis
-    double polarity;
+    double _polarity;
 
-    SpaceVec force_polarity;
+    double _polarity_fluctuations;
+
+    double polarity(double rotate = 0.) const {
+        return std::fmod(  _polarity + _polarity_fluctuations
+                         + rotate + 2 * M_PI, 2 * M_PI);
+    }
+
+    SpaceVec polarity_vec(double rotate = 0.) {
+        double pol = this->polarity(rotate);
+        return SpaceVec({cos(pol), sin(pol)});
+    }
+
+    double polarity_torque;
 
     bool fix_polarity;
 
@@ -193,7 +205,7 @@ struct CellState {
         cfg["area_preferential"] = _area_preferential;
         cfg["shape_index_preferential"] = shape_index_preferential;
         cfg["contractility"] = contractility;
-        cfg["polarity"] = polarity;
+        cfg["polarity"] = this->polarity();
         
         if (type == CellType::progenitor) {
             cfg["cell_type"] = "progenitor";
@@ -237,7 +249,9 @@ struct CellState {
         shape_index_preferential(get_as<double>("shape_index_preferential",
                                  cfg)),
         contractility(get_as<double>("contractility", cfg)),
-        polarity(get_as<double>("polarity", cfg, -M_PI_2)),
+        _polarity(get_as<double>("polarity", cfg, -M_PI_2)),
+        _polarity_fluctuations(0.),
+        polarity_torque(0.),
         fix_polarity(false),
         remove(false)
     {

@@ -66,6 +66,7 @@ struct MinimizationParams {
      *  \f$ \Delta \Lambda \f$.
      */
     std::pair<double, double> linetension_fluctuations;
+    std::pair<double, double> polarity_fluctuations;
 
     /// Area fluctuation parameter
     /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
@@ -131,6 +132,12 @@ struct MinimizationParams {
                 get_as<double>("linetension_fluctuation", cfg, 0.)
             )
         ),
+        polarity_fluctuations(
+            std::make_pair(
+                get_as<double>("polarity_fluctuation_tau", cfg, 1.),
+                get_as<double>("polarity_fluctuation", cfg, 0.)
+            )
+        ),
         area_fluctuations(
             std::make_tuple(
                 get_as<double>("area_fluctuation_tau", cfg, 1.),
@@ -188,6 +195,14 @@ struct MinimizationParams {
                     std::get<0>(defaults.linetension_fluctuations)),
                 get_as<double>("linetension_fluctuation", cfg,
                     std::get<1>(defaults.linetension_fluctuations))
+            )
+        ),
+        polarity_fluctuations(
+            std::make_pair(
+                get_as<double>("polarity_fluctuation_tau", cfg,
+                    std::get<0>(defaults.polarity_fluctuations)),
+                get_as<double>("polarity_fluctuation", cfg,
+                    std::get<1>(defaults.polarity_fluctuations))
             )
         ),
         area_fluctuations(
@@ -423,9 +438,20 @@ private:
      */
     double _pMLC_contractility;
 
+    /// The timescale and amplitude of fluctuations on HC intrinsic polarity
+    /** Implemented as Ornstein-Uhlenbeck process    
+     */
+    std::pair<double, double> _polarity_fluctuations;
+
+    /// Whether there is HC intrinsic polarity involved
+    inline bool minimize_polarity() const {
+        return fabs(_pMLC_contractility) > 1.e-12;
+    }
+
     /// The timescale, amplitude, and lower area limit of Ornstein-Uhlenbeck
     /// fluctuations on preferential area using a lognormal distribution
     std::tuple<double, double, double> _area_fluctuations;
+
 
 
     // -- Mechanical parameters -----------------------------------------------
@@ -643,6 +669,8 @@ public:
             get_as<bool>("apical_edge_contractility", this->_cfg, false)),
         _ppMLC_contractility(std::make_pair(0., SpaceVec({1., 0.}))),
         _pMLC_contractility(0.),
+        _polarity_fluctuations(
+            _default_minimization_params.polarity_fluctuations),
         _area_fluctuations(
             _default_minimization_params.area_fluctuations),
         _linetension(this->setup_linetension(this->_cfg)),
@@ -753,6 +781,14 @@ private:
         return state;
     };
 
+    /// Resets the torque of this cell's polarity
+    const RuleFuncCell reset_torques = [] (const auto& cell)
+    {
+        auto state = cell->state;
+        state.polarity_torque = 0.;
+        return state;
+    };
+
     /** Calculates the forces from linetension
      * 
      *  Contractive force of the edge where energy is proportional to the edge's
@@ -844,8 +880,7 @@ private:
             }
 
             // polarity rotated by 90 deg clockwise
-            SpaceVec pol = SpaceVec({ sin(HC->state.polarity),
-                                     -cos(HC->state.polarity)});
+            SpaceVec pol = HC->state.polarity_vec(-M_PI_2);
 
             auto e_pair = *std::find_if(
                 HC->custom_links().edges.begin(),
@@ -1051,8 +1086,7 @@ private:
             and state.type == CellType::hair)
         {
             // polarity rotated by 90 deg clockwise
-            SpaceVec pol = SpaceVec({ sin(state.polarity),
-                                     -cos(state.polarity)});
+            SpaceVec pol = state.polarity_vec(-M_PI_2);
 
             SpaceVec dp({0., 0.});
 
@@ -1068,10 +1102,9 @@ private:
                 SpaceVec T2 = arma::dot(displ, pol) / length * pol;
                 dp += std::pow(length, 2) * (T1 - T2);
             }
-            state.force_polarity = -0.25 * _pMLC_contractility * dp;
-        }
-        else {
-            state.force_polarity = SpaceVec({0., 0.});
+
+            state.polarity_torque -= (  (0.25 * _pMLC_contractility)
+                                      * (pol[0] * dp[1] - pol[1] * dp[0]));
         }
 
         return state;
@@ -1306,6 +1339,7 @@ private:
     void set_gradient () {
         // reset forces
         apply_rule<Update::sync>(reset_forces, _am.vertices());
+        apply_rule<Update::sync>(reset_torques, _am.cells());
 
         // apply new forces
         apply_rule<Update::async, Shuffle::off>(set_grad_linetension,
@@ -1615,10 +1649,18 @@ public:
         _dt = params.dt;
         _distr_temperature = params.temperature;
         _linetension_fluctuations = params.linetension_fluctuations;
+        _polarity_fluctuations = params.polarity_fluctuations;
         _area_fluctuations = params.area_fluctuations;
         if (std::get<1>(_linetension_fluctuations) < 1.e-12) {
             for (const auto& e : _am.edges()) {
                 e->state._linetension_fluctuation = 0.;
+            }
+        }
+        if (std::get<1>(_polarity_fluctuations) < 1.e-12) {
+            for (const auto& c : _am.cells()) {
+                c->state._polarity = (  c->state._polarity
+                                      + c->state._polarity_fluctuations);
+                c->state._polarity_fluctuations = 0.;
             }
         }
         if (std::get<1>(_area_fluctuations) < 1.e-12) {
@@ -2194,6 +2236,8 @@ public:
 
         _boundary_param.stripe_potential_constant = potential_constant;
         _boundary_param.stripe_width = stripe_width;
+
+        this->_log->warn("Setting width {}", _boundary_param.stripe_width);
     }
 
     /// Set new parameter for a stripe boundary potential

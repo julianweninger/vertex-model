@@ -483,7 +483,7 @@ auto cells_adaptor = std::make_tuple(
 
         dataset->write(cells.begin(), cells.end(),
                        [](const auto& cell) {
-                           return cell->state.polarity;
+                           return cell->state.polarity();
                        });
         
         dataset->write(
