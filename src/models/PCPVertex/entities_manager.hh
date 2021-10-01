@@ -729,8 +729,11 @@ public:
                 using namespace std::complex_literals;
 
                 double distance = this->distance(cell, nb);
-                double dx = this->displacement(cell, nb)[0];
-                double theta = acos(dx / distance);
+                SpaceVec displ = this->displacement(cell, nb);
+                double theta = acos(displ[0] / distance);
+                if (displ[1] < 0) {
+                    theta *= -1;
+                } 
                 return val + std::exp(1i * 6. * theta);
             }
         );
