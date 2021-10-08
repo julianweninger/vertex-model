@@ -1,0 +1,115 @@
+---
+energy:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - universe
+
+  select:
+    _cell_cell_interaction:
+      path: data/PCPTopology/PlanarCellPolarity/Energy/Energy
+      transform:
+      - .sel:
+        - !dag_node -1
+        - {energy: cell_cell_interaction}
+      - .rename: [!dag_node -1, Energy]
+    _lagrange_concentration:
+      path: data/PCPTopology/PlanarCellPolarity/Energy/Energy
+      transform:
+      - .sel:
+        - !dag_node -1
+        - {energy: lagrange_concentration}
+      - .rename: [!dag_node -1, Energy]
+    _lagrange_net_polarity:
+      path: data/PCPTopology/PlanarCellPolarity/Energy/Energy
+      transform:
+      - .sel:
+        - !dag_node -1
+        - {energy: lagrange_net_polarity}
+      - .rename: [!dag_node -1, Energy]
+    _polarity_exclusion:
+      path: data/PCPTopology/PlanarCellPolarity/Energy/Energy
+      transform:
+      - .sel:
+        - !dag_node -1
+        - {energy: polarity_exclusion}
+      - .rename: [!dag_node -1, Energy]
+    _total:
+      path: data/PCPTopology/PlanarCellPolarity/Energy/Energy
+      transform:
+      - .sel:
+        - !dag_node -1
+        - {energy: total}
+      - .rename: [!dag_node -1, Energy]
+  to_plot:
+  - {data: !dag_result lagrange_net_polarity, function: sns.lineplot, label: lagrange
+      net polarity}
+  - {data: !dag_result lagrange_concentration, function: sns.lineplot, label: lagrange
+      concentration}
+  - {data: !dag_result cell_cell_interaction, function: sns.lineplot, label: cell-cell
+      interaction}
+  - {data: !dag_result polarity_exclusion, function: sns.lineplot, label: polarity
+      exclusion}
+  - {data: !dag_result total, function: sns.lineplot, label: total}
+  transform:
+  - define: [!dag_tag _total]
+  - .to_dataframe: [!dag_node -1]
+  - callattr: [!dag_node -1, reset_index]
+    tag: total
+  - define: [!dag_tag _cell_cell_interaction]
+  - .to_dataframe: [!dag_node -1]
+  - callattr: [!dag_node -1, reset_index]
+    tag: cell_cell_interaction
+  - define: [!dag_tag _polarity_exclusion]
+  - .to_dataframe: [!dag_node -1]
+  - callattr: [!dag_node -1, reset_index]
+    tag: polarity_exclusion
+  - define: [!dag_tag _lagrange_net_polarity]
+  - .to_dataframe: [!dag_node -1]
+  - callattr: [!dag_node -1, reset_index]
+    tag: lagrange_net_polarity
+  - define: [!dag_tag _lagrange_concentration]
+  - .to_dataframe: [!dag_node -1]
+  - callattr: [!dag_node -1, reset_index]
+    tag: lagrange_concentration
+  x: time
+  y: Energy
+  ci: sd
+
+
+cell_segmentation:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+
+  edge_property_path: PlanarCellPolarity/Edges
+  edge_property: {property: [sigma_alpha, sigma_beta]}
+  edge_property_split:
+    - property: sigma_alpha
+    - property: sigma_beta
+  quiver_kwargs:
+    clim: [-1, 1]
+
+  vector_property:
+    x: {property: polarity_x}
+    y: {property: polarity_y}
+  vector_property_path: PlanarCellPolarity/Cells
+  # vector_property_kwargs: ~
+    
+
+cell_segmentation__polarity:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+
+  property_path: PlanarCellPolarity/Cells
+  property: {property: pcp_net_polarity}
+
+  property_interpolation_kwargs:
+    method: nearest
+  property_interpolation_plot_kwargs:
+    cmap: Reds
+
+cell_segmentation__proteins:
+  based_on: cell_segmentation__polarity
+  property: {property: pcp_proteins}

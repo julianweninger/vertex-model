@@ -116,7 +116,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        select_times: list=None,
                        cell_marker_size: int=60,
                        plot_vertices: bool=False,
-                       property: str=None,
+                       property: dict=None,
+                       property_path: str=None,
                        property_hair_cells_only: bool=False,
                        property_support_cells_only: bool=False,
                        property_bulk_cells_only: bool=False,
@@ -124,9 +125,15 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        property_interpolation_plot_kwargs: dict={},
                        property_ignore_nan: bool=False,
                        property_resolution: Tuple[int, int]=[512,512],
-                       edge_property: str=None,
+                       edge_property_path: str=None,
+                       edge_property: dict=None,
+                       edge_property_split: Tuple[dict, dict]=None,
                        quiver_kwargs: dict=None,
-                       polarity_HC: bool=False):
+                       vector_property: dict=None,
+                       vector_property_path: str=None,
+                       vector_property_kwargs: dict=None,
+                       vector_property_hair_cells_only: bool=False,
+                       vector_property_support_cells_only: bool=False,):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -140,6 +147,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         cell_marker_size (int, default 60): Marker size for the cell-centers.
             Only used for HCs (red) and SCs (gray).
         plot_vertices (bool, default: false): Whether to plot the vertices
+        property_grp (str, optional)
         property (str, optional): An additional cell property to plot. Data is 
             cell data where property=property.
         property_hair_cells_only (bool, default: false): Whether to plot only 
@@ -163,8 +171,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             Edge_energy where energy_term=edge_property if edge_property
             is one of the edge energies.
         quiver_kwargs (dict, optional): Updates the quiver kwargs used.
-        polarity_HC (bool, default: false): Whether to plot the polarity of HC
-            as a vector at the HC center of mass.
+        vector_property (dict): Dict with x and y entries for direction of 
+            a vector. Otherwise as property. vector_property_kwargs 
+            forwarded to mpl.quiver
     """
     def adjustFigAspect(fig,aspect=1):
         '''
@@ -302,24 +311,46 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 _quiver_kwargs.update(quiver_kwargs)
             
             # for the energies of the edges
-            if (   edge_property == 'linetension'
-                or edge_property == 'edge_contractility'):
-                e_prop_data = grp['Edge_energies'][time]
-                e_prop_data = e_prop_data.sel(energy_term=edge_property).squeeze()
-                e_prop_data = e_prop_data.assign_coords({'x': (ax + dx / 2.),
-                                                         'y': (ay + dy / 2.)})
+            if edge_property is not None:
+                if edge_property_path is not None:
+                    if not edge_property_path in grp:
+                        raise ValueError("Failed to access property of edges at path "
+                            "'data/{}/{}' (relative to '{}'. Available paths: {}"
+                            "".format(datapath, edge_property_path, datapath, grp.keys())
+                        )
+                    if not time in grp[edge_property_path]:
+                        raise ValueError('No edge property data available at time {}.'
+                                        ''.format(time))
+                    e_prop_data = grp[edge_property_path][time]
+                else:
+                    e_prop_data = e_data
 
-                # append coloring
-                quiver_args.append(e_prop_data)
+                e_prop_data = e_prop_data.sel(**edge_property).squeeze()
+                e_prop_data = e_prop_data.assign_coords(
+                    {'x': (ax + dx / 2.).drop('property'),
+                     'y': (ay + dy / 2.).drop('property')})   
+                if edge_property is not None and edge_property_split is None:
+                    # append coloring
+                    quiver_args.append(e_prop_data)
 
-            # for other cell data
-            elif edge_property:
-                e_prop_data = e_data.sel(property=edge_property)
-                e_prop_data = e_prop_data.assign_coords({'x': (ax + dx / 2.),
-                                                         'y': (ay + dy / 2.)})
+                else:
+                    __quiver_kwargs = dict(cmap='seismic')
+                    __quiver_kwargs.update(_quiver_kwargs)
 
-                # append coloring
-                quiver_args.append(e_prop_data)
+                    length = (dx**2 + dy**2)**0.5
+                    shift_x = 0.03 * -dy / length
+                    shift_y = 0.03 *  dx / length
+                    hlpr.ax.quiver(ax+shift_x, ay+shift_y, dx, dy, 
+                                   e_prop_data.sel(**edge_property_split[0]),
+                                   **__quiver_kwargs)
+
+                    quiver = hlpr.ax.quiver(ax-shift_x, ay-shift_y, dx, dy,
+                                    e_prop_data.sel(**edge_property_split[1]),
+                                    **__quiver_kwargs)
+
+                    cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax, extend='both')
+                    cbar.set_label(label=edge_property)
+                    cbar.minorticks_on()
 
             quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
@@ -372,9 +403,25 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 mask = (dy_tmp <= -0.5 * Ly)
                 dy_tmp += mask * (+Ly)
                 
-                quiver_args = [bx_tmp, by_tmp, dx_tmp, dy_tmp]
-                if edge_property:
+                quiver_args = [bx_tmp+dx_tmp, by_tmp+dy_tmp, -dx_tmp, -dy_tmp]
+                if edge_property is not None and edge_property_split is None:
                     quiver_args.append(e_prop_data)
+                elif edge_property is not None:
+                    length = (dx_tmp**2 + dy_tmp**2)**0.5
+                    shift_x_tmp = 0.03 *  dy_tmp / length
+                    shift_y_tmp = 0.03 * -dx_tmp / length
+                    hlpr.ax.quiver(bx_tmp + shift_x_tmp + dx_tmp,
+                                   by_tmp + shift_y_tmp + dy_tmp,
+                                   -dx_tmp, 
+                                   -dy_tmp, 
+                                   e_prop_data.sel(**edge_property_split[0]),
+                                   **__quiver_kwargs)
+                    hlpr.ax.quiver(bx_tmp - shift_x_tmp + dx_tmp,
+                                   by_tmp - shift_y_tmp + dy_tmp,
+                                   -dx_tmp, 
+                                   -dy_tmp, 
+                                   e_prop_data.sel(**edge_property_split[1]),
+                                   **__quiver_kwargs)
                 hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
                 # only those edges which cross both boundaries
@@ -409,20 +456,54 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 mask_3 = (by_tmp < 0.5 * Ly)
                 mask_4 = (by_tmp > 0.5 * Ly)
 
-                quiver_args = [bx_tmp + mask_1 * Lx - mask_2 * Lx,
-                               by_tmp,
-                               dx_tmp,
-                               dy_tmp]
-                if edge_property:
+                quiver_args = [bx_tmp + dx_tmp + mask_1 * Lx - mask_2 * Lx,
+                               by_tmp + dy_tmp,
+                               -dx_tmp,
+                               -dy_tmp]
+                if edge_property is not None and edge_property_split is None:
                     quiver_args.append(e_prop_data)
+                elif edge_property is not None:
+                    length = (dx_tmp**2 + dy_tmp**2)**0.5
+                    shift_x_tmp = 0.03 *  dy_tmp / length
+                    shift_y_tmp = 0.03 * -dx_tmp / length
+                    hlpr.ax.quiver(bx_tmp + shift_x_tmp + dx_tmp + mask_1 * Lx - mask_2 * Lx,
+                                   by_tmp + shift_y_tmp + dy_tmp,
+                                   -dx_tmp, 
+                                   -dy_tmp, 
+                                   e_prop_data.sel(**edge_property_split[0]),
+                                   **__quiver_kwargs)
+                    hlpr.ax.quiver(bx_tmp - shift_x_tmp + dx_tmp + mask_1 * Lx - mask_2 * Lx,
+                                   by_tmp - shift_y_tmp + dy_tmp,
+                                   -dx_tmp, 
+                                   -dy_tmp, 
+                                   e_prop_data.sel(**edge_property_split[1]),
+                                   **__quiver_kwargs)
+
                 hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
                 
-                quiver_args = [bx_tmp,
-                               by_tmp + mask_3 * Ly - mask_4 * Ly,
-                               dx_tmp,
-                               dy_tmp]
-                if edge_property:
+                quiver_args = [bx_tmp + dx_tmp,
+                               by_tmp + dy_tmp + mask_3 * Ly - mask_4 * Ly,
+                               -dx_tmp,
+                               -dy_tmp]
+                if edge_property is not None and edge_property_split is None:
                     quiver_args.append(e_prop_data)
+                elif edge_property is not None:
+                    length = (dx_tmp**2 + dy_tmp**2)**0.5
+                    shift_x_tmp = 0.03 *  dy_tmp / length
+                    shift_y_tmp = 0.03 * -dx_tmp / length
+                    hlpr.ax.quiver(bx_tmp + shift_x_tmp + dx_tmp,
+                                   by_tmp + shift_y_tmp + dy_tmp + mask_3 * Ly - mask_4 * Ly,
+                                   -dx_tmp, 
+                                   -dy_tmp, 
+                                   e_prop_data.sel(**edge_property_split[0]),
+                                   **__quiver_kwargs)
+                    hlpr.ax.quiver(bx_tmp - shift_x_tmp + dx_tmp,
+                                   by_tmp - shift_y_tmp + dy_tmp + mask_3 * Ly - mask_4 * Ly,
+                                   -dx_tmp, 
+                                   -dy_tmp, 
+                                   e_prop_data.sel(**edge_property_split[1]),
+                                   **__quiver_kwargs)
+                                   
                 hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
 
@@ -434,31 +515,24 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             hlpr.ax.scatter(x, y, c=color, s=cell_marker_size,
                             alpha=0.5)
             
-            # gather the data for property interpolation
-            # for the energies of the cells
-            if (   property == 'area_elasticity'
-                or property == 'cell_contractility'):
-                prop_data = grp['Cell_energies'][time]
-                prop_data = prop_data.sel(energy_term=property)
-                prop_data = prop_data.assign_coords({'x': x, 'y': y})
-            
-            # for the energies of the edges
-            elif (   property == 'linetension'
-                or property == 'edge_contractility'):
-                prop_data = grp['Edge_energies'][time]
-                prop_data = prop_data.sel(energy_term=property).squeeze()
-                prop_data = prop_data.assign_coords({'x': (ax + dx / 2.),
-                                                     'y': (ay + dy / 2.)})
-
-
-            # for other cell data
-            elif property:
-                prop_data = c_data.sel(property=property)
+            # plot cell data
+            if property is not None:
+                if property_path is not None:
+                    if not property_path in grp:
+                        raise ValueError("Failed to access property data at path "
+                            "'data/{}/{}' (relative to '{}'. Available paths: {}"
+                            "".format(datapath, property_path, datapath, grp.keys())
+                        )
+                    if not time in grp[property_path]:
+                        raise ValueError('No property data available at time {}.'
+                                        ''.format(time))
+                    prop_data = grp[property_path][time]
+                else:
+                    prop_data = c_data
+                prop_data = prop_data.sel(**property)
                 prop_data = prop_data.assign_coords({'x': x, 'y': y})
 
-
-            # perform the interpolation
-            if property:
+                # perform the interpolation
                 if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
                     prop_data.data[0] += 1.e-10
                 if property_hair_cells_only:
@@ -495,11 +569,47 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
                 cbar.set_label(label=property)
                 cbar.minorticks_on()
+            
+            if vector_property is not None:
+                if vector_property_path is not None:
+                    if not vector_property_path in grp:
+                        raise ValueError("Failed to access property data at path "
+                            "'data/{}/{}' (relative to '{}'. Available paths: {}"
+                            "".format(datapath, vector_property_path, datapath, grp.keys())
+                        )
+                    if not time in grp[vector_property_path]:
+                        raise ValueError('No vectoriel property data available at time {}.'
+                                        ''.format(time))
+                    prop_v_data = grp[vector_property_path][time]
+                else:
+                    prop_v_data = c_data
 
-            if polarity_HC:
-                dx = np.cos(c_data.sel(property="polarity")).where(cell_type == 1)
-                dy = np.sin(c_data.sel(property="polarity")).where(cell_type == 1)
-                hlpr.ax.quiver(x, y, dx, dy)
+                if len(vector_property) == 2:
+                    prop_x_data = prop_v_data.sel(vector_property['x'])
+                    prop_y_data = prop_v_data.sel(vector_property['y'])
+                elif len(vector_property) == 1:
+                    prop_x_data = np.cos(prop_v_data.sel(vector_property))
+                    prop_y_data = np.sin(prop_v_data.sel(vector_property))
+                else:
+                    raise ValueError("Expected dict with 2 entries (x and y) "
+                                     "or 1 entry (angle), but dict {} has {} "
+                                     "entries!".format(vector_property,
+                                     len(vector_property)))
+
+                if vector_property_hair_cells_only:
+                    prop_x_data = prop_x_data.where(cell_type == 1)
+                    prop_y_data = prop_y_data.where(cell_type == 1)
+                if vector_property_support_cells_only:
+                    prop_x_data = prop_x_data.where(cell_type == 2)
+                    prop_y_data = prop_y_data.where(cell_type == 2)
+
+                _v_property_kwargs = dict(angles='xy', scale_units='xy', scale=3.)
+                if vector_property_kwargs:
+                    _v_property_kwargs.update(vector_property_kwargs)
+
+                hlpr.ax.quiver(x, y, prop_x_data, prop_y_data,
+                               **_v_property_kwargs)
+
 
 
             hlpr.invoke_helper('set_title', title="Time {}".format(time))
@@ -507,7 +617,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
 
             if (vertex_cfg['space']['periodic']):
-                hlpr.invoke_helper('set_limits', x=(-0.1,Lx+.05), y=(-0.1,Ly+.05))
+                hlpr.invoke_helper('set_limits', x=(-.2,Lx+.2), y=(-.2,Ly+.2))
                 hlpr.ax.axvline(x=0, ymin=-0.1, ymax = Ly +.05, c='gray', 
                                 linestyle=':')
                 hlpr.ax.axvline(x=Lx, ymin=-0.1, ymax = Ly +.05, c='gray', 

@@ -24,9 +24,14 @@
 
 // coupled models
 #include "../NotchDelta/NotchDelta.hh"
-#include "../Collier/Collier.hh"
 #include "../NotchDelta/Differentiation_write_tasks.hh"
+
+#include "../Collier/Collier.hh"
 #include "../Collier/Collier_write_tasks.hh"
+
+#include "../PlanarCellPolarity/PlanarCellPolarity.hh"
+#include "../PlanarCellPolarity/PlanarCellPolarity_write_tasks.hh"
+
 
 namespace Utopia {
 namespace Models {
@@ -49,6 +54,8 @@ public:
 
     /// Type of the config
     using typename Base::Config;
+
+    using AgentManager = typename PCPVertex::AgentManager;
 
     /// The type of a vertex
     using Vertex = typename PCPVertex::Vertex;
@@ -110,6 +117,15 @@ private:
 
     /// Whether the _notch_delta model's prolog was performed
     std::shared_ptr<bool> _notch_delta_prolog;
+
+    /// The instance of the notch_delta model used by proliferation tasks
+    /** \note Only initialized when needed
+     */
+    std::shared_ptr<
+        PlanarCellPolarity::PlanarCellPolarity<PCPVertex::AgentManager>> _pcp;
+
+    /// Whether the _notch_delta model's prolog was performed
+    std::shared_ptr<bool> _pcp_prolog;
     
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
@@ -323,6 +339,14 @@ private:
                         build_increment_shape_index(name, op_cfg,
                                                     _minimization_params));
                 }
+                else if (name == "iterate_pcp") {
+                    this->setup_pcp(
+                            get_as<Config>("PlanarCellPolarity", op_cfg, {}));
+                    _operations.push_back(
+                        build_iterate_pcp(name, op_cfg, _minimization_params,
+                                _pcp, _pcp_prolog, _log,
+                                _monitor_mngr));
+                }
                 else if (name == "jiggle" or name == "void") {
                     _operations.push_back(
                         build_jiggle(name, op_cfg, _minimization_params));
@@ -381,6 +405,7 @@ private:
                             "increment_edge_contractility, "
                             "increment_linetension, "
                             "increment_shape_index, "
+                            "iterate_pcp, "
                             "jiggle, "
                             "proliferate, "
                             "proliferate_quick_and_dirty, "
@@ -458,6 +483,33 @@ private:
         );
 
         _notch_delta_prolog = std::make_shared<bool>(false);        
+    }
+    
+    /// Setup a notch delta model
+    void setup_pcp (const Config& cfg = {})
+    {
+        if (_pcp) {
+            return;
+        }
+
+        this->_log->debug("Setting up PlanarCellPolarity model from {}",
+            cfg.size() ? 
+                "custom configuration."
+                : 
+                fmt::format("configuration within {} model.", this->_name));
+
+        using PCP = PlanarCellPolarity::PlanarCellPolarity<AgentManager>;
+
+        _pcp = std::shared_ptr<PCP>(
+            new PCP("PlanarCellPolarity", *this, this->get_am(), cfg,
+                std::make_tuple(
+                    PlanarCellPolarity::DataIO::time_energy_adaptor,
+                    PlanarCellPolarity::DataIO::energy_adaptor
+                )
+            )
+        );
+
+        _pcp_prolog = std::make_shared<bool>(false);        
     }
     
     // .. Helper functions ....................................................
@@ -611,6 +663,9 @@ public:
                                              / float(this->get_time_max()));
 
         _vertex_model.monitor();
+        if (_pcp) {
+            _pcp->monitor();
+        }
     }
 
     /// The prolog
@@ -659,8 +714,16 @@ public:
 
         _vertex_model.epilog();
 
+        if (_collier) {
+            _collier->epilog();
+        }
+
         if (_notch_delta) {
             _notch_delta->epilog();
+        }
+
+        if (_pcp) {
+            _pcp->epilog();
         }
 
         return this->__epilog();
@@ -769,7 +832,7 @@ public:
     }
 
     /// Getter for vertices
-    const auto& get_am () const {
+    const AgentManager& get_am () const {
         return _vertex_model.get_am();
     }
     
@@ -781,6 +844,17 @@ public:
 
         _estimate_minimizations += params.get_num_minimizations(
                                                 this->_time_max);
+    }
+
+    /// Return polarity proteins of this edge
+    /** See PlanarCellPolarity::get_polarity_proteins */
+    std::pair<double, double> get_polarity_proteins
+    (const std::shared_ptr<Edge>& edge, bool flip = false) const
+    {
+        if (not _pcp) {
+            return std::make_pair(0., 0.);
+        }
+        return _pcp->get_polarity_proteins(edge, flip);
     }
 };
 

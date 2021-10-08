@@ -588,7 +588,7 @@ private:
     /// A [0,1]-range uniform distribution used for evaluating probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
-    /// A [0,1]-range uniform distribution used for evaluating probabilities
+    /// A [0,1]-range normal distribution
     std::normal_distribution<double> _normal_distr;
 
     // .. Temporary objects ...................................................

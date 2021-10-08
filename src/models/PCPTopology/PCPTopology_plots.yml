@@ -502,52 +502,56 @@ equilibrium_cellular_structure:
     - .default_style_and_helpers
     - cellular_structure
 
-equilibrium_cellular_structure__area_elasticity:
-  based_on:
-    - .default_style_and_helpers
-    - cellular_structure
-
-  enabled: false
-
-  property: area_elasticity
-
   property_interpolation_kwargs:
     method: nearest
   property_interpolation_plot_kwargs:
     cmap: Reds
 
-equilibrium_cellular_structure__cell_contractility:
-  based_on: equilibrium_cellular_structure__area_elasticity
+
+equilibrium_cellular_structure__area_elasticity:
+  based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: cell_contractility
+  property: {energy_term: area_elasticity}
+  property_path: Cell_energies
+
+equilibrium_cellular_structure__cell_contractility:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+
+  property: {energy_term: cell_contractility}
+  property_path: Cell_energies
 
 equilibrium_cellular_structure__linetension:
-  based_on: equilibrium_cellular_structure__area_elasticity
+  based_on: equilibrium_cellular_structure
   enabled: false
 
   property: ~
-  edge_property: linetension
+  property_path: ~
+  edge_property: {energy_term: linetension}
+  edge_property_path: Edge_energies
 
 equilibrium_cellular_structure__edge_contractility:
-  based_on: equilibrium_cellular_structure__linetension
+  based_on: equilibrium_cellular_structure
   enabled: false
 
-  edge_property: edge_contractility
+  edge_property: {energy_term: edge_contractility}
+  edge_property_path: Edge_energies
 
 equilibrium_cellular_structure__hexatic_order:
-  based_on: equilibrium_cellular_structure__area_elasticity
+  based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: hexatic_order
+  property: {property: hexatic_order}
+  property_path: ~
   property_hair_cells_only: True
   
 equilibrium_cellular_structure__rotation:
-  based_on: equilibrium_cellular_structure__area_elasticity
+  based_on: equilibrium_cellular_structure
   enabled: false
 
   cell_marker_size: 0.
-  property: rotation
+  property: {property: rotation}
   property_interpolation_plot_kwargs:
     cmap: seismic
     vmin: -3.1415

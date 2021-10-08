@@ -30,7 +30,7 @@ operations:
 
       minimization: &MinimzationQuickAndDirty
         jiggle_intensity: 1.e-3
-        num_repeat: 2
+        num_repeat: 4
         tolerance: 1.e-8
         jiggle_tolerance: 1.e-6
       
@@ -377,9 +377,9 @@ data_manager:
     Statistics_time: *Statistics
     
     Vertices: &agents_equilibrium
-        active: true
-        trigger: build_interval
-        decider: write_interval
+      active: true
+      trigger: build_interval
+      decider: write_interval
     Cells: *agents_equilibrium
     Edges: *agents_equilibrium
     Hair_cluster: *agents_equilibrium
@@ -390,3 +390,11 @@ data_manager:
       decider: write_interval
     Edge_energies: *agent_energies
 
+    PCP_Cells:
+      active: false
+      trigger: build_interval
+      decider: write_interval
+    PCP_Edges:
+      active: false
+      trigger: build_interval
+      decider: write_interval

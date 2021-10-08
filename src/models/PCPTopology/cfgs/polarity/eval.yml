@@ -706,58 +706,60 @@ cell_segmentation:
   enabled: false
   universes: *subspace
 
+
+  property_interpolation_kwargs:
+    method: nearest
+
 cell_segmentation__edge_contractility:
   based_on:
     - cell_segmentation
 
-  edge_property: edge_contractility
+  edge_property: {energy_term: edge_contractility}
+  edge_property_path: Edge_energies
 
-  # select_times: *TIMES
+  select_times: *TIMES
 
   quiver_kwargs:
     cmap: Blues
 
-
-  polarity_HC: True
+  vector_property: {property: polarity}
+  vector_property_hair_cells_only: True
   cell_marker_size: 10
 
 cell_segmentation__cell_contractility:
   based_on:
     - cell_segmentation
 
-  property: cell_contractility
+  property: {energy_term: cell_contractility}
+  property_path: Cell_energies
 
   select_times: *TIMES
 
-  quiver_kwargs:
-    cmap: Blues
 
-
-  polarity_HC: True
+  vector_property: {property: polarity}
+  vector_property_hair_cells_only: True
   cell_marker_size: 10
 
 cell_segmentation__area_elasticity:
   based_on:
     - cell_segmentation
 
-  property: area_elasticity
+  property: {energy_term: area_elasticity}
+  property_path: Cell_energies
 
   select_times: *TIMES
 
-  quiver_kwargs:
-    cmap: Blues
-
-
-  polarity_HC: True
+  vector_property: {property: polarity}
+  vector_property_hair_cells_only: True
   cell_marker_size: 10
 
 cell_segmentation__polarity:
   based_on:
     - cell_segmentation
 
-  property: polarity
-  # property_interpolation_kwargs:
-  #   method: nearest
+  property: {property: polarity}
+  property_interpolation_kwargs:
+    method: nearest
   property_interpolation_plot_kwargs:
     cmap: twilight
     vmin: 0.
@@ -768,13 +770,8 @@ cell_segmentation__polarity:
 
   select_times: *TIMES
 
-
-  # edge_property: edge_contractility
-
-  # quiver_kwargs:
-  #   cmap: Blues
-
-  polarity_HC: True
+  vector_property: {property: polarity}
+  vector_property_hair_cells_only: True
   cell_marker_size: 10
 
 # --- Cell neighborhood histogram --------------------------------------------

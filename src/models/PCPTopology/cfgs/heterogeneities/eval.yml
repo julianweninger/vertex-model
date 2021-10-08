@@ -572,13 +572,15 @@ cell_segmentation__edge_contractility:
   based_on:
     - cell_segmentation
 
-  edge_property: edge_contractility
+  edge_property: {energy_term: edge_contractility}
+  edge_property_path: Edge_energies
 
   quiver_kwargs:
     cmap: Blues
 
+  vector_property: {property: polarity}
+  vector_property_hair_cells_only: True
 
-  polarity_HC: True
   cell_marker_size: 10
 
 # --- Cell neighborhood histogram --------------------------------------------

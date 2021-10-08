@@ -222,14 +222,26 @@ public:
         return _vertex_manager.agents();
     }
 
+    auto vertices_id_counter () const {
+        return _vertex_manager.id_counter();
+    }
+
     /// Return const reference to the managed edges
     const auto& edges () const {
         return _edge_manager.agents();
     }
 
+    auto edges_id_counter () const {
+        return _edge_manager.id_counter();
+    }
+
     /// Return const reference to the managed cells
     const auto& cells () const {
         return _cell_manager.agents();
+    }
+
+    auto cells_id_counter () const {
+        return _cell_manager.id_counter();
     }
 
     SpaceVec position_of (const Vertex& vertex) const {
@@ -344,7 +356,7 @@ public:
     /** \details see Utopia::Space::displacement
      */
     SpaceVec displacement (const std::pair<std::shared_ptr<Edge>,
-                                           bool> e_pair) const
+                           bool> e_pair) const
     {
         auto [e, flip] = e_pair;
         return displacement(e, flip);
@@ -394,6 +406,12 @@ public:
             const SpaceVec &b = displace_virtual(edge->custom_links().b, beta);
             return _space->distance(a, b);
         }
+    }
+
+    SpaceVec center_of (const std::shared_ptr<Edge>& edge) const {
+        SpaceVec a = position_of(edge->custom_links().a);
+        SpaceVec displ = displacement(edge);
+        return _space->map_into_space(a + .5 * displ);
     }
 
     /// Calculate the perimeter of a cell
@@ -616,14 +634,35 @@ public:
 
     /// The adjoint cells of an edge
     /** The cells on either side of this edge, i.e. those that include the edge
-     *  in their boundary
+     *  in their boundary. If aligned, the first cell is the cell on the left
+     *  of the edge (vertices a->b). In this cell this edge is oriented
+     *  anti-clockwise.
      * 
      *  \param edge   The considered edge
      */
+    template<bool aligned = false>
     std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell>> adjoints_of(
             const std::shared_ptr<Edge>& edge) const
     {
-        return _edges_adjoint_cells.at(edge->id());
+        if constexpr (aligned) {
+            auto [a, b] = _edges_adjoint_cells.at(edge->id());
+            SpaceVec _a, _b;
+            if (a) { _a = barycenter_of(a); }
+            else   { _a = center_of(edge); }
+            if (b) { _b = barycenter_of(b); }
+            else   { _b = center_of(edge); }
+            
+            // is a left of edge: a->b clockwise wrt edge?
+            SpaceVec displ = this->displacement(edge);
+            SpaceVec connector = _space->displacement(_a, _b);
+            if ((displ[0] * connector[1] - displ[1] * connector[0]) > 0) {
+                std::swap(a, b);
+            }
+            return std::make_pair(a, b);
+        }
+        else {
+            return _edges_adjoint_cells.at(edge->id());
+        }
     }
 
     /// The neighboring cells to a cell

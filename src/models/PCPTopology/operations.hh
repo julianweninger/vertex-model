@@ -1590,6 +1590,50 @@ OperationBundle build_increment_shape_index (
     return std::make_pair(operation, params);
 }
 
+template <class PlanarCellPolarity, typename Logger>
+OperationBundle build_iterate_pcp (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<PlanarCellPolarity> pcp,
+        std::shared_ptr<bool> prolog,
+        std::shared_ptr<Logger> logger = nullptr,
+        std::function<void()> monitor = [](){ })
+{
+    if (not pcp) {
+        throw std::runtime_error("Received nullptr in build_iterate_pcp!");
+    }
+    
+    OperationParams params(name, cfg, default_minim_params);
+
+    auto num_steps(get_as<std::size_t>("num_steps", cfg, 1));
+    auto pcp_cfg(get_as<Config>("PlanarCellPolarity", cfg, Config()));
+
+    Operation operation = [pcp, prolog, pcp_cfg, num_steps, monitor, logger]
+            ([[maybe_unused]] PCPVertex& vertex_model)
+    {
+        pcp->update_parameters(pcp_cfg);
+
+        if (not *prolog) {
+            pcp->prolog();
+            *prolog = true;
+        }
+
+        for (std::size_t step = 0; step < num_steps; step++) {
+            pcp->iterate();
+            monitor();
+
+            if (stop_now.load()) {
+                pcp->get_logger()->warn("Was told to stop. Not iterating "
+                    "further ...");
+                throw GotSignal(received_signum.load());
+            }
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+
 /// The operation to proliferate cells
 /** Cell division happens as follows:
  *      #. Choose random cell of oldest generation.
@@ -1606,6 +1650,12 @@ OperationBundle build_increment_shape_index (
  *      - `area_threshold` (double, default: 0.): Threshold factor of how much 
  *              cell must increase: If area < threshold * 2x area_preferential
  *              throws.
+ *      - `angle_distribution` (pair(double, double), optional): The mean and 
+ *              stddev of a normal distribution for the angle of cell division 
+ *              axis. Scaled by Pi / 2, i.e. random value of 1 corresponds to
+ *              vertical division. If not provided (or stddev < 1.e-11), a
+ *              uniform distribution [0, Pi] is used, i.e. no preferential
+ *              axis.
  */
 OperationBundle build_proliferate (
         std::string name, const Config& cfg,
@@ -1621,12 +1671,23 @@ OperationBundle build_proliferate (
     auto threshold(get_as<double>("area_threshold", cfg, 0.5));
     
     auto generation_max_id = std::make_shared<std::size_t>(0);
-    
+
+    auto [mean, stddev] = get_as<std::pair<double, double>>(
+        "angle_distribution", cfg, std::make_pair(0., 1.e-12));
+
+
+    std::normal_distribution<double> normal_distr(mean,
+                                                  std::max(stddev, 1.e-12));
+    if (stddev > 1.e-11) {
+        normal_distr = std::normal_distribution<double>(mean, stddev);
+    }
+
     std::uniform_real_distribution<double> prob_distr(0.,1.);
 
     Operation operation = [num_increases, minimization_after_increase,
                            threshold, generation_max_id,
-                           prob_distr{std::move(prob_distr)}, params]
+                           prob_distr{std::move(prob_distr)},
+                           normal_distr{std::move(normal_distr)}, params]
             (PCPVertex& vertex_model) mutable
     {
         using Cell = typename PCPVertex::Cell;
@@ -1690,7 +1751,13 @@ OperationBundle build_proliferate (
             vertex_model.increase_domain_size(area_preferential);
         }
 
-        double angle = prob_distr(*vertex_model.get_rng()) * PI;
+        double angle;
+        if (normal_distr.stddev() > 1.e-11) {
+            angle = normal_distr(*vertex_model.get_rng()) * PI / 2.;
+        }
+        else {
+            angle = prob_distr(*vertex_model.get_rng()) * PI;
+        }
         vertex_model.divide_cell(cell, angle);        
     };
 
