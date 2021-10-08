@@ -2,6 +2,7 @@
 
 #include "PCPTopology.hh"
 #include "PCPTopology_write_tasks.hh"
+#include "../PlanarCellPolarity/PlanarCellPolarity_write_tasks.hh"
 
 using namespace Utopia::Models::PCPVertex;
 using namespace DataIO;
@@ -33,7 +34,12 @@ auto model_factory(ParentType parent) {
                       typename PCPTopology::CellType>,
         edges_adaptor<typename PCPVertex::Space::SpaceVec>,
         cell_energies_adaptor, edge_energies_adaptor,
-        hair_cluster_adaptor));
+        hair_cluster_adaptor,
+        // PlanarCellPolarity spatial data
+        Utopia::Models::PlanarCellPolarity::DataIO::pcp_cells_adaptor
+        <typename PCPVertex::Space::SpaceVec>,
+        Utopia::Models::PlanarCellPolarity::DataIO::pcp_edges_adaptor
+    ));
 }
 
 int main (int, char** argv) {

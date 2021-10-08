@@ -157,6 +157,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         _edges_adjoint_cells[new_edge_0->id()] = adjoints_of(edge);
         _edges_adjoint_cells[new_edge_1->id()] = adjoints_of(edge);
 
+
         // update the crosslinks in the adjoint cell
         const auto [adj_cell_a, adj_cell_b] = adjoints_of(edge);
         for (const auto& c : {adj_cell_a, adj_cell_b}) {

@@ -77,13 +77,13 @@ struct EdgeState {
     }
 
     bool contractility_on;
-
     /// The time T1 transition was last attempted
     /** 0 if never attempted */
     std::size_t last_T1_attempt;
 
     /// Whether this object is to be removed 
     bool remove;
+
 
     /// Constructor
     /** \param linetension   The linetension property

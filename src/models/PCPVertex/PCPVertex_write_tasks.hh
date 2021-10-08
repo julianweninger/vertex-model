@@ -485,7 +485,7 @@ auto cells_adaptor = std::make_tuple(
                        [](const auto& cell) {
                            return cell->state.polarity();
                        });
-        
+
         dataset->write(
             cells.begin(), cells.end(),
             [am](const auto& cell) {
@@ -579,22 +579,21 @@ auto edges_adaptor = std::make_tuple(
 
                            return static_cast<double>(angle);
                        });
+                       
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
-                           const auto& [a, b] = am.adjoints_of(edge);
+                           auto [a, b] = am.template adjoints_of<true>(edge);
 
                            if (a == nullptr) { return static_cast<double>(-1); }
                            return static_cast<double>(a->state.type);
                        });
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
-                           const auto& [a, b] = am.adjoints_of(edge);
+                           auto [a, b] = am.template adjoints_of<true>(edge);
 
                            if (b == nullptr) { return static_cast<double>(-1); }
                            return static_cast<double>(b->state.type);
                        });
-
-
     },
                 
     // builder function
@@ -835,7 +834,6 @@ auto transition_adaptor = std::make_tuple(
                     "num_T2s"
                 }));
     }
-
 ); // transitions
 
 template <typename CellContainer, typename AgentManager>

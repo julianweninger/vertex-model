@@ -525,7 +525,8 @@ cell_segmentation__linetension:
   based_on:
     - cell_segmentation
 
-  edge_property: linetension
+  edge_property: {energy_term: linetension}
+  edge_property_path: Edge_energies
 
   quiver_kwargs:
     cmap: Blues

@@ -148,6 +148,14 @@ void test_custom_links_periodic(PCPVertex& model) {
                 BOOST_TEST(iterator == e->custom_links().b);
                 iterator = e->custom_links().a;
             }
+
+            auto [adj_a, adj_b] = am.template adjoints_of<true>(e);
+            if (adj_a == c) {
+                BOOST_TEST(not flip);
+            }
+            else if (adj_b == c) {
+                BOOST_TEST(flip);
+            }
         }
         BOOST_TEST(iterator == first);
 
@@ -291,6 +299,14 @@ void test_custom_links_non_periodic(PCPVertex& model) {
             else {
                 BOOST_TEST(iterator == e->custom_links().b);
                 iterator = e->custom_links().a;
+            }
+
+            auto [adj_a, adj_b] = am.template adjoints_of<true>(e);
+            if (adj_a == c) {
+                BOOST_TEST(not flip);
+            }
+            else if (adj_b == c) {
+                BOOST_TEST(flip);
             }
         }
         BOOST_TEST(iterator == first);
@@ -448,6 +464,14 @@ void test_custom_links_columnar(PCPVertex& model) {
             else {
                 BOOST_TEST(iterator == e->custom_links().b);
                 iterator = e->custom_links().a;
+            }
+
+            auto [adj_a, adj_b] = am.template adjoints_of<true>(e);
+            if (adj_a == c) {
+                BOOST_TEST(not flip);
+            }
+            else if (adj_b == c) {
+                BOOST_TEST(flip);
             }
         }
         BOOST_TEST(iterator == first);

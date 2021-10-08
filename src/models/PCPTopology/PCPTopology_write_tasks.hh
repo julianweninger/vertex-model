@@ -156,7 +156,6 @@ auto cell_area_histogram_adaptor = std::make_tuple(
     
 ); // end cell neighbourhood adaptor
 
-
 } // namespace Utopia::Models::PCPVertex::DataIO
 
 
