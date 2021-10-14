@@ -1846,6 +1846,80 @@ OperationBundle build_proliferate_quick_and_dirty (
     return std::make_pair(operation, params);
 }
 
+
+/// A pure shear experiment -- convergence and extension
+OperationBundle build_pure_shear (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double v0 = get_as<double>("shear_velocity", cfg);
+
+    auto initialised = std::make_shared<bool>(false);
+    auto rho = std::make_shared<double>(0.);
+    auto Lx0 = std::make_shared<double>(0.);
+    auto Ly0 = std::make_shared<double>(0.);
+
+    Operation operation =
+        [rho, v0, Lx0, Ly0,initialised]
+        (PCPVertex& vertex_model)
+    {
+        if (not vertex_model.get_space()->periodic) {
+            throw std::runtime_error("Space needs to be periodic to apply "
+                "`pure shear` operation");
+        }
+
+        using SpaceVec = typename PCPVertex::SpaceVec;
+        auto space = vertex_model.get_space();
+
+        if (not *initialised) {
+            auto domain = space->get_domain_size();
+            *Lx0 = domain[0];
+            *Ly0 = domain[1];
+            vertex_model.get_logger()->info("Initializing the domain shape "
+                "for pure shear operation. Calling the pure ;shear operation "
+                "again will overwrite changes.");
+            
+            *initialised = true;
+        }
+
+        auto domain = space->get_domain_size();
+        double Lx = *Lx0 * exp(*rho);
+        double Ly = *Ly0 * exp(-*rho);
+        if (fabs(domain[0] - Lx) > 1.e-10 or fabs(domain[1] - Ly) > 1.e-10) {
+            vertex_model.get_logger()->error("Vertex model domain: {}, {}",
+                                             domain[0], domain[1]);
+            vertex_model.get_logger()->error("Expected domain: {}, {}",
+                                             Lx, Ly);
+            throw std::runtime_error("Failed to apply `pure shear` operation, "
+                "because the domain size was changed between two operations. "
+                "Calling this operation would overwrite changes!");
+        }
+
+        *rho += v0;
+        Lx = *Lx0 * exp(*rho);
+        Ly = *Ly0 * exp(-*rho);
+
+        const auto& cells = vertex_model.get_am().cells();
+        double max_A0 = 0.;
+        for (const auto& cell : cells) {
+            max_A0 = std::max(max_A0, cell->state.area_preferential);
+        }
+        double L = 2 * sqrt(max_A0 / M_PI); // diameter of a cell
+
+        if (Lx < 3 * L or Ly < 3 * L) {
+            throw std::runtime_error("Cannot apply `pure shear` operation as "
+                "the shorter tissue axis does not fit 3 diameters of a cell!");
+        }
+
+        space->set_domain_size(SpaceVec({Lx, Ly}));
+    };
+
+    return std::make_pair(operation, params);
+}
+
+
 /// The operation to do nothing but jiggle and minimize
 OperationBundle build_jiggle (
         std::string name, const Config& cfg,

@@ -370,6 +370,13 @@ proliferate:
     jiggle_tolerance: 1000
     jiggle_intensity: 0.
 
+pure_shear:
+  times: []
+  shear_velocity: 0.01
+  iterations: 100
+  minimization:
+    mode: manual
+
 relax_area:
   times: []
 

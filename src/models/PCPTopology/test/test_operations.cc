@@ -1368,6 +1368,31 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
     }
 
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_pure_shear)
+    {
+        const std::string name = "pure_shear";
+        auto op_cfg = get_as<Config>(name, cfg);
+        auto [operation, params] = build_pure_shear(
+            name, op_cfg, default_minim_params);
+
+        auto iterations = get_as<std::size_t>("iterations", op_cfg);
+
+        auto domain_0 = vertex_model.get_space()->get_domain_size();
+        double area_0 = domain_0[0] * domain_0[1];
+        double r_0 = domain_0[0] / domain_0[1];
+
+        for (std::size_t i = 0; i < iterations; i++) {
+            operation(vertex_model);
+        }
+
+        auto domain = vertex_model.get_space()->get_domain_size();
+        double area = domain[0] * domain[1];
+        double r = domain[0] / domain[1];
+
+        BOOST_CHECK_CLOSE(area_0, area, 1.e-6);
+        BOOST_CHECK_CLOSE(r, r_0 * exp(2), 1.e-6);
+    }
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_relax_area)
     {        
         using CellType = Models::PCPVertex::PCPVertex::CellType;
