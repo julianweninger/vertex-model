@@ -263,6 +263,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             if (vertex_cfg['space']['periodic']):
                 domain_size_max_x = Lx
                 domain_size_max_y = Ly
+            
+            # periodic skrewed boundary condition
+            skew_x = e_data.attrs["skew_x"][0]
+            skew_y = e_data.attrs["skew_y"][0]
 
 
             ### plot vertices
@@ -292,16 +296,24 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             dx = bx - ax
             dy = by - ay
 
-            # map edges crossing periodic boundary
+            ## map edges crossing periodic boundary
             if (vertex_cfg['space']['periodic']):
+                # left boundary
                 mask = (dx >= 0.5 * Lx)
                 dx += mask * (-Lx)
+                dy -= mask * skew_y
+                # right boundary
                 mask = (dx <= -0.5 * Lx)
                 dx += mask * Lx
+                dy += mask * skew_y
+                # lower boundary
                 mask = (dy >= 0.5 * Ly)
                 dy += mask * (-Ly)
+                dx -= mask * skew_x
+                # upper boundary
                 mask = (dy <= -0.5 * Ly)
                 dy += mask * (+Ly)
+                dx += mask * skew_x
             
             quiver_args = [ax, ay, dx, dy]
             _quiver_kwargs = dict(headlength=0., headaxislength=0.,
@@ -359,7 +371,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 cbar.set_label(label=edge_property)
                 cbar.minorticks_on()
 
-            # need duplicates of periodic edges
+            ### plot duplicates of periodic edges
             if (vertex_cfg['space']['periodic']):
                 # the ids of the vertices a and b of the edges
                 vertex_a = e_data.sel(property="vertex_a")
@@ -376,6 +388,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 ay_tmp = ay.assign_coords(id=vertex_a.id)
                 bx_tmp = bx.assign_coords(id=vertex_b.id)
                 by_tmp = by.assign_coords(id=vertex_b.id)
+                ax_tmp_prime = ax_tmp
+                ay_tmp_prime = ay_tmp
                 bx_tmp_prime = bx_tmp
                 by_tmp_prime = by_tmp
 
@@ -396,13 +410,18 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 
                 mask = (dx_tmp >= 0.5 * Lx)
                 dx_tmp += mask * (-Lx)
+                dy_tmp -= mask * skew_y
                 mask = (dx_tmp <= -0.5 * Lx)
                 dx_tmp += mask * Lx
+                dy_tmp += mask * skew_y
                 mask = (dy_tmp >= 0.5 * Ly)
                 dy_tmp += mask * (-Ly)
+                dx_tmp -= mask * skew_x
                 mask = (dy_tmp <= -0.5 * Ly)
                 dy_tmp += mask * (+Ly)
+                dx_tmp += mask * skew_x
                 
+                # ax = bx + (ax - bx), the inverse arrow
                 quiver_args = [bx_tmp+dx_tmp, by_tmp+dy_tmp, -dx_tmp, -dy_tmp]
                 if edge_property is not None and edge_property_split is None:
                     quiver_args.append(e_prop_data)
@@ -424,12 +443,16 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                    **__quiver_kwargs)
                 hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
-                # only those edges which cross both boundaries
-                # i.e. those which are not whithin the domain
+
+                ## plot edges that cross 2 boundaries, i.e. corners
+                ## first the a->b arrow 
+                ax_tmp = ax_tmp_prime
+                ay_tmp = ay_tmp_prime
                 bx_tmp = bx_tmp_prime
                 by_tmp = by_tmp_prime
-                dx_tmp = dx_tmp_prime
-                dy_tmp = dy_tmp_prime
+                dx_tmp = -dx_tmp_prime
+                dy_tmp = -dy_tmp_prime
+
                 # crossing both boundaries
                 mask = np.invert(np.isnan(dx_tmp.where(abs(dx_tmp) >  0.5 * Lx)\
                                                 .where(abs(dy_tmp) >  0.5 * Ly))
@@ -437,68 +460,78 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 mask = (abs(dx_tmp) >  0.5 * Lx)
                 mask = (mask.where(abs(dy_tmp) >  0.5 * Ly) == 1)
 
+                ax_tmp = ax_tmp.where(mask)
+                ay_tmp = ay_tmp.where(mask)
                 bx_tmp = bx_tmp.where(mask)
                 by_tmp = by_tmp.where(mask)
                 dx_tmp = dx_tmp.where(mask)
                 dy_tmp = dy_tmp.where(mask)
                 
+                # left boundary
                 mask = (dx_tmp >= 0.5 * Lx)
                 dx_tmp += mask * (-Lx)
+                dy_tmp -= mask * skew_y
+                # left boundary
                 mask = (dx_tmp <= -0.5 * Lx)
                 dx_tmp += mask * Lx
+                dy_tmp += mask * skew_y
+                # left boundary
                 mask = (dy_tmp >= 0.5 * Ly)
                 dy_tmp += mask * (-Ly)
+                dx_tmp -= mask * skew_x
+                # left boundary
                 mask = (dy_tmp <= -0.5 * Ly)
                 dy_tmp += mask * (+Ly)
-                
-                mask_1 = (bx_tmp < 0.5 * Lx)
-                mask_2 = (bx_tmp > 0.5 * Lx)
-                mask_3 = (by_tmp < 0.5 * Ly)
-                mask_4 = (by_tmp > 0.5 * Ly)
+                dx_tmp += mask * skew_x
 
-                quiver_args = [bx_tmp + dx_tmp + mask_1 * Lx - mask_2 * Lx,
-                               by_tmp + dy_tmp,
-                               -dx_tmp,
-                               -dy_tmp]
+                ## copy vertices to other side of domain
+                # vertices close to left boundary
+                ax_tmp += Lx * (ax_tmp_prime < 0.5 * Lx)
+                bx_tmp += Lx * (bx_tmp_prime < 0.5 * Lx)
+                # vertices close to right boundary
+                ax_tmp -= Lx * (ax_tmp_prime > 0.5 * Lx)
+                bx_tmp -= Lx * (bx_tmp_prime > 0.5 * Lx)
+                # NOTE diagonal copy already has been made
+                #      doing horizontal shift, equivalent to vertical shift
+
+                quiver_args = [ax_tmp, ay_tmp, dx_tmp, dy_tmp]
                 if edge_property is not None and edge_property_split is None:
                     quiver_args.append(e_prop_data)
                 elif edge_property is not None:
                     length = (dx_tmp**2 + dy_tmp**2)**0.5
                     shift_x_tmp = 0.03 *  dy_tmp / length
                     shift_y_tmp = 0.03 * -dx_tmp / length
-                    hlpr.ax.quiver(bx_tmp + shift_x_tmp + dx_tmp + mask_1 * Lx - mask_2 * Lx,
-                                   by_tmp + shift_y_tmp + dy_tmp,
-                                   -dx_tmp, 
-                                   -dy_tmp, 
+                    hlpr.ax.quiver(ax_tmp + shift_x_tmp + dx_tmp,
+                                   ay_tmp + shift_y_tmp + dy_tmp,
+                                   dx_tmp, 
+                                   dy_tmp, 
                                    e_prop_data.sel(**edge_property_split[0]),
                                    **__quiver_kwargs)
-                    hlpr.ax.quiver(bx_tmp - shift_x_tmp + dx_tmp + mask_1 * Lx - mask_2 * Lx,
-                                   by_tmp - shift_y_tmp + dy_tmp,
-                                   -dx_tmp, 
-                                   -dy_tmp, 
+                    hlpr.ax.quiver(ax_tmp - shift_x_tmp + dx_tmp,
+                                   ay_tmp - shift_y_tmp + dy_tmp,
+                                   dx_tmp, 
+                                   dy_tmp, 
                                    e_prop_data.sel(**edge_property_split[1]),
                                    **__quiver_kwargs)
 
                 hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
                 
-                quiver_args = [bx_tmp + dx_tmp,
-                               by_tmp + dy_tmp + mask_3 * Ly - mask_4 * Ly,
-                               -dx_tmp,
-                               -dy_tmp]
+                ## the inverse arrow
+                quiver_args = [bx_tmp - dx_tmp, by_tmp - dy_tmp, dx_tmp, dy_tmp]
                 if edge_property is not None and edge_property_split is None:
                     quiver_args.append(e_prop_data)
                 elif edge_property is not None:
                     length = (dx_tmp**2 + dy_tmp**2)**0.5
                     shift_x_tmp = 0.03 *  dy_tmp / length
                     shift_y_tmp = 0.03 * -dx_tmp / length
-                    hlpr.ax.quiver(bx_tmp + shift_x_tmp + dx_tmp,
-                                   by_tmp + shift_y_tmp + dy_tmp + mask_3 * Ly - mask_4 * Ly,
+                    hlpr.ax.quiver(bx_tmp + shift_x_tmp - dx_tmp,
+                                   by_tmp + shift_y_tmp - dy_tmp,
                                    -dx_tmp, 
                                    -dy_tmp, 
                                    e_prop_data.sel(**edge_property_split[0]),
                                    **__quiver_kwargs)
-                    hlpr.ax.quiver(bx_tmp - shift_x_tmp + dx_tmp,
-                                   by_tmp - shift_y_tmp + dy_tmp + mask_3 * Ly - mask_4 * Ly,
+                    hlpr.ax.quiver(bx_tmp - shift_x_tmp - dx_tmp,
+                                   by_tmp - shift_y_tmp - dy_tmp,
                                    -dx_tmp, 
                                    -dy_tmp, 
                                    e_prop_data.sel(**edge_property_split[1]),
@@ -618,14 +651,25 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             if (vertex_cfg['space']['periodic']):
                 hlpr.invoke_helper('set_limits', x=(-.2,Lx+.2), y=(-.2,Ly+.2))
-                hlpr.ax.axvline(x=0, ymin=-0.1, ymax = Ly +.05, c='gray', 
-                                linestyle=':')
-                hlpr.ax.axvline(x=Lx, ymin=-0.1, ymax = Ly +.05, c='gray', 
-                                linestyle=':')
-                hlpr.ax.axhline(y=0, xmin=-0.1, xmax = Lx+.05, c='gray', 
-                                linestyle=':')
-                hlpr.ax.axhline(y=Ly, xmin=-0.1, xmax = Lx+.05, c='gray', 
-                                linestyle=':')
+                hlpr.ax.axvline(x=0, c='gray', linestyle=':')
+                hlpr.ax.axvline(x=Lx, c='gray', linestyle=':')
+                hlpr.ax.axhline(y=0, c='gray', linestyle=':')
+                hlpr.ax.axhline(y=Ly, c='gray', linestyle=':')
+
+                if skew_x > 1.e-12:
+                    hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
+                                    linestyle=':')
+                elif skew_x < 1.e-12:
+                    hlpr.ax.axvline(x=Lx-skew_x, ymax = 0.5 / Ly, c='gray',
+                                    linestyle=':')
+                if skew_y > 1.e-12:                    
+                    hlpr.ax.axhline(y=skew_y, xmin=1. - 0.5 / Lx, c='gray',
+                                    linestyle=':')
+                elif skew_y < 1.e-12:                    
+                    hlpr.ax.axhline(y=skew_y, xmax = 0.5 / Lx, c='gray', 
+                                    linestyle=':')
+
+
             else:
                 hlpr.invoke_helper('set_limits',
                                    x=(domain_size_min_x, domain_size_max_x),

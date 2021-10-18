@@ -624,6 +624,12 @@ auto edges_adaptor = std::make_tuple(
         std::transform(edges.begin(), edges.end(), std::back_inserter(ids),
                        [](const auto& e) { return e->id(); });
         hdfdataset->add_attribute("coords__id", ids);
+
+
+        const SpaceVec skew = model.get_space()->get_skew();
+
+        hdfdataset->add_attribute("skew_x", skew[0]);
+        hdfdataset->add_attribute("skew_y", skew[1]);
     }     
 ); // end edge link adaptor
 

@@ -32,12 +32,16 @@ private:
      */
     SpaceVec _domain_scale;
 
+    /// Lees-Edwards boundary condition, i.e. skew
+    SpaceVec _skew;
+
 public:
     CustomSpace(const DataIO::Config& cfg)
     :
         Space(cfg),
         bound(this->periodic),
-        _domain_scale(arma::fill::ones)
+        _domain_scale(arma::fill::ones),
+        _skew(arma::fill::zeros)
     {
         if (bound != this->periodic) {
             throw std::invalid_argument("The space can only be unbound in "
@@ -54,7 +58,8 @@ public:
     :
         Space(),
         bound(this->periodic),
-        _domain_scale(arma::fill::ones)
+        _domain_scale(arma::fill::ones),
+        _skew(arma::fill::zeros)
     {
         if (bound != this->periodic) {
             throw std::invalid_argument("The space can only be unbound in "
@@ -97,6 +102,30 @@ public:
         if (not bound) {
             return pos;
         }
+        else if (arma::norm(_skew) > 1.e-12){
+            SpaceVec _pos = this->map_to_absolute_space(
+                Space::map_into_space(this->map_to_relative_space(pos)));
+            SpaceVec __pos = _pos;
+            if (_pos[1] < pos[1] - 1.e-10) {
+                // crossed upper boundary
+                __pos[0] -= _skew[0];
+            }
+            else if (_pos[1] > pos[1] + 1.e-10) {
+                // crossed lower boundary
+                __pos[0] += _skew[0];
+            }
+            if (_pos[0] < pos[0] - 1.e-10) {
+                // crossed left boundary
+                __pos[1] -= _skew[1];
+            }
+            else if (_pos[0] > pos[0] + 1.e-10) {
+                // crossed right boundary
+                __pos[1] += _skew[1];
+            }
+
+            return this->map_to_absolute_space(
+                Space::map_into_space(this->map_to_relative_space(__pos)));
+        }
         else {
             return this->map_to_absolute_space(Space::map_into_space(
                     this->map_to_relative_space(pos)));
@@ -113,9 +142,34 @@ public:
      *           displacement once reached half the domain size.
      */
     SpaceVec displacement(const SpaceVec& pos_0, const SpaceVec& pos_1) const {
-        return this->map_to_absolute_space(Space::displacement(
+        SpaceVec displ = this->map_to_absolute_space(Space::displacement(
                     this->map_to_relative_space(pos_0),
                     this->map_to_relative_space(pos_1)));
+
+        if (arma::norm(_skew) > 1.e-12) {
+            // the virtual position (might be outside the domain)
+            SpaceVec _pos_1 = pos_0 + displ;
+
+            if (_pos_1[0] > get_domain_size()[0]) {
+                // right boundary
+                displ += _skew % SpaceVec({0., 1.});
+            }
+            else if (_pos_1[0] < 0) {
+                // left boundary
+                displ -= _skew % SpaceVec({0., 1.});
+            }
+
+            if (_pos_1[1] > get_domain_size()[1]) {
+                // upper boundary
+                displ += _skew % SpaceVec({1., 0.});
+            }
+            else if (_pos_1[1] < 0) {
+                // lower boundary
+                displ -= _skew % SpaceVec({1., 0.});
+            }
+        }
+
+        return displ;
     }
 
     /// The distance of 2 coordinates in space
@@ -226,7 +280,7 @@ public:
     }
     
     
-    /// Map the position in to absolute coordinates
+    /// Map the position in to relative coordinates
     SpaceVec map_to_relative_space(const SpaceVec& abs_pos) const {
         return abs_pos / _domain_scale;
     }  
@@ -248,6 +302,31 @@ public:
      */
     void set_domain_size(const SpaceVec& domain_size) {
         _domain_scale = domain_size / this->extent;
+    }
+
+    /// Getter for skew boundary condition
+    SpaceVec get_skew() const {
+        return _skew;
+    }
+
+    /// Setter for skew boundary condition
+    void set_skew(const SpaceVec& skew) {
+        if (not this->periodic and arma::norm(skew) > 1.e-12) {
+            throw std::runtime_error(fmt::format(
+                "Cannot set non-zero skew ({}, {}) in non-periodic boundary "
+                "conditions!", skew[0], skew[1]
+            ));
+        }
+        SpaceVec domain = get_domain_size();
+
+        if (skew[0] > domain[0] / 3. or skew[1] > domain[1] / 3.) {
+            throw std::runtime_error(fmt::format(
+                "Cannot set skew to ({}, {}) as it exceeds 1/3 of the domain "
+                "size ({}, {})!", skew[0], skew[1], domain[0], domain[1]
+            ));
+        }
+
+        _skew = skew;
     }
 }; // struct CustomSpace
 

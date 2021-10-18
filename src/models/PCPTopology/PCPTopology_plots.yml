@@ -508,6 +508,13 @@ equilibrium_cellular_structure:
     cmap: Reds
 
 
+equilibrium_cellular_structure__area:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+
+  property: {property: area}
+
+
 equilibrium_cellular_structure__area_elasticity:
   based_on: equilibrium_cellular_structure
   enabled: false

@@ -494,13 +494,13 @@ public:
                 SpaceVec a = position_of(e->custom_links().a);
                 SpaceVec b = position_of(e->custom_links().b);
 
+                if (flip) { std::swap(a, b); }
+
                 // define the vertices positions relative to the reference
                 /* this is important in periodic space to calculate with 
                     * "real" coordinates */
                 a = ref + _space->displacement(ref, a);
                 b = ref + _space->displacement(ref, b);
-
-                if (flip) { std::swap(a, b); }
 
                 area += a[0] * b[1] - b[0] * a[1];
             }
@@ -511,11 +511,11 @@ public:
                                                     beta);
                 SpaceVec b = this->displace_virtual(e->custom_links().b,
                                                     beta);
+                
+                if (flip) { std::swap(a, b); }
 
                 a = ref + _space->displacement(ref, a);
                 b = ref + _space->displacement(ref, b);
-                
-                if (flip) { std::swap(a, b); }
 
                 area += a[0] * b[1] - b[0] * a[1];
             }
@@ -594,12 +594,13 @@ public:
             // define the vertices positions relative to the reference
             /* this is important in periodic space to calculate with "real"
              * coordinates */
-            SpaceVec a = position_of(reference) +
-                         displacement(reference, e->custom_links().a);
-            SpaceVec b = position_of(reference) + 
-                         displacement(reference, e->custom_links().b);
+            auto _a = e->custom_links().a;
+            auto _b = e->custom_links().b;
 
-            if (flip) { std::swap(a, b); }
+            if (flip) { std::swap(_a, _b); }            
+
+            SpaceVec a = position_of(reference) + displacement(reference, _a);
+            SpaceVec b = position_of(reference) + displacement(reference, _b);
 
             double da = a[0] * b[1] - b[0] * a[1];
             area += da;
@@ -607,7 +608,9 @@ public:
         }
         area /= 2;
         if (area < 1.e-12) { area += 1e-12; }
-        return _space->map_into_space(center / (6 * area));
+        center /= (6 * area);
+
+        return _space->map_into_space(center);
     }
 
     /// The adjoint edges of a vertex
