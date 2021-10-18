@@ -361,6 +361,10 @@ private:
                                 _minimization_params,
                                 _log, _monitor_mngr));
                 }
+                else if (name == "pure_shear") {
+                    _operations.push_back(
+                        build_pure_shear(name, op_cfg, _minimization_params));
+                }
                 else if (name == "relax_area") {
                     _operations.push_back(
                         build_relax_area(name, op_cfg, _minimization_params));
@@ -409,6 +413,7 @@ private:
                             "jiggle, "
                             "proliferate, "
                             "proliferate_quick_and_dirty, "
+                            "pure_shear, "
                             "relax_area, "
                             "set_area, "
                             "set_boundary_parameter, "

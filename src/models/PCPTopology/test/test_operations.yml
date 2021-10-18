@@ -370,6 +370,11 @@ proliferate:
     jiggle_tolerance: 1000
     jiggle_intensity: 0.
 
+pure_shear:
+  times: []
+  shear_velocity: 0.01
+  iterations: 20
+
 relax_area:
   times: []
 
@@ -450,3 +455,10 @@ set_area_relax_PD_axis_FAIL:
   # can't both be True
   relax_domain_PD_axis: True
   relax_domain: True
+
+simple_shear:
+  times: []
+  shear_velocity: [0.05, 0]
+  iterations: 16
+  minimization:
+    mode: manual
