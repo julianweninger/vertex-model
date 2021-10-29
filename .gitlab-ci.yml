@@ -13,8 +13,8 @@ variables:
   #      the variable! No no.
 
   # Setting number of processes for build jobs and DIND jobs
-  # CPUS_BUILD: 4
-  # CPUS_TEST: 4
+  CPUS_BUILD: 4
+  CPUS_TEST: 4
 
   # Global compiler flags
   # NOTE: This should improve the test runtime but might lead to erroneous
