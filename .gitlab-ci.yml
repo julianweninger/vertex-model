@@ -134,7 +134,7 @@ update:brewtopia-models:
 prep:framework:
   <<: [*artifacts]
   stage: prep
-  tags: [singlecore]
+  # tags: [singlecore]
   script:
     # Create a build directory and run cmake
     - cd $CI_PROJECT_DIR && mkdir build && cd build
