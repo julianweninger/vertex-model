@@ -37,9 +37,9 @@ image: ${TEST_IMAGE}
 stages:
   - update    # update the docker images for testing
   - prep      # prepares the framework
-  # - build     # build models and tests
-  # - test      # carry out tests
-  # - report    # compile reports on testing
+  - build     # build models and tests
+  - test      # carry out tests
+  - report    # compile reports on testing
 
 workflow:
   rules:
@@ -134,7 +134,6 @@ update:brewtopia-models:
 prep:framework:
   <<: [*artifacts]
   stage: prep
-  # tags: [singlecore]
   script:
     # Create a build directory and run cmake
     - cd $CI_PROJECT_DIR && mkdir build && cd build
@@ -150,150 +149,146 @@ prep:framework:
 
 
 
-# # -- Build stage --------------------------------------------------------------
-# # In this stage, the models, all tests, and the documentation are built.
-# # The artifacts from the build:all job are used in the test stage.
+# -- Build stage --------------------------------------------------------------
+# In this stage, the models, all tests, and the documentation are built.
+# The artifacts from the build:all job are used in the test stage.
 
-# build:all: &build
-#   <<: *artifacts
-#   stage: build
-#   tags: [multicore]
-#   dependencies: ['prep:framework']
-#   before_script:
-#     # Copy the frontend-generated configuration, carried over as artifacts,
-#     # back into the home directory, where the frontend expects it.
-#     # In the same manner, place the cmake registry where it is expected.
-#     - &copy_config_to_home cp -r $CI_PROJECT_DIR/.config ~/
-#     - &copy_cmake_reg_to_home cp -r $CI_PROJECT_DIR/.cmake ~/
-#   script:
-#     - cd $CI_PROJECT_DIR/build
-#     - make $MAKE_FLAGS_BUILD all
-#     - make $MAKE_FLAGS_BUILD build_tests_models
+build:all: &build
+  <<: *artifacts
+  stage: build
+  dependencies: ['prep:framework']
+  before_script:
+    # Copy the frontend-generated configuration, carried over as artifacts,
+    # back into the home directory, where the frontend expects it.
+    # In the same manner, place the cmake registry where it is expected.
+    - &copy_config_to_home cp -r $CI_PROJECT_DIR/.config ~/
+    - &copy_cmake_reg_to_home cp -r $CI_PROJECT_DIR/.cmake ~/
+  script:
+    - cd $CI_PROJECT_DIR/build
+    - make $MAKE_FLAGS_BUILD all
+    - make $MAKE_FLAGS_BUILD build_tests_models
 
-# build:debug: &build_debug
-#   <<: *build
-#   before_script:
-#     - *copy_config_to_home
-#     - *copy_cmake_reg_to_home
-#     - &fresh_build_dir rm -rf $CI_PROJECT_DIR/build && mkdir -p $CI_PROJECT_DIR/build
-#     - cd $CI_PROJECT_DIR/build
-#     - cmake
-#         -DCMAKE_BUILD_TYPE=Debug
-#         -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
-#       ..
+build:debug: &build_debug
+  <<: *build
+  before_script:
+    - *copy_config_to_home
+    - *copy_cmake_reg_to_home
+    - &fresh_build_dir rm -rf $CI_PROJECT_DIR/build && mkdir -p $CI_PROJECT_DIR/build
+    - cd $CI_PROJECT_DIR/build
+    - cmake
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
+      ..
 
-# build:debug-clang:
-#   <<: *build_debug
-#   before_script:
-#     - *copy_config_to_home
-#     - *copy_cmake_reg_to_home
-#     - *fresh_build_dir
-#     - cd $CI_PROJECT_DIR/build
-#     - cmake
-#         -DCMAKE_BUILD_TYPE=Debug
-#         -DCMAKE_C_COMPILER=clang
-#         -DCMAKE_CXX_COMPILER=clang++
-#         -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
-#       ..
+build:debug-clang:
+  <<: *build_debug
+  before_script:
+    - *copy_config_to_home
+    - *copy_cmake_reg_to_home
+    - *fresh_build_dir
+    - cd $CI_PROJECT_DIR/build
+    - cmake
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_C_COMPILER=clang
+        -DCMAKE_CXX_COMPILER=clang++
+        -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
+      ..
 
-# build:docs:
-#   <<: *build
-#   allow_failure: true
-#   tags: [singlecore]
-#   script:
-#     - cd $CI_PROJECT_DIR/build
-#     - cmake ..
-#     - make doc
-#   after_script:
-#     - cat $CI_PROJECT_DIR/build/doc/sphinx_warnings.log || true
-#     - cat $CI_PROJECT_DIR/build/doc/doxygen/doxygen_warnings.log || true
-#   artifacts:
-#     name: "$CI_JOB_NAME"
-#     paths:
-#       - $CI_PROJECT_DIR/build/doc
-#       - $CI_PROJECT_DIR/build/doc/doxygen/doxygen_warnings.log
-#       - $CI_PROJECT_DIR/build/doc/sphinx_warnings.log
-#     expire_in: 1 week
-#     expose_as: Documentation
+build:docs:
+  <<: *build
+  allow_failure: true
+  script:
+    - cd $CI_PROJECT_DIR/build
+    - cmake ..
+    - make doc
+  after_script:
+    - cat $CI_PROJECT_DIR/build/doc/sphinx_warnings.log || true
+    - cat $CI_PROJECT_DIR/build/doc/doxygen/doxygen_warnings.log || true
+  artifacts:
+    name: "$CI_JOB_NAME"
+    paths:
+      - $CI_PROJECT_DIR/build/doc
+      - $CI_PROJECT_DIR/build/doc/doxygen/doxygen_warnings.log
+      - $CI_PROJECT_DIR/build/doc/sphinx_warnings.log
+    expire_in: 1 week
+    expose_as: Documentation
 
 
 
 
-# # -- Test stage ---------------------------------------------------------------
-# # Using the artifacts of the build stage, execute the models tests
+# -- Test stage ---------------------------------------------------------------
+# Using the artifacts of the build stage, execute the models tests
 
-# test:models: &test_models
-#   <<: *artifacts
-#   stage: test
-#   tags: [multicore]
-#   dependencies: ['build:all']
-#   needs: ['build:all']
-#   before_script:
-#     - *copy_config_to_home
-#     - *copy_cmake_reg_to_home
-#     #
-#     # Need to install requirements again
-#     - $RUN_IN_UTOPIA_ENV pip install -r python/requirements.txt
-#     # NOTE Doing this rather than carrying them through as build artifacts from
-#     #      the prep stage, because these dependencies get installed into the
-#     #      utopia _framework's_ build directory, which is not located inside
-#     #      the project directory and thus cannot be part of the artifacts.
-#     #      Instead of doing the mess with copying that directory etc, we can
-#     #      just reinstall here, which is fast and straight-forward.
-#   script:
-#     # Test all models using the testing framework; this includes Python tests
-#     - cd build
-#     - make $MAKE_FLAGS_TEST test_models
+test:models: &test_models
+  <<: *artifacts
+  stage: test
+  dependencies: ['build:all']
+  needs: ['build:all']
+  before_script:
+    - *copy_config_to_home
+    - *copy_cmake_reg_to_home
+    #
+    # Need to install requirements again
+    - $RUN_IN_UTOPIA_ENV pip install -r python/requirements.txt
+    # NOTE Doing this rather than carrying them through as build artifacts from
+    #      the prep stage, because these dependencies get installed into the
+    #      utopia _framework's_ build directory, which is not located inside
+    #      the project directory and thus cannot be part of the artifacts.
+    #      Instead of doing the mess with copying that directory etc, we can
+    #      just reinstall here, which is fast and straight-forward.
+  script:
+    # Test all models using the testing framework; this includes Python tests
+    - cd build
+    - make $MAKE_FLAGS_TEST test_models
 
-# test:model_defaults:
-#   <<: *test_models
-#   script:
-#     - $ENTER_UTOPIA_ENV
+test:model_defaults:
+  <<: *test_models
+  script:
+    - $ENTER_UTOPIA_ENV
 
-#     - utopia run Collier --debug
-#     - utopia run NotchDelta --debug
-#     - utopia run PCPVertex --debug
-#     - utopia run PCPTopology --debug --num-steps 5
-
+    - utopia run Collier --debug
+    - utopia run NotchDelta --debug
+    - utopia run PCPVertex --debug
+    - utopia run PCPTopology --debug --num-steps 5
 
 
-# # -- Report stage -------------------------------------------------------------
-# # Using the artifacts of the test stage, compile reports on the tests
 
-# # Install gcovr and extract coverage reports
-# report:coverage:
-#   stage: report
-#   tags: [singlecore]
-#   dependencies:
-#     - test:models
-#     - test:model_defaults
-#   before_script:
-#     - source $CI_PROJECT_DIR/build/activate
-#     - pip3 install gcovr
-#     - cd $CI_PROJECT_DIR/build
-#     - mkdir coverage
-#   script:
-#     # Docs: https://gcovr.com/en/stable/guide.html
-#     - gcovr
-#         --root $CI_PROJECT_DIR/
-#         --filter $CI_PROJECT_DIR/src/
-#         --exclude '.*tests?/.*'
-#         --xml coverage/cobertura.xml
-#         --html coverage/report.html --html-details
-#         --print-summary
+# -- Report stage -------------------------------------------------------------
+# Using the artifacts of the test stage, compile reports on the tests
 
-#     # Run again for coverage report in GitLab CI/CD log
-#     - gcovr
-#         --root $CI_PROJECT_DIR/
-#         --filter $CI_PROJECT_DIR/src/
-#         --exclude '.*tests?/.*'
-#   coverage: '/^lines: (\d+.\d+\%).*$/'   # matches output of --print-summary
-#   artifacts:
-#     name: "$CI_JOB_NAME"
-#     expose_as: Coverage report
-#     paths:
-#       - $CI_PROJECT_DIR/build/coverage/
-#     expire_in: 3 weeks
-#     reports:
-#       # https://docs.gitlab.com/ee/user/project/merge_requests/test_coverage_visualization.html
-#       cobertura: $CI_PROJECT_DIR/build/coverage/cobertura.xml
+# Install gcovr and extract coverage reports
+report:coverage:
+  stage: report
+  dependencies:
+    - test:models
+    - test:model_defaults
+  before_script:
+    - source $CI_PROJECT_DIR/build/activate
+    - pip3 install gcovr
+    - cd $CI_PROJECT_DIR/build
+    - mkdir coverage
+  script:
+    # Docs: https://gcovr.com/en/stable/guide.html
+    - gcovr
+        --root $CI_PROJECT_DIR/
+        --filter $CI_PROJECT_DIR/src/
+        --exclude '.*tests?/.*'
+        --xml coverage/cobertura.xml
+        --html coverage/report.html --html-details
+        --print-summary
+
+    # Run again for coverage report in GitLab CI/CD log
+    - gcovr
+        --root $CI_PROJECT_DIR/
+        --filter $CI_PROJECT_DIR/src/
+        --exclude '.*tests?/.*'
+  coverage: '/^lines: (\d+.\d+\%).*$/'   # matches output of --print-summary
+  artifacts:
+    name: "$CI_JOB_NAME"
+    expose_as: Coverage report
+    paths:
+      - $CI_PROJECT_DIR/build/coverage/
+    expire_in: 3 weeks
+    reports:
+      # https://docs.gitlab.com/ee/user/project/merge_requests/test_coverage_visualization.html
+      cobertura: $CI_PROJECT_DIR/build/coverage/cobertura.xml
