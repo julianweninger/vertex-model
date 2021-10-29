@@ -1,173 +1,152 @@
 # Continuous Integration and Deployment of Utopia Models Repository
 ---
-stages:
-    - build
-    - test
-
-build:
-    stage: build
-    script:
-        - echo "Builing ..."
-        - mkdir build
-        - touch build/info.txt
-    artifacts:
-        paths:
-            - build/
-
-test:
-    stage: test
-    script:
-        - echo "Testing ..."
-        - test -f "build/info.txt"
-
-
 # # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
-# variables:
-#   # Variables for docker images
-#   BASE_IMAGE: blsqr/brewtopia:latest
-#   TEST_IMAGE: blsqr/brewtopia-models:latest
+variables:
+  # Variables for docker images
+  BASE_IMAGE: blsqr/brewtopia:latest
+  TEST_IMAGE: blsqr/brewtopia-models:latest
 
-#   # Docker Hub login command
-#   DOCKER_HUB_LOGIN: docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
-#   # NOTE Both variables here are secret and protected variables. While the
-#   #      login command will complain, using --password-stdin actually EXPOSES
-#   #      the variable! No no.
+  # Docker Hub login command
+  DOCKER_HUB_LOGIN: docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
+  # NOTE Both variables here are secret and protected variables. While the
+  #      login command will complain, using --password-stdin actually EXPOSES
+  #      the variable! No no.
 
-#   # Setting number of processes for build jobs and DIND jobs
-#   CPUS_BUILD: 4
-#   CPUS_TEST: 4
+  # Setting number of processes for build jobs and DIND jobs
+  # CPUS_BUILD: 4
+  # CPUS_TEST: 4
 
-#   # Global compiler flags
-#   # NOTE: This should improve the test runtime but might lead to erroneous
-#   #       coverage reports.
-#   # NOTE: This will also be applied to the debug build.
-#   CXXFLAGS: -Og
+  # Global compiler flags
+  # NOTE: This should improve the test runtime but might lead to erroneous
+  #       coverage reports.
+  # NOTE: This will also be applied to the debug build.
+  CXXFLAGS: -Og
 
-#   # Build flags
-#   MAKE_FLAGS_BUILD: -j$CPUS_BUILD
-#   MAKE_FLAGS_TEST: -j$CPUS_TEST
+  # Build flags
+  MAKE_FLAGS_BUILD: -j$CPUS_BUILD
+  MAKE_FLAGS_TEST: -j$CPUS_TEST
 
-#   # ... for certain commands
-#   RUN_IN_UTOPIA_ENV: $CI_PROJECT_DIR/build/run-in-utopia-env
-#   ENTER_UTOPIA_ENV: source $CI_PROJECT_DIR/build/activate
-
-
-# # Define the image to use for all stages
-# image: ${TEST_IMAGE}
-
-# stages:
-#   - update    # update the docker images for testing
-#   - prep      # prepares the framework
-#   - build     # build models and tests
-#   - test      # carry out tests
-#   - report    # compile reports on testing
-
-# workflow:
-#   rules:
-#     # Run pipelines on tags and branches
-#     - if: $CI_COMMIT_TAG
-#     - if: $CI_COMMIT_BRANCH
+  # ... for certain commands
+  RUN_IN_UTOPIA_ENV: $CI_PROJECT_DIR/build/run-in-utopia-env
+  ENTER_UTOPIA_ENV: source $CI_PROJECT_DIR/build/activate
 
 
-# # .. YAML Templates ...........................................................
-# # This makes includes below easier using the `<<: *anchor_name` syntax
+# Define the image to use for all stages
+image: ${TEST_IMAGE}
 
-# # Create artifacts of the build directory
-# .artifacts: &artifacts
-#   artifacts:
-#     name: "$CI_JOB_NAME"
-#     paths:
-#       - $CI_PROJECT_DIR/.config        # copied from ~/.config
-#       - $CI_PROJECT_DIR/.cmake         # copied from ~/.cmake
-#       - $CI_PROJECT_DIR/build          # created in build stage
-#     expire_in: 3 hours
+stages:
+  - update    # update the docker images for testing
+  - prep      # prepares the framework
+  # - build     # build models and tests
+  # - test      # carry out tests
+  # - report    # compile reports on testing
 
-
-# # Use the Docker-in-Docker executor and services, log into Docker Hub
-# .dind: &dind
-#   image: docker:stable
-#   tags:
-#     - dind
-#   services:
-#     - docker:dind
-#   variables:
-#     DOCKER_DRIVER: overlay2
-#   before_script:
-#     - $DOCKER_HUB_LOGIN
+workflow:
+  rules:
+    # Run pipelines on tags and branches
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
 
 
+# .. YAML Templates ...........................................................
+# This makes includes below easier using the `<<: *anchor_name` syntax
+
+# Create artifacts of the build directory
+.artifacts: &artifacts
+  artifacts:
+    name: "$CI_JOB_NAME"
+    paths:
+      - $CI_PROJECT_DIR/.config        # copied from ~/.config
+      - $CI_PROJECT_DIR/.cmake         # copied from ~/.cmake
+      - $CI_PROJECT_DIR/build          # created in build stage
+    expire_in: 3 hours
 
 
-# # ++ Job definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-# # -- Update stage -------------------------------------------------------------
-# # This stage takes care to build the brewtopia testing images
-
-# # .. brewtopia: the base image
-# # This takes a long time to build and should only be run if the build time of
-# # brewtopia-models increases significantly.
-# # To run:
-# #    - Go to the GitLab pipelines web interface
-# #    - Select the master branch
-# #    - Set the BUILD_BREWTOPIA variable to "true"
-# update:brewtopia:
-#   <<: *dind
-#   stage: update
-#   timeout: 2h
-#   variables:
-#     BUILD_BREWTOPIA: "false"
-#   rules:
-#     - if: '$BUILD_BREWTOPIA == "true" && $CI_COMMIT_BRANCH == "master"'
-#       when: always
-#     - when: never
-#   script:
-#     - docker build -f docker/brewtopia.Dockerfile
-#                    -t ${BASE_IMAGE}
-#                    ./
-#     - docker push ${BASE_IMAGE}
-
-# # .. brewtopia-models: the testing image
-# # This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
-# # It updates the dependencies and the Utopia installation in the test image.
-# update:brewtopia-models:
-#   <<: *dind
-#   stage: update
-#   allow_failure: true
-#   variables:
-#     BUILD_BREWTOPIA_MODELS: "false"
-#   rules:
-#     - if: '$BUILD_BREWTOPIA_MODELS == "true"'
-#       when: always
-#     - if: '$CI_COMMIT_BRANCH == "master"'
-#       when: always
-#     - when: never
-#   script:
-#     - docker build -f docker/brewtopia-models.Dockerfile
-#                    --build-arg BASE_IMAGE=${BASE_IMAGE}
-#                    -t ${TEST_IMAGE}
-#                    ./
-#     - docker push ${TEST_IMAGE}
+# Use the Docker-in-Docker executor and services, log into Docker Hub
+.dind: &dind
+  image: docker:stable
+  tags:
+    - dind
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  before_script:
+    - $DOCKER_HUB_LOGIN
 
 
-# # -- Preparation stage --------------------------------------------------------
-# # This stage sets up the Utopia framework, the main dependency of this repo
 
-# prep:framework:
-#   <<: [*artifacts]
-#   stage: prep
-#   tags: [singlecore]
-#   script:
-#     # Create a build directory and run cmake
-#     - cd $CI_PROJECT_DIR && mkdir build && cd build
-#     - cmake -DCPP_COVERAGE=On ..
 
-#     # Show available models
-#     - $RUN_IN_UTOPIA_ENV utopia models ls
+# ++ Job definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#     # Carry over user config directory and CMake package registry (to have them
-#     # available in artifacts)
-#     - cp -r ~/.config $CI_PROJECT_DIR/
-#     - cp -r ~/.cmake $CI_PROJECT_DIR/
+# -- Update stage -------------------------------------------------------------
+# This stage takes care to build the brewtopia testing images
+
+# .. brewtopia: the base image
+# This takes a long time to build and should only be run if the build time of
+# brewtopia-models increases significantly.
+# To run:
+#    - Go to the GitLab pipelines web interface
+#    - Select the master branch
+#    - Set the BUILD_BREWTOPIA variable to "true"
+update:brewtopia:
+  <<: *dind
+  stage: update
+  timeout: 2h
+  variables:
+    BUILD_BREWTOPIA: "false"
+  rules:
+    - if: '$BUILD_BREWTOPIA == "true" && $CI_COMMIT_BRANCH == "master"'
+      when: always
+    - when: never
+  script:
+    - docker build -f docker/brewtopia.Dockerfile
+                   -t ${BASE_IMAGE}
+                   ./
+    - docker push ${BASE_IMAGE}
+
+# .. brewtopia-models: the testing image
+# This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
+# It updates the dependencies and the Utopia installation in the test image.
+update:brewtopia-models:
+  <<: *dind
+  stage: update
+  allow_failure: true
+  variables:
+    BUILD_BREWTOPIA_MODELS: "false"
+  rules:
+    - if: '$BUILD_BREWTOPIA_MODELS == "true"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
+    - when: never
+  script:
+    - docker build -f docker/brewtopia-models.Dockerfile
+                   --build-arg BASE_IMAGE=${BASE_IMAGE}
+                   -t ${TEST_IMAGE}
+                   ./
+    - docker push ${TEST_IMAGE}
+
+
+# -- Preparation stage --------------------------------------------------------
+# This stage sets up the Utopia framework, the main dependency of this repo
+
+prep:framework:
+  <<: [*artifacts]
+  stage: prep
+  tags: [singlecore]
+  script:
+    # Create a build directory and run cmake
+    - cd $CI_PROJECT_DIR && mkdir build && cd build
+    - cmake -DCPP_COVERAGE=On ..
+
+    # Show available models
+    - $RUN_IN_UTOPIA_ENV utopia models ls
+
+    # Carry over user config directory and CMake package registry (to have them
+    # available in artifacts)
+    - cp -r ~/.config $CI_PROJECT_DIR/
+    - cp -r ~/.cmake $CI_PROJECT_DIR/
 
 
 
