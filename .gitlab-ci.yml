@@ -134,7 +134,6 @@ update:brewtopia-models:
 prep:framework:
   <<: [*artifacts]
   stage: prep
-  tags: [singlecore]
   script:
     # Create a build directory and run cmake
     - cd $CI_PROJECT_DIR && mkdir build && cd build
@@ -157,7 +156,6 @@ prep:framework:
 build:all: &build
   <<: *artifacts
   stage: build
-  tags: [multicore]
   dependencies: ['prep:framework']
   before_script:
     # Copy the frontend-generated configuration, carried over as artifacts,
@@ -199,7 +197,6 @@ build:debug-clang:
 build:docs:
   <<: *build
   allow_failure: true
-  tags: [singlecore]
   script:
     - cd $CI_PROJECT_DIR/build
     - cmake ..
@@ -225,7 +222,6 @@ build:docs:
 test:models: &test_models
   <<: *artifacts
   stage: test
-  tags: [multicore]
   dependencies: ['build:all']
   needs: ['build:all']
   before_script:
@@ -263,7 +259,6 @@ test:model_defaults:
 # Install gcovr and extract coverage reports
 report:coverage:
   stage: report
-  tags: [singlecore]
   dependencies:
     - test:models
     - test:model_defaults
