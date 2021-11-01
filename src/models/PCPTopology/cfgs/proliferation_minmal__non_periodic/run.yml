@@ -32,59 +32,96 @@ parameter_space:
             tolerance: 1.e-8
             jiggle_tolerance: 1.e-6
 
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [1]
-          target_num_cells: 32
-          minimization_quick:
-            mode: manual
-          minimization:
-            mode: manual
+          num_cells: 16
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 32 cells
 
       - jiggle:
           times: [2]
       # NOTE time 2: jiggle (see last operation)
 
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [3]
-          target_num_cells: 64
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 32
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 64 cells
 
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [4]
-          target_num_cells: 128
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 64
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 128 cells
       
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [5]
-          target_num_cells: 256
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 128
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 256 cells
       
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [6]
-          target_num_cells: 512
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 256
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 512 cells
       
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [7]
-          target_num_cells: 1024
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 512
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 1024 cells
       
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [8]
-          target_num_cells: 2048
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 1024
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 2048 cells 
       
-      - proliferate_quick_and_dirty:
+      - proliferate:
           times: [9]
-          target_num_cells: 4096
-          minimization_quick: *JiggleQuickDirty
+          num_cells: 2048
+          num_increases: 0
+          area_threshold: 0.
+          minimization_after_division:
+            num_steps: 20
+          minimize_after_division: True
+          minimization: ~
       # 4096 cells 
 
     PCPVertex:

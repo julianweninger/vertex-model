@@ -43,6 +43,7 @@ operations:
       num_increases: 4   # in how many minimization processes the area is increased
       area_threshold: 0.
 
+      minimization_after_increase: ~
       minimization: ~
   
   - differentiate_NotchDelta:

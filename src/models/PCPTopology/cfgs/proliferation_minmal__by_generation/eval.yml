@@ -1,4 +1,4 @@
-# The evaluation of default_proliferation_minimal__quick_and_dirty
+# The evaluation of default_proliferation_minimal__generations
 #
 # These can use the `based_on` feature with configurations specified in the
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
@@ -36,10 +36,10 @@ cell_area:
   enabled: false
   # WARNING: does not work with TimeSeriesGroup of flexible cell number
       
-equilibrium_cellular_structure:
+cell_segmentation:
   based_on: cellular_structure
 
-cellular_structure:
+cell_segmentation__continuous:
   based_on: cellular_structure
   datapath: PCPTopology/PCPVertex
 

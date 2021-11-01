@@ -353,11 +353,12 @@ private:
                 }
                 else if (name == "proliferate") {
                     _operations.push_back(
-                        build_proliferate(name, op_cfg, _minimization_params));
+                        build_proliferate(name, op_cfg, _minimization_params,
+                                _log, _monitor_mngr));
                 }
-                else if (name == "proliferate_quick_and_dirty") {
+                else if (name == "proliferate_generations") {
                     _operations.push_back(
-                        build_proliferate_quick_and_dirty(name, op_cfg,
+                        build_proliferate_generations(name, op_cfg,
                                 _minimization_params,
                                 _log, _monitor_mngr));
                 }
@@ -412,7 +413,7 @@ private:
                             "iterate_pcp, "
                             "jiggle, "
                             "proliferate, "
-                            "proliferate_quick_and_dirty, "
+                            "proliferate_generations, "
                             "pure_shear, "
                             "relax_area, "
                             "set_area, "

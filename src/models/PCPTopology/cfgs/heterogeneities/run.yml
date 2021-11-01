@@ -20,8 +20,6 @@ worker_manager:
 parameter_space:
   num_steps: 10
 
-  num_cells: &NUM_CELLS 64     # The final number of cells
-
   seed: !sweep
     default: 42
     range: [2]
@@ -33,13 +31,14 @@ parameter_space:
           times: []
           iterations_prolog: 1
 
-      - proliferate_quick_and_dirty:
+      - proliferate_generations:
           times: []
           iterations_prolog: 1
-          target_num_cells: *NUM_CELLS
-          minimization_quick: ~
+          num_generations: 2
+          minimization_between_generations:
+            num_repeat: 1
           minimization:
-            num_repeat: &equilibration_time 1
+            num_repeat: &equilibration_time 5
             # NOTE 50 recommended
       # END proliferation
 

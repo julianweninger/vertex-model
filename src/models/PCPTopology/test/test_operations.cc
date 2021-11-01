@@ -1340,7 +1340,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
     {
         const std::string name = "proliferate";
         auto [operation, params] = build_proliferate(
-            name, get_as<Config>(name, cfg), default_minim_params);
+            name, get_as<Config>(name, cfg), default_minim_params,
+            vertex_model.get_logger());
 
         auto domain_0 = vertex_model.get_space()->get_domain_size();
         double area_0 = domain_0[0] * domain_0[1];

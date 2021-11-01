@@ -30,8 +30,6 @@ run_kwargs:
 parameter_space:
   num_steps: 3
 
-  num_cells: &NUM_CELLS 48     # The final number of cells
-
   seed: !sweep
     default: 42
     range: [1]
@@ -55,11 +53,12 @@ parameter_space:
             linetension_fluctuation: 0.001
 
 
-      - proliferate_quick_and_dirty:
+      - proliferate_generations:
           times: []
           iterations_prolog: 1
-          target_num_cells: *NUM_CELLS
-          minimization_quick: ~
+          num_generations: 2
+          minimization_between_generations:
+            num_repeat: 1
           minimization:
             num_repeat: &equilibration_time 5
             # NOTE 50 recommended
