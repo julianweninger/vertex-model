@@ -1,6 +1,6 @@
 # Continuous Integration and Deployment of Utopia Models Repository
 ---
-# # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
   # Variables for docker images
   BASE_IMAGE: blsqr/brewtopia:latest
