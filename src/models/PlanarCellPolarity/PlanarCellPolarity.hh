@@ -535,6 +535,14 @@ private:
         for (const auto& edge : _cm.edges()) {
             auto [sigma_a, sigma_b] = polarity_proteins[edge];
 
+            auto [adj_a, adj_b] = _cm.adjoints_of(edge);
+            if (adj_a == nullptr) {
+                gradient_sigma_a[edge] = std::get<0>(polarity_proteins[edge]);
+            }
+            if (adj_b == nullptr) {
+                gradient_sigma_b[edge] = std::get<1>(polarity_proteins[edge]);
+            }
+
             // steepest gradient
             sigma_a -= gradient_sigma_a[edge] * this->_dt;
             sigma_b -= gradient_sigma_b[edge] * this->_dt;
@@ -552,8 +560,18 @@ private:
             double rand_b = (  dp * sqrt(2. * _dt / tau)
                              * _normal_distr(*this->_rng));
 
-            _sa += rand_a - _dt / tau * _sa;
-            _sb += rand_b - _dt / tau * _sb;
+            if (adj_a) {
+                _sa += rand_a - _dt / tau * _sa;
+            }
+            else {
+                _sa -= _dt / tau * _sa;
+            }
+            if (adj_b) {
+                _sb += rand_b - _dt / tau * _sb;
+            }
+            else {
+                _sb -= _dt / tau * _sb;
+            }
 
             protein_fluctuations[edge] = std::make_pair(_sa, _sb);
         }
