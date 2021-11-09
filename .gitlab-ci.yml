@@ -103,7 +103,6 @@ update:brewtopia:
     - docker build -f docker/brewtopia.Dockerfile
                    -t ${BASE_IMAGE}
                    ./
-    - docker push ${BASE_IMAGE}
 
 # .. brewtopia-models: the testing image
 # This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
@@ -125,7 +124,6 @@ update:brewtopia-models:
                    --build-arg BASE_IMAGE=${BASE_IMAGE}
                    -t ${TEST_IMAGE}
                    ./
-    - docker push ${TEST_IMAGE}
 
 
 # -- Preparation stage --------------------------------------------------------
