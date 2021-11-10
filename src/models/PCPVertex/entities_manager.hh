@@ -1120,6 +1120,179 @@ public:
     }
 
 
+    // -- Dual lattice --------------------------------------------------------
+
+public:
+    using Triangle = std::tuple<SpaceVec, SpaceVec, SpaceVec>;
+
+    std::tuple<double, arma::mat22, arma::mat22> decompose
+    (const arma::mat22& mat) const {
+        double tr = arma::trace(mat);
+        arma::mat22 sym =  (0.5 * (mat + arma::trans(mat))
+                            - tr / 2. * arma::eye(2, 2));
+        arma::mat22 asym = 0.5 * (mat - arma::trans(mat));
+
+        return std::make_tuple(tr, sym, asym);
+    }
+
+    arma::mat22 equilateral_triangle () const {
+        // the basis vectors of a equilateral triangle
+        SpaceVec e0({1., 0.});              // a -> b
+        SpaceVec e1({-0.5, sqrt(3) / 2.});  // b -> c
+
+        arma::mat22 mat({{e0[0], e1[0]},
+                         {e0[1], e1[1]}});
+
+        return mat;
+        // NOTE if change, use upper triangular form
+    }
+
+    /// Express triangle in basis of equilateral triangle
+    /** If safe, c is set to be upper most vertex and a and b are ordered 
+     *  anti-clockwise. Otherwise, this is assumed
+     */
+    template<bool ordered = false, bool c_upper_vertex = false>
+    arma::mat22 shape (const Triangle& T) const {
+        arma::mat22 base_0 = equilateral_triangle();
+        
+        SpaceVec a, b, c;
+        std::tie(a, b, c) = T;
+
+        if constexpr (not ordered) {
+            double area = 0.5 * (  a[0] * b[1] - b[0] * a[1]
+                                 + b[0] * c[1] - c[0] * b[1]
+                                 + c[0] * a[1] - a[0] * c[1]);
+
+            // is the ordering clockwise ?
+            if (area < 1.e-12) {
+                // reorder to anti-clockwise
+                std::swap(b, c);
+            }
+        }
+
+        if constexpr (not c_upper_vertex) {
+            // set c to be upper vertex
+            if (a[1] > c[1] and a[1] > b[1]) {
+                // a is uppermost -> rotate anti-clokwise
+                std::swap(a, c);
+                std::swap(a, b);
+            }
+            else if (b[1] > c[1] and b[1] > a[1]) {
+                // b is uppermost -> rotate clockwise
+                std::swap(a, c);
+                std::swap(b, c);
+            }
+            // now c is uppermost
+        }
+
+        SpaceVec v0 = b - a;
+        SpaceVec v1 = c - b;
+        arma::mat22 base_1({{v0[0], v1[0]},
+                            {v0[1], v1[1]}});
+        
+        return base_1 * base_0.i();
+    }
+
+    std::tuple<double, arma::mat22, double, double> interpretation
+    (const arma::mat22& shape) const
+    {
+        auto [tr, sym, asym] = decompose(shape);
+
+        double area = arma::det(shape);
+        [[maybe_unused]] double area0 = sqrt(3) / 4;
+        // NOTE area := area / area0
+
+        arma::mat22 h = asym + arma::eye(2, 2) * tr / 2.;
+
+        arma::mat22 rot = h / sqrt(arma::trace(h * h.t()) / 2.);
+        double theta = acos(rot[0]);
+        if (rot[1] < 0.) {
+            theta = -theta;
+        }
+
+        double s = sqrt(arma::trace(sym * sym.t()) / 2.);
+
+        arma::mat22 q;
+        if (s < 1.e-12) {
+            q = sym * rot.t();
+        }
+        else {
+            q = 1 / s * asinh(s / sqrt(area)) * (sym * rot.t());
+        }
+
+        double r = exp(2 *  sqrt(arma::trace(q * q.t()) / 2.));
+
+        return std::make_tuple(area, q, r, theta);
+    }
+
+    /** If safe, c is set to be upper most vertex and a and b are ordered 
+     *  anti-clockwise. Otherwise, this is assumed.
+     *  If map_into_space, the coordinates lie within the space, otherwise
+     *  might lie outside (periodic boundaries).
+     */
+    template<bool map_into_space = true, bool order = true>
+    Triangle dual_triangle (const std::shared_ptr<Vertex>& vertex) const
+    {
+        auto adjoints = adjoint_cells_of(vertex);
+        
+        if (adjoints.size() != 3) {
+            throw std::runtime_error(
+                "Cannot define dual triangle on boundary vertex!");
+        }
+
+        // the dual vertices
+        SpaceVec a, b, c;
+        a = this->barycenter_of(adjoints[0]);
+        b = a + _space->displacement(a, this->barycenter_of(adjoints[1]));
+        c = a + _space->displacement(a, this->barycenter_of(adjoints[2]));
+
+        if constexpr (order) {
+            double area = 0.5 * (  a[0] * b[1] - b[0] * a[1]
+                                 + b[0] * c[1] - c[0] * b[1]
+                                 + c[0] * a[1] - a[0] * c[1]);
+
+            // is the ordering clockwise ?
+            if (area < 1.e-12) {
+                // reorder to anti-clockwise
+                std::swap(b, c);
+            }
+        }
+        
+        if constexpr (map_into_space) {
+            b = _space->map_into_space(b);
+            c = _space->map_into_space(c);
+        }
+
+        return std::make_tuple(a, b, c);
+    }
+
+    arma::mat22 elongation_of (const std::shared_ptr<Cell>& cell) const {
+        if (this->is_boundary(cell)) {
+            arma::mat22 q;
+            q.fill(arma::datum::nan);
+            return q;
+        }
+
+        const auto& edges = cell->custom_links().edges;
+
+        arma::mat22 shape = arma::zeros(2, 2);
+        double dual_area = 0.;
+        for (const auto& [edge, flip] : edges) {
+            std::shared_ptr<Vertex> a = edge->custom_links().a;
+            auto b = edge->custom_links().b;
+            if (flip) { std::swap(a, b); }
+
+            arma::mat22 s = this->shape<false, false>(
+                dual_triangle<false, false>(a));
+            auto [area, q, r, theta] = interpretation(s);
+
+            shape += area * q;
+            dual_area += area;
+        }
+        
+        return shape / dual_area;
+    }
+
 private:
     // -- Setup functions -----------------------------------------------------
     
@@ -1579,6 +1752,12 @@ private:
                     return this->_space->map_to_relative_space(pos);
                 };
         }
+    }
+
+public:
+    /// Return a pointer to the logger of this model
+    std::shared_ptr<spdlog::logger> get_logger() const {
+        return _log;
     }
 }; // EntitiesManager
 

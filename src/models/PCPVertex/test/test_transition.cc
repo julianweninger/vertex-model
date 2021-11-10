@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <iostream>
 #include <boost/test/unit_test.hpp>
+#include <numeric>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -579,6 +580,426 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         // NOTE T1 boundary edge removal possible
 
         test_custom_links(model);
+    }
+
+    
+    BOOST_AUTO_TEST_CASE(test_triangle_deformation) {
+        using SpaceVec = PCPVertex::SpaceVec;
+
+        Fixture<true> fixture;
+        auto& model = fixture.vertex_model;
+        model.prolog();
+
+        const auto& am = model.get_am();
+        
+
+        // the test
+        std::function<bool(SpaceVec, SpaceVec, SpaceVec, double, double, double,
+                           std::string, SpaceVec, SpaceVec, SpaceVec)>
+        _test_triangle = [am](SpaceVec a, SpaceVec b, SpaceVec c,
+                              double area, double ratio, double theta,
+                              std::string message,
+                              SpaceVec _a, SpaceVec _b, SpaceVec _c)
+        {
+            am.get_logger()->debug(message);     
+
+            /// Transform vertices to shape matrix
+            auto T = std::make_tuple(a, b, c);
+            arma::mat22 shape = am.shape<false, false>(T);
+
+            // test that shape is the transformation matrix
+            arma::mat22 base = arma::mat22({{(_b-_a)[0], (_c-_b)[0]},
+                                            {(_b-_a)[1], (_c-_b)[1]}});
+            bool test_transformation = arma::approx_equal(
+                base,
+                shape * am.equilateral_triangle(),
+                "absdiff", 1.e-4
+            );
+            if (not test_transformation)
+            {   
+                std::cout << "Failed to get transformation matrix: \n"
+                          << base << std::endl
+                          << shape * am.equilateral_triangle() << std::endl;
+            }
+            BOOST_TEST(test_transformation);
+
+            // test how 
+            auto [tr, sym, asym] = am.decompose(shape);
+            arma::mat22 decomposition = sym + asym + arma::eye(2, 2) * tr / 2.;
+            auto test_decomposition = arma::approx_equal(
+                shape, decomposition, "absdiff", 1.e-10
+            );
+            if (not test_decomposition)
+            {   
+                std::cout << "Failed to decompose matrix: \n"
+                          << shape << std::endl
+                          << "Decomposition is \n"
+                          << decomposition << std::endl
+                          << "with trace " << tr << std::endl
+                          << "symmetric \n"
+                          << sym << std::endl
+                          << "and anti-symmetric \n"
+                          << asym << std::endl
+                          << "components.\n";
+            }
+            BOOST_TEST(test_decomposition);
+
+            auto [A, q, r, Theta] = am.interpretation(shape);
+            arma::mat22 interpretation = (
+                sqrt(A) * arma::expmat(q)
+                * arma::mat22({{cos(Theta), -sin(Theta)},
+                               {sin(Theta),  cos(Theta)}}));
+            bool test_interpretation = arma::approx_equal(
+                    shape, interpretation,
+                    "absdiff", 1.e-10
+            );
+            if (not test_interpretation) {
+                std::cout << "Shape interpretation failed! \n Shape is \n"
+                          << shape << std::endl
+                          << " and interpretation is \n"
+                          << interpretation << std::endl
+                          << "with area " << A
+                          << " axis ratio " << r
+                          << " and rotation angle " << Theta;
+
+            }
+            BOOST_TEST(test_interpretation);
+            BOOST_CHECK_CLOSE(A, area, 1.e-6);
+            BOOST_CHECK_CLOSE(r, ratio, 1.e-6);
+            BOOST_CHECK_SMALL(
+                (  std::fmod(theta - Theta + 7 * M_PI / 3., 2. * M_PI / 3.)
+                 - M_PI / 3.),
+                1.e-8);
+            // NOTE shift both to avoid comparison 0 == 2 * M_PI
+
+            return true;
+        };
+
+        std::function<bool(SpaceVec, SpaceVec, SpaceVec, double, double, double,
+                           std::string)>
+        test_triangle = [am, _test_triangle](SpaceVec a, SpaceVec b, SpaceVec c,
+                             double area, double ratio, double theta,
+                             std::string message = "")
+        {
+            return _test_triangle(a, b, c, area, ratio, theta, message,
+                                  a, b, c);
+        };
+
+        // the equilateral triangle
+        SpaceVec a({0., 0.}); 
+        SpaceVec b({1., 0.});
+        SpaceVec c({0.5, sqrt(3) / 2.});
+        
+
+        // the expected outcome
+        double _A = 1.;
+        double _r = 1.;
+        double _theta = 0.;
+
+        BOOST_TEST(test_triangle(a, b, c, _A, _r, _theta, "equilateral"));
+        BOOST_TEST(_test_triangle(b, c, a, _A, _r, _theta, "equilateral swap",
+                                  a, b, c));
+        BOOST_TEST(_test_triangle(c, a, b, _A, _r, _theta, "equilateral swap 2",
+                                  a, b, c));
+        BOOST_TEST(_test_triangle(a, c, b, _A, _r, _theta, "equilateral swap 3",
+                                  a, b, c));
+
+
+        // shift that barycenter is at origin
+        SpaceVec shift = (a + b + c) / 3.;
+        a -= shift;
+        b -= shift;
+        c -= shift;
+
+        BOOST_TEST(test_triangle(a, b, c, _A, _r, _theta, "shift"));
+
+
+        // rotate triangle
+        std::size_t N_rot = 13;
+        for (std::size_t i = 0; i < N_rot; i++) {
+            double rotate = 2 * M_PI / N_rot;
+            arma::mat22 rot({{cos(rotate), -sin(rotate)},
+                             {sin(rotate),  cos(rotate)}});
+
+            a = rot * a;    
+            b = rot * b;
+            c = rot * c;
+
+            _theta += rotate;
+            
+            // ensure c uppermost vertex
+            if (_theta < M_PI / 3. or _theta > 2 * M_PI - M_PI / 3.) {
+                BOOST_TEST(test_triangle(a, b, c, _A, _r, _theta,
+                                         fmt::format("rotate {}", _theta)));
+            }
+            else if (_theta < 3 * M_PI / 3.) {
+                BOOST_TEST(_test_triangle(a, b, c, _A, _r, _theta,
+                                          fmt::format("rotate {}", _theta),
+                                          c, a, b));
+            }
+            else {
+                BOOST_TEST(_test_triangle(a, b, c, _A, _r, _theta,
+                                          fmt::format("rotate {}", _theta),
+                                          b, c, a));
+            }
+        }
+
+
+        // scale by 2
+        a = 2 * a;
+        b = 2 * b;
+        c = 2 * c;
+
+        _A *= 4;
+
+        BOOST_TEST(test_triangle(a, b, c, _A, _r, _theta, "scale"));
+
+
+        // reset 
+        a /= 2.;
+        b /= 2.;
+        c /= 2.;
+        _A = 1.;
+        _r = 1.;
+        _theta = 0.;
+        BOOST_TEST(test_triangle(a, b, c, _A, _r, _theta, "reset"));
+
+
+        // squeeze
+        a = SpaceVec({a[0], a[1] / 2.});
+        b = SpaceVec({b[0], b[1] / 2.});
+        c = SpaceVec({c[0], c[1] / 2.});
+        _A /= 2.;
+        _r *= 2.;
+        _theta = 0.;
+
+
+        // rotate
+        for (std::size_t i = 0; i < N_rot; i++) {
+            double rotate = 2 * M_PI / N_rot;
+            arma::mat22 rot({{cos(rotate), -sin(rotate)},
+                             {sin(rotate),  cos(rotate)}});
+
+            a = rot * a;    
+            b = rot * b;
+            c = rot * c;
+
+            _theta += rotate;
+            
+            // ensure c uppermost vertex
+            if (c[1] > a[1] and c[1] > b[1]) {
+                BOOST_TEST(test_triangle(a, b, c, _A, _r, _theta,
+                                         fmt::format("rotate {}", _theta)));
+            }
+            else if (b[1] > a[1] and b[1] > c[1]) {
+                BOOST_TEST(_test_triangle(a, b, c, _A, _r, _theta,
+                                          fmt::format("rotate {}", _theta),
+                                          c, a, b));
+            }
+            else {
+                BOOST_TEST(_test_triangle(a, b, c, _A, _r, _theta,
+                                          fmt::format("rotate {}", _theta),
+                                          b, c, a));
+            }
+        }
+    }
+
+    BOOST_AUTO_TEST_CASE(test_cell_elongation) {
+        using SpaceVec = PCPVertex::SpaceVec;
+
+        Fixture<true> fixture;
+        auto& model = fixture.vertex_model;
+        model.prolog();
+
+        const auto& am = model.get_am();
+
+        // for a cell
+        auto cell = am.cells()[0];
+        // NOTE cell is from initialisation a hexagon
+
+        double _theta = 0.;
+        double _r = 1.;
+
+        am.get_logger()->debug("Testing shape of cell {} ..", cell->id());
+
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            auto a = edge->custom_links().a;
+            auto b = edge->custom_links().b;
+            if (flip) { std::swap(a, b); }
+        }
+
+        std::function<bool(
+            const std::shared_ptr<typename PCPVertex::Cell>&,
+            double, double,
+            std::string)>
+        test_elongation_of =
+        [am](const auto& cell, double _r, double _theta,
+             std::string message = "")
+        {
+            am.get_logger()->debug(message);
+
+            arma::mat22 elongation = am.elongation_of(cell);
+            SpaceVec tmp = elongation.col(0);
+            double theta;
+            if (fabs(tmp[0]) < 1.e-12) {
+                if (tmp[1] > 1.e-12) {
+                    theta = M_PI_2;
+                }
+                else {
+                    theta = 3 * M_PI_2;
+                }
+            }
+            else if (tmp[0] > 1.e-12) {
+                theta = std::fmod(atan(tmp[1] / tmp[0]) + 2 * M_PI, 2 * M_PI);
+            }
+            else {
+                if (tmp[1] > 0.) {
+                    theta = M_PI - atan(- tmp[1] / tmp[0]);
+                }
+                else  {
+                    theta = M_PI + atan(tmp[1] / tmp[0]);
+                }
+            }
+
+            double r = exp(2*sqrt(arma::trace(elongation * elongation.t())/2.));
+
+            BOOST_CHECK_CLOSE(r, _r, 1);
+            // TODO error of 1 % might be to big for this problem !!!!
+            
+            if (fabs(1. - r) > 1.e-4) {
+                theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
+                _theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
+                if (  std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2
+                    > 1.e-3)
+                {
+                    am.get_logger()->error("angle of cell {} does not "
+                                           "correspond to expected angle {}",
+                                           theta, _theta);
+                }
+                BOOST_CHECK_SMALL(
+                    std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2,
+                    1.e-3);
+            }
+
+            return true;
+        };
+
+        // pure shear domain
+        SpaceVec stretch({0., 0.});
+        SpaceVec domain0 = model.get_space()->get_domain_size();
+        SpaceVec domain = model.get_space()->get_domain_size();
+        test_elongation_of(cell, _r, _theta, fmt::format("stretch ({}, {})",
+                                                     stretch[0], stretch[1]));
+        for (std::size_t i = 0; i < 4; i++) {
+            SpaceVec _stretch({0.2, -0.2});
+            model.stretch_domain(_stretch, false, false, false);
+            stretch += _stretch;
+            domain = model.get_space()->get_domain_size();
+            _r = domain[0] / domain[1] / (domain0[0] / domain0[1]);
+            test_elongation_of(cell, _r, _theta, fmt::format("stretch ({}, {})",
+                                                         stretch[0],
+                                                         stretch[1]));
+        }
+
+
+        // isotropic expansion
+        for (std::size_t i = 0; i < 4; i++) {
+            SpaceVec _stretch = 0.01 * model.get_space()->get_domain_size();
+            model.stretch_domain(_stretch, false, false, false);
+            stretch += _stretch;
+            domain = model.get_space()->get_domain_size();
+            test_elongation_of(cell, _r, _theta, fmt::format("expand ({}, {})",
+                                                             stretch[0],
+                                                             stretch[1]));
+        }
+
+        model.get_space()->set_domain_size(domain0);
+        _r = 1.;
+        _theta = 0.;
+        test_elongation_of(cell, _r, _theta, "reset.");
+
+
+        // simple shear domain
+        double skew = 0.;
+        domain = model.get_space()->get_domain_size();
+        for (std::size_t i = 0; i < 5; i++) {
+            double _skew = 0.25;
+            skew += _skew;
+            for (const auto& vertex : am.vertices()) {
+                SpaceVec pos = am.position_of(vertex);
+                SpaceVec displ({_skew * pos[1] / domain[1], 0.});
+                am.move_by(vertex, displ);
+            }
+            model.get_space()->set_skew(SpaceVec({skew, 0.}));
+            BOOST_CHECK_CLOSE(am.area_of(cell), 1., 1.e-2);
+
+            _theta = asin(skew);
+            _r = sqrt(  (std::pow(domain[0] + skew, 2) + std::pow(domain[1], 2))
+                      / (std::pow(domain[0] - skew, 2) + std::pow(domain[1], 2))
+                     );
+
+            test_elongation_of(cell, _r, _theta, fmt::format("skew {}", skew));
+        }
+
+
+        // check on entire domain
+        double dual_area = 0.;
+        arma::mat22 av_q = arma::zeros(2, 2);
+
+        arma::mat22 q_ref = am.elongation_of(cell);
+        for (const auto& cell : am.cells()) {
+            arma::mat22 q = am.elongation_of(cell);            
+            double area = arma::det(q);
+
+            dual_area += area;
+            BOOST_TEST(arma::approx_equal(q_ref, q, "absdiff", 1.e-4));
+
+            av_q += area * q;
+        }
+        av_q /= dual_area;
+
+        
+        SpaceVec tmp = av_q.col(0);
+        double theta;
+        if (fabs(tmp[0]) < 1.e-12) {
+            if (tmp[1] > 1.e-12) {
+                theta = M_PI_2;
+            }
+            else {
+                theta = 3 * M_PI_2;
+            }
+        }
+        else if (tmp[0] > 1.e-12) {
+            theta = std::fmod(atan(tmp[1] / tmp[0]) + 2 * M_PI, 2 * M_PI);
+        }
+        else {
+            if (tmp[1] > 0.) {
+                theta = M_PI - atan(- tmp[1] / tmp[0]);
+            }
+            else  {
+                theta = M_PI + atan(tmp[1] / tmp[0]);
+            }
+        }
+
+        double r = exp(2*sqrt(arma::trace(av_q * av_q.t())/2.));
+
+        BOOST_CHECK_CLOSE(r, _r, 1);
+        // TODO error of 1 % might be to big for this problem !!!!
+        
+        if (fabs(1. - r) > 1.e-4) {
+            theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
+            _theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
+            if (  std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2
+                > 1.e-3)
+            {
+                am.get_logger()->error("angle of cell {} does not "
+                                        "correspond to expected angle {}",
+                                        theta, _theta);
+            }
+            BOOST_CHECK_SMALL(
+                std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2, 
+                1.e-5);
+        }
     }
 
 BOOST_AUTO_TEST_SUITE_END()

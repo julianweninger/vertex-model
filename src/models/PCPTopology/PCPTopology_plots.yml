@@ -514,6 +514,19 @@ equilibrium_cellular_structure__area:
 
   property: {property: area}
 
+equilibrium_cellular_structure__elongation:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+
+  vector_property_is_nematic: True
+
+  vector_property:
+    x: {property: q_x}
+    y: {property: q_y}
+  vector_property_kwargs:
+    scale: 0.75
+    headwidth: 1
+    headlength: 1.
 
 equilibrium_cellular_structure__area_elasticity:
   based_on: equilibrium_cellular_structure

@@ -486,6 +486,24 @@ auto cells_adaptor = std::make_tuple(
                            return cell->state.polarity();
                        });
 
+        std::vector<SpaceVec> qs;
+        std::transform(cells.begin(), cells.end(), std::back_inserter(qs),
+                       [am](const auto& c) {
+                           arma::mat22 q = am.elongation_of(c);
+
+                           // is q_xx positive
+                           if (q[0] > 0) {
+                               // return (q_xx, q_xy)
+                               return SpaceVec({q[0], q[1]});
+                           }
+                           else {
+                               // return (q_yx, q_yy)
+                               return SpaceVec({q[2], q[3]});
+                           }
+                       });
+        dataset->write(qs.begin(), qs.end(), [](auto&& q) { return q[0]; });
+        dataset->write(qs.begin(), qs.end(), [](auto&& q) { return q[1]; });
+
         dataset->write(
             cells.begin(), cells.end(),
             [am](const auto& cell) {
@@ -496,7 +514,7 @@ auto cells_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {13, m.get_am().cells().size()});
+            {15, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -520,6 +538,8 @@ auto cells_adaptor = std::make_tuple(
                     "hexatic_order",
                     "rotation",
                     "polarity",
+                    "q_x",
+                    "q_y",
                     "is_boundary"
                 }));
         hdfdataset->add_attribute("dim_name__1", "id");
