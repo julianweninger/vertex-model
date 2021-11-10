@@ -375,9 +375,9 @@ private:
                         build_set_area(name, op_cfg,
                                        _minimization_params));
                 }
-                else if (name == "set_boundary_parameter") {
+                else if (name == "update_boundary_parameter") {
                     _operations.push_back(
-                        build_set_boundary_parameter(
+                        build_update_boundary_parameter(
                             name, op_cfg, _minimization_params));
                 }
                 else if (name == "set_torque") {
@@ -417,7 +417,7 @@ private:
                             "pure_shear, "
                             "relax_area, "
                             "set_area, "
-                            "set_boundary_parameter, "
+                            "update_boundary_parameter, "
                             "set_torque, "
                             "simple_shear, "
                             "void."));

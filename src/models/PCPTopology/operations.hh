@@ -2270,7 +2270,7 @@ OperationBundle build_set_area (
     return std::make_pair(operation, params);
 }
 
-OperationBundle build_set_boundary_parameter (
+OperationBundle build_update_boundary_parameter (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
@@ -2280,7 +2280,7 @@ OperationBundle build_set_boundary_parameter (
 
     Operation operation = [boundary_cfg] (PCPVertex& vertex_model)
     {
-        vertex_model.set_boundary_parameter(boundary_cfg);
+        vertex_model.update_boundary_parameter(boundary_cfg);
     };
 
     return std::make_pair(operation, params);

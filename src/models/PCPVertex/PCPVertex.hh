@@ -535,18 +535,49 @@ private:
             shape_index_preferential(get_as<double>("shape_index_preferential",
                                                     cfg)),
             
-            // NOTE use operations to update
-            stripe_potential_constant(0.),
-            stripe_width(0.),
-            stripe_curvature(0.),
+            stripe_potential_constant(get_as<double>(
+                "stripe_potential_constant", cfg,
+                0.)),
+            stripe_width(get_as<double>(
+                "stripe_width", cfg,
+                std::numeric_limits<double>::max())),
+            stripe_curvature(get_as<double>(
+                "stripe_curvature", cfg,
+                std::numeric_limits<double>::max())),
             stripe_curvature_center(
                 get_as<double>("stripe_curvature_center", cfg, 0.5)),
-
             stripe_origin(nullptr),
 
             fix_boundary(get_as<bool>("fix_boundary", cfg, false))
         { }
 
+        void update (const Config& cfg) {
+            area_elasticity = get_as<double>(
+                "area_elasticity", cfg,
+                area_elasticity);
+            _area_preferential = get_as<double>(
+                "_area_preferential", cfg,
+                _area_preferential);
+            contractility = get_as<double>(
+                "contractility", cfg,
+                contractility);
+            shape_index_preferential = get_as<double>(
+                "shape_index_preferential", cfg,
+                shape_index_preferential);
+
+            stripe_potential_constant = get_as<double>(
+                "stripe_potential_constant", cfg,
+                stripe_potential_constant);
+            stripe_width = get_as<double>(
+                "stripe_width", cfg,
+                stripe_width);
+            stripe_curvature = get_as<double>(
+                "stripe_curvature", cfg,
+                stripe_curvature);
+            fix_boundary = get_as<bool> (
+                "fix_boundary", cfg,
+                fix_boundary);
+        }
     } _boundary_param;
 
 
@@ -1616,6 +1647,16 @@ public:
         this->_monitor.set_entry("energy_change",
                                  get_rel_energy_change(_energy,
                                                        _energy_previous_step));
+
+        if (not _space->periodic) {
+            double area = 0.;
+            double area_0 = 0.;
+            for (const auto& cell : _am.cells()) {
+                area += _am.area_of(cell);
+                area_0 += cell->state._area_preferential;
+            }
+            this->_monitor.set_entry("pressure", std::pow(area - area_0, 2));
+        }
     }
 
     /// Minimize the energy
@@ -2162,9 +2203,9 @@ public:
         }
     }
 
-    /// Setter for boundary parameter
-    void set_boundary_parameter (const Config& cfg) {
-        _boundary_param = BoundaryParam(cfg);
+    /// Updater for boundary parameter
+    void update_boundary_parameter (const Config& cfg) {
+        _boundary_param.update(cfg);
     }
 
     /// Setter for fixed boundary
@@ -2265,6 +2306,7 @@ public:
             // NOTE use before:
             // set_stripe_boundary_parameters(potential_constant, stripe_width)
         }
+        init_stripe_boundary();
 
         _boundary_param.stripe_potential_constant = potential_constant;
 
