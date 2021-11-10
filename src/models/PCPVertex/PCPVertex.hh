@@ -522,7 +522,7 @@ private:
          *       prevent macroscopic cell flows when always defining wrt 
          *       cell center
          */
-        std::shared_ptr<SpaceVec> stripe_origin = nullptr;
+        std::shared_ptr<SpaceVec> stripe_origin;
 
         /// Whether to fix all vertices of the boundary in space
         bool fix_boundary;
@@ -539,6 +539,10 @@ private:
             stripe_potential_constant(0.),
             stripe_width(0.),
             stripe_curvature(0.),
+            stripe_curvature_center(
+                get_as<double>("stripe_curvature_center", cfg, 0.5)),
+
+            stripe_origin(nullptr),
 
             fix_boundary(get_as<bool>("fix_boundary", cfg, false))
         { }

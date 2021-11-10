@@ -1016,10 +1016,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         op_diff(vertex_model);
 
         const auto& cells = vertex_model.get_am().cells();
-        double area = 0.;
         double area_hc = 0;
         for (const auto& c : cells) {
-            area += c->state.area_preferential();
             if (c->state.type == CellType::hair) {
                 area_hc += c->state.area_preferential();
             }
@@ -1055,10 +1053,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         op_diff(vertex_model);
 
         const auto& cells = vertex_model.get_am().cells();
-        double area = 0.;
         double area_sc = 0;
         for (const auto& c : cells) {
-            area += c->state.area_preferential();
             if (c->state.type == CellType::support) {
                 area_sc += c->state.area_preferential();
             }

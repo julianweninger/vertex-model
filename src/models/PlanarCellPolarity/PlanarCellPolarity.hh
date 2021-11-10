@@ -235,16 +235,6 @@ private:
                 "initialization!");
         }
 
-        for (const auto& cell : _cm.cells()) {
-            double cum_sigma = 0.;
-            double cum_sigma_2 = 0.;
-            for (const auto& e_pair : cell->custom_links().edges) {
-                double sigma = std::get<0>(get_polarity_proteins(e_pair));
-                cum_sigma += sigma;
-                cum_sigma_2 += std::pow(sigma, 2);
-            }
-        }
-
 
         this->_log->info("Initialized all cells with constant protein level "
                          "and no net polarization.");
@@ -291,18 +281,6 @@ private:
                 }
                 polarity_proteins[edge] = std::make_pair(sigma_a, sigma_b);
             }
-            
-                double cum_sigma = 0.;
-                for (const auto& [edge, flip] : cell->custom_links().edges) {
-                    double sigma;
-                    if (not flip) { 
-                        sigma = std::get<0>(polarity_proteins[edge]);
-                    }
-                    else { 
-                        sigma = std::get<1>(polarity_proteins[edge]);
-                    }
-                    cum_sigma += sigma;
-                }
         }
     }
 
