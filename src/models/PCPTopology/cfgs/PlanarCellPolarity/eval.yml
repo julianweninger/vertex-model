@@ -94,13 +94,28 @@ cell_segmentation:
     x: {property: polarity_x}
     y: {property: polarity_y}
   vector_property_path: PlanarCellPolarity/Cells
-  # vector_property_kwargs: ~
-    
-
-cell_segmentation__polarity:
+  
+cell_segmentation__elongation:
   based_on:
     - .default_style_and_helpers
     - cellular_structure
+  enabled: true
+
+  vector_property_is_nematic: True
+
+  vector_property:
+    x: {property: q_x}
+    y: {property: q_y}
+  vector_property_kwargs:
+    scale: 0.75
+    headwidth: 1
+    headlength: 1.    
+
+cell_segmentation__cell_polarity:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+  enabled: false
 
   property_path: PlanarCellPolarity/Cells
   property: {property: pcp_net_polarity}
@@ -110,6 +125,7 @@ cell_segmentation__polarity:
   property_interpolation_plot_kwargs:
     cmap: Reds
 
-cell_segmentation__proteins:
+cell_segmentation__protein_level:
   based_on: cell_segmentation__polarity
   property: {property: pcp_proteins}
+  enabled: false

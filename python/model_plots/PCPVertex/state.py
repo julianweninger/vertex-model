@@ -132,6 +132,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        vector_property: dict=None,
                        vector_property_path: str=None,
                        vector_property_kwargs: dict=None,
+                       vector_property_is_nematic: bool=False,
                        vector_property_hair_cells_only: bool=False,
                        vector_property_support_cells_only: bool=False,):
     """Performs a plot of the cells, edges and vertices
@@ -636,12 +637,17 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     prop_x_data = prop_x_data.where(cell_type == 2)
                     prop_y_data = prop_y_data.where(cell_type == 2)
 
-                _v_property_kwargs = dict(angles='xy', scale_units='xy', scale=3.)
+                _v_property_kwargs = dict(angles='xy', scale_units='xy',
+                                          scale=3.)
                 if vector_property_kwargs:
                     _v_property_kwargs.update(vector_property_kwargs)
 
                 hlpr.ax.quiver(x, y, prop_x_data, prop_y_data,
                                **_v_property_kwargs)
+                if vector_property_is_nematic:
+                    hlpr.ax.quiver(x, y, -prop_x_data, -prop_y_data,
+                                **_v_property_kwargs)
+
 
 
 
