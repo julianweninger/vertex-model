@@ -3,11 +3,11 @@
 # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
   # Variables for docker images
-  BASE_IMAGE: blsqr/brewtopia:latest
-  TEST_IMAGE: blsqr/brewtopia-models:latest
+  BASE_IMAGE: julianweninger/brewtopia:latest
+  TEST_IMAGE: julianweninger/brewtopia-models:latest
 
   # Docker Hub login command
-  DOCKER_HUB_LOGIN: docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_PW
+  DOCKER_HUB_LOGIN: docker login -u $DOCKER_USER -p $DOCKER_PW
   # NOTE Both variables here are secret and protected variables. While the
   #      login command will complain, using --password-stdin actually EXPOSES
   #      the variable! No no.
@@ -64,13 +64,17 @@ workflow:
 
 # Use the Docker-in-Docker executor and services, log into Docker Hub
 .dind: &dind
-  image: docker:stable
+  image: docker:20-dind
   tags:
     - dind
   services:
-    - docker:dind
-  variables:
+    - name: docker:20-dind
+      alias: docker
+      command: ["--tls=false"]
+  variables: &dind_variables
     DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   before_script:
     - $DOCKER_HUB_LOGIN
 
@@ -94,6 +98,7 @@ update:brewtopia:
   stage: update
   timeout: 2h
   variables:
+    <<: *dind_variables
     BUILD_BREWTOPIA: "false"
   rules:
     - if: '$BUILD_BREWTOPIA == "true" && $CI_COMMIT_BRANCH == "master"'
@@ -103,6 +108,7 @@ update:brewtopia:
     - docker build -f docker/brewtopia.Dockerfile
                    -t ${BASE_IMAGE}
                    ./
+    - docker push ${BASE_IMAGE}
 
 # .. brewtopia-models: the testing image
 # This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
@@ -110,8 +116,8 @@ update:brewtopia:
 update:brewtopia-models:
   <<: *dind
   stage: update
-  allow_failure: true
   variables:
+    <<: *dind_variables
     BUILD_BREWTOPIA_MODELS: "false"
   rules:
     - if: '$BUILD_BREWTOPIA_MODELS == "true"'
@@ -124,6 +130,7 @@ update:brewtopia-models:
                    --build-arg BASE_IMAGE=${BASE_IMAGE}
                    -t ${TEST_IMAGE}
                    ./
+    - docker push ${TEST_IMAGE}
 
 
 # -- Preparation stage --------------------------------------------------------
@@ -135,7 +142,7 @@ prep:framework:
   script:
     # Create a build directory and run cmake
     - cd $CI_PROJECT_DIR && mkdir build && cd build
-    - cmake -DCPP_COVERAGE=On ..
+    - cmake -DCPP_COVERAGE=On -DHDF5_ROOT=$(brew --prefix hdf5) ..
 
     # Show available models
     - $RUN_IN_UTOPIA_ENV utopia models ls
@@ -176,6 +183,7 @@ build:debug: &build_debug
     - cmake
         -DCMAKE_BUILD_TYPE=Debug
         -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
+        -DHDF5_ROOT=$(brew --prefix hdf5)
       ..
 
 build:debug-clang:
@@ -190,6 +198,7 @@ build:debug-clang:
         -DCMAKE_C_COMPILER=clang
         -DCMAKE_CXX_COMPILER=clang++
         -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
+        -DHDF5_ROOT=$(brew --prefix hdf5)
       ..
 
 build:docs:
