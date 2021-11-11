@@ -1652,42 +1652,47 @@ OperationBundle build_iterate_pcp (
  *              throws.
  *      - `angle_distribution` (pair(double, double), optional): The mean and 
  *              stddev of a normal distribution for the angle of cell division 
- *              axis. Scaled by Pi / 2, i.e. random value of 1 corresponds to
- *              vertical division. If not provided (or stddev < 1.e-11), a
+ *              axis. In rad units [0, PI]. If not provided (or stddev < 1.e-11), a
  *              uniform distribution [0, Pi] is used, i.e. no preferential
  *              axis.
  */
+template<typename Logger>
 OperationBundle build_proliferate (
         std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Logger> logger,
+        std::function<void()> monitor = [](){ })
 {
     OperationParams params(name, cfg, default_minim_params);
-    
-    auto num_increases(get_as<std::size_t>("num_increases", cfg));
-    MinimizationParams minimization_after_increase(
-        get_as<Config>("minimization_after_increase", cfg, Config()),
-        params.minimization_params);
 
-    auto threshold(get_as<double>("area_threshold", cfg, 0.5));
-    
+    // Cells are picked from oldest generation at random
+    // As the id of any new cell is incremented wrt youngest cell
+    // this keeps track of the youngest cell of the oldest generation
     auto generation_max_id = std::make_shared<std::size_t>(0);
 
+    // In how many steps to double area
+    auto num_increases(get_as<std::size_t>("num_increases", cfg));
+    MinimizationParams minimization_after_increase = params.minimization_params;
+    if (num_increases > 0) {
+        minimization_after_increase = MinimizationParams(
+            get_as<Config>("minimization_after_increase", cfg),
+            params.minimization_params);
+    }
+    
+    // The minimum area for division (relative to 2 * A_0)
+    auto threshold(get_as<double>("area_threshold", cfg));
+
+    // A distribution of division angles in rad
     auto [mean, stddev] = get_as<std::pair<double, double>>(
         "angle_distribution", cfg, std::make_pair(0., 1.e-12));
+    stddev = std::max(stddev, 1.e-12);
+    std::normal_distribution<double> normal_distr(mean, stddev);
+    std::uniform_real_distribution<double> uniform_distr(0., M_PI);
 
-
-    std::normal_distribution<double> normal_distr(mean,
-                                                  std::max(stddev, 1.e-12));
-    if (stddev > 1.e-11) {
-        normal_distr = std::normal_distribution<double>(mean, stddev);
-    }
-
-    std::uniform_real_distribution<double> prob_distr(0.,1.);
-
-    Operation operation = [num_increases, minimization_after_increase,
-                           threshold, generation_max_id,
-                           prob_distr{std::move(prob_distr)},
-                           normal_distr{std::move(normal_distr)}, params]
+    Operation divide_cell = [num_increases, minimization_after_increase,
+                             threshold, generation_max_id,
+                             uniform_distr{std::move(uniform_distr)},
+                             normal_distr{std::move(normal_distr)}, params]
             (PCPVertex& vertex_model) mutable
     {
         using Cell = typename PCPVertex::Cell;
@@ -1695,6 +1700,8 @@ OperationBundle build_proliferate (
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
 
+        // The cells of the oldest generation
+        // i.e. all cells that have an id smaller than the max_id
         AgentContainer<Cell> current_generation(cells.size());
         auto it = std::copy_if (cells.begin(), cells.end(),
                                 current_generation.begin(),
@@ -1711,13 +1718,7 @@ OperationBundle build_proliferate (
             
             current_generation.clear();
             current_generation.resize(cells.size());
-            auto it = std::copy_if (cells.begin(), cells.end(),
-                        current_generation.begin(),
-                        [generation_max_id, am](const auto& cell){
-                            return (cell->id() < *generation_max_id);
-                        } );
-            current_generation.resize(
-                std::distance(current_generation.begin(), it));
+            std::copy(cells.begin(), cells.end(), current_generation.begin());
         }
 
         std::uniform_int_distribution<> int_dist(
@@ -1753,14 +1754,48 @@ OperationBundle build_proliferate (
 
         double angle;
         if (normal_distr.stddev() > 1.e-11) {
-            angle = normal_distr(*vertex_model.get_rng()) * PI / 2.;
+            angle = normal_distr(*vertex_model.get_rng());
         }
         else {
-            angle = prob_distr(*vertex_model.get_rng()) * PI;
+            angle = uniform_distr(*vertex_model.get_rng());
         }
-        vertex_model.divide_cell(cell, angle);        
+        vertex_model.divide_cell(cell, angle);
     };
+    std::size_t add_minimizations = (  minimization_after_increase.num_repeat
+                                     * num_increases);
 
+
+    Operation operation;
+    auto num_divs = get_as<std::size_t>("num_cells", cfg, 1);
+    if (num_divs > 1) {
+        bool minimize = get_as<bool>("minimize_after_division", cfg);
+        MinimizationParams minimization_after_division = params.minimization_params;
+        if (minimize) {
+            minimization_after_division = MinimizationParams(
+                get_as<Config>("minimization_after_division", cfg),
+                params.minimization_params);
+            add_minimizations += minimization_after_division.num_repeat;
+        }
+        operation = [num_divs, minimization_after_division, minimize,
+                     divide_cell, logger, monitor]
+                    (PCPVertex& vertex_model)
+        {
+            logger->debug(" Proliferating {} cells ...", num_divs);
+            for (std::size_t i = 0; i < num_divs; i++) {
+                divide_cell(vertex_model);
+                if (minimize) {
+                    vertex_model.minimize_energy(minimization_after_division,
+                                                 monitor);
+                }
+            }
+        };
+        add_minimizations *= num_divs;
+    }
+    else {
+        operation = divide_cell;
+    }
+
+    params.add_num_minimisations = add_minimizations;
     return std::make_pair(operation, params);
 }
 
@@ -1782,7 +1817,7 @@ OperationBundle build_proliferate (
  *              throws.
  */
 template<typename Logger>
-OperationBundle build_proliferate_quick_and_dirty (
+OperationBundle build_proliferate_generations (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params,
         std::shared_ptr<Logger> logger = nullptr,
@@ -1790,6 +1825,13 @@ OperationBundle build_proliferate_quick_and_dirty (
 {
     OperationParams params(name, cfg, default_minim_params);
 
+    auto num_generations = get_as<std::size_t>("num_generations", cfg);
+
+    MinimizationParams minimization_between_generations(
+        get_as<Config>("minimization_between_generations", cfg),
+        params.minimization_params);
+
+    // How to do the single cell division
     Config cfg_proliferation;
     cfg_proliferation["num_increases"] = 0;
     cfg_proliferation["area_threshold"] = 0.;
@@ -1800,48 +1842,56 @@ OperationBundle build_proliferate_quick_and_dirty (
     cfg_proliferation["times"] = std::vector<std::size_t>({});
 
     auto op_pair = build_proliferate(
-        "proliferate", cfg_proliferation, default_minim_params);
+        "proliferate", cfg_proliferation, minimization_between_generations,
+        logger, monitor);
     auto proliferate = std::get<0>(op_pair);
 
-    MinimizationParams minimization_quick(
-        get_as<Config>("minimization_quick", cfg),
-        params.minimization_params);
 
-    auto target_num_cells = get_as<std::size_t>("target_num_cells", cfg);
-
-    params.add_num_minimisations = (  minimization_quick.num_repeat
-                                    * std::ceil(std::log2(
-                                            std::ceil(target_num_cells/ 16.))));
-
-    Operation operation = [proliferate, target_num_cells, minimization_quick,
-                           logger, monitor]
+    Operation operation = [proliferate, num_generations,
+                           minimization_between_generations, logger, monitor]
             (PCPVertex& vertex_model)
     {
+        if (not vertex_model.get_space()->periodic) {
+            throw std::runtime_error("Proliferation of cells in generations "
+                                     "is not suitable for non-periodic space!");
+        }
+
         const auto& cells = vertex_model.get_am().cells();
 
-        std::size_t max_iterations = std::ceil(std::log2(
-            std::ceil(target_num_cells / cells.size()))) + 1;
+        logger->info("Proliferating {} cells in {} generations. Expecting {} "
+                     "cells after proliferation.", cells.size(),
+                     num_generations,
+                     cells.size() * std::pow(2, num_generations));
+        if (cells.size() * std::pow(2, num_generations) > 512) {
+            logger->warn("Expecting {} > 512 cells after proliferation "
+                         "in {} generations. This might take a while ..",
+                         cells.size() * std::pow(2, num_generations),
+                         num_generations);
 
-        auto num_cells = cells.size();
-        std::size_t cnt_iterations = 0;
-        while (    num_cells < target_num_cells
-               and cnt_iterations++ < max_iterations)
-        {
-            logger->debug("Proliferating {} cells and minimizing energy ...",
-                          num_cells);
-            for (std::size_t i = num_cells; (    i < 2 * num_cells
-                                             and i < target_num_cells); i++)
+        }
+        for (std::size_t gen = 0; gen < num_generations; gen++) {
+            auto num_cells = cells.size();
+            logger->debug(" Proliferating generation {} of {} cells, "
+                          "then minimizing energy ...", gen, num_cells);
+            for (std::size_t i = 0; i < num_cells; i++)
             {
                 proliferate(vertex_model);
             }
 
-            logger->trace(" There are {} cells after proliferation. "
-                          "Minimizing energy now ...", cells.size());
-            vertex_model.minimize_energy(minimization_quick, monitor);
-
-            num_cells = cells.size();
+            if (gen + 1 < num_generations) {
+                logger->trace("  There are {} cells after proliferation. "
+                            "Minimizing energy now", cells.size());
+                vertex_model.minimize_energy(minimization_between_generations,
+                                             monitor);
+            }
         }
+
+        logger->info("There are {} cells after proliferation.", cells.size());
     };
+
+    params.add_num_minimisations = (
+          minimization_between_generations.num_repeat
+        * std::max(static_cast<int>(num_generations) - 1, 0));
 
     return std::make_pair(operation, params);
 }
@@ -2220,7 +2270,7 @@ OperationBundle build_set_area (
     return std::make_pair(operation, params);
 }
 
-OperationBundle build_set_boundary_parameter (
+OperationBundle build_update_boundary_parameter (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
@@ -2230,7 +2280,7 @@ OperationBundle build_set_boundary_parameter (
 
     Operation operation = [boundary_cfg] (PCPVertex& vertex_model)
     {
-        vertex_model.set_boundary_parameter(boundary_cfg);
+        vertex_model.update_boundary_parameter(boundary_cfg);
     };
 
     return std::make_pair(operation, params);

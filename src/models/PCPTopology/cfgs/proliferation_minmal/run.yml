@@ -26,6 +26,7 @@ parameter_space:
           num_increases: 4
           area_threshold: 0.
 
+          minimization_after_increase: ~
           minimization: ~     # use default
 
     data_manager:

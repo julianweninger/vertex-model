@@ -353,11 +353,12 @@ private:
                 }
                 else if (name == "proliferate") {
                     _operations.push_back(
-                        build_proliferate(name, op_cfg, _minimization_params));
+                        build_proliferate(name, op_cfg, _minimization_params,
+                                _log, _monitor_mngr));
                 }
-                else if (name == "proliferate_quick_and_dirty") {
+                else if (name == "proliferate_generations") {
                     _operations.push_back(
-                        build_proliferate_quick_and_dirty(name, op_cfg,
+                        build_proliferate_generations(name, op_cfg,
                                 _minimization_params,
                                 _log, _monitor_mngr));
                 }
@@ -374,9 +375,9 @@ private:
                         build_set_area(name, op_cfg,
                                        _minimization_params));
                 }
-                else if (name == "set_boundary_parameter") {
+                else if (name == "update_boundary_parameter") {
                     _operations.push_back(
-                        build_set_boundary_parameter(
+                        build_update_boundary_parameter(
                             name, op_cfg, _minimization_params));
                 }
                 else if (name == "set_torque") {
@@ -412,11 +413,11 @@ private:
                             "iterate_pcp, "
                             "jiggle, "
                             "proliferate, "
-                            "proliferate_quick_and_dirty, "
+                            "proliferate_generations, "
                             "pure_shear, "
                             "relax_area, "
                             "set_area, "
-                            "set_boundary_parameter, "
+                            "update_boundary_parameter, "
                             "set_torque, "
                             "simple_shear, "
                             "void."));

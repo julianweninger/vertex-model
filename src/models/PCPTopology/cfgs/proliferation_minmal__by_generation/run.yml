@@ -1,0 +1,69 @@
+# A minimal configuration to do cell proliferation
+# In quick and dirty during proliferation the energy is not minimized.
+# This results in a significant (~ factor 100) speed up with similar results.
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_proliferation_by_generation
+
+parameter_space:
+  num_steps: 2
+
+  PCPTopology:
+    operations:
+      - jiggle:
+          times: []
+          iterations_prolog: 1
+
+          minimization: &MinimzationQuickAndDirty
+            jiggle_intensity: 1.e-3
+            num_repeat: 5
+            tolerance: 1.e-8
+            jiggle_tolerance: 1.e-6
+
+      - proliferate_generations:
+          times: [1]
+
+          num_generations: 1
+          minimization_between_generations: ~
+
+          minimization:
+            mode: manual
+      # 32 cells
+
+      - proliferate_generations:
+          times: !listgen [2, 11]
+          num_generations: 1
+          minimization_between_generations: ~
+
+    PCPVertex:
+      log_level: warn
+
+      data_manager:
+        deciders:
+          write_interval: &interval_continuous
+            type: interval
+            args:
+              intervals:
+                - [100, 800, 100]
+        triggers:
+          build_interval: *interval_continuous
+          
+    data_manager:
+      deciders:
+        write_interval: &interval
+          type: interval
+          args:
+            intervals:
+              - [0, 12, 1]
+              - [12, 32, 4]
+              - [32, 128, 8]
+      triggers:
+        build_interval: *interval
