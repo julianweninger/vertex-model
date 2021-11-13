@@ -830,18 +830,24 @@ auto transition_adaptor = std::make_tuple(
     // writer function
     [](auto& dataset, auto& model) {
         std::vector<double> stats{};
-        stats.reserve(3);
+        stats.reserve(9);
         
         stats.push_back(model.get_num_T1s());
+        stats.push_back(model.get_T1_frequency());
+        stats.push_back(model.get_T1_frequency_accumulated());
         stats.push_back(model.get_num_T1s_attempted());
+        stats.push_back(model.get_T1_attempt_frequency());
+        stats.push_back(model.get_T1_attempt_frequency_accumulated());
         stats.push_back(model.get_num_T2s());
+        stats.push_back(model.get_T2_frequency());
+        stats.push_back(model.get_T2_frequency_accumulated());
         
         dataset->write(stats);
     },
 
     // builder function
     [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
-        return group->open_dataset("transitions", { H5S_UNLIMITED, 3 });
+        return group->open_dataset("transitions", { H5S_UNLIMITED, 9 });
     },
     
     // attribute writer for basegroup
@@ -857,8 +863,14 @@ auto transition_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__property", 
                 std::vector<std::string>({
                     "num_T1s",
+                    "T1_frequency",
+                    "T1_frequency_accumulated",
                     "num_T1s_attempted",
-                    "num_T2s"
+                    "T1_attempt_frequency",
+                    "T1_attempt_frequency_accumulated",
+                    "num_T2s",
+                    "T2_frequency",
+                    "T2_frequency_accumulated"
                 }));
     }
 ); // transitions

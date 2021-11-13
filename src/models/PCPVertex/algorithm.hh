@@ -558,8 +558,14 @@ bool PCPVertex::perform_transitions(bool enabled = true)
                         _num_T1s_attempted, this->_time);
     }
     _num_T1s_total += _num_T1s;
+    _T1_frequency_acc += _num_T1s / static_cast<double>(_am.edges().size());
+
     _num_T1s_attempted_total += _num_T1s_attempted;
+    _T1_attempt_frequency_acc += (  _num_T1s_attempted
+                                 / static_cast<double>(_am.edges().size()));
+                                 
     _num_T2s_total += _num_T2s;
+    _T2_frequency_acc += _num_T2s / static_cast<double>(_am.cells().size());
 
     return transition_occurred;
 }

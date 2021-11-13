@@ -650,17 +650,26 @@ protected:
     /// The total number of T1 transitions
     std::size_t _num_T1s_total;
 
+    /// The frequency of T1 transitions per edge since initialisation
+    double _T1_frequency_acc;
+
     /// The number of T1 transitions attempted
     std::size_t _num_T1s_attempted;
 
     /// The total number of T1 transitions attempted
     std::size_t _num_T1s_attempted_total;
+    
+    /// The frequency of attempted T1 transitions per edge since initialisation
+    double _T1_attempt_frequency_acc;
 
     /// The number of T2 transitions
     std::size_t _num_T2s;
 
     /// The total number of T2 transitions
     std::size_t _num_T2s_total;
+
+    /// The frequency of T2 transitions per cell since initialisation
+    double _T2_frequency_acc;
 
     /// A counter for the completed minimizations
     std::size_t _num_minimizations;
@@ -747,10 +756,13 @@ public:
         _energy(0.),
         _num_T1s(0),
         _num_T1s_total(0),
+        _T1_frequency_acc(0.),
         _num_T1s_attempted(0),
         _num_T1s_attempted_total(0),
+        _T1_attempt_frequency_acc(0.),
         _num_T2s(0),
         _num_T2s_total(0),
+        _T2_frequency_acc(0.),
         _num_minimizations(0)
     {
         double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
@@ -2083,15 +2095,9 @@ public:
         return _num_T1s;
     }
 
-    /// Counter for the attempted T1 neighborhood exchange transitions
-    /// in last iteration
-    std::size_t get_num_T1s_attempted() const {
-        return _num_T1s_attempted;
-    }
-
-    /// Counter for the T2 cell extrusion transitions in last iteration
-    std::size_t get_num_T2s() const {
-        return _num_T2s;
+    /// Number of T1s per edge in last iteration
+    double get_T1_frequency() const {
+        return _num_T1s / static_cast<double>(_am.edges().size());
     }
 
     /// Total counter for the T1 neighborhood exchange transitions
@@ -2099,15 +2105,52 @@ public:
         return _num_T1s_total;
     }
 
+    /// Number of T1 per edge
+    double get_T1_frequency_accumulated() const {
+        return _T1_frequency_acc;
+    }
+
+
+    /// Counter for the attempted T1 neighborhood exchange transitions
+    /// in last iteration
+    std::size_t get_num_T1s_attempted() const {
+        return _num_T1s_attempted;
+    }
+
+    /// Number of T1s attempted per edge in last iteration
+    double get_T1_attempt_frequency() const {
+        return _num_T1s_attempted / static_cast<double>(_am.edges().size());
+    }
+
     /// Total counter for the attempted T1 neighborhood exchange transitions
     std::size_t get_num_T1s_attempted_total() const {
         return _num_T1s_attempted_total;
+    }
+
+    double get_T1_attempt_frequency_accumulated() const {
+        return _T1_attempt_frequency_acc;
+    }
+
+
+    /// Counter for the T2 cell extrusion transitions in last iteration
+    std::size_t get_num_T2s() const {
+        return _num_T2s;
+    }
+
+    /// Number of T2s per cell in last iteration
+    double get_T2_frequency() const {
+        return _num_T2s / static_cast<double>(_am.cells().size());
     }
 
     /// Total counter for the T2 cell extrusion transitions
     std::size_t get_num_T2s_total() const {
         return _num_T2s_total;
     }
+
+    double get_T2_frequency_accumulated() const {
+        return _T2_frequency_acc;
+    }
+
 
     /// Counter for the energy minimizations completed
     std::size_t get_num_minimizations() const {
