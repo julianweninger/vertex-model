@@ -36,6 +36,7 @@ auto model_factory(ParentType &parent) {
         bulk_cell_stats_adaptor<typename PCPVertex::Cell>,
         bulk_hair_cell_stats_adaptor<typename PCPVertex::Cell>,
         bulk_support_cell_stats_adaptor<typename PCPVertex::Cell>,
+        interface_length_adaptor,
         // the position adaptors
         vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
         cells_adaptor<typename PCPVertex::Space::SpaceVec,

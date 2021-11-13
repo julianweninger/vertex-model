@@ -61,6 +61,7 @@ PCPTopology:
         Energy_time: {active: false, decider: write_always, trigger: build_once}
         Energy_total: {active: false, decider: write_always, trigger: build_once}
         Hair_cell_stats: {active: false, decider: write_always, trigger: build_once}
+        Interface_length: {active: false, decider: write_always, trigger: build_once}
         Statistics_time: {active: false, decider: write_always, trigger: build_once}
         Support_cell_stats: {active: false, decider: write_always, trigger: build_once}
         Vertices: {active: false, decider: write_interval, trigger: build_interval}

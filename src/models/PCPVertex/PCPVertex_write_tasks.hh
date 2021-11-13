@@ -27,7 +27,8 @@ using namespace Utopia::DataIO;
  *          - Support_cell_stats
  *          - Bulk_cell_stats
  *          - Bulk_hair_cell_stats
- *          - Bulkd_support_cell_stats
+ *          - Bulk_support_cell_stats
+ *          - Interface_length
  */
 namespace Utopia::Models::PCPVertex::DataIO{
 
@@ -1515,6 +1516,51 @@ auto bulk_support_cell_stats_adaptor = std::make_tuple(
 
     }
 ); // end bulk_support_cell_stats_adaptor
+
+/// Datamanager adaptor for length of heterotypic cell interfaces
+auto interface_length_adaptor = std::make_tuple(
+
+    // name of the task
+    "Interface_length",
+
+    // basegroup builder
+    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
+        return grp->open_group("Statistics");
+    },
+
+    // writer function
+    [](auto& dataset, auto& model) {
+        const auto& cm = model.get_am();
+        const auto& edges = cm.edges();
+
+        double L = 0.;
+        for (const auto& edge : edges) {
+            const auto [a, b] = cm.adjoints_of(edge);
+            if (not a or not b) { continue; }
+            if (a->state.type != b->state.type) {
+                L += cm.length_of(edge);
+            }
+        }
+
+        dataset->write(L);
+    },
+
+    // builder function
+    [](auto& group, [[maybe_unused]] auto& m) -> decltype(auto) {
+        return group->open_dataset("Interface_length");
+    },
+    
+    // attribute writer for basegroup
+    []([[maybe_unused]] auto& grp, [[maybe_unused]] auto& m) {}
+    ,
+
+    // attribute writer for dataset
+    [](auto& hdfdataset, [[maybe_unused]] auto& model) {
+        hdfdataset->add_attribute("dim_name__0", "time");
+        hdfdataset->add_attribute("coords_mode__time", "linked");
+        hdfdataset->add_attribute("coords__time", "Time");
+    }
+); // end interface_length_adaptor
 
 /// Datamanager adaptor for timepoints
 /** The dataset to which the other energy adaptors link their coordinate time

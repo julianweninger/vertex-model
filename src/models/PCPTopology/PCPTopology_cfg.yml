@@ -314,6 +314,7 @@ PCPVertex:
       Bulk_cell_stats: *Statistics_continuous
       Bulk_hair_cell_stats: *Statistics_continuous
       Bulk_support_cell_stats: *Statistics_continuous
+      Interface_length: *Statistics_continuous
       Statistics_time: *Statistics_continuous
 
       Vertices: &agents_continuous
@@ -375,6 +376,7 @@ data_manager:
     Bulk_support_cell_stats: *Statistics
     Cell_neighbourhood: *Statistics
     Cell_area_histogram: *Statistics
+    Interface_length: *Statistics
     Statistics_time: *Statistics
     
     Vertices: &agents_equilibrium

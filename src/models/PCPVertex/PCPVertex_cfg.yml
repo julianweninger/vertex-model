@@ -148,6 +148,7 @@ data_manager:
     Bulk_cell_stats: *Statistics
     Bulk_hair_cell_stats: *Statistics
     Bulk_support_cell_stats: *Statistics
+    Interface_length: *Statistics
     Statistics_time: *Statistics
 
     Vertices: &agents
