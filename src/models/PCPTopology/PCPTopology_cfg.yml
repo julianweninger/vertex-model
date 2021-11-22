@@ -385,7 +385,9 @@ data_manager:
       decider: write_interval
     Cells: *agents_equilibrium
     Edges: *agents_equilibrium
-    Hair_cluster: *agents_equilibrium
+    Cell_cluster: 
+      <<: *agents_equilibrium
+      active: false
 
     Cell_energies: &agent_energies
       active: true

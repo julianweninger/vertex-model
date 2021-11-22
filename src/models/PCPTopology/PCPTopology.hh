@@ -943,6 +943,10 @@ public:
     const AgentManager& get_am () const {
         return _vertex_model.get_am();
     }
+
+    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids () {
+        return _vertex_model.get_cluster_ids();
+    }
     
     /// Add an operation
     void register_operation (OperationBundle op_bundle) {

@@ -771,40 +771,36 @@ auto edge_energies_adaptor = std::make_tuple(
     }    
 ); // end edge energy adaptor
 
-/// Datamanager adaptor for the cluster of hair cells
-/** Attributes are:
+/// Datamanager adaptor for the cluster of cells
+/** Here progenitor cells have label 0, hair cells impair and support cells 
+ *  pair labels
+ *  Attributes are:
  *      -# Lx: Domain size in x coordinate
  *      -# Ly: Domain size in y coordinate
  */
-auto hair_cluster_adaptor = std::make_tuple(
+auto cell_cluster_adaptor = std::make_tuple(
     // name of the task
-    "Hair_cluster",
+    "Cell_cluster",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Hair_cluster");
+        return grp->open_group("Cell_cluster");
     },
 
     // writer function
     [](auto& dataset, auto& model) {
         const auto& cells = model.get_am().cells();
+        auto clusters = model.get_cluster_ids();
         dataset->write(cells.begin(), cells.end(),
-            [](const auto& cell) {
-                std::size_t cluster_id;
-                if (cell->custom_links().nd_cell) {
-                    cluster_id = cell->custom_links().nd_cell->state.cluster_id;
-                }
-                else {
-                    cluster_id = 0;
-                }
-                return cluster_id;
+            [clusters](const auto& cell) {
+                return clusters.at(cell);
             });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {m.get_am().cells().size()});
+            {1, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -813,7 +809,18 @@ auto hair_cluster_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, [[maybe_unused]] auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "id");
+        hdfdataset->add_attribute("dim_name__0", "property");
+        hdfdataset->add_attribute("coords__property", 
+                                  std::vector<std::string>({"cluster_id"}));
+        hdfdataset->add_attribute("dim_name__1", "id");
+        hdfdataset->add_attribute("coords_mode__id", "values");
+        const auto& cells = model.get_am().cells();
+        std::vector<std::size_t> ids{};
+        ids.reserve(cells.size());
+        std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
+                       [](const auto& c) { return c->id(); });
+        hdfdataset->add_attribute("coords__id", ids);
+
     }    
 ); // end hair cluster adaptor
 

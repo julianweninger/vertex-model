@@ -111,31 +111,6 @@ transitions_multiplot:
       y: [1.e-5, 1.e+1]
     set_scales:
       y: log
-    
-
-interface_length:
-  based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
-    - universe
-
-  select:
-    _IL:
-      path: data/PCPTopology/PCPVertex/Statistics/Interface_length
-      transform:
-        - .rename: [!dag_prev , interfacial_length]
-
-  transform:
-    - .to_dataframe: [!dag_tag _IL]
-      tag: IL
-
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result IL
-      ci: sd
-
-  x: time
-  y: interfacial_length
 
 # Cell properties from cell statistics ----------------------------------------
 cell_stats/area:

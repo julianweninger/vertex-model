@@ -35,7 +35,7 @@ auto model_factory(ParentType parent) {
                       typename PCPTopology::CellType>,
         edges_adaptor<typename PCPVertex::Space::SpaceVec>,
         cell_energies_adaptor, edge_energies_adaptor,
-        hair_cluster_adaptor,
+        cell_cluster_adaptor,
         // PlanarCellPolarity spatial data
         Utopia::Models::PlanarCellPolarity::DataIO::pcp_cells_adaptor
         <typename PCPVertex::Space::SpaceVec>,

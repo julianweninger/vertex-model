@@ -2162,6 +2162,64 @@ public:
         return _am;
     }
 
+    /// Label all clusters of same type cells
+    /** Here progenitor cells have label 0, hair cells impair and support cells 
+     *  pair labels
+     */
+    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids () {
+        std::unordered_map<std::shared_ptr<Cell>, std::size_t> cluster_ids;
+        cluster_ids.reserve(_am.cells().size());
+        
+        std::size_t cluster_id;
+        std::size_t hair_cluster_id_cnt = 1;
+        std::size_t support_cluster_id_cnt = 0;
+        for (const auto& cell : _am.cells()) {
+            cluster_ids[cell] = 0;
+        }
+
+        std::vector<std::shared_ptr<Cell>> cluster_members;
+        cluster_members.reserve(_am.cells().size());
+
+        for (const auto& cell : _am.cells()) {
+            if (   cluster_ids.at(cell) != 0
+                or cell->state.type == CellType::progenitor)
+            {
+                continue;
+            }
+
+            if (cell->state.type == CellType::hair) {
+                hair_cluster_id_cnt += 2;
+                cluster_id = hair_cluster_id_cnt;
+            }
+            else {
+                support_cluster_id_cnt += 2;
+                cluster_id = support_cluster_id_cnt;
+            }
+            cluster_ids[cell] = cluster_id;
+
+            cluster_members.clear();
+            cluster_members.push_back(cell);
+
+            for (std::size_t it = 0; it < cluster_members.size(); it++) {
+                const auto& c_it = cluster_members[it];
+                for (const auto& nb : this->_am.neighbors_of(c_it)) {
+                    if (nb->state.type == c_it->state.type)
+                    {
+                        if (cluster_ids.at(nb) == 0) {
+                            cluster_ids[nb] = cluster_id;
+                            cluster_members.push_back(nb);
+                        }
+                        else if (cluster_ids.at(nb) != cluster_id) {
+                            throw std::runtime_error("Messing with clusters!");
+                        }
+                    }
+                }
+            }
+        }
+
+        return cluster_ids;
+    }
+
 
     // .. Model properties ....................................................
     
