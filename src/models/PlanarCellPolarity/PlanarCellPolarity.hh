@@ -77,7 +77,25 @@ private:
     /// The cell manager
     const CellManager& _cm;
 
+    /** The type of boundary condition
+     *  Possible choices:
+     *      - Dirichlet: On the outside boundary of the tissue the polarity
+     *              proteins have value zero.
+     *      - Neumann: The polarity proteins on the outside of a boundary bond
+     *              have value -sigma, where sigma is the protein level on the
+     *              inside of the same bond.
+     */
+    enum BoundaryType {
+        Dirichlet,  // sigma_b = 0 on boundary edges
+        Neumann     // sigma_b = -sigma_a on boundary edges
+    } _boundary;
+
     /// The polarity proteins
+    /** Every edge is assigned 2 polarity proteins, on left and right side.
+     *  NOTE use [a, b] = _cm.template adjoints_of<true>(edge) such that a and b
+     *       are the cells corresponding to the proteins sigma_a and sigma_b
+     *       respectively.
+     */
     std::map<std::shared_ptr<Edge>,
              std::pair<double, double>> polarity_proteins;
 
@@ -157,6 +175,8 @@ public:
         // Now initialize the cell manager
         _cm(cm),
 
+        _boundary(setup_boundary(this->_cfg)),
+
         polarity_proteins{},
 
         // Initialize model parameters
@@ -200,6 +220,35 @@ public:
 
 private:
     // .. Setup functions .....................................................
+    /// Extract boundary condition from cfg
+    /** Only in non-periodic boundary conditions.
+     *  Possible choices:
+     *      - Dirichlet: On the outside boundary of the tissue the polarity
+     *              proteins have value zero.
+     *      - Neumann: The polarity proteins on the outside of a boundary bond
+     *              have value -sigma, where sigma is the protein level on the
+     *              inside of the same bond.
+     */
+    BoundaryType setup_boundary(const Config& cfg) const {
+        if (_cm.get_space()->periodic) {
+            return BoundaryType::Dirichlet;
+        }
+
+        auto type = get_as<std::string>("boundary_type", cfg);
+
+        if (type == "Dirichlet") {
+            return BoundaryType::Dirichlet;
+        }
+        else if (type == "Neumann") {
+            return BoundaryType::Neumann;
+        }
+        else {
+            throw std::runtime_error(fmt::format("Unknown boundary_type {}! "
+                "Please choose one of the following: {}.",
+                type, "zero, mirror"));
+        }
+    }
+
     void initialize_cells() {
         this->_log->debug("Initializing PCP cells ...");
 
@@ -225,6 +274,15 @@ private:
                 get_as<double>("alignment_orientation", this->_cfg),
                 get_as<double>("alignment_orientation_stddev", this->_cfg)
             );
+        }
+        else if (method == "aligned_antisymmetric") {
+            initialize_cells_aligned_antisymmetric(
+                get_as<double>("alignment_orientation", this->_cfg),
+                get_as<double>("alignment_orientation_stddev", this->_cfg)
+            );
+        }
+        else if (method == "uniform_angle_distribution") {
+            initialize_cells_uniform_angle_distribution();
         }
         else {
             this->_log->error("Unexpected method for cell initialization "
@@ -284,72 +342,131 @@ private:
         }
     }
 
+    void initialize_cell_with_orientation(const std::shared_ptr<Cell>& cell,
+                                          double angle, double concentration)
+    {
+        const auto space = _cm.get_space();
+
+        SpaceVec axis({cos(angle), sin(angle)});
+
+        SpaceVec cell_center = _cm.barycenter_of(cell);
+
+        const auto& edges = cell->custom_links().edges;
+        std::vector<double> orientations{};
+        orientations.reserve(edges.size());
+        for (const auto [edge, flip] : edges) {
+            SpaceVec edge_center = space->map_into_space(
+                (  _cm.position_of(edge->custom_links().a)
+                    + _cm.displacement(edge) / 2.));
+            SpaceVec orientation = space->displacement(cell_center,
+                                                        edge_center);
+            orientation /= arma::norm(orientation);
+
+            orientations.push_back(arma::dot(axis, orientation));
+        }
+
+        double net = std::accumulate(orientations.begin(),
+                                        orientations.end(), 0.);
+        net /= orientations.size();
+
+        for (std::size_t i = 0; i < orientations.size(); i++) {
+            orientations[i] -= net;
+        }
+        // NOTE net polarity is zero
+        
+        // Normalize the square sum, i.e. protein concentration
+        double norm_2 = std::accumulate(orientations.begin(),
+                                        orientations.end(),
+                                        0.,
+                                        [](const double& val, double r) {
+                                            return val + std::pow(r, 2);
+                                        });
+        double norm = sqrt(concentration / norm_2);
+
+        // the norm of the polairty must be protein_level
+        std::transform(orientations.begin(), orientations.end(),
+                        orientations.begin(),
+                        [norm](auto val) {
+                            return val * norm;
+                        });
+
+        for (std::size_t it = 0; it < edges.size(); it++) {
+            const auto& [edge, flip] = edges[it];
+            auto [sigma_a, sigma_b] = polarity_proteins[edge];
+            if (not flip) {
+                sigma_a = orientations[it];
+            }
+            else {
+                sigma_b = orientations[it];
+            }
+            polarity_proteins[edge] = std::make_pair(sigma_a, sigma_b);
+        }
+    }
+
+    /// Initialize cells with aligned polarity
+    /** Distribute polarity proteins to result in a given orientation.
+     *  Orientation is drawn from normal distribution with mean orientation 
+     *  and stddev.
+     */
     void initialize_cells_aligned(double orientation, double stddev,
                                   double concentration = 1.)
     {
         this->_log->debug("Initializing aligned PCP protein levels");
-        const auto space = _cm.get_space();
 
         std::normal_distribution<double> distr(orientation, stddev);
 
         for (const auto& cell : _cm.cells()) {
             double angle = distr(*this->_rng);
-            SpaceVec axis({cos(angle), sin(angle)});
-
-            SpaceVec cell_center = _cm.barycenter_of(cell);
-
-            const auto& edges = cell->custom_links().edges;
-            std::vector<double> orientations{};
-            orientations.reserve(edges.size());
-            for (const auto [edge, flip] : edges) {
-                SpaceVec edge_center = space->map_into_space(
-                    (  _cm.position_of(edge->custom_links().a)
-                     + _cm.displacement(edge) / 2.));
-                SpaceVec orientation = space->displacement(cell_center,
-                                                           edge_center);
-                orientation /= arma::norm(orientation);
-
-                orientations.push_back(arma::dot(axis, orientation));
-            }
-
-            double net = std::accumulate(orientations.begin(),
-                                         orientations.end(), 0.);
-            net /= orientations.size();
-
-            for (std::size_t i = 0; i < orientations.size(); i++) {
-                orientations[i] -= net;
-            }
-            // NOTE net polarity is zero
-            
-            // Normalize the square sum, i.e. protein concentration
-            double norm_2 = std::accumulate(orientations.begin(),
-                                            orientations.end(),
-                                            0.,
-                                            [](const double& val, double r) {
-                                                return val + std::pow(r, 2);
-                                            });
-            double norm = sqrt(concentration / norm_2);
-
-            // the norm of the polairty must be protein_level
-            std::transform(orientations.begin(), orientations.end(),
-                           orientations.begin(),
-                           [norm](auto val) {
-                               return val * norm;
-                           });
-
-            for (std::size_t it = 0; it < edges.size(); it++) {
-                const auto& [edge, flip] = edges[it];
-                auto [sigma_a, sigma_b] = polarity_proteins[edge];
-                if (not flip) {
-                    sigma_a = orientations[it];
-                }
-                else {
-                    sigma_b = orientations[it];
-                }
-                polarity_proteins[edge] = std::make_pair(sigma_a, sigma_b);
-            }
+            initialize_cell_with_orientation(cell, angle, concentration);
         }
     }
+
+    /// Initialize cells with aligned polarity
+    /** Distribute polarity proteins to result in a given orientation.
+     *  Orientation is drawn from normal distribution with mean orientation 
+     *  and stddev.
+     *  The global orientations are anti-symmetric about a vertical axis through
+     *  the barycenter of the tissue
+     */
+    void initialize_cells_aligned_antisymmetric(double orientation,
+                                                double stddev,
+                                                double concentration = 1.)
+    {
+        this->_log->debug("Initializing aligned PCP protein levels with "
+                          "orientational antisymmetry about the vertical "
+                          "center.");
+
+        std::normal_distribution<double> distr(orientation, stddev);
+
+        const auto boundary_edges = _cm.get_boundary_edges();
+        SpaceVec barycenter = _cm.barycenter_of(boundary_edges);
+
+        for (const auto& cell : _cm.cells()) {
+            double angle = distr(*this->_rng);
+            SpaceVec pos = _cm.barycenter_of(cell);
+            if (pos[0] < barycenter[0]) {
+                angle = M_PI - angle;
+            }
+            initialize_cell_with_orientation(cell, angle, concentration);
+        }
+    }
+
+    /// Initialize cells with aligned polarity
+    /** Distribute polarity proteins to result in a given orientation.
+     *  Orientation is drawn from uniform distribution [0, 2*Pi]
+     */
+    void initialize_cells_uniform_angle_distribution(double concentration = 1.)
+    {
+        this->_log->debug("Initializing uniformly distributed angles");
+
+        std::uniform_real_distribution<double> distr(0., 2 * M_PI);
+
+        for (const auto& cell : _cm.cells()) {
+            double angle = distr(*this->_rng);
+            initialize_cell_with_orientation(cell, angle, concentration);
+        }
+    }
+    
 
     // .. Helper functions ....................................................
 
@@ -513,17 +630,31 @@ private:
         for (const auto& edge : _cm.edges()) {
             auto [sigma_a, sigma_b] = polarity_proteins[edge];
 
-            auto [adj_a, adj_b] = _cm.adjoints_of(edge);
-            if (adj_a == nullptr) {
-                gradient_sigma_a[edge] = std::get<0>(polarity_proteins[edge]);
-            }
-            if (adj_b == nullptr) {
-                gradient_sigma_b[edge] = std::get<1>(polarity_proteins[edge]);
+            auto [adj_a, adj_b] = _cm.template adjoints_of<true>(edge);
+            if (_boundary == BoundaryType::Dirichlet) {
+                // exponential decay
+                if (adj_a == nullptr) {
+                    gradient_sigma_a[edge] = std::get<0>(
+                        polarity_proteins[edge]);
+                }
+                if (adj_b == nullptr) {
+                    gradient_sigma_b[edge] = std::get<1>(
+                        polarity_proteins[edge]);
+                }
             }
 
             // steepest gradient
             sigma_a -= gradient_sigma_a[edge] * this->_dt;
             sigma_b -= gradient_sigma_b[edge] * this->_dt;
+
+            if (_boundary == BoundaryType::Neumann) {
+                if (not adj_a) {
+                    sigma_a = -sigma_b;
+                }
+                if (not adj_b) {
+                    sigma_b = -sigma_a;
+                }
+            }
 
             polarity_proteins[edge] = std::make_pair(sigma_a, sigma_b);
 
@@ -538,13 +669,13 @@ private:
             double rand_b = (  dp * sqrt(2. * _dt / tau)
                              * _normal_distr(*this->_rng));
 
-            if (adj_a) {
+            if (adj_a or _boundary == BoundaryType::Neumann) {
                 _sa += rand_a - _dt / tau * _sa;
             }
             else {
                 _sa -= _dt / tau * _sa;
             }
-            if (adj_b) {
+            if (adj_b or _boundary == BoundaryType::Neumann) {
                 _sb += rand_b - _dt / tau * _sb;
             }
             else {
@@ -678,6 +809,7 @@ public:
         reset_gradient_polarity();
 
         set_gradient_cell_cell_interaction(_cm.edges());
+        set_gradient_polarity_exclusion(_cm.cells());
 
         set_gradient_lagrange();
 

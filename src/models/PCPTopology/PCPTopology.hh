@@ -669,8 +669,14 @@ public:
                                              / float(this->get_time_max()));
 
         _vertex_model.monitor();
-        if (_pcp) {
+        if (_pcp_prolog and *_pcp_prolog) {
             _pcp->monitor();
+        }
+        if (_collier_prolog and *_collier_prolog) {
+            _collier->monitor();
+        }
+        if (_notch_delta_prolog and *_notch_delta_prolog) {
+            _notch_delta->monitor();
         }
     }
 
