@@ -254,16 +254,6 @@ private:
                         build_brownian_noise(name, op_cfg, _minimization_params,
                                              _log, _monitor_mngr));
                 }
-                else if (name == "convergence_and_extension") {
-                    if (_vertex_model.get_space()->periodic) {
-                        throw std::runtime_error("Cannot build operation "
-                            "convergence and extension in periodic space!");
-                    }
-                    _operations.push_back(
-                        build_convergence_and_extension(name, op_cfg,
-                                                        _minimization_params,
-                                                        _log, _monitor_mngr));
-                }
                 else if (name == "differentiate_Collier") {
                     this->setup_collier(
                             get_as<Config>("Collier", op_cfg, {}));
@@ -314,16 +304,6 @@ private:
                         build_increment_cell_contractility(name, op_cfg,
                             _minimization_params));
                 }
-                else if (name == "increment_curvature") {
-                    _operations.push_back(
-                        build_increment_curvature(name, op_cfg,
-                            _minimization_params));
-                }
-                else if (name == "increment_domain") {
-                    _operations.push_back(
-                        build_increment_domain(name, op_cfg,
-                                               _minimization_params));
-                }
                 else if (name == "increment_edge_contractility") {
                     _operations.push_back(
                         build_increment_edge_contractility(name, op_cfg,
@@ -338,6 +318,31 @@ private:
                     _operations.push_back(
                         build_increment_shape_index(name, op_cfg,
                                                     _minimization_params));
+                }
+                else if (name == "initialise_stripe_boundary") {
+                    _operations.push_back(
+                        build_initialise_stripe_boundary(name, op_cfg,
+                            _minimization_params));
+                }
+                else if (name == "increment_stripe_width") {
+                    if (_vertex_model.get_space()->periodic) {
+                        throw std::runtime_error("Cannot build operation "
+                            "convergence and extension in periodic space!");
+                    }
+                    _operations.push_back(
+                        build_increment_stripe_width(name, op_cfg,
+                                                     _minimization_params,
+                                                     _log, _monitor_mngr));
+                }
+                else if (name == "increment_stripe_curvature") {
+                    _operations.push_back(
+                        build_increment_stripe_curvature(name, op_cfg,
+                            _minimization_params));
+                }
+                else if (name == "increment_domain") {
+                    _operations.push_back(
+                        build_increment_domain(name, op_cfg,
+                                               _minimization_params));
                 }
                 else if (name == "iterate_pcp") {
                     this->setup_pcp(
@@ -395,7 +400,6 @@ private:
                         "No operation '{}' available to construct! "
                         "Choose from: {}", name,
                             "brownian_noise, "
-                            "convergence_and_extension, "
                             "differentiate_Collier, "
                             "differentiate_domain, "
                             "differentiate_hair_cluster, "
@@ -405,11 +409,13 @@ private:
                             "fix_boundary, "
                             "increment_area, "
                             "increment_cell_contractility, "
-                            "increment_curvature, "
                             "increment_domain, "
                             "increment_edge_contractility, "
                             "increment_linetension, "
                             "increment_shape_index, "
+                            "initialise_stripe_boundary, "
+                            "increment_stripe_width, "
+                            "increment_stripe_curvature, "
                             "iterate_pcp, "
                             "jiggle, "
                             "proliferate, "
