@@ -845,8 +845,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
             }
         }
 
-        BOOST_CHECK_CLOSE(max, *SC + 1., 5); // close to 5 percent
-        BOOST_CHECK_CLOSE(min, *SC, 10); // close to 10 percent        
+        BOOST_CHECK_CLOSE(max, *SC + 1., 5);  // close to 5 percent
+        BOOST_CHECK_CLOSE(min, *SC - 0.1, 5); // close to 5 percent        
     }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_cell_contractility) {
