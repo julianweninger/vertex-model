@@ -845,7 +845,8 @@ OperationBundle build_fix_boundary (
  *               - `relax_domain` (bool, default: false): If true, the domain
  *                      size is adapted to fit the cells as per preferential 
  *                      area.
- *               - `hair_gradient` (double, default: 0.): The difference between
+ *               - `gradient_hair_max` and `gradient_hair_min`
+ *                  (double, default: 0.): The difference between
  *                      the cells that grow the most and the least. Using a
  *                      negative slope for non-periodic and a cos(x)**2 in 
  *                      periodic BC along the horizontal (P-D) axis.
@@ -871,8 +872,10 @@ OperationBundle build_increment_area (
     bool relax_domain(get_as<bool>("relax_domain", cfg, false));
     bool relax_domain_PD_axis(get_as<bool>("relax_domain_PD_axis",
                                            cfg, false));
-    double hair_gradient(get_as<double>("hair_gradient", cfg, 0.));
-    double hair_gradient_center(get_as<double>("hair_gradient_center", cfg, 0.5));
+    double gradient_hair_max(get_as<double>("gradient_hair_max", cfg, 0.));
+    double gradient_hair_min(get_as<double>("gradient_hair_min", cfg, 0.));
+    double hair_gradient_center(get_as<double>("hair_gradient_center",
+                                               cfg, 0.5));
     
     if (adapt_support and fabs(support) > 1.e-12) {
         throw std::invalid_argument(fmt::format(
@@ -887,7 +890,8 @@ OperationBundle build_increment_area (
             "true!", name));
     }
 
-    Operation operation = [prog, hair, support, adapt_support, hair_gradient,
+    Operation operation = [prog, hair, support, adapt_support,
+                           gradient_hair_max, gradient_hair_min,
                            hair_gradient_center, 
                            relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
@@ -934,7 +938,7 @@ OperationBundle build_increment_area (
         
         apply_rule<Update::sync>(update, cells);
 
-        if (fabs(hair_gradient) > 1.e-12) {
+        if (fabs(gradient_hair_max) > 1.e-12) {
             auto [min, max] = am.get_extent();
 
             double L = (max - min)[0];
@@ -943,23 +947,29 @@ OperationBundle build_increment_area (
             std::function<double(const SpaceVec&)> map;
             if (not vertex_model.get_space()->periodic) {
                 map = 
-                    [hair_gradient, hair_gradient_center, L, x_min]
+                    [gradient_hair_max, gradient_hair_min,
+                     hair_gradient_center, L, x_min]
                     (const SpaceVec& pos)
                     {
+                        double hair_gradient = (  gradient_hair_max
+                                                - gradient_hair_min);
                         double rel_x = (pos[0] - x_min) / L;
                         double fac = (hair_gradient_center - rel_x);
-                        return hair_gradient * fac;
+                        return hair_gradient * fac + gradient_hair_min;
                     };
             }
             else {
                 map = 
-                    [hair_gradient, hair_gradient_center, L, x_min]
+                    [gradient_hair_max, gradient_hair_min,
+                     hair_gradient_center, L, x_min]
                     (const SpaceVec& pos)
                     {
+                        double hair_gradient = (  gradient_hair_max
+                                                - gradient_hair_min);
                         double rel_x = (  (pos[0] - x_min) / L
                                         - hair_gradient_center);
                         double fac = std::pow(cos(rel_x * M_PI), 2);
-                        return hair_gradient * fac;
+                        return hair_gradient * fac + gradient_hair_min;
                     };
             }
 

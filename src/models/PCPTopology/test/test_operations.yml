@@ -292,7 +292,8 @@ increment_area_relax:
 increment_area_gradient:
   times: []
 
-  hair_gradient: 1.
+  gradient_hair_max: 1.
+  gradient_hair_min: -0.1
   adapt_support: True
 
 increment_cell_contractility:
