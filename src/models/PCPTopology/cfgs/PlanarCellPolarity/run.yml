@@ -18,7 +18,7 @@ worker_manager:
   nonzero_exit_handling: warn_all
 
 parameter_space:
-  num_steps: &NUM_STEPS 5
+  num_steps: &NUM_STEPS 3
   times: &TIMES !listgen [1001]
 
   seed: !sweep
@@ -35,21 +35,23 @@ parameter_space:
       - jiggle:
           times: []
           iterations_prolog: 1
-      - proliferate_quick_and_dirty:
+      - proliferate_generations:
           times: []
           iterations_prolog: 1
-          target_num_cells: !coupled-sweep 
+          num_generations: !coupled-sweep 
             target_name: case
-            name: num_cells
-            default: 32
-            values: [32, 16, 32]
-          minimization_quick: ~
+            name: num_generations
+            default: 1
+            values: [1, 0, 1]
+          minimization_between_generations:
+            num_repeat: 1
           minimization:
             num_repeat: &equilibration_time 5
-            linetension_fluctuation: 0.1
+      # END proliferation
+      
       - iterate_pcp:
           times: []
-          iterations_prolog: 5
+          iterations_prolog: 1
           num_steps: 500
           minimization:
             mode: manual
@@ -89,7 +91,7 @@ parameter_space:
               }
       - iterate_pcp:
           times: *TIMES
-          iterations: 5
+          iterations: 1
           num_steps: 500
             
 
