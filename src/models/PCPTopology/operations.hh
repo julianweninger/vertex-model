@@ -225,82 +225,6 @@ OperationBundle build_brownian_noise (
     return std::make_pair(operation, params);
 }
 
-/// A convergence and extension model
-/** The outermost vertices in the vertical direction are moved towards the
- *  horizontal tissue axis and fixed in space for minimization.
- *  Horizontal boundary vertices are free to move and are thought to move
- *  outwards to compensate increased pressure.
- * 
- *  The following parameter are extracted from cfg 
- *  (besides those passed to `OperationParams`):
- *      - `dH` (double): The length by which the vertical axis is reduced
- */
-template<typename Logger>
-OperationBundle build_convergence_and_extension (
-        std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params,
-        std::shared_ptr<Logger> logger = nullptr,
-        std::function<void()> monitor = [](){ })
-{
-    using SpaceVec = PCPVertex::SpaceVec;
-
-    OperationParams params(name, cfg, default_minim_params);
-    double dH = get_as<double>("dH", cfg);
-    double H_target = get_as<double>("H_target", cfg, 0.);
-    auto H = std::make_shared<double>(0.);
-    if (H_target > 1. or H_target < 0.) {
-        throw std::invalid_argument(fmt::format(
-            "The `H_target` parameter in convergence and extension operation "
-            "needs to be in [0., 1.], a relative final width, but was {}!",
-            H_target));
-    }
-    double potential_const = get_as<double>("potential_const", cfg);
-
-    MinimizationParams minimization(
-        get_as<Config>("minimization", cfg, Config()),
-                       params.minimization_params);
-
-    Operation operation =
-    [H, dH, H_target, potential_const, minimization, logger, monitor]
-    (PCPVertex& vertex_model)
-    {
-        const auto& am = vertex_model.get_am();
-        
-        if (*H < 1.e-12) {
-            double min_y = std::numeric_limits<double>::max();
-            double max_y = std::numeric_limits<double>::lowest();
-            for (const auto& vertex : am.vertices()) {
-                SpaceVec pos = am.position_of(vertex);
-                min_y = std::min(min_y, pos[1]);
-                max_y = std::max(max_y, pos[1]);
-            }
-            *H = max_y - min_y;
-        }
-        double H_final = H_target * *H;
-
-        vertex_model.init_stripe_boundary(false);
-        if (H_final > 1.e-12) {
-            while (*H > H_final) {
-                *H = std::max(*H - dH, H_final);
-                vertex_model.set_stripe_boundary_width(potential_const, *H);
-                if (logger) {
-                    logger->debug("In convergence and extension, decreasing "
-                        "width to {} (with target value {}) and minimizing "
-                        "energy", *H, H_final);
-                }
-                if (*H > H_final) {
-                    vertex_model.minimize_energy(minimization, monitor);
-                }
-            }
-        }
-        else {
-            vertex_model.set_stripe_boundary_width(potential_const, *H - dH);
-        }
-    };
-
-    return std::make_pair(operation, params);
-}
-
 
 /// The operation to differentiate the types of cells randomly
 /** Progenitor cells turn to hair cell with given probability and to support
@@ -901,42 +825,6 @@ OperationBundle build_fix_boundary (
     Operation operation = [fix_boundary] (PCPVertex& vertex_model)
     {
         vertex_model.fix_boundary(fix_boundary);
-    };
-
-    return std::make_pair(operation, params);
-}
-
-/// A model for increasing tissue curvature of horizontal axis
-/** Increments the curvature of the boundary, i.e. moves the boundary vertices
- *  as when fitting to a circle with changed size.
- * 
- *  The following parameter are extracted from cfg 
- *  (besides those passed to `OperationParams`):
- *      - `increment_curvature` (double): Increments the curvature, starting
- *              from initially 0 to a maximum of 1. Curvature of 1 corresponds
- *              to half-circle with radius equal to the furthest distance to
- *              center of curvature.
- *      - `center` (double, default: 0.5): The relative center of curvature, 
- *              i.e. the relative position of center of circle wrt proximal-
- *              distal length of tissue.
- */
-OperationBundle build_increment_curvature (
-        std::string name, const Config& cfg,
-        const MinimizationParams& default_minim_params)
-{
-    OperationParams params(name, cfg, default_minim_params);
-
-    double potential_const = get_as<double>("potential_const", cfg);
-    double dk = get_as<double>("increment_curvature", cfg);
-    auto current_curvature = std::make_shared<double>(0.);
-
-    Operation operation =
-    [current_curvature, dk, potential_const]
-    (PCPVertex& vertex_model)
-    {
-        *current_curvature += dk;
-        vertex_model.set_stripe_boundary_curvature(
-            potential_const, *current_curvature);
     };
 
     return std::make_pair(operation, params);
@@ -1585,6 +1473,116 @@ OperationBundle build_increment_shape_index (
         };
 
         apply_rule<Update::sync>(update, vertex_model.get_am().cells());
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// Initialises a stripe that fits all vertices
+OperationBundle build_initialise_stripe_boundary(
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    Operation operation = [cfg](PCPVertex& vertex_model) {
+        vertex_model.initialise_stripe_boundary(cfg);
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// Increment the width of the stripe
+/** Stripe needs to be initialised!
+ */
+template<typename Logger>
+OperationBundle build_increment_stripe_width (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params,
+        std::shared_ptr<Logger> logger = nullptr,
+        std::function<void()> monitor = [](){ })
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    // the incremental change in height
+    double dH = get_as<double>("dH", cfg);
+
+    // the target height (if > 0)
+    auto H_target = get_as<double>("H_target", cfg, 0.);
+    bool relative_target = get_as<bool>("relative_target", cfg, false);
+    std::shared_ptr<double> H_final = std::make_shared<double>(0.);
+
+    std::shared_ptr<double> update_potential(nullptr);
+    if (cfg["update_potential_constant"]) {
+        update_potential = std::make_shared<double>(
+            get_as<double>("update_potential_constant", cfg));
+    }
+
+    MinimizationParams minimization(
+        get_as<Config>("minimization", cfg, Config()),
+                       params.minimization_params);
+
+    Operation operation =
+    [dH, H_target, relative_target, H_final, update_potential,
+     minimization, logger, monitor]
+    (PCPVertex& vertex_model)
+    {
+        if (update_potential) {
+            vertex_model.update_stripe_boundary_potential(*update_potential);
+        }
+
+        double H = vertex_model.get_stripe_boundary_width();
+        if (*H_final < 1.e-12) {
+            *H_final = H_target;
+            if (relative_target) {
+                *H_final *= H;
+            }
+        }
+
+        // Reduce H by dH until H_final
+        if (*H_final > 1.e-12) {
+            while (H > *H_final + 1.e-12) {
+                H = vertex_model.increment_stripe_boundary_width(
+                    std::max(dH, *H_final - H));
+                if (H > *H_final + 1.e-12) {
+                    vertex_model.minimize_energy(minimization, monitor);
+                }
+            }
+        }
+
+        // reduce by dH
+        else {
+            vertex_model.increment_stripe_boundary_width(dH);
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// Increment the width of the stripe
+/** Stripe needs to be initialised!
+ */
+OperationBundle build_increment_stripe_curvature (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double dk = get_as<double>("increment_curvature", cfg);
+
+    std::shared_ptr<double> update_potential(nullptr);
+    if (cfg["update_potential_constant"]) {
+        update_potential = std::make_shared<double>(
+            get_as<double>("update_potential_constant", cfg));
+    }
+
+    Operation operation = [dk, update_potential](PCPVertex& vertex_model)
+    {
+        if (update_potential) {
+            vertex_model.update_stripe_boundary_potential(*update_potential);
+        }
+
+        vertex_model.increment_stripe_boundary_curvature(dk);
     };
 
     return std::make_pair(operation, params);

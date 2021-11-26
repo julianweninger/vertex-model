@@ -343,20 +343,21 @@ double PCPVertex::get_boundary_shape_energy(double beta) const {
 /** A quadratic potential for boundary vertices that are outside a stripe
  */ 
 double PCPVertex::get_boundary_stripe_energy (double beta) const {
-    if (   _space->periodic
-        or fabs(_boundary_param.stripe_potential_constant) < 1.e-12)
+    if (_space->periodic or not _stripe_boundary)
     {
         return 0.;
     }
 
-    double curvature = std::max(_boundary_param.stripe_curvature, 1.e-10);
+    auto params = *_stripe_boundary;
+
+    double curvature = std::max(params.curvature, 1.e-10);
     double R = 1. / curvature;
 
     // the (fixed) center of the circle stripe
-    SpaceVec origin = *_boundary_param.stripe_origin - SpaceVec({0., R});
+    SpaceVec origin = params.origin - SpaceVec({0., R});
 
-    double inner_radius = (R - _boundary_param.stripe_width / 2.);
-    double outer_radius = (R + _boundary_param.stripe_width / 2.);
+    double inner_radius = (R - params.width / 2.);
+    double outer_radius = (R + params.width / 2.);
     
     double energy = 0.;
     // apply to all vertices outside the domain
@@ -373,7 +374,7 @@ double PCPVertex::get_boundary_stripe_energy (double beta) const {
         }
     }
 
-    return 0.5 * _boundary_param.stripe_potential_constant * energy;
+    return 0.5 * params.potential_constant * energy;
 }
 
 /// Getter for energy

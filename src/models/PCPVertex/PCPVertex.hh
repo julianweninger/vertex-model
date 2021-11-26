@@ -501,29 +501,6 @@ private:
         double contractility;
         double shape_index_preferential;
 
-        // -- A quadratic boundary potential in the shape of a stripe of
-        //    a circle with radius R and width W ------------------------------
-
-        /// The constant for the quadratic stripe potential
-        double stripe_potential_constant;
-
-        /// The width of the stripe
-        double stripe_width;
-
-        /// The curvature of the circle
-        double stripe_curvature;
-
-        /// The relative coordinate in horiz. axis where the place the origin
-        double stripe_curvature_center;
-
-        /// the center of the circle stripe
-        /** originally the tissue center offsetted by 1. / curvature
-         *  NOTE it is fixed and updated with changes in curvature to
-         *       prevent macroscopic cell flows when always defining wrt 
-         *       cell center
-         */
-        std::shared_ptr<SpaceVec> stripe_origin;
-
         /// Whether to fix all vertices of the boundary in space
         bool fix_boundary;
 
@@ -532,21 +509,8 @@ private:
             area_elasticity(get_as<double>("area_elasticity", cfg)),
             _area_preferential(get_as<double>("area_preferential", cfg)),
             contractility(get_as<double>("contractility", cfg)),
-            shape_index_preferential(get_as<double>("shape_index_preferential",
-                                                    cfg)),
-            
-            stripe_potential_constant(get_as<double>(
-                "stripe_potential_constant", cfg,
-                0.)),
-            stripe_width(get_as<double>(
-                "stripe_width", cfg,
-                std::numeric_limits<double>::max())),
-            stripe_curvature(get_as<double>(
-                "stripe_curvature", cfg,
-                std::numeric_limits<double>::max())),
-            stripe_curvature_center(
-                get_as<double>("stripe_curvature_center", cfg, 0.5)),
-            stripe_origin(nullptr),
+            shape_index_preferential(
+                get_as<double>("shape_index_preferential", cfg)),
 
             fix_boundary(get_as<bool>("fix_boundary", cfg, false))
         { }
@@ -565,20 +529,66 @@ private:
                 "shape_index_preferential", cfg,
                 shape_index_preferential);
 
-            stripe_potential_constant = get_as<double>(
-                "stripe_potential_constant", cfg,
-                stripe_potential_constant);
-            stripe_width = get_as<double>(
-                "stripe_width", cfg,
-                stripe_width);
-            stripe_curvature = get_as<double>(
-                "stripe_curvature", cfg,
-                stripe_curvature);
             fix_boundary = get_as<bool> (
-                "fix_boundary", cfg,
-                fix_boundary);
+                "fix_boundary", cfg, fix_boundary);
         }
     } _boundary_param;
+
+
+    /// A quadratic potential in the shape of a stripe with curvature
+    struct StripeBoundaryParam {
+        /// The constant for the quadratic stripe potential
+        double potential_constant;
+
+        /// The width of the stripe
+        double width;
+
+        /// The curvature of the circle
+        double curvature;
+
+        /// the center of the circle stripe
+        /** originally the tissue center offsetted by 1. / curvature
+         *  NOTE it is fixed and updated with changes in curvature to
+         *       prevent macroscopic cell flows when always defining wrt 
+         *       cell center
+         */
+        SpaceVec origin;
+
+        StripeBoundaryParam(const Config& cfg, const AgentManager& am)
+        :
+            potential_constant(get_as<double>(
+                "potential_constant", cfg)),
+            width(std::numeric_limits<double>::max()),
+            curvature(0.),
+            origin()
+        {
+            // determine where to place the origin of the potential
+            // the extent of the populated domain
+            double x_min = std::numeric_limits<double>::max();
+            double x_max = std::numeric_limits<double>::lowest();
+            double y_min = std::numeric_limits<double>::max();
+            double y_max = std::numeric_limits<double>::lowest();
+            for (const auto &v : am.vertices()) {
+                SpaceVec pos = am.position_of(v);
+                x_min = std::min(x_min, pos[0]);
+                x_max = std::max(x_max, pos[0]);
+                y_min = std::min(y_min, pos[1]);
+                y_max = std::max(y_max, pos[1]);
+            }
+            double L = x_max - x_min;
+
+            // place origin relative to barycenter of cells
+            const auto boundary = am.get_boundary_edges();
+            SpaceVec barycenter = am.barycenter_of(boundary);
+
+            double rel = get_as<double>("curvature_center", cfg, 0.5);
+            origin = barycenter + SpaceVec({(rel - 0.5) * L, 0.});
+
+            width = std::max(2 * fabs(y_max - barycenter[1]),
+                             2 * fabs(y_min - barycenter[1]));
+        }
+    };
+    std::shared_ptr<StripeBoundaryParam> _stripe_boundary;
 
 
     // -- transition parameters -----------------------------------------------
@@ -714,7 +724,10 @@ public:
         _cell_contractility_impl(setup_cell_contractility_impl(
             get_as<std::string>("cell_shape_implementation", this->_cfg)
         )),
+
         _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
+        _stripe_boundary(nullptr),
+        
         _enable_transitions(
             get_as<bool>("enable_transitions", this->_cfg, true)),
         _enable_T1_transitions(
@@ -1334,19 +1347,21 @@ private:
     /// Derivative of a quadratic boundary potential
     void set_grad_boundary_stripe () {
         if (   _space->periodic
-            or fabs(_boundary_param.stripe_potential_constant) < 1.e-12)
+            or _stripe_boundary == nullptr)
         {
             return;
         }
 
-        double curvature = std::max(_boundary_param.stripe_curvature, 1.e-10);
+        auto params = *_stripe_boundary;
+
+        double curvature = std::max(params.curvature, 1.e-10);
         double R = 1. / curvature;
 
         // the (fixed) center of the circle stripe
-        SpaceVec origin = *_boundary_param.stripe_origin - SpaceVec({0., R});
+        SpaceVec origin = params.origin - SpaceVec({0., R});
 
-        double inner_radius = (R - _boundary_param.stripe_width / 2.);
-        double outer_radius = (R + _boundary_param.stripe_width / 2.);
+        double inner_radius = (R - params.width / 2.);
+        double outer_radius = (R + params.width / 2.);
         
         // apply to all vertices outside the domain
         for (const auto &v : _am.vertices()) {
@@ -1637,6 +1652,12 @@ public:
 
     void prolog () {
         this->init_minimization();
+
+        if (this->_cfg["stripe_boundary"]) {
+            initialise_stripe_boundary(get_as<Config>("stripe_boundary",
+                                       this->_cfg));
+        }
+
         return this->__prolog();
     }
     
@@ -2236,93 +2257,64 @@ public:
         _enable_transitions = (enable_T1_transitions or enable_T2_transitions);
     }
 
-    void init_stripe_boundary(bool force_update = false) {
-        if (_boundary_param.stripe_origin) {
-            if (not force_update) {
-                return;
-            }
-
-            this->_log->warn("Moving the origin of the boundary stripe!");
+    double initialise_stripe_boundary(const Config& cfg) {
+        if (_stripe_boundary) {
+            return _stripe_boundary->width;
         }
         
-        double x_min = std::numeric_limits<double>::max();
-        double x_max = std::numeric_limits<double>::lowest();
-        double y_min = std::numeric_limits<double>::max();
-        double y_max = std::numeric_limits<double>::lowest();
-        for (const auto &v : _am.vertices()) {
-            SpaceVec pos = _am.position_of(v);
-            x_min = std::min(x_min, pos[0]);
-            x_max = std::max(x_max, pos[0]);
-            y_min = std::min(y_min, pos[1]);
-            y_max = std::max(y_max, pos[1]);
-        }
-        double L = x_max - x_min;
-        double H = y_max - y_min;
+        _stripe_boundary = std::make_shared<StripeBoundaryParam>(
+            StripeBoundaryParam(cfg, _am)
+        );
 
-        double rel = _boundary_param.stripe_curvature_center;
-
-        _boundary_param.stripe_origin = std::make_shared<SpaceVec>(
-            SpaceVec({rel * L + x_min, 0.5 * H + y_min}));
+        return _stripe_boundary->width;
     }
 
-    /// Set new parameter for a stripe boundary potential
-    /** Set parameters for a straight stripe.
-     * 
-     *  Adds a quadratic potential on all cells that are outside a stripe of
-     *  fixed width.
-     */
-    void set_stripe_boundary_width(double potential_constant,
-                                   double stripe_width)
-    {
-        if (not _boundary_param.stripe_origin) {
-            throw std::runtime_error("The origin of the boundary stripe has "
-                "not been initialized!");
-        }
-
-        _boundary_param.stripe_potential_constant = potential_constant;
-        _boundary_param.stripe_width = stripe_width;
-
-        this->_log->warn("Setting width {}", _boundary_param.stripe_width);
+    void update_stripe_boundary_potential(double potential) {
+        _stripe_boundary->potential_constant = potential;
     }
 
-    /// Set new parameter for a stripe boundary potential
-    /** Set parameters for a curved stripe of fixed width.
-     * 
-     *  Adds a quadratic potential on all cells outside of a stripe of a circle
-     *  with mean radius = 1. / curvature of a fixed width.
-     * 
-     *  \note the width has to be set using
-     *        set_stripe_boundary_parameters(potential_const, width)
-     */
-    void set_stripe_boundary_curvature(double potential_constant,
-                                       double rel_curvature)
+    double get_stripe_boundary_width() const
     {
-        if (_boundary_param.stripe_width > 1.e12) {
-            throw std::runtime_error(fmt::format(
-                "To set stripe boundary parameters with rel. curvature {}, the "
-                "stripe width cannot be infinite ({} > 1.e12). Set the "
-                "stripe width before using a convergence and extension like "
-                "process.", rel_curvature, _boundary_param.stripe_width));
-            // NOTE use before:
-            // set_stripe_boundary_parameters(potential_constant, stripe_width)
+        if (not _stripe_boundary) {
+            throw std::runtime_error("Stripe boundary needs to be initialised "
+                "first!");
         }
-        init_stripe_boundary();
 
-        _boundary_param.stripe_potential_constant = potential_constant;
+        return _stripe_boundary->width;
+    }
 
-        // determine the length of the tissue
-        double min_x = std::numeric_limits<double>::max();
-        double max_x = std::numeric_limits<double>::lowest();
-        for (const auto& vertex : _am.vertices()) {
-            SpaceVec pos = _am.position_of(vertex);
-            min_x = std::min(min_x, pos[0]);
-            max_x = std::max(max_x, pos[0]);
+    double increment_stripe_boundary_width(double d_width)
+    {
+        if (not _stripe_boundary) {
+            throw std::runtime_error("Stripe boundary needs to be initialised "
+                "first!");
         }
-        double origin_x = (*_boundary_param.stripe_origin)[0];
-        double kappa_max = 1. / std::max(fabs(max_x - origin_x),
-                                         fabs(min_x - origin_x));
 
-        _boundary_param.stripe_curvature = kappa_max * rel_curvature;
+        _stripe_boundary->width += d_width;
+
+        if (_stripe_boundary->width < 1.e-12) {
+            throw std::runtime_error("Cannote set zero-width stripe boundary!");
+        }
+
+        this->_log->debug("Setting stripe width to {}",
+                          _stripe_boundary->width);
+
+        return _stripe_boundary->width;
+    }
+
+    double increment_stripe_boundary_curvature(double d_curvature)
+    {
+        if (not _stripe_boundary) {
+            throw std::runtime_error("Stripe boundary needs to be initialised "
+                "first!");
+        }
+
+        _stripe_boundary->curvature += d_curvature;
+
+        this->_log->debug("Setting stripe curvature to {}",
+                          _stripe_boundary->curvature);
+
+        return _stripe_boundary->curvature;
     }
 
     void set_ppMLC_contractility (double ppMLC, SpaceVec axis) {
