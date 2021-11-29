@@ -67,26 +67,50 @@ transitions_multiplot:
     _T1s:
       path: data/PCPTopology/Energy/transitions
       transform:
-        - .sel: [!dag_prev , {property: num_T1s}]
+        - .sel: [!dag_prev , {property: T1_frequency}]
         - import_and_call:
           args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
                  {time: 10}]
           kwargs: {center: True}
         - .mean: [!dag_prev , time]
-        - .rename: [!dag_prev , num_T1s]
+        - .rename: [!dag_prev , T1_frequency]
+    _T1_attempts:
+      path: data/PCPTopology/Energy/transitions
+      transform:
+        - .sel: [!dag_prev , {property: T1_attempt_frequency}]
+        - import_and_call:
+          args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
+                 {time: 10}]
+          kwargs: {center: True}
+        - .mean: [!dag_prev , time]
+        - .rename: [!dag_prev , T1_frequency]
 
   transform:
     - .to_dataframe: [!dag_tag _T1s]
       tag: T1s
+    - .to_dataframe: [!dag_tag _T1_attempts]
+      tag: T1_attempts
 
   to_plot: 
     - function: sns.lineplot
       data: !dag_result T1s
       ci: sd
-
+      color: grey
+      label: attempted T1s
+    - function: sns.lineplot
+      data: !dag_result T1s
+      ci: sd
+      color: black
+      label: T1s
 
   x: time
-  y: num_T1s
+  y: T1_frequency
+
+  helpers:
+    set_limits: 
+      y: [1.e-5, 1.e+1]
+    set_scales:
+      y: log
 
 # Cell properties from cell statistics ----------------------------------------
 cell_stats/area:

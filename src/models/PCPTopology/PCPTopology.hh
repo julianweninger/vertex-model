@@ -137,17 +137,27 @@ private:
     /// The total number of T1 transitions
     std::size_t _num_T1s_total;
 
+    /// The frequency of T1 transitions per edge since initialisation
+    double _T1_frequency_acc;
+
     /// The number of T1 transitions attempted
     std::size_t _num_T1s_attempted;
 
     /// The total number of T1 transitions attempted
     std::size_t _num_T1s_attempted_total;
 
+    /// The frequency of attempted T1 transitions per edge since initialisation
+    double _T1_attempt_frequency_acc;
+
     /// The number of T2 transitions
     std::size_t _num_T2s;
 
     /// The total number of T2 transitions
     std::size_t _num_T2s_total;
+
+    /// The frequency of T2 transitions per cell since initialisation
+    double _T2_frequency_acc;
+
 
     std::size_t _estimate_minimizations;
 
@@ -193,6 +203,7 @@ public:
                 DataIO::bulk_cell_stats_adaptor<Cell>,
                 DataIO::bulk_hair_cell_stats_adaptor<Cell>,
                 DataIO::bulk_support_cell_stats_adaptor<Cell>,
+                DataIO::interface_length_adaptor,
                 // position adaptors
                 DataIO::vertices_adaptor<SpaceVec>,
                 DataIO::cells_adaptor<SpaceVec, CellType>,
@@ -208,10 +219,13 @@ public:
         _prob_distr(0.,1.),
         _num_T1s(0),
         _num_T1s_total(0),
+        _T1_frequency_acc(0.),
         _num_T1s_attempted(0),
         _num_T1s_attempted_total(0),
+        _T1_attempt_frequency_acc(0.),
         _num_T2s(0),
         _num_T2s_total(0),
+        _T2_frequency_acc(0.),
         _estimate_minimizations(0)
     {
         this->_space = _vertex_model.get_space();
@@ -644,13 +658,20 @@ public:
         }
 
         _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _T1_frequency_acc = _vertex_model.\
+                get_T1_frequency_accumulated();
+
         _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
                              _num_T1s_attempted_total;
-        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
-
-        _num_T1s_total = _vertex_model.get_num_T1s_total();
         _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _T1_attempt_frequency_acc = _vertex_model.\
+                get_T1_attempt_frequency_accumulated();
+        
+        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
         _num_T2s_total = _vertex_model.get_num_T2s_total();
+        _T2_frequency_acc = _vertex_model.\
+                get_T2_frequency_accumulated();
     }
 
     /// Monitor model information
@@ -701,12 +722,20 @@ public:
             apply_operation(operation, true, false);
         }
 
-        _num_T1s_total = _vertex_model.get_num_T1s_total();
-        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
-        _num_T2s_total = _vertex_model.get_num_T2s_total();
         _num_T1s = _num_T1s_total;
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _T1_frequency_acc = _vertex_model.\
+                get_T1_frequency_accumulated();
+
         _num_T1s_attempted = _num_T1s_attempted_total;
+        _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _T1_attempt_frequency_acc = _vertex_model.\
+                get_T1_attempt_frequency_accumulated();
+
         _num_T2s = _num_T2s_total;
+        _num_T2s_total = _vertex_model.get_num_T2s_total();
+        _T2_frequency_acc = _vertex_model.\
+                get_T2_frequency_accumulated();
         
         return this->__prolog();
     }
@@ -722,13 +751,20 @@ public:
         }
 
         _num_T1s = _vertex_model.get_num_T1s_total() - _num_T1s_total;
+        _num_T1s_total = _vertex_model.get_num_T1s_total();
+        _T1_frequency_acc = _vertex_model.\
+                get_T1_frequency_accumulated();
+
         _num_T1s_attempted = _vertex_model.get_num_T1s_attempted_total() - 
                              _num_T1s_attempted_total;
-        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
-
-        _num_T1s_total = _vertex_model.get_num_T1s_total();
         _num_T1s_attempted_total = _vertex_model.get_num_T1s_attempted_total();
+        _T1_attempt_frequency_acc = _vertex_model.\
+                get_T1_attempt_frequency_accumulated();
+
+        _num_T2s = _vertex_model.get_num_T2s_total() - _num_T2s_total;
         _num_T2s_total = _vertex_model.get_num_T2s_total();
+        _T2_frequency_acc = _vertex_model.\
+                get_T2_frequency_accumulated();
 
         _vertex_model.epilog();
 
@@ -837,21 +873,79 @@ public:
         return _vertex_model.get_boundary_energy();
     }
 
+
+    // .. Counter for transitions, etc.. ......................................
+
+    /// Counter for the T1 neighborhood exchange transitions in last iteration
     std::size_t get_num_T1s() const {
         return _num_T1s;
     }
 
+    /// Number of T1s per edge in last iteration
+    double get_T1_frequency() const {
+        return _num_T1s / static_cast<double>(this->get_am().edges().size());
+    }
+
+    /// Total counter for the T1 neighborhood exchange transitions
+    std::size_t get_num_T1s_total() const {
+        return _num_T1s_total;
+    }
+
+    /// Number of T1 per edge
+    double get_T1_frequency_accumulated() const {
+        return _T1_frequency_acc;
+    }
+
+
+    /// Counter for the attempted T1 neighborhood exchange transitions
+    /// in last iteration
     std::size_t get_num_T1s_attempted() const {
         return _num_T1s_attempted;
     }
 
+    /// Number of T1s attempted per edge in last iteration
+    double get_T1_attempt_frequency() const {
+        return (  _num_T1s_attempted
+                / static_cast<double>(this->get_am().edges().size()));
+    }
+
+    /// Total counter for the attempted T1 neighborhood exchange transitions
+    std::size_t get_num_T1s_attempted_total() const {
+        return _num_T1s_attempted_total;
+    }
+
+    double get_T1_attempt_frequency_accumulated() const {
+        return _T1_attempt_frequency_acc;
+    }
+
+
+    /// Counter for the T2 cell extrusion transitions in last iteration
     std::size_t get_num_T2s() const {
         return _num_T2s;
     }
 
+    /// Number of T2s per cell in last iteration
+    double get_T2_frequency() const {
+        return _num_T2s / static_cast<double>(this->get_am().cells().size());
+    }
+
+    /// Total counter for the T2 cell extrusion transitions
+    std::size_t get_num_T2s_total() const {
+        return _num_T2s_total;
+    }
+
+    double get_T2_frequency_accumulated() const {
+        return _T2_frequency_acc;
+    }
+
+
     /// Getter for vertices
     const AgentManager& get_am () const {
         return _vertex_model.get_am();
+    }
+
+    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids () {
+        return _vertex_model.get_cluster_ids();
     }
     
     /// Add an operation

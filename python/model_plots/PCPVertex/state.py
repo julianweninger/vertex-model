@@ -550,7 +550,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                             alpha=0.5)
             
             # plot cell data
-            if property is not None:
+            if property is not None or property_path is not None:
                 if property_path is not None:
                     if not property_path in grp:
                         raise ValueError("Failed to access property data at path "
@@ -563,8 +563,21 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     prop_data = grp[property_path][time]
                 else:
                     prop_data = c_data
-                prop_data = prop_data.sel(**property)
-                prop_data = prop_data.assign_coords({'x': x, 'y': y})
+                
+                # Assign property to every cell
+                if not 'id' in prop_data.dims:
+                    if 'x' in prop_data.coords and 'y' in prop_data.coords:
+                        log.warning("Could not map property data to cells, "
+                                    "but found coordinates. Using coordinates "
+                                    "provided in property data.")
+                    else:
+                        raise ValueError("Expected `id` in property_data dims "
+                            "(were {}).", prop_data.dims)
+                else:
+                    prop_data = prop_data.assign_coords({'x': x, 'y': y})
+                
+                if property is not None:
+                    prop_data = prop_data.sel(**property)
 
                 # perform the interpolation
                 if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
@@ -588,9 +601,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 Ny = property_resolution[1]
                 
                 grid_x, grid_y = np.mgrid[min_x:max_x:Nx*1j, min_y:max_y:Ny*1j]
-                grid_z1 = griddata((prop_data.x, prop_data.y), prop_data,
-                                    (grid_x, grid_y),
-                                    **property_interpolation_kwargs)
+                grid_z1 = griddata((prop_data.x, prop_data.y),
+                                   prop_data.squeeze(),
+                                   (grid_x, grid_y),
+                                   **property_interpolation_kwargs)
 
                 interpol = hlpr.ax.imshow(grid_z1.T,
                                           extent=(min_x,

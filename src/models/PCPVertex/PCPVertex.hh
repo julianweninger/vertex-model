@@ -650,17 +650,26 @@ protected:
     /// The total number of T1 transitions
     std::size_t _num_T1s_total;
 
+    /// The frequency of T1 transitions per edge since initialisation
+    double _T1_frequency_acc;
+
     /// The number of T1 transitions attempted
     std::size_t _num_T1s_attempted;
 
     /// The total number of T1 transitions attempted
     std::size_t _num_T1s_attempted_total;
+    
+    /// The frequency of attempted T1 transitions per edge since initialisation
+    double _T1_attempt_frequency_acc;
 
     /// The number of T2 transitions
     std::size_t _num_T2s;
 
     /// The total number of T2 transitions
     std::size_t _num_T2s_total;
+
+    /// The frequency of T2 transitions per cell since initialisation
+    double _T2_frequency_acc;
 
     /// A counter for the completed minimizations
     std::size_t _num_minimizations;
@@ -747,10 +756,13 @@ public:
         _energy(0.),
         _num_T1s(0),
         _num_T1s_total(0),
+        _T1_frequency_acc(0.),
         _num_T1s_attempted(0),
         _num_T1s_attempted_total(0),
+        _T1_attempt_frequency_acc(0.),
         _num_T2s(0),
         _num_T2s_total(0),
+        _T2_frequency_acc(0.),
         _num_minimizations(0)
     {
         double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
@@ -2083,15 +2095,9 @@ public:
         return _num_T1s;
     }
 
-    /// Counter for the attempted T1 neighborhood exchange transitions
-    /// in last iteration
-    std::size_t get_num_T1s_attempted() const {
-        return _num_T1s_attempted;
-    }
-
-    /// Counter for the T2 cell extrusion transitions in last iteration
-    std::size_t get_num_T2s() const {
-        return _num_T2s;
+    /// Number of T1s per edge in last iteration
+    double get_T1_frequency() const {
+        return _num_T1s / static_cast<double>(_am.edges().size());
     }
 
     /// Total counter for the T1 neighborhood exchange transitions
@@ -2099,15 +2105,52 @@ public:
         return _num_T1s_total;
     }
 
+    /// Number of T1 per edge
+    double get_T1_frequency_accumulated() const {
+        return _T1_frequency_acc;
+    }
+
+
+    /// Counter for the attempted T1 neighborhood exchange transitions
+    /// in last iteration
+    std::size_t get_num_T1s_attempted() const {
+        return _num_T1s_attempted;
+    }
+
+    /// Number of T1s attempted per edge in last iteration
+    double get_T1_attempt_frequency() const {
+        return _num_T1s_attempted / static_cast<double>(_am.edges().size());
+    }
+
     /// Total counter for the attempted T1 neighborhood exchange transitions
     std::size_t get_num_T1s_attempted_total() const {
         return _num_T1s_attempted_total;
+    }
+
+    double get_T1_attempt_frequency_accumulated() const {
+        return _T1_attempt_frequency_acc;
+    }
+
+
+    /// Counter for the T2 cell extrusion transitions in last iteration
+    std::size_t get_num_T2s() const {
+        return _num_T2s;
+    }
+
+    /// Number of T2s per cell in last iteration
+    double get_T2_frequency() const {
+        return _num_T2s / static_cast<double>(_am.cells().size());
     }
 
     /// Total counter for the T2 cell extrusion transitions
     std::size_t get_num_T2s_total() const {
         return _num_T2s_total;
     }
+
+    double get_T2_frequency_accumulated() const {
+        return _T2_frequency_acc;
+    }
+
 
     /// Counter for the energy minimizations completed
     std::size_t get_num_minimizations() const {
@@ -2117,6 +2160,64 @@ public:
     /// The entities manager - vertices, edges, cells
     const AgentManager& get_am () const {
         return _am;
+    }
+
+    /// Label all clusters of same type cells
+    /** Here progenitor cells have label 0, hair cells impair and support cells 
+     *  pair labels
+     */
+    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids () {
+        std::unordered_map<std::shared_ptr<Cell>, std::size_t> cluster_ids;
+        cluster_ids.reserve(_am.cells().size());
+        
+        std::size_t cluster_id;
+        std::size_t hair_cluster_id_cnt = 1;
+        std::size_t support_cluster_id_cnt = 0;
+        for (const auto& cell : _am.cells()) {
+            cluster_ids[cell] = 0;
+        }
+
+        std::vector<std::shared_ptr<Cell>> cluster_members;
+        cluster_members.reserve(_am.cells().size());
+
+        for (const auto& cell : _am.cells()) {
+            if (   cluster_ids.at(cell) != 0
+                or cell->state.type == CellType::progenitor)
+            {
+                continue;
+            }
+
+            if (cell->state.type == CellType::hair) {
+                hair_cluster_id_cnt += 2;
+                cluster_id = hair_cluster_id_cnt;
+            }
+            else {
+                support_cluster_id_cnt += 2;
+                cluster_id = support_cluster_id_cnt;
+            }
+            cluster_ids[cell] = cluster_id;
+
+            cluster_members.clear();
+            cluster_members.push_back(cell);
+
+            for (std::size_t it = 0; it < cluster_members.size(); it++) {
+                const auto& c_it = cluster_members[it];
+                for (const auto& nb : this->_am.neighbors_of(c_it)) {
+                    if (nb->state.type == c_it->state.type)
+                    {
+                        if (cluster_ids.at(nb) == 0) {
+                            cluster_ids[nb] = cluster_id;
+                            cluster_members.push_back(nb);
+                        }
+                        else if (cluster_ids.at(nb) != cluster_id) {
+                            throw std::runtime_error("Messing with clusters!");
+                        }
+                    }
+                }
+            }
+        }
+
+        return cluster_ids;
     }
 
 
