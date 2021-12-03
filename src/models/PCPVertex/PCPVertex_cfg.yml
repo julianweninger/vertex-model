@@ -72,7 +72,7 @@ boundary_parameter:
   area_elasticity: 0.
   area_preferential: 1.
   contractility: 0.
-  shape_index_preferential: 3.62
+  shape_index_preferential: 3.76
 
 T1_threshold: 0.03
 T1_separation_factor: 1.05
