@@ -137,7 +137,7 @@ auto pcp_cells_adaptor = std::make_tuple(
                     SpaceVec block_pos = _a + (i + 0.5) * dN * e_vec;
                     SpaceVec displ = space->displacement(center, block_pos);
                     
-                    polarity += s * displ;
+                    polarity += s * displ / arma::norm(displ);
                 }
             }
             polarities.push_back(polarity);
@@ -286,84 +286,6 @@ auto pcp_edges_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__id", ids);
     }     
 ); // end edge link adaptor
-
-
-
-/// Datamanager adaptor for cell properties
-/** \details Properties are
- *      -# x component of polarity vector
- *      -# y component of polarity vector
- */
-template <typename SpaceVec>
-auto Polarity_adaptor = std::make_tuple(
-    // name of the task
-    "Polarities",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Polarities");
-    },
-
-    // writer function
-    [](auto& dataset, auto& model) {
-        const auto& am = model.get_am();
-        const auto& cells = am.cells();
-
-        std::vector<SpaceVec> polarities;
-        for (const auto& c : cells) {
-            SpaceVec polarity;
-            polarity.zeros();
-            for (auto [e, flip] : c->custom_links().edges) {
-                auto a = e->custom_links().a;
-                auto b = e->custom_links().b;
-                if (flip) {
-                    std::swap(a, b);
-                }
-
-                SpaceVec disp = am.displacement(a, b);
-                double sigma = am.get_sigma(e, c);
-                
-                polarity += sigma * disp;
-            }
-            polarities.push_back(polarity);
-        }
-        dataset->write(polarities.begin(), polarities.end(),
-                       [](auto&& pol) { return pol[0]; });
-        dataset->write(polarities.begin(), polarities.end(),
-                       [](auto&& pol) { return pol[1]; });
-    },
-
-    // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().cells().size()});
-    },
-
-    // attribute writer for basegroup
-    [](auto& grp, [[maybe_unused]] auto& m) {
-        grp->add_attribute("content", "time_series");},
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "property");
-        hdfdataset->add_attribute("coords__property", 
-                std::vector<std::string>({
-                    "polarity_x",
-                    "polarity_y"
-                }));
-        
-        hdfdataset->add_attribute("dim_name__1", "id");
-        hdfdataset->add_attribute("coords_mode__id", "values");
-        const auto& cells = model.get_am().cells();
-        std::vector<std::size_t> ids{};
-        ids.reserve(cells.size());
-        std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
-                       [](const auto& c) { return c->id(); });
-        hdfdataset->add_attribute("coords__id", ids);
-        
-        hdfdataset->add_attribute("AM_time", model.get_am_time());
-    }    
-); // end cell position adaptor
 
 } // namespace Utopia::Models::PlanarCellPolarity::DataIO
 
