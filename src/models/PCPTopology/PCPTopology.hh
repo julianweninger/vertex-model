@@ -80,6 +80,11 @@ public:
 
     /// The type of coordinates and vectors in space
     using SpaceVec = typename PCPVertex::SpaceVec;
+
+    /// The type of Proteins
+    using ProteinVec = typename PlanarCellPolarity::\
+                                PlanarCellPolarity<PCPVertex::AgentManager>::\
+                                ProteinVec;
                                     
 
 private:
@@ -960,13 +965,22 @@ public:
 
     /// Return polarity proteins of this edge
     /** See PlanarCellPolarity::get_polarity_proteins */
-    std::pair<double, double> get_polarity_proteins
+    std::pair<ProteinVec, ProteinVec> get_polarity_proteins
     (const std::shared_ptr<Edge>& edge, bool flip = false) const
     {
         if (not _pcp) {
-            return std::make_pair(0., 0.);
+            ProteinVec null(1, 0.);
+            return std::make_pair(null, null);
         }
         return _pcp->get_polarity_proteins(edge, flip);
+    }
+
+    std::size_t proteins_per_edge() const {
+        if (not _pcp) {
+            return 1;
+        }
+
+        return _pcp->proteins_per_edge();
     }
 };
 

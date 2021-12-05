@@ -38,8 +38,9 @@ auto model_factory(ParentType parent) {
         cell_cluster_adaptor,
         // PlanarCellPolarity spatial data
         Utopia::Models::PlanarCellPolarity::DataIO::pcp_cells_adaptor
-        <typename PCPVertex::Space::SpaceVec>,
+        <typename PCPVertex::Space::SpaceVec, typename PCPTopology::ProteinVec>,
         Utopia::Models::PlanarCellPolarity::DataIO::pcp_edges_adaptor
+        <typename PCPTopology::ProteinVec>
     ));
 }
 

@@ -67,6 +67,8 @@ public:
 
     using SpaceVec = typename CellManager::Space::SpaceVec;
 
+    using ProteinVec = typename arma::Col<double>;
+
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _log, _space
@@ -97,14 +99,19 @@ private:
      *       respectively.
      */
     std::map<std::shared_ptr<Edge>,
-             std::pair<double, double>> polarity_proteins;
+             std::pair<ProteinVec, ProteinVec>> polarity_proteins;
 
     /// The polarity proteins
-    std::map<std::weak_ptr<Edge>, std::pair<double, double>,
+    std::map<std::weak_ptr<Edge>,
+             std::pair<ProteinVec, ProteinVec>,
              std::owner_less<std::weak_ptr<Edge>>> protein_fluctuations;
 
     /// timestep scaling
     double _dt;
+
+    /// Number of proteins per edge
+    /** Proteins are equally spaced and fixed wrt edge */
+    std::size_t _N;
 
     /// Interaction parameter of cell-cell polarity interaction
     double _cell_cell_polarity_interaction;
@@ -131,9 +138,9 @@ private:
 
 
     // .. Temporary objects ...................................................
-    std::map<std::weak_ptr<Edge>, double,
+    std::map<std::weak_ptr<Edge>, ProteinVec,
              std::owner_less<std::weak_ptr<Edge>>> gradient_sigma_a;
-    std::map<std::weak_ptr<Edge>, double,
+    std::map<std::weak_ptr<Edge>, ProteinVec,
              std::owner_less<std::weak_ptr<Edge>>> gradient_sigma_b;
 
     std::map<std::weak_ptr<Cell>, double,
@@ -183,6 +190,7 @@ public:
 
         // model dynamics parameter
         _dt(get_as<double>("dt", this->_cfg)),
+        _N(get_as<std::size_t>("proteins_per_edge", this->_cfg)),
         _cell_cell_polarity_interaction(get_as<double>(
             "cell_cell_polarity_interaction",this->_cfg)),
         _cell_polarity_exclusion(get_as<double>(
@@ -253,10 +261,11 @@ private:
         this->_log->debug("Initializing PCP cells ...");
 
         for (const auto& edge : _cm.edges()) {
-            polarity_proteins[edge] = std::make_pair(0., 0.);
-            protein_fluctuations[edge] = std::make_pair(0., 0.);
-            gradient_sigma_a[edge] = 0.;
-            gradient_sigma_b[edge] = 0.;
+            ProteinVec null = ProteinVec(_N, arma::fill::zeros);
+            polarity_proteins[edge] = std::make_pair(null, null);
+            protein_fluctuations[edge] = std::make_pair(null, null);
+            gradient_sigma_a[edge] = null;
+            gradient_sigma_b[edge] = null;
         }
         edges_id_counter = _cm.edges_id_counter();
         for (const auto& cell : _cm.cells()) {
@@ -299,7 +308,7 @@ private:
     }
 
     void initialize_cells_random(double concentration = 1.) {
-        this->_log->debug("Initializing random PCP protein levels");
+        this->_log->debug("Initializing random PCP protein levels ..");
         for (const auto& cell : _cm.cells()) {
             const auto& edges = cell->custom_links().edges;
             const auto num_nbs = edges.size();
@@ -353,20 +362,22 @@ private:
 
         const auto& edges = cell->custom_links().edges;
         std::vector<double> orientations{};
-        orientations.reserve(edges.size());
-        for (const auto [edge, flip] : edges) {
-            SpaceVec edge_center = space->map_into_space(
-                (  _cm.position_of(edge->custom_links().a)
-                    + _cm.displacement(edge) / 2.));
-            SpaceVec orientation = space->displacement(cell_center,
-                                                        edge_center);
-            orientation /= arma::norm(orientation);
-
-            orientations.push_back(arma::dot(axis, orientation));
+        orientations.reserve(edges.size() * _N);
+        for (const auto& [edge, flip] : edges) {
+            SpaceVec a = _cm.position_of(edge->custom_links().a);
+            SpaceVec e_vec = _cm.displacement(edge);
+            double dN = 1. / static_cast<double>(_N);
+            for (std::size_t i = 0; i < _N; i++) {
+                SpaceVec pos = a + (i + 0.5) * dN * e_vec;
+                SpaceVec orientation = space->displacement(cell_center, pos);
+                orientation /= arma::norm(orientation);
+                
+                orientations.push_back(arma::dot(axis, orientation));
+            }
         }
 
         double net = std::accumulate(orientations.begin(),
-                                        orientations.end(), 0.);
+                                     orientations.end(), 0.);
         net /= orientations.size();
 
         for (std::size_t i = 0; i < orientations.size(); i++) {
@@ -392,12 +403,19 @@ private:
 
         for (std::size_t it = 0; it < edges.size(); it++) {
             const auto& [edge, flip] = edges[it];
-            auto [sigma_a, sigma_b] = polarity_proteins[edge];
+            
+            ProteinVec s(_N);
+            for (std::size_t i = 0; i < _N; i++) {
+                s[i] = orientations[it * _N + i];
+            }
+
+            ProteinVec sigma_a, sigma_b;
+            std::tie(sigma_a, sigma_b) = polarity_proteins[edge];
             if (not flip) {
-                sigma_a = orientations[it];
+                sigma_a = s;
             }
             else {
-                sigma_b = orientations[it];
+                sigma_b = s;
             }
             polarity_proteins[edge] = std::make_pair(sigma_a, sigma_b);
         }
@@ -411,7 +429,7 @@ private:
     void initialize_cells_aligned(double orientation, double stddev,
                                   double concentration = 1.)
     {
-        this->_log->debug("Initializing aligned PCP protein levels");
+        this->_log->debug("Initializing aligned PCP protein levels ..");
 
         std::normal_distribution<double> distr(orientation, stddev);
 
@@ -476,8 +494,8 @@ private:
         gradient_sigma_a.clear();
         gradient_sigma_b.clear();
         for (const auto& edge : _cm.edges()) {
-            gradient_sigma_a[edge] = 0.;
-            gradient_sigma_b[edge] = 0.;
+            gradient_sigma_a[edge] = ProteinVec(_N, arma::fill::zeros);
+            gradient_sigma_b[edge] = ProteinVec(_N, arma::fill::zeros);
         }
 
         // update links of cells
@@ -531,8 +549,8 @@ private:
 
             // erase old links
             std::map<std::shared_ptr<Edge>, 
-                     std::pair<std::pair<double, double>,
-                               std::pair<double, double>>> removals;
+                     std::pair<std::pair<ProteinVec, ProteinVec>,
+                               std::pair<ProteinVec, ProteinVec>>> removals;
             for (auto iter = polarity_proteins.begin();
                 iter != polarity_proteins.end(); 
                 // None
@@ -634,12 +652,10 @@ private:
             if (_boundary == BoundaryType::Dirichlet) {
                 // exponential decay
                 if (adj_a == nullptr) {
-                    gradient_sigma_a[edge] = std::get<0>(
-                        polarity_proteins[edge]);
+                    gradient_sigma_a[edge] = sigma_a;
                 }
                 if (adj_b == nullptr) {
-                    gradient_sigma_b[edge] = std::get<1>(
-                        polarity_proteins[edge]);
+                    gradient_sigma_b[edge] = sigma_b;
                 }
             }
 
@@ -664,10 +680,14 @@ private:
 
             auto [tau, dp] = _fluctuation;
 
-            double rand_a = (  dp * sqrt(2. * _dt / tau)
+            ProteinVec rand_a(_N), rand_b(_N);
+
+            for (std::size_t i = 0; i < _N; i++) {
+                rand_a[i] = (  dp * sqrt(2. * _dt / tau)
                              * _normal_distr(*this->_rng));
-            double rand_b = (  dp * sqrt(2. * _dt / tau)
+                rand_b[i] = (  dp * sqrt(2. * _dt / tau)
                              * _normal_distr(*this->_rng));
+            }
 
             if (adj_a or _boundary == BoundaryType::Neumann) {
                 _sa += rand_a - _dt / tau * _sa;
@@ -695,9 +715,9 @@ private:
             double cum_sigma = 0.;
             double cum_sigma_2 = 0.;
             for (const auto& e_pair : cell->custom_links().edges) {
-                double sigma = std::get<0>(get_polarity_proteins(e_pair));
-                cum_sigma += sigma;
-                cum_sigma_2 += std::pow(sigma, 2);
+                ProteinVec sigma = std::get<0>(get_polarity_proteins(e_pair));
+                cum_sigma += arma::accu(sigma);
+                cum_sigma_2 += std::pow(arma::norm(sigma), 2);
             }   
 
             lagrange_net_polarisation[cell] += cum_sigma * _dt;
@@ -706,50 +726,49 @@ private:
     }
 
 
-    void set_gradient_cell_cell_interaction (const std::shared_ptr<Edge>& edge)
-    {
-        const auto [sigma_a, sigma_b] = get_polarity_proteins(edge);
-
-        gradient_sigma_a[edge] += _cell_cell_polarity_interaction * sigma_b;
-        gradient_sigma_b[edge] += _cell_cell_polarity_interaction * sigma_a;
-    };
-
     void set_gradient_cell_cell_interaction(const AgentContainer<Edge>& edges) {
         for (const auto& edge : edges) {
-            set_gradient_cell_cell_interaction(edge);
-        }
-    }
+            const auto [sigma_a, sigma_b] = get_polarity_proteins(edge);
 
-
-    void set_gradient_polarity_exclusion
-    (const std::shared_ptr<Edge>& a, const std::shared_ptr<Edge>& b,
-     bool flip_a, bool flip_b)
-    {
-        auto sigma_a = std::get<0>(get_polarity_proteins(a, flip_a));
-        auto sigma_b = std::get<0>(get_polarity_proteins(b, flip_b));
-
-        if (not flip_a) {
-            gradient_sigma_a[a] -= _cell_polarity_exclusion * sigma_b;
-        }
-        else {
-            gradient_sigma_b[a] -= _cell_polarity_exclusion * sigma_b;
-        }
-        if (not flip_b) {
-            gradient_sigma_a[b] -= _cell_polarity_exclusion * sigma_a;
-        }
-        else {
-            gradient_sigma_b[b] -= _cell_polarity_exclusion * sigma_a;
+            gradient_sigma_a[edge] += _cell_cell_polarity_interaction * sigma_b;
+            gradient_sigma_b[edge] += _cell_cell_polarity_interaction * sigma_a;
         }
     }
 
     void set_gradient_polarity_exclusion (const AgentContainer<Cell>& cells) {
         for (const auto& cell : cells) {
             const auto& edges = cell->custom_links().edges;
-            for (std::size_t it = 1; it <= edges.size(); it++) {
-                auto [a, flip_a] = edges[it-1];
-                auto [b, flip_b] = edges[it % edges.size()];
+            std::size_t N = edges.size() * _N;
 
-                set_gradient_polarity_exclusion(a, b, flip_a, flip_b);
+            // create a vector that contains all sigma in correct order
+            ProteinVec sigma(N);
+            for (std::size_t it = 0; it < edges.size(); it++) {
+                auto [edge, flip] = edges[it];
+                ProteinVec _s = std::get<0>(get_polarity_proteins(edge, flip));
+                for (std::size_t pi = 0; pi < _N; pi++) {
+                    sigma[it * _N + pi] = _s[pi];
+                }
+            }
+
+            // shift in circular manner
+            ProteinVec sigma_p1 = arma::shift(sigma,  1);
+            ProteinVec sigma_m1 = arma::shift(sigma, -1);
+
+            // elements interacts with neighbors only
+            ProteinVec grad = -_cell_polarity_exclusion * (sigma_p1 + sigma_m1);
+
+            // assign gradients
+            for (std::size_t it = 0; it < edges.size(); it++) {
+                auto [edge, flip] = edges[it];
+                ProteinVec _s = std::get<0>(get_polarity_proteins(edge, flip));
+                for (std::size_t pi = 0; pi < _N; pi++) {
+                    if (not flip) {
+                        gradient_sigma_a[edge] += grad[it * _N + pi];
+                    }
+                    else {
+                        gradient_sigma_b[edge] += grad[it * _N + pi];
+                    }
+                }
             }
         } 
     }
@@ -777,8 +796,8 @@ private:
             double cum_sigma_2 = 0.;
             for (const auto& e_pair : cell->custom_links().edges) {
                 auto sigma = std::get<0>(get_polarity_proteins(e_pair));
-                cum_sigma += sigma;
-                cum_sigma_2 += std::pow(sigma, 2);
+                cum_sigma += arma::accu(sigma);
+                cum_sigma_2 += std::pow(arma::norm(sigma), 2);
             }
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto sigma = std::get<0>(get_polarity_proteins(edge, flip));
@@ -825,6 +844,7 @@ public:
 
     /// Monitor model information
     void monitor () {
+        this->_monitor.set_entry("time", this->get_time());
         this->_monitor.set_entry("Energy", _energy);
         this->_monitor.set_entry("dE", 
                                  (_energy - _energy_previous) / fabs(_energy));
@@ -850,9 +870,9 @@ public:
             double cum_sigma = 0.;
             double cum_sigma_2 = 0.;
             for (const auto& e_pair : cell->custom_links().edges) {
-                auto sigma = std::get<0>(get_polarity_proteins(e_pair));
-                cum_sigma += sigma;
-                cum_sigma_2 += std::pow(sigma, 2);
+                ProteinVec sigma = std::get<0>(get_polarity_proteins(e_pair));
+                cum_sigma += arma::accu(sigma);
+                cum_sigma_2 += std::pow(arma::norm(sigma), 2);
             }
             cum_sigma_max = std::max(cum_sigma_max, fabs(cum_sigma));
             cum_sigma_2_max = std::max(cum_sigma_2_max, fabs(cum_sigma_2 - 1.));
@@ -869,17 +889,19 @@ public:
 
     // .. Getters and setters .................................................
     // Add getters and setters here to interface with other models
-    std::pair<double, double> get_polarity_proteins
+    std::pair<ProteinVec, ProteinVec> get_polarity_proteins
     (const std::shared_ptr<Edge>& edge, bool flip = false) const
     {
         if (edges_id_counter != _cm.edges_id_counter()) {
             if (polarity_proteins.find(edge) == polarity_proteins.end()) {
-                return std::make_pair(0., 0.);
+                ProteinVec null(_N, arma::fill::zeros);
+                return std::make_pair(null, null);
             }
         }
 
-        auto [a, b] = polarity_proteins.at(edge);
-        auto [_a, _b] = protein_fluctuations.at(edge);
+        ProteinVec a, b, _a, _b;
+        std::tie( a,  b) = polarity_proteins.at(edge);
+        std::tie(_a, _b) = protein_fluctuations.at(edge);
         a += _a; b += _b;
         if (flip) {
             std::swap(a, b);
@@ -887,7 +909,7 @@ public:
         return std::make_pair(a, b);
     }
 
-    std::pair<double, double> get_polarity_proteins
+    std::pair<ProteinVec, ProteinVec> get_polarity_proteins
     (const std::pair<std::shared_ptr<Edge>, bool>& e_pair) const 
     {
         const auto& [edge, flip] = e_pair;
@@ -929,9 +951,10 @@ public:
     // .. Energy terms ........................................................
 protected:
     double energy_cell_cell_polarity (const std::shared_ptr<Edge>& edge) const {
-        const auto [sigma_a, sigma_b] = get_polarity_proteins(edge);
+        ProteinVec sigma_a, sigma_b;
+        std::tie(sigma_a, sigma_b) = get_polarity_proteins(edge);
 
-        return _cell_cell_polarity_interaction * sigma_a * sigma_b;
+        return _cell_cell_polarity_interaction * arma::accu(sigma_a % sigma_b);
     }
 
     double energy_cell_cell_polarity (const AgentContainer<Edge>& edges) const {
@@ -943,28 +966,24 @@ protected:
         return energy;
     }
 
-    
-    double energy_polarity_exclusion(const std::shared_ptr<Edge>& a,
-                                     const std::shared_ptr<Edge>& b,
-                                     const bool flip_a, const bool flip_b) const
-    {
-        auto sigma_a = std::get<0>(get_polarity_proteins(a, flip_a));
-        auto sigma_b = std::get<0>(get_polarity_proteins(b, flip_b));
-
-        return - _cell_polarity_exclusion * sigma_a * sigma_b;
-    }
-
     double energy_polarity_exclusion(const std::shared_ptr<Cell>& cell) const {
-        double energy = 0.;
-        std::size_t N = cell->custom_links().edges.size();
-        for (std::size_t i = 1; i <= N; i++) {
-            auto [a, flip_a] = cell->custom_links().edges[i-1];
-            auto [b, flip_b] = cell->custom_links().edges[i % N];
-
-            energy += energy_polarity_exclusion(a, b, flip_a, flip_b);
+        const auto& edges = cell->custom_links().edges;
+        std::size_t N = edges.size() * _N;
+    
+        // create a vector that contains all sigma in correct order
+        ProteinVec sigma(N);
+        for (std::size_t it = 0; it < edges.size(); it++) {
+            auto [edge, flip] = edges[it];
+            ProteinVec _s = std::get<0>(get_polarity_proteins(edge, flip));
+            for (std::size_t pi = 0; pi < _N; pi++) {
+                sigma[it * _N + pi] = _s[pi];
+            }
         }
 
-        return energy;
+        // shift in circular manner
+        ProteinVec sigma_p1 = arma::shift(sigma,  1);
+
+        return - _cell_polarity_exclusion * arma::accu(sigma % sigma_p1);
     }
 
     double energy_polarity_exclusion(const AgentContainer<Cell>& cells) const {
@@ -987,7 +1006,7 @@ protected:
 
         double cum_sigma = 0.;
         for (auto e_pair : cell->custom_links().edges) {
-            cum_sigma += std::get<0>(get_polarity_proteins(e_pair));
+            cum_sigma += arma::accu(std::get<0>(get_polarity_proteins(e_pair)));
         }
 
         return (  lagrange_net_polarisation.at(cell) * cum_sigma
@@ -1018,8 +1037,8 @@ protected:
 
         double concentration = 0.;
         for (const auto& e_pair : cell->custom_links().edges) {
-            double sigma = std::get<0>(get_polarity_proteins(e_pair));
-            concentration += std::pow(sigma, 2);
+            ProteinVec sigma = std::get<0>(get_polarity_proteins(e_pair));
+            concentration += std::pow(arma::norm(sigma), 2);
         }
 
         return (  lagrange_const_proteins.at(cell) * (concentration - 1.)
@@ -1068,6 +1087,10 @@ public:
 
     double total_energy () const {
         return total_energy(_cm.cells(), _cm.edges());
+    }
+
+    std::size_t proteins_per_edge () const {
+        return _N;
     }
 };
 

@@ -350,16 +350,29 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     __quiver_kwargs = dict(cmap='seismic')
                     __quiver_kwargs.update(_quiver_kwargs)
 
+
+                    if len(edge_property_split) % 2 != 0:
+                        raise RuntimeError("Edge split property not mod 2")
+                    
+                    N = int(len(edge_property_split) / 2)
+
                     length = (dx**2 + dy**2)**0.5
                     shift_x = 0.03 * -dy / length
                     shift_y = 0.03 *  dx / length
-                    hlpr.ax.quiver(ax+shift_x, ay+shift_y, dx, dy, 
-                                   e_prop_data.sel(**edge_property_split[0]),
-                                   **__quiver_kwargs)
 
-                    quiver = hlpr.ax.quiver(ax-shift_x, ay-shift_y, dx, dy,
-                                    e_prop_data.sel(**edge_property_split[1]),
-                                    **__quiver_kwargs)
+
+                    for i in range(0, N):
+                        _ax = ax + dx / N * i
+                        _ay = ay + dy / N * i
+                        hlpr.ax.quiver(
+                            _ax+shift_x, _ay+shift_y, dx / N, dy / N, 
+                            e_prop_data.sel(**edge_property_split[i]),
+                            **__quiver_kwargs)
+
+                        quiver = hlpr.ax.quiver(
+                            _ax-shift_x, _ay-shift_y, dx / N, dy / N, 
+                            e_prop_data.sel(**edge_property_split[N + i]),
+                            **__quiver_kwargs)
 
                     cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax, extend='both')
                     cbar.set_label(label=edge_property)

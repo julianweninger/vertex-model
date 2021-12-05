@@ -231,7 +231,7 @@ parameter_space:
         build_interval: *interval
       tasks:
         PCP_Cells: {active: true}
-        PCP_Edges: {active: true}
+        PCP_Proteins: {active: true}
         
         Energy_boundary_area_elasticity: {active: false}
         Energy_boundary_shape_elasticity: {active: false}
