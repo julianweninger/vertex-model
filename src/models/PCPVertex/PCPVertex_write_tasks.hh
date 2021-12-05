@@ -461,7 +461,7 @@ auto cells_adaptor = std::make_tuple(
         dataset->write(cells.begin(), cells.end(),
                        [am](const auto& cell) {
                             unsigned int num_hair_neighbors = 0;
-                            for (const auto n : am.neighbors_of(cell)) {
+                            for (const auto& n : am.neighbors_of(cell)) {
                                 num_hair_neighbors += 
                                     (n->state.type == CellType::hair);
                             }

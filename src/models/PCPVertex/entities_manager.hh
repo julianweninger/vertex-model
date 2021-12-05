@@ -428,7 +428,7 @@ public:
                          double beta) const
     {
         double perimeter = 0.;
-        for (const auto [e, flip] : boundary) {
+        for (const auto& [e, flip] : boundary) {
             perimeter += length_of(e, beta);
         }
         return perimeter;
@@ -490,7 +490,7 @@ public:
 
         double area = 0.;
         if (beta < 1.e-14) {
-            for (const auto [e, flip] : boundary) {
+            for (const auto& [e, flip] : boundary) {
                 SpaceVec a = position_of(e->custom_links().a);
                 SpaceVec b = position_of(e->custom_links().b);
 
@@ -506,7 +506,7 @@ public:
             }
         }
         else {
-            for (const auto [e, flip] : boundary) {
+            for (const auto& [e, flip] : boundary) {
                 SpaceVec a = this->displace_virtual(e->custom_links().a,
                                                     beta);
                 SpaceVec b = this->displace_virtual(e->custom_links().b,
@@ -590,7 +590,7 @@ public:
 
         double area = 0.;
         SpaceVec center(arma::fill::zeros);
-        for (const auto [e, flip] : boundary) {
+        for (const auto& [e, flip] : boundary) {
             // define the vertices positions relative to the reference
             /* this is important in periodic space to calculate with "real"
              * coordinates */
