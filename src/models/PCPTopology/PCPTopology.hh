@@ -984,6 +984,15 @@ public:
 
         return _pcp->proteins_per_edge();
     }
+
+    /// Forward to PlanarCellPolarity::pcp_polarity
+    SpaceVec pcp_polarity(const std::shared_ptr<Cell>& cell) const {
+        if (not _pcp) {
+            return SpaceVec({0., 0.});
+        }
+
+        return _pcp->pcp_polarity(cell);
+    }
 };
 
 } // namespace PCPTopology

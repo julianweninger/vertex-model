@@ -112,35 +112,12 @@ auto pcp_cells_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& space = model.get_space();
         const auto& am = model.get_am();
         const auto& cells = am.cells();
 
         std::vector<SpaceVec> polarities;
         for (const auto& cell : cells) {
-            SpaceVec center = am.barycenter_of(cell);
-            SpaceVec polarity({0., 0.});
-            for (auto [edge, flip] : cell->custom_links().edges) {
-                ProteinVec sigma = std::get<0>(
-                    model.get_polarity_proteins(edge, flip));
-                std::size_t N = sigma.n_elem;
-
-                auto a = edge->custom_links().a;
-                SpaceVec _a = am.position_of(a);
-                SpaceVec e_vec = am.displacement(edge);
-
-                // iterate the proteins along edge
-                double dN = 1. / static_cast<double>(N);
-                for (std::size_t i = 0; i < N; i++) {
-                    double s = sigma.at(i);
-
-                    SpaceVec block_pos = _a + (i + 0.5) * dN * e_vec;
-                    SpaceVec displ = space->displacement(center, block_pos);
-                    
-                    polarity += s * displ / arma::norm(displ);
-                }
-            }
-            polarities.push_back(polarity);
+            polarities.push_back(model.pcp_polarity(cell));
         }
         dataset->write(polarities.begin(), polarities.end(),
                        [](auto&& pol) { return pol[0]; });

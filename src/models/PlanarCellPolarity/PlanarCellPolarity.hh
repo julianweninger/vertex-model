@@ -362,7 +362,7 @@ private:
 
         const auto& edges = cell->custom_links().edges;
         std::vector<double> orientations{};
-        orientations.reserve(edges.size() * _N);
+        orientations.reserve(edges.size());
         for (const auto& [edge, flip] : edges) {
             SpaceVec a = _cm.position_of(edge->custom_links().a);
             SpaceVec e_vec = _cm.displacement(edge);
@@ -1091,6 +1091,37 @@ public:
 
     std::size_t proteins_per_edge () const {
         return _N;
+    }
+
+    /// The polarity of a cell
+    /** Polarity proteins accumulated with a weight that is the vector
+     *  between the position of the protein and the cell center
+     */
+    SpaceVec pcp_polarity (const std::shared_ptr<Cell>& cell) const {        
+        const auto& space = _cm.get_space();
+
+        SpaceVec center = _cm.barycenter_of(cell);
+        SpaceVec polarity({0., 0.});
+        for (auto [edge, flip] : cell->custom_links().edges) {
+            ProteinVec sigma = std::get<0>(get_polarity_proteins(edge, flip));
+            std::size_t N = sigma.n_elem;
+
+            SpaceVec vertex = _cm.position_of(edge->custom_links().a);
+            SpaceVec e_vec = _cm.displacement(edge);
+
+            // iterate the proteins along edge
+            double dN = 1. / static_cast<double>(N);
+            for (std::size_t i = 0; i < N; i++) {
+                double s = sigma.at(i);
+
+                SpaceVec pos = vertex + (i + 0.5) * dN * e_vec;
+                SpaceVec displ = space->displacement(center, pos);
+                
+                polarity += s * displ / arma::norm(displ);
+            }
+        }
+
+        return polarity;
     }
 };
 
