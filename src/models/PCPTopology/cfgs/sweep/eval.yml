@@ -29,6 +29,18 @@ transitions_continuous:
   map_to_continuous_time: False
   map_to_discrete_time: True
 
+
+diffusion:
+  based_on: diffusion_mv
+  hue: p0
+displacement:
+  based_on: diffusion
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result distance
+    y: distance
+
 equilibrium_cellular_structure:
   based_on:
     - .default_style_and_helpers
