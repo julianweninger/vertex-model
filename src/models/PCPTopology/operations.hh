@@ -1542,6 +1542,10 @@ OperationBundle build_increment_stripe_width (
         }
 
         double H = vertex_model.get_stripe_boundary_width();
+        if (H > 1.e12) {
+            throw std::runtime_error("Stripe boundary needs to be initialised "
+                "before it can be changed in `increment_stipe_width`!");
+        }
         if (*H_final < 1.e-12) {
             *H_final = H_target;
             if (relative_target) {
@@ -1588,6 +1592,12 @@ OperationBundle build_increment_stripe_curvature (
 
     Operation operation = [dk, update_potential](PCPVertex& vertex_model)
     {
+        double H = vertex_model.get_stripe_boundary_width();
+        if (H > 1.e12) {
+            throw std::runtime_error("Stripe boundary needs to be initialised "
+                "before it can be changed in `increment_stipe_curvature`!");
+        }
+
         if (update_potential) {
             vertex_model.update_stripe_boundary_potential(*update_potential);
         }
