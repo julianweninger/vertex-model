@@ -35,6 +35,83 @@ energy:
       x: time
       y: energy [a.u.]
 
+# the calculation of diffusion
+_diffusion:
+  transform:
+    - pass: [!dag_tag _displacement]
+    - .squeeze: [!dag_prev ]
+      tag: displacement
+
+    # the time coordinates
+    - .coords: [!dag_tag displacement, time]
+      tag: time
+
+    # square displacement
+    - pow: [!dag_tag displacement, 2]
+    - .sum: [!dag_prev , property]
+      kwargs: {skipna: False}
+    - .rename: [!dag_prev , square_displ]
+      tag: square_displ_xr
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: square_displacement
+
+    # diffusion
+    - div: [!dag_tag square_displ_xr, !dag_tag time]
+    - div: [!dag_prev , 2]
+    - .rename: [!dag_prev , diffusion]
+      tag: diffusion_xr
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion
+
+    # sqrt of square displacement
+    - pow: [!dag_tag square_displ_xr, 0.5]
+    - .rename: [!dag_prev , distance]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: distance
+
+  x: time
+  ci: sd
+  to_plot:
+  - function: sns.lineplot
+    data: !dag_result diffusion
+    y: diffusion
+
+# Diffusion in a universe 
+diffusion_uni:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - universe
+    - _diffusion
+
+  select: &DIFFUSION_FIELDS
+    _displacement:
+      path: data/PCPTopology/Cells
+      transform:
+        - import_and_call:
+          args: 
+            - model_plots.PCPTopology.data_ops
+            - displacement
+            - !dag_node -1
+            - property
+            - [x, y]
+        - .rename: [!dag_prev , displacement]
+
+# Diffusion in a multiverse
+diffusion_mv:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - _diffusion
+
+  select_and_combine:
+    allow_missing_or_failing: true
+    fields: *DIFFUSION_FIELDS
+
 cell_property: &CELL_PROP
   module: model_plots.PCPTopology
   plot_func: errorbars

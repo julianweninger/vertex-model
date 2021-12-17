@@ -112,6 +112,19 @@ transitions_multiplot:
     set_scales:
       y: log
 
+# effective diffusion
+diffusion:
+  based_on: diffusion_uni
+
+# Displacement, i.e. MSD**0.5
+displacement:
+  based_on: diffusion
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result distance
+    y: distance
+
 # Cell properties from cell statistics ----------------------------------------
 cell_stats/area:
   based_on:

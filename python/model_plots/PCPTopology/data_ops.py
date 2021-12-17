@@ -44,6 +44,44 @@ def sortby(d: xr.DataArray, *a, **k):
 def apply(d, f, *a, **k):
     return d.apply(f, *a, **k)
 
+def displacement(TimeSeries, dim, coords, *, shift=1):
+    """Calculate the displacement in periodic space space of a TimeSeries.
+    Calculates the difference of data with itself:
+    displ = data - data.shift({'time': shift})
+
+    And corrects for periodic boundary conditions. Maximum displacement between
+    two displacements must be < 1/2 domain size.
+
+
+    Args:
+        TimeSeries: The Time series containing the data and time information
+        dim: The dimension in TimeSeries from which to select the data
+        coords: The coordinates in dim to select; 
+                i.e. data = TimeSeries.sel({dim: coords})
+    """
+    space = [[TimeSeries[t].attrs['Lx'][0], TimeSeries[t].attrs['Ly'][0]]\
+             for t in TimeSeries]
+    time = [float(t) for t in TimeSeries]
+
+    data = TimeSeries.sel({dim: coords})
+    
+    space = xr.DataArray(space, dims=['time', dim],
+                         coords={dim: coords, 'time': time})
+    space = space.reindex({'time': data.time})
+
+    # use shifted data before as reference
+    displ = data - data.shift({'time': shift})
+
+    # correct periodicity
+    displ = xr.where(displ > -space / 2., displ, displ + space)
+    displ = xr.where(displ <  space / 2., displ, displ - space)
+
+    # cumulate displacement over time
+    displ = (displ - displ.mean('id')).cumsum('time')
+
+    return displ
+
+
 def map_directional_time(d: xr.DataArray):
     if 'direction' not in d.dims:
         raise RuntimeError("'direction' must be in dims of data {}", d.dims)
@@ -188,6 +226,8 @@ def define_exp_coordin_area():
 
     return num_neighbors
 
+def read_csv(*a, **k):
+    return pd.read_csv(*a, **k)
 
 def stack_xls_sheets(path: str, *, label: str, label_sheets: str,
                      label_columns: str, 
