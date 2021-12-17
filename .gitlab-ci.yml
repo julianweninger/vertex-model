@@ -4,7 +4,6 @@
 variables:
   # Variables for docker images
   BASE_IMAGE: julianweninger/brewtopia:latest
-  TEST_IMAGE: julianweninger/brewtopia-models:latest
 
   # Docker Hub login command
   DOCKER_HUB_LOGIN: docker login -u $DOCKER_USER -p $DOCKER_PW
@@ -32,7 +31,7 @@ variables:
 
 
 # Define the image to use for all stages
-image: ${TEST_IMAGE}
+image: ${BASE_IMAGE}
 
 stages:
   - update    # update the docker images for testing
@@ -113,24 +112,24 @@ update:brewtopia:
 # .. brewtopia-models: the testing image
 # This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
 # It updates the dependencies and the Utopia installation in the test image.
-update:brewtopia-models:
+update:brewtopia-upgrade:
   <<: *dind
   stage: update
   variables:
     <<: *dind_variables
-    BUILD_BREWTOPIA_MODELS: "false"
+    UPGRADE_BREWTOPIA: "false"
   rules:
-    - if: '$BUILD_BREWTOPIA_MODELS == "true"'
+    - if: '$UPGRADE_BREWTOPIA == "true"'
       when: always
     - if: '$CI_COMMIT_BRANCH == "master"'
       when: always
     - when: never
   script:
-    - docker build -f docker/brewtopia-models.Dockerfile
+    - docker build -f docker/brewtopia-upgrade.Dockerfile
                    --build-arg BASE_IMAGE=${BASE_IMAGE}
-                   -t ${TEST_IMAGE}
+                   -t ${BASE_IMAGE}
                    ./
-    - docker push ${TEST_IMAGE}
+    - docker push ${BASE_IMAGE}
 
 
 # -- Preparation stage --------------------------------------------------------
