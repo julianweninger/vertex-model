@@ -82,11 +82,44 @@ cell_segmentation:
     - .default_style_and_helpers
     - cellular_structure
 
-  edge_property_path: PlanarCellPolarity/Edges
-  edge_property: {property: [sigma_alpha, sigma_beta]}
+  edge_property_path: PlanarCellPolarity/Proteins
+  edge_property: 
+    # property:
+      # - sigma_alpha
+      # - sigma_beta
+    proteins:
+      - sigma_alpha__0
+      - sigma_alpha__1
+      - sigma_alpha__2
+      # - sigma_alpha__3
+      # - sigma_alpha__4
+      # - sigma_alpha__5
+      # - sigma_alpha__6
+      - sigma_beta__0
+      - sigma_beta__1
+      - sigma_beta__2
+      # - sigma_beta__3
+      # - sigma_beta__4
+      # - sigma_beta__5
+      # - sigma_beta__6
+
   edge_property_split:
-    - property: sigma_alpha
-    - property: sigma_beta
+      # - property: sigma_alpha
+      # - property: sigma_beta
+      - proteins: sigma_alpha__0
+      - proteins: sigma_alpha__1
+      - proteins: sigma_alpha__2
+      # - proteins: sigma_alpha__3
+      # - proteins: sigma_alpha__4
+      # - proteins: sigma_alpha__5
+      # - proteins: sigma_alpha__6
+      - proteins: sigma_beta__0
+      - proteins: sigma_beta__1
+      - proteins: sigma_beta__2
+      # - proteins: sigma_beta__3
+      # - proteins: sigma_beta__4
+      # - proteins: sigma_beta__5
+      # - proteins: sigma_beta__6
   quiver_kwargs:
     clim: [-1, 1]
 

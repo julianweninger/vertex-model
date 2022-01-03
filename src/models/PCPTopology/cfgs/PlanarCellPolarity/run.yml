@@ -121,6 +121,7 @@ parameter_space:
       use_lagrange_multipliers: false
 
       dt: 0.01
+      proteins_per_edge: 3
       fluctuation: 1.e-2
       fluctuation_tau: 3.
 
