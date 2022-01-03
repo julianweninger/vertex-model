@@ -69,6 +69,8 @@ public:
 
     using ProteinVec = typename arma::Col<double>;
 
+    using ProteinVecPair = typename std::pair<ProteinVec, ProteinVec>;
+
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _log, _space
@@ -98,12 +100,11 @@ private:
      *       are the cells corresponding to the proteins sigma_a and sigma_b
      *       respectively.
      */
-    std::map<std::shared_ptr<Edge>,
-             std::pair<ProteinVec, ProteinVec>> polarity_proteins;
+    std::map<std::shared_ptr<Edge>, ProteinVecPair> polarity_proteins;
 
     /// The polarity proteins
     std::map<std::weak_ptr<Edge>,
-             std::pair<ProteinVec, ProteinVec>,
+             ProteinVecPair,
              std::owner_less<std::weak_ptr<Edge>>> protein_fluctuations;
 
     /// timestep scaling
@@ -339,7 +340,8 @@ private:
 
             for (std::size_t it = 0; it < num_nbs; it++) {
                 const auto& [edge, flip] = edges[it];
-                auto [sigma_a, sigma_b] = polarity_proteins[edge];
+                ProteinVec sigma_a, sigma_b;
+                std::tie(sigma_a, sigma_b) = polarity_proteins[edge];
                 if (not flip) { 
                     sigma_a = rns[it];
                 }
@@ -362,9 +364,12 @@ private:
 
         const auto& edges = cell->custom_links().edges;
         std::vector<double> orientations{};
-        orientations.reserve(edges.size());
+        orientations.reserve(edges.size() * _N);
         for (const auto& [edge, flip] : edges) {
-            SpaceVec a = _cm.position_of(edge->custom_links().a);
+            auto _a = edge->custom_links().a;
+            auto _b = edge->custom_links().b;
+            
+            SpaceVec a = _cm.position_of(_a);
             SpaceVec e_vec = _cm.displacement(edge);
             double dN = 1. / static_cast<double>(_N);
             for (std::size_t i = 0; i < _N; i++) {
@@ -646,7 +651,8 @@ private:
      */
     void update_polarity () {
         for (const auto& edge : _cm.edges()) {
-            auto [sigma_a, sigma_b] = polarity_proteins[edge];
+            ProteinVec sigma_a, sigma_b;
+            std::tie(sigma_a, sigma_b) = polarity_proteins[edge];
 
             auto [adj_a, adj_b] = _cm.template adjoints_of<true>(edge);
             if (_boundary == BoundaryType::Dirichlet) {
@@ -676,7 +682,8 @@ private:
 
 
             // Ornstein-Uhlenbeck fluctuations
-            auto [_sa, _sb] = protein_fluctuations[edge];
+            ProteinVec _sa, _sb;
+            std::tie(_sa, _sb) = protein_fluctuations[edge];
 
             auto [tau, dp] = _fluctuation;
 
@@ -728,7 +735,8 @@ private:
 
     void set_gradient_cell_cell_interaction(const AgentContainer<Edge>& edges) {
         for (const auto& edge : edges) {
-            const auto [sigma_a, sigma_b] = get_polarity_proteins(edge);
+            ProteinVec sigma_a, sigma_b;
+            std::tie(sigma_a, sigma_b) = get_polarity_proteins(edge);
 
             gradient_sigma_a[edge] += _cell_cell_polarity_interaction * sigma_b;
             gradient_sigma_b[edge] += _cell_cell_polarity_interaction * sigma_a;
@@ -758,16 +766,19 @@ private:
             ProteinVec grad = -_cell_polarity_exclusion * (sigma_p1 + sigma_m1);
 
             // assign gradients
+            // note to restore the saving order for flipped 4edges
             for (std::size_t it = 0; it < edges.size(); it++) {
                 auto [edge, flip] = edges[it];
-                ProteinVec _s = std::get<0>(get_polarity_proteins(edge, flip));
+                ProteinVec grad_e = ProteinVec(_N, arma::fill::zeros);
                 for (std::size_t pi = 0; pi < _N; pi++) {
-                    if (not flip) {
-                        gradient_sigma_a[edge] += grad[it * _N + pi];
-                    }
-                    else {
-                        gradient_sigma_b[edge] += grad[it * _N + pi];
-                    }
+                    grad_e[pi] = grad[it * _N + pi];
+                }
+                
+                if (not flip) {
+                    gradient_sigma_a[edge] += grad_e;
+                }
+                else {
+                    gradient_sigma_b[edge] += arma::reverse(grad_e);
                 }
             }
         } 
@@ -778,7 +789,8 @@ private:
         if (_use_lagrange_multipliers) {
             for (const auto& edge : _cm.edges()) {
                 auto [adj_a, adj_b] = _cm.template adjoints_of<true>(edge);
-                auto [sigma_a, sigma_b] = get_polarity_proteins(edge);
+                ProteinVec sigma_a, sigma_b;
+                std::tie(sigma_a, sigma_b) = get_polarity_proteins(edge);
 
                 gradient_sigma_a[edge] += lagrange_net_polarisation[adj_a];
                 gradient_sigma_b[edge] += lagrange_net_polarisation[adj_b];
@@ -795,12 +807,13 @@ private:
             double cum_sigma = 0.;
             double cum_sigma_2 = 0.;
             for (const auto& e_pair : cell->custom_links().edges) {
-                auto sigma = std::get<0>(get_polarity_proteins(e_pair));
+                ProteinVec sigma = std::get<0>(get_polarity_proteins(e_pair));
                 cum_sigma += arma::accu(sigma);
                 cum_sigma_2 += std::pow(arma::norm(sigma), 2);
             }
             for (const auto& [edge, flip] : cell->custom_links().edges) {
-                auto sigma = std::get<0>(get_polarity_proteins(edge, flip));
+                ProteinVec sigma = std::get<0>(
+                                get_polarity_proteins(edge, flip, false));
                 if (not flip) {
                     gradient_sigma_a[edge] += (
                         _penalty_net_polarisation * cum_sigma);
@@ -889,8 +902,24 @@ public:
 
     // .. Getters and setters .................................................
     // Add getters and setters here to interface with other models
+    /// Getter for the polarity proteins of an edge
+    /** Returns the polarity proteins on either side of the edge, where the
+     *  first vector corresponds to those on the left side of the edge, in the 
+     *  orientation of the edge.
+     *  
+     *  If flip, the edge is flipped, i.e. b->a is considered the orientation.
+     *  
+     *  If reverse, on a flipped edge the order of the polarity proteins is
+     *  reversed.
+     * 
+     */
     std::pair<ProteinVec, ProteinVec> get_polarity_proteins
-    (const std::shared_ptr<Edge>& edge, bool flip = false) const
+    (
+        const std::shared_ptr<Edge>& edge,
+        bool flip = false,
+        bool reverse = true
+    )
+    const
     {
         if (edges_id_counter != _cm.edges_id_counter()) {
             if (polarity_proteins.find(edge) == polarity_proteins.end()) {
@@ -905,6 +934,10 @@ public:
         a += _a; b += _b;
         if (flip) {
             std::swap(a, b);
+            if (reverse) {
+                a = arma::reverse(a);
+                b = arma::reverse(b);
+            }
         }
         return std::make_pair(a, b);
     }
