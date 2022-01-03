@@ -1135,12 +1135,16 @@ public:
 
         SpaceVec center = _cm.barycenter_of(cell);
         SpaceVec polarity({0., 0.});
-        for (auto [edge, flip] : cell->custom_links().edges) {
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
             ProteinVec sigma = std::get<0>(get_polarity_proteins(edge, flip));
             std::size_t N = sigma.n_elem;
 
-            SpaceVec vertex = _cm.position_of(edge->custom_links().a);
-            SpaceVec e_vec = _cm.displacement(edge);
+            auto a = edge->custom_links().a;
+            auto b = edge->custom_links().b;
+            if (flip) { std::swap(a, b); }
+
+            SpaceVec vertex = _cm.position_of(a);
+            SpaceVec e_vec = _cm.displacement(edge, flip);
 
             // iterate the proteins along edge
             double dN = 1. / static_cast<double>(N);
