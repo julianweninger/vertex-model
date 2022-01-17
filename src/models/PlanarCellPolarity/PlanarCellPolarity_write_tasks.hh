@@ -100,7 +100,7 @@ auto energy_adaptor = std::make_tuple(
     }
 ); // end energy_adaptor
 
-template <typename SpaceVec>
+template <typename SpaceVec, typename ProteinVec>
 auto pcp_cells_adaptor = std::make_tuple(
     // name of the task
     "PCP_Cells",
@@ -112,28 +112,12 @@ auto pcp_cells_adaptor = std::make_tuple(
 
     // writer function
     [](auto& dataset, auto& model) {
-        const auto& space = model.get_space();
         const auto& am = model.get_am();
         const auto& cells = am.cells();
 
         std::vector<SpaceVec> polarities;
         for (const auto& cell : cells) {
-            SpaceVec center = am.barycenter_of(cell);
-            SpaceVec polarity({0., 0.});
-            for (auto [edge, flip] : cell->custom_links().edges) {
-                double sigma = std::get<0>(
-                    model.get_polarity_proteins(edge, flip));
-
-                auto a = edge->custom_links().a;
-                SpaceVec _a = am.position_of(a);
-                SpaceVec e_vec = am.displacement(edge);
-                SpaceVec e_center = space->map_into_space(_a + 0.5 * e_vec);
-
-                SpaceVec displ = space->displacement(center, e_center);
-                
-                polarity += sigma * displ;
-            }
-            polarities.push_back(polarity);
+            polarities.push_back(model.pcp_polarity(cell));
         }
         dataset->write(polarities.begin(), polarities.end(),
                        [](auto&& pol) { return pol[0]; });
@@ -144,8 +128,8 @@ auto pcp_cells_adaptor = std::make_tuple(
             [model](const auto& cell) {
                 double cum_sigma = 0.;
                 for (const auto& [edge, flip] : cell->custom_links().edges) {
-                    cum_sigma += std::get<0>(
-                                    model.get_polarity_proteins(edge, flip));
+                    cum_sigma += arma::accu(
+                        std::get<0>(model.get_polarity_proteins(edge, flip)));
                 }
 
                 return cum_sigma;
@@ -154,9 +138,9 @@ auto pcp_cells_adaptor = std::make_tuple(
             [model](const auto& cell) {
                 double cum_sigma_2 = 0.;
                 for (const auto& [edge, flip] : cell->custom_links().edges) {
-                    double sigma = std::get<0>(
+                    ProteinVec sigma = std::get<0>(
                             model.get_polarity_proteins(edge, flip));
-                    cum_sigma_2 += std::pow(sigma, 2);
+                    cum_sigma_2 += std::pow(arma::norm(sigma), 2);
                 }
 
                 return cum_sigma_2;
@@ -195,35 +179,57 @@ auto pcp_cells_adaptor = std::make_tuple(
 ); // end cell position adaptor
 
 /// Datamanager adaptor for edges properties
+template <typename ProteinVec>
 auto pcp_edges_adaptor = std::make_tuple(
 
     // name of the task
-    "PCP_Edges",
+    "PCP_Proteins",
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("PlanarCellPolarity")->open_group("Edges");
+        return grp->open_group("PlanarCellPolarity")->open_group("Proteins");
     },
 
     // writer function
     [](auto& dataset, auto& model) {
         const auto& am = model.get_am();
         const auto& edges = am.edges();
-        
-        dataset->write(edges.begin(), edges.end(),
-            [am, model](const auto& edge) {
-                return std::get<0>(model.get_polarity_proteins(edge));
-            });
-        dataset->write(edges.begin(), edges.end(),
-            [am, model](const auto& edge) {
-                return std::get<1>(model.get_polarity_proteins(edge));
-            });    
+
+        std::size_t N =  model.proteins_per_edge();
+
+        std::vector<std::vector<double>> sigma;
+        sigma.reserve(edges.size());
+        for (const auto& edge : edges) {
+            ProteinVec a, b;
+            std::vector<double> _s;
+            std::tie(a, b) = model.get_polarity_proteins(edge);
+            for (std::size_t i = 0; i < N; i++) {
+                _s.push_back(a[i]);
+            }
+            for (std::size_t i = 0; i < N; i++) {
+                _s.push_back(b[i]);
+            }
+            sigma.push_back(_s);
+        }
+
+        for (std::size_t i = 0; i < N; i++) {
+            dataset->write(edges.begin(), edges.end(),
+                [model, i](const auto& edge) {
+                    return std::get<0>(model.get_polarity_proteins(edge))(i);
+                });
+        }
+        for (std::size_t i = 0; i < N; i++) {
+            dataset->write(edges.begin(), edges.end(),
+                [model, i](const auto& edge) {
+                    return std::get<1>(model.get_polarity_proteins(edge))(i);
+                });
+        }
     },
                 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().edges().size()});
+            {2 * m.proteins_per_edge(), m.get_am().edges().size()});
     },
 
     // attribute writer for basegroup
@@ -232,12 +238,21 @@ auto pcp_edges_adaptor = std::make_tuple(
 
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "property");
-        hdfdataset->add_attribute("coords__property", 
-                                  std::vector<std::string>({
-                                        "sigma_alpha",
-                                        "sigma_beta"
-                                   }));
+        // proteins
+        hdfdataset->add_attribute("dim_name__0", "proteins");
+        hdfdataset->add_attribute("coords_mode__proteins", "values");
+        std::vector<std::string> proteins{};
+        for (std::size_t i = 0; i < model.proteins_per_edge(); i++) {
+            std::string name = "sigma_alpha__" + std::to_string(i);
+            proteins.push_back(name);
+        }
+        for (std::size_t i = 0; i < model.proteins_per_edge(); i++) {
+            std::string name = "sigma_beta__" + std::to_string(i);
+            proteins.push_back(name);
+        }
+        hdfdataset->add_attribute("coords__proteins", proteins);
+    
+        // ids
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");
         const auto& edges = model.get_am().edges();
@@ -248,84 +263,6 @@ auto pcp_edges_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__id", ids);
     }     
 ); // end edge link adaptor
-
-
-
-/// Datamanager adaptor for cell properties
-/** \details Properties are
- *      -# x component of polarity vector
- *      -# y component of polarity vector
- */
-template <typename SpaceVec>
-auto Polarity_adaptor = std::make_tuple(
-    // name of the task
-    "Polarities",
-
-    // basegroup builder
-    [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp->open_group("Polarities");
-    },
-
-    // writer function
-    [](auto& dataset, auto& model) {
-        const auto& am = model.get_am();
-        const auto& cells = am.cells();
-
-        std::vector<SpaceVec> polarities;
-        for (const auto& c : cells) {
-            SpaceVec polarity;
-            polarity.zeros();
-            for (auto [e, flip] : c->custom_links().edges) {
-                auto a = e->custom_links().a;
-                auto b = e->custom_links().b;
-                if (flip) {
-                    std::swap(a, b);
-                }
-
-                SpaceVec disp = am.displacement(a, b);
-                double sigma = am.get_sigma(e, c);
-                
-                polarity += sigma * disp;
-            }
-            polarities.push_back(polarity);
-        }
-        dataset->write(polarities.begin(), polarities.end(),
-                       [](auto&& pol) { return pol[0]; });
-        dataset->write(polarities.begin(), polarities.end(),
-                       [](auto&& pol) { return pol[1]; });
-    },
-
-    // builder function
-    [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().cells().size()});
-    },
-
-    // attribute writer for basegroup
-    [](auto& grp, [[maybe_unused]] auto& m) {
-        grp->add_attribute("content", "time_series");},
-
-    // attribute writer for dataset
-    [](auto& hdfdataset, auto& model) {
-        hdfdataset->add_attribute("dim_name__0", "property");
-        hdfdataset->add_attribute("coords__property", 
-                std::vector<std::string>({
-                    "polarity_x",
-                    "polarity_y"
-                }));
-        
-        hdfdataset->add_attribute("dim_name__1", "id");
-        hdfdataset->add_attribute("coords_mode__id", "values");
-        const auto& cells = model.get_am().cells();
-        std::vector<std::size_t> ids{};
-        ids.reserve(cells.size());
-        std::transform(cells.begin(), cells.end(), std::back_inserter(ids),
-                       [](const auto& c) { return c->id(); });
-        hdfdataset->add_attribute("coords__id", ids);
-        
-        hdfdataset->add_attribute("AM_time", model.get_am_time());
-    }    
-); // end cell position adaptor
 
 } // namespace Utopia::Models::PlanarCellPolarity::DataIO
 

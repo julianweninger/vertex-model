@@ -399,7 +399,7 @@ data_manager:
       active: false
       trigger: build_interval
       decider: write_interval
-    PCP_Edges:
+    PCP_Proteins:
       active: false
       trigger: build_interval
       decider: write_interval

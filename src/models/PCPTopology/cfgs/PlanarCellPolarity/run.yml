@@ -121,6 +121,7 @@ parameter_space:
       use_lagrange_multipliers: false
 
       dt: 0.01
+      proteins_per_edge: 3
       fluctuation: 1.e-2
       fluctuation_tau: 3.
 
@@ -231,7 +232,7 @@ parameter_space:
         build_interval: *interval
       tasks:
         PCP_Cells: {active: true}
-        PCP_Edges: {active: true}
+        PCP_Proteins: {active: true}
         
         Energy_boundary_area_elasticity: {active: false}
         Energy_boundary_shape_elasticity: {active: false}

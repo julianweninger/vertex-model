@@ -80,6 +80,11 @@ public:
 
     /// The type of coordinates and vectors in space
     using SpaceVec = typename PCPVertex::SpaceVec;
+
+    /// The type of Proteins
+    using ProteinVec = typename PlanarCellPolarity::\
+                                PlanarCellPolarity<PCPVertex::AgentManager>::\
+                                ProteinVec;
                                     
 
 private:
@@ -677,10 +682,15 @@ public:
     /// Monitor model information
     void monitor () {
         // overwrite the progress with progress estimate
-        this->_monitor.get_monitor_manager()->set_time_entries(
-            _vertex_model.get_num_minimizations(),
-            std::max(_estimate_minimizations,
-                     _vertex_model.get_num_minimizations() + 1));
+        if (_vertex_model.get_num_minimizations() < _estimate_minimizations) {
+            this->_monitor.get_monitor_manager()->set_time_entries(
+                _vertex_model.get_num_minimizations(),
+                std::max(_estimate_minimizations,
+                        _vertex_model.get_num_minimizations() + 1));
+            this->_monitor.set_entry("time", this->get_time());
+            this->_monitor.set_entry("progress",  float(this->get_time())
+                                                / float(this->get_time_max()));
+        }
 
         this->_monitor.set_entry("num_cells",
                                  _vertex_model.get_am().cells().size());
@@ -691,9 +701,6 @@ public:
         this->_monitor.set_entry("num_T2_transitions",
                                  _vertex_model.get_num_T2s_total());
 
-        this->_monitor.set_entry("time", this->get_time());
-        this->_monitor.set_entry("progress",   float(this->get_time())
-                                             / float(this->get_time_max()));
 
         _vertex_model.monitor();
         if (_pcp_prolog and *_pcp_prolog) {
@@ -960,13 +967,31 @@ public:
 
     /// Return polarity proteins of this edge
     /** See PlanarCellPolarity::get_polarity_proteins */
-    std::pair<double, double> get_polarity_proteins
+    std::pair<ProteinVec, ProteinVec> get_polarity_proteins
     (const std::shared_ptr<Edge>& edge, bool flip = false) const
     {
         if (not _pcp) {
-            return std::make_pair(0., 0.);
+            ProteinVec null(1, 0.);
+            return std::make_pair(null, null);
         }
         return _pcp->get_polarity_proteins(edge, flip);
+    }
+
+    std::size_t proteins_per_edge() const {
+        if (not _pcp) {
+            return 1;
+        }
+
+        return _pcp->proteins_per_edge();
+    }
+
+    /// Forward to PlanarCellPolarity::pcp_polarity
+    SpaceVec pcp_polarity(const std::shared_ptr<Cell>& cell) const {
+        if (not _pcp) {
+            return SpaceVec({0., 0.});
+        }
+
+        return _pcp->pcp_polarity(cell);
     }
 };
 
