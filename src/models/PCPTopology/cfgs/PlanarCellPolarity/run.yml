@@ -27,7 +27,11 @@ parameter_space:
 
   case: !sweep
     default: simple_shear
-    values: [simple_shear, oriented_cell_division, pure_shear]
+    values: 
+      - simple_shear
+      - oriented_cell_division
+      - pure_shear
+      - bend
 
   PCPTopology:
     # The sequence of operations
@@ -42,11 +46,16 @@ parameter_space:
             target_name: case
             name: num_generations
             default: 1
-            values: [1, 0, 1]
+            values: [1, 0, 1, 1]
           minimization_between_generations:
             num_repeat: 1
+            linetension_fluctuation: 0.12
           minimization:
             num_repeat: &equilibration_time 5
+            linetension_fluctuation: 0.12
+      - jiggle:
+          times: []
+          iterations_prolog: *equilibration_time
       # END proliferation
       
       - iterate_pcp:
@@ -70,6 +79,7 @@ parameter_space:
                 simple_shear: {                  
                   times: *TIMES,
                   shear_velocity: [0.01, 0.],
+                  deform_plastic: True,
                   minimization: {mode: manual}
                 }
               }
@@ -86,13 +96,26 @@ parameter_space:
                 pure_shear: {                  
                   times: *TIMES,
                   shear_velocity: 0.01,
+                  deform_plastic: True,
                   minimization: {mode: manual}
                 }
               }
-      - iterate_pcp:
+            - {
+                bending_box_bc: {                  
+                  times: *TIMES,
+                  increment_curvature: 2.e-4,
+                  deform_plastic: True,
+                  minimization: {mode: manual}
+                }
+              }
+              
+      - iterate_pcp: &iterate_pcp
           times: *TIMES
-          iterations: 1
-          num_steps: 500
+          num_steps: 1
+          iterations_prolog: 250
+          iterations: 250
+          minimization:
+            num_steps: 1
             
 
 
@@ -107,7 +130,7 @@ parameter_space:
       num_repeat: 1
       num_steps: 250
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.001
+      linetension_fluctuation: 0.01
 
       area_fluctuation: 0.0
       area_fluctuation_tau: 1.
@@ -172,11 +195,11 @@ parameter_space:
             lattice_rows: !coupled-sweep
               target_name: case
               default: 4
-              values: [4, 8, 16]
+              values: [4, 8, 16, 4]
             lattice_columns: !coupled-sweep
               target_name: case
               default: 4
-              values: [16, 8, 4]
+              values: [16, 8, 4, 16]
 
       minimization: *minimization
 
@@ -225,7 +248,7 @@ parameter_space:
             intervals:
               - [0, 5]
               - [5, 50, 5]
-              - [50, 1000, 50]
+              - [50, 1000, 10]
               # - [1000, 10001, 200]
               # - [10000, 100001, 5000]
       triggers:

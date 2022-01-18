@@ -1923,6 +1923,7 @@ OperationBundle build_pure_shear (
     OperationParams params(name, cfg, default_minim_params);
 
     double v0 = get_as<double>("shear_velocity", cfg);
+    bool deform_plastic = get_as<bool>("deform_plastic", cfg);
 
     auto initialised = std::make_shared<bool>(false);
     auto rho = std::make_shared<double>(0.);
@@ -1930,7 +1931,7 @@ OperationBundle build_pure_shear (
     auto Ly0 = std::make_shared<double>(0.);
 
     Operation operation =
-        [rho, v0, Lx0, Ly0,initialised]
+        [rho, v0, Lx0, Ly0,initialised, deform_plastic]
         (PCPVertex& vertex_model)
     {
         if (not vertex_model.get_space()->periodic) {
@@ -1981,7 +1982,10 @@ OperationBundle build_pure_shear (
                 "the shorter tissue axis does not fit 3 diameters of a cell!");
         }
 
-        space->set_domain_size(SpaceVec({Lx, Ly}));
+        vertex_model.stretch_domain(SpaceVec({Lx, Ly}) - domain,
+                                    false, false, false,
+                                    deform_plastic);
+        // NOTE area preserving
     };
 
     return std::make_pair(operation, params);
@@ -2372,8 +2376,9 @@ OperationBundle build_simple_shear (
     OperationParams params(name, cfg, default_minim_params);
 
     SpaceVec v0 = get_as_SpaceVec<2>("shear_velocity", cfg);
+    bool deform_plastic = get_as<bool>("deform_plastic", cfg);
 
-    Operation operation = [v0](PCPVertex& vertex_model)
+    Operation operation = [v0, deform_plastic](PCPVertex& vertex_model)
     {
         const auto& space = vertex_model.get_space();
 
@@ -2383,6 +2388,94 @@ OperationBundle build_simple_shear (
         skew += v0;
 
         space->set_skew(skew);
+
+        const auto& am = vertex_model.get_am();
+        if (deform_plastic) {
+            if (fabs(space->get_curvature()) > 1.e-12) {
+                double curvature = space->get_curvature();
+                for (const auto& vertex : am.vertices()) {
+                    SpaceVec pos = am.position_of(vertex);
+                    auto [rho, theta] = space->transform_radial(pos);
+                    double skew_theta = v0[0] * curvature;
+                    double max_theta = (domain[0] / 2.) * curvature;
+
+                    double r = (rho - 1. / curvature) / domain[1] + 0.5;
+                    double r_theta = theta / (2 * max_theta);
+
+                    theta += skew_theta * r;
+                    rho += v0[1] * (r_theta + max_theta);
+
+                    pos = space->transform_cartesian(rho, theta);
+                    am.move_to(vertex, pos);
+                }
+            }
+            else {
+                for (const auto& vertex : am.vertices()) {
+                    SpaceVec rpos = am.position_of(vertex) / domain;
+                    am.move_by(vertex, v0 % SpaceVec({rpos[1], rpos[0]}));
+                }
+            }
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+
+/// A bending model in periodic boundary conditions
+OperationBundle build_bending_box_bc (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    using SpaceVec = PCPVertex::SpaceVec;
+
+    OperationParams params(name, cfg, default_minim_params);
+
+    double v0 = get_as<double>("increment_curvature", cfg);
+    bool deform_plastic = get_as<bool>("deform_plastic", cfg);
+
+    Operation operation = [v0, deform_plastic](PCPVertex& vertex_model)
+    {
+        const auto& space = vertex_model.get_space();
+
+        double curvature = space->get_curvature();
+        curvature += v0;
+
+        space->set_curvature(curvature);
+
+        if (deform_plastic) {
+            const SpaceVec domain = space->get_domain_size();
+
+            double k0 = std::max(curvature - v0, 1.e-8);
+            double R0 = 1. / k0;
+
+            double k1 = std::max(curvature, 1.e-8);
+            double R1 = 1. / k1;
+            
+            double max_theta_0 = (domain[0] / 2.) * k0;
+            double max_theta_1 = (domain[0] / 2.) * k1;
+
+            SpaceVec origin_0({domain[0] / 2., domain[1] / 2. - R0});
+            SpaceVec origin_1({domain[0] / 2., domain[1] / 2. - R1});
+
+            const auto& am = vertex_model.get_am();
+            for (const auto& v : am.vertices()) {
+                SpaceVec pos = am.position_of(v);
+                SpaceVec displ = pos - origin_0;
+
+                // relative radial position
+                double rho = arma::norm(displ) - R0; 
+                // relative angular position
+                double theta = std::atan(displ[0] / displ[1]) / max_theta_0;
+
+                SpaceVec new_pos = (
+                    origin_1 + (rho + R1) * SpaceVec({sin(theta * max_theta_1), 
+                                                      cos(theta * max_theta_1)})
+                );
+
+                am.move_to(v, new_pos);
+            }
+        }
     };
 
     return std::make_pair(operation, params);

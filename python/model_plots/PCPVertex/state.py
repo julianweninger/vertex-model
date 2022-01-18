@@ -268,6 +268,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             # periodic skrewed boundary condition
             skew_x = e_data.attrs["skew_x"][0]
             skew_y = e_data.attrs["skew_y"][0]
+            curvature = e_data.attrs["curvature"][0]
+            max_theta = Lx / 2. * curvature
 
 
             ### plot vertices
@@ -294,265 +296,192 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             bx = bx.assign_coords(id=vertex_b.id)
             by = by.assign_coords(id=vertex_b.id)
 
-            dx = bx - ax
-            dy = by - ay
+            def displacement(ax, ay, bx, by):
+                if not vertex_cfg['space']['periodic']:
+                    return bx - ax, by - ay
+                
+                if abs(curvature) < 1.e-12:
+                    dx = bx - ax
+                    dy = by - ay
 
-            ## map edges crossing periodic boundary
-            if (vertex_cfg['space']['periodic']):
-                # left boundary
-                mask = (dx >= 0.5 * Lx)
-                dx += mask * (-Lx)
-                dy -= mask * skew_y
-                # right boundary
-                mask = (dx <= -0.5 * Lx)
-                dx += mask * Lx
-                dy += mask * skew_y
-                # lower boundary
-                mask = (dy >= 0.5 * Ly)
-                dy += mask * (-Ly)
-                dx -= mask * skew_x
-                # upper boundary
-                mask = (dy <= -0.5 * Ly)
-                dy += mask * (+Ly)
-                dx += mask * skew_x
+                    # skew
+                    dy -= np.round(dx / Lx) * skew_y
+                    dx -= np.round(dy / Ly) * skew_x
+
+                    # periodicity
+                    dx -= np.round(dx / Lx) * Lx
+                    dy -= np.round(dy / Ly) * Ly
+
+                    return dx, dy
+
+                R = 1. / curvature
+                _ax = ax - Lx / 2.
+                _ay = ay - Ly / 2. + R
+                _bx = bx - Lx / 2.
+                _by = by - Ly / 2. + R
+                
+                a_rho = (_ax**2 + _ay**2)**0.5
+                a_theta = np.arctan(_ax / _ay)
+                b_rho = (_bx**2 + _by**2)**0.5
+                b_theta = np.arctan(_bx / _by)
+                
+                # skew
+                skew_theta = skew_x * curvature
+                b_rho -= np.round((b_theta - a_theta) / 2 / max_theta) * skew_y
+                b_theta -= np.round((b_rho - a_rho) / Ly) * skew_theta
+
+                # curvature
+                b_theta -= np.round((b_theta-a_theta)/2./max_theta)*2*max_theta
+                b_rho -= np.round((b_rho - a_rho) / Ly) * Ly
+
+                _ax += Lx / 2.
+                _ay += Ly / 2. - R
+                _bx = b_rho * np.sin(b_theta) + Lx / 2.
+                _by = b_rho * np.cos(b_theta) + Ly / 2. - R
+
+                return _bx - ax, _by - ay
+
+            dx, dy = displacement(ax, ay, bx, by)
+
+            def quiver_and_colors(x, y, dx, dy, *, colorbar=True):
+                quiver_args = [x, y, dx, dy]
+                _quiver_kwargs = dict(headlength=0., headaxislength=0.,
+                                    headwidth=0., scale=1, scale_units='xy',
+                                    color='black')
+                if quiver_kwargs:
+                    _quiver_kwargs.update(quiver_kwargs)
             
-            quiver_args = [ax, ay, dx, dy]
-            _quiver_kwargs = dict(headlength=0., headaxislength=0.,
-                                  headwidth=0., scale=1, scale_units='xy',
-                                  color='black')
-            if quiver_kwargs:
-                _quiver_kwargs.update(quiver_kwargs)
-            
-            # for the energies of the edges
-            if edge_property is not None:
-                if edge_property_path is not None:
-                    if not edge_property_path in grp:
-                        raise ValueError("Failed to access property of edges at path "
-                            "'data/{}/{}' (relative to '{}'. Available paths: {}"
-                            "".format(datapath, edge_property_path, datapath, grp.keys())
-                        )
-                    if not time in grp[edge_property_path]:
-                        raise ValueError('No edge property data available at time {}.'
-                                        ''.format(time))
-                    e_prop_data = grp[edge_property_path][time]
-                else:
-                    e_prop_data = e_data
+                # for the color of the edges
+                if edge_property is not None:
+                    if edge_property_path is not None:
+                        if not edge_property_path in grp:
+                            raise ValueError("Failed to access property of edges at path "
+                                "'data/{}/{}' (relative to '{}'. Available paths: {}"
+                                "".format(datapath, edge_property_path, datapath, grp.keys())
+                            )
+                        if not time in grp[edge_property_path]:
+                            raise ValueError('No edge property data available at time {}.'
+                                            ''.format(time))
+                        e_prop_data = grp[edge_property_path][time]
+                    else:
+                        e_prop_data = e_data
 
-                e_prop_data = e_prop_data.sel(**edge_property).squeeze()
-                e_prop_data = e_prop_data.assign_coords(
-                    {'x': (ax + dx / 2.).drop('property'),
-                     'y': (ay + dy / 2.).drop('property')})   
-                if edge_property is not None and edge_property_split is None:
-                    # append coloring
-                    quiver_args.append(e_prop_data)
+                    e_prop_data = e_prop_data.sel(**edge_property).squeeze()
+                    e_prop_data = e_prop_data.assign_coords(
+                        {'x': (x + dx / 2.),
+                         'y': (y + dy / 2.)})
+                    if edge_property is not None and edge_property_split is None:
+                        # append coloring
+                        quiver_args.append(e_prop_data)
 
-                else:
-                    __quiver_kwargs = dict(cmap='seismic')
-                    __quiver_kwargs.update(_quiver_kwargs)
+                    else:
+                        __quiver_kwargs = dict(cmap='seismic')
+                        __quiver_kwargs.update(_quiver_kwargs)
 
 
-                    if len(edge_property_split) % 2 != 0:
-                        raise RuntimeError("Edge split property not mod 2")
-                    
-                    N = int(len(edge_property_split) / 2)
+                        if len(edge_property_split) % 2 != 0:
+                            raise RuntimeError("Edge split property not mod 2")
+                        
+                        N = int(len(edge_property_split) / 2)
 
-                    length = (dx**2 + dy**2)**0.5
-                    shift_x = 0.03 * -dy / length
-                    shift_y = 0.03 *  dx / length
+                        length = (dx**2 + dy**2)**0.5
+                        shift_x = 0.03 * -dy / length
+                        shift_y = 0.03 *  dx / length
 
 
-                    for i in range(0, N):
-                        _ax = ax + dx / N * i
-                        _ay = ay + dy / N * i
-                        hlpr.ax.quiver(
-                            _ax+shift_x, _ay+shift_y, dx / N, dy / N, 
-                            e_prop_data.sel(**edge_property_split[i]),
-                            **__quiver_kwargs)
+                        for i in range(0, N):
+                            _x = x + dx / N * i
+                            _y = y + dy / N * i
+                            hlpr.ax.quiver(
+                                _x+shift_x, _y+shift_y, dx / N, dy / N, 
+                                e_prop_data.sel(**edge_property_split[i]),
+                                **__quiver_kwargs)
 
-                        quiver = hlpr.ax.quiver(
-                            _ax-shift_x, _ay-shift_y, dx / N, dy / N, 
-                            e_prop_data.sel(**edge_property_split[N + i]),
-                            **__quiver_kwargs)
+                            quiver = hlpr.ax.quiver(
+                                _x-shift_x, _y-shift_y, dx / N, dy / N, 
+                                e_prop_data.sel(**edge_property_split[N + i]),
+                                **__quiver_kwargs)
+                        if colorbar:
+                            cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
+                                                     extend='both')
+                            cbar.set_label(label=edge_property)
+                            cbar.minorticks_on()
 
+                quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+
+                if len(quiver_args) == 5 and colorbar:
                     cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax, extend='both')
                     cbar.set_label(label=edge_property)
                     cbar.minorticks_on()
 
-            quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
-
-            if (len(quiver_args) == 5):
-                cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax, extend='both')
-                cbar.set_label(label=edge_property)
-                cbar.minorticks_on()
+            quiver_and_colors(ax, ay, dx, dy)
 
             ### plot duplicates of periodic edges
-            if (vertex_cfg['space']['periodic']):
-                # the ids of the vertices a and b of the edges
-                vertex_a = e_data.sel(property="vertex_a")
-                vertex_b = e_data.sel(property="vertex_b")
+            if vertex_cfg['space']['periodic']:
+                mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
+                # NOTE bitwise or
 
-                # the coordinates of vertices a and b in the set of edges
-                ax_tmp = v_data.sel(id=vertex_a, property='x')
-                ay_tmp = v_data.sel(id=vertex_a, property='y')
-                bx_tmp = v_data.sel(id=vertex_b, property='x')
-                by_tmp = v_data.sel(id=vertex_b, property='y')
+                _bx = np.where(mask, bx, np.nan)
+                _by = np.where(mask, by, np.nan)
 
-                # assign the correct ids to the edges vertices a and b
-                ax_tmp = ax.assign_coords(id=vertex_a.id)
-                ay_tmp = ay.assign_coords(id=vertex_a.id)
-                bx_tmp = bx.assign_coords(id=vertex_b.id)
-                by_tmp = by.assign_coords(id=vertex_b.id)
-                ax_tmp_prime = ax_tmp
-                ay_tmp_prime = ay_tmp
-                bx_tmp_prime = bx_tmp
-                by_tmp_prime = by_tmp
+                _dx, _dy = displacement(bx, by, ax, ay)
 
                 # use the inverse arrows
-                dx_tmp = ax_tmp - bx_tmp
-                dy_tmp = ay_tmp - by_tmp
-                dx_tmp_prime = dx_tmp
-                dy_tmp_prime = dy_tmp
-
-                # only those edges which cross the boundaries
-                # i.e. those which are not whithin the domain
-                mask = np.isnan(dx_tmp.where(abs(dx_tmp) <  0.5 * Lx)\
-                                      .where(abs(dy_tmp) <  0.5 * Ly))
-                bx_tmp = bx_tmp.where(mask)
-                by_tmp = by_tmp.where(mask)
-                dx_tmp = dx_tmp.where(mask)
-                dy_tmp = dy_tmp.where(mask)
-                
-                mask = (dx_tmp >= 0.5 * Lx)
-                dx_tmp += mask * (-Lx)
-                dy_tmp -= mask * skew_y
-                mask = (dx_tmp <= -0.5 * Lx)
-                dx_tmp += mask * Lx
-                dy_tmp += mask * skew_y
-                mask = (dy_tmp >= 0.5 * Ly)
-                dy_tmp += mask * (-Ly)
-                dx_tmp -= mask * skew_x
-                mask = (dy_tmp <= -0.5 * Ly)
-                dy_tmp += mask * (+Ly)
-                dx_tmp += mask * skew_x
-                
-                # ax = bx + (ax - bx), the inverse arrow
-                quiver_args = [bx_tmp+dx_tmp, by_tmp+dy_tmp, -dx_tmp, -dy_tmp]
-                if edge_property is not None and edge_property_split is None:
-                    quiver_args.append(e_prop_data)
-                elif edge_property is not None:
-                    length = (dx_tmp**2 + dy_tmp**2)**0.5
-                    shift_x_tmp = 0.03 *  dy_tmp / length
-                    shift_y_tmp = 0.03 * -dx_tmp / length
-                    hlpr.ax.quiver(bx_tmp + shift_x_tmp + dx_tmp,
-                                   by_tmp + shift_y_tmp + dy_tmp,
-                                   -dx_tmp, 
-                                   -dy_tmp, 
-                                   e_prop_data.sel(**edge_property_split[0]),
-                                   **__quiver_kwargs)
-                    hlpr.ax.quiver(bx_tmp - shift_x_tmp + dx_tmp,
-                                   by_tmp - shift_y_tmp + dy_tmp,
-                                   -dx_tmp, 
-                                   -dy_tmp, 
-                                   e_prop_data.sel(**edge_property_split[1]),
-                                   **__quiver_kwargs)
-                hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+                quiver_and_colors((_bx + _dx), (_by + _dy), -_dx, -_dy,
+                                  colorbar=False)
 
 
                 ## plot edges that cross 2 boundaries, i.e. corners
-                ## first the a->b arrow 
-                ax_tmp = ax_tmp_prime
-                ay_tmp = ay_tmp_prime
-                bx_tmp = bx_tmp_prime
-                by_tmp = by_tmp_prime
-                dx_tmp = -dx_tmp_prime
-                dy_tmp = -dy_tmp_prime
+                mask =  ((abs(bx - ax) > Lx / 2.) & (abs(by - ay) > Ly / 2.))
+                # NOTE bitwise and
+                _ax = ax.where(mask)
+                _ay = ay.where(mask)
+                _bx = bx.where(mask)
+                _by = by.where(mask)
 
-                # crossing both boundaries
-                mask = np.invert(np.isnan(dx_tmp.where(abs(dx_tmp) >  0.5 * Lx)\
-                                                .where(abs(dy_tmp) >  0.5 * Ly))
-                                )
-                mask = (abs(dx_tmp) >  0.5 * Lx)
-                mask = (mask.where(abs(dy_tmp) >  0.5 * Ly) == 1)
+                # rotate corners
+                if abs(curvature) < 1.e-12:
+                    _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
+                    _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
+                    _by -= (2. * np.round(_by / Ly) - 1.) * Ly
+                    _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
+                else:
+                    R = 1. / curvature
+                    _ax = _ax - Lx / 2.
+                    _ay = _ay - Ly / 2. + R
+                    _bx = _bx - Lx / 2.
+                    _by = _by - Ly / 2. + R
+                    
+                    a_rho = (_ax**2 + _ay**2)**0.5
+                    a_theta = np.arctan(_ax / _ay)
+                    b_rho = (_bx**2 + _by**2)**0.5
+                    b_theta = np.arctan(_bx / _by)
+                    
+                    # skew
+                    skew_theta = skew_x * curvature
+                    a_theta -= (a_rho - R) / abs(a_rho - R) * skew_theta
+                    b_theta -= (b_rho - R) / abs(b_rho - R) * skew_theta
 
-                ax_tmp = ax_tmp.where(mask)
-                ay_tmp = ay_tmp.where(mask)
-                bx_tmp = bx_tmp.where(mask)
-                by_tmp = by_tmp.where(mask)
-                dx_tmp = dx_tmp.where(mask)
-                dy_tmp = dy_tmp.where(mask)
+                    # rotate corners
+                    a_rho -= (a_rho - R) / abs(a_rho - R) * Ly
+                    b_rho -= (b_rho - R) / abs(b_rho - R) * Ly
+
+                    _ax *= 0.
+                    _ax += a_rho * np.sin(a_theta) + Lx / 2.
+                    _ay *= 0.
+                    _ay += a_rho * np.cos(a_theta) + Ly / 2. - R
+                    _bx *= 0.
+                    _bx += b_rho * np.sin(b_theta) + Lx / 2.
+                    _by *= 0.
+                    _by += b_rho * np.cos(b_theta) + Ly / 2. - R
                 
-                # left boundary
-                mask = (dx_tmp >= 0.5 * Lx)
-                dx_tmp += mask * (-Lx)
-                dy_tmp -= mask * skew_y
-                # left boundary
-                mask = (dx_tmp <= -0.5 * Lx)
-                dx_tmp += mask * Lx
-                dy_tmp += mask * skew_y
-                # left boundary
-                mask = (dy_tmp >= 0.5 * Ly)
-                dy_tmp += mask * (-Ly)
-                dx_tmp -= mask * skew_x
-                # left boundary
-                mask = (dy_tmp <= -0.5 * Ly)
-                dy_tmp += mask * (+Ly)
-                dx_tmp += mask * skew_x
-
-                ## copy vertices to other side of domain
-                # vertices close to left boundary
-                ax_tmp += Lx * (ax_tmp_prime < 0.5 * Lx)
-                bx_tmp += Lx * (bx_tmp_prime < 0.5 * Lx)
-                # vertices close to right boundary
-                ax_tmp -= Lx * (ax_tmp_prime > 0.5 * Lx)
-                bx_tmp -= Lx * (bx_tmp_prime > 0.5 * Lx)
-                # NOTE diagonal copy already has been made
-                #      doing horizontal shift, equivalent to vertical shift
-
-                quiver_args = [ax_tmp, ay_tmp, dx_tmp, dy_tmp]
-                if edge_property is not None and edge_property_split is None:
-                    quiver_args.append(e_prop_data)
-                elif edge_property is not None:
-                    length = (dx_tmp**2 + dy_tmp**2)**0.5
-                    shift_x_tmp = 0.03 *  dy_tmp / length
-                    shift_y_tmp = 0.03 * -dx_tmp / length
-                    hlpr.ax.quiver(ax_tmp + shift_x_tmp + dx_tmp,
-                                   ay_tmp + shift_y_tmp + dy_tmp,
-                                   dx_tmp, 
-                                   dy_tmp, 
-                                   e_prop_data.sel(**edge_property_split[0]),
-                                   **__quiver_kwargs)
-                    hlpr.ax.quiver(ax_tmp - shift_x_tmp + dx_tmp,
-                                   ay_tmp - shift_y_tmp + dy_tmp,
-                                   dx_tmp, 
-                                   dy_tmp, 
-                                   e_prop_data.sel(**edge_property_split[1]),
-                                   **__quiver_kwargs)
-
-                hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
                 
-                ## the inverse arrow
-                quiver_args = [bx_tmp - dx_tmp, by_tmp - dy_tmp, dx_tmp, dy_tmp]
-                if edge_property is not None and edge_property_split is None:
-                    quiver_args.append(e_prop_data)
-                elif edge_property is not None:
-                    length = (dx_tmp**2 + dy_tmp**2)**0.5
-                    shift_x_tmp = 0.03 *  dy_tmp / length
-                    shift_y_tmp = 0.03 * -dx_tmp / length
-                    hlpr.ax.quiver(bx_tmp + shift_x_tmp - dx_tmp,
-                                   by_tmp + shift_y_tmp - dy_tmp,
-                                   -dx_tmp, 
-                                   -dy_tmp, 
-                                   e_prop_data.sel(**edge_property_split[0]),
-                                   **__quiver_kwargs)
-                    hlpr.ax.quiver(bx_tmp - shift_x_tmp - dx_tmp,
-                                   by_tmp - shift_y_tmp - dy_tmp,
-                                   -dx_tmp, 
-                                   -dy_tmp, 
-                                   e_prop_data.sel(**edge_property_split[1]),
-                                   **__quiver_kwargs)
-                                   
-                hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
-
+                quiver_and_colors(_ax, _ay, dx, dy,
+                                  colorbar=False)
+                
+                __dx, __dy = displacement(_bx, _by, _ax, _ay)
+                quiver_and_colors((_bx + __dx), (_by + __dy), -__dx, -__dy,
+                                  colorbar=False)
 
             ### plot cells
             cell_type = c_data.sel(property="cell_type")
@@ -683,11 +612,40 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
 
             if (vertex_cfg['space']['periodic']):
-                hlpr.invoke_helper('set_limits', x=(-.2,Lx+.2), y=(-.2,Ly+.2))
-                hlpr.ax.axvline(x=0, c='gray', linestyle=':')
-                hlpr.ax.axvline(x=Lx, c='gray', linestyle=':')
-                hlpr.ax.axhline(y=0, c='gray', linestyle=':')
-                hlpr.ax.axhline(y=Ly, c='gray', linestyle=':')
+                if abs(curvature) > 1.e-12:        
+                    R = 1. / curvature
+                    Ox = Lx / 2.
+                    Oy = Ly / 2. - R
+                    
+                    hlpr.invoke_helper('set_limits', 
+                        x=((R + Ly/2.) * np.sin(-max_theta)+Lx/2,
+                           (R + Ly/2.) * np.sin( max_theta)+Lx/2),
+                        y=((R - Ly/2.) * np.cos(-max_theta) - R + Ly/2,
+                            Oy + R + Ly/2.))
+
+                    hlpr.ax.quiver(Ox, Oy,
+                                   (R + Ly / 2.) * np.sin( max_theta),
+                                   (R + Ly / 2.) * np.cos( max_theta),
+                                   headlength=0., headaxislength=0.,
+                                   headwidth=0., scale=1, scale_units='xy',
+                                   color='black')
+                    hlpr.ax.quiver(Ox, Oy,
+                                   (R + Ly / 2.) * np.sin(-max_theta),
+                                   (R + Ly / 2.) * np.cos(-max_theta),
+                                   headlength=0., headaxislength=0.,
+                                   headwidth=0., scale=1, scale_units='xy',
+                                   color='black')
+                    circle_inner = plt.Circle((Ox, Oy), R - Ly / 2.,
+                                              edgecolor='black', fill=False)
+                    circle_outer = plt.Circle((Ox, Oy), R + Ly / 2.,
+                                              edgecolor='black', fill=False)
+
+                    hlpr.ax.add_patch(circle_inner)
+                    hlpr.ax.add_patch(circle_outer)
+                else:                    
+                    hlpr.invoke_helper('set_limits', x=(0, Lx), y=(0, Ly))
+
+
 
                 if skew_x > 1.e-12:
                     hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',

@@ -648,9 +648,11 @@ auto edges_adaptor = std::make_tuple(
 
 
         const SpaceVec skew = model.get_space()->get_skew();
+        const double curvature = model.get_space()->get_curvature();
 
         hdfdataset->add_attribute("skew_x", skew[0]);
         hdfdataset->add_attribute("skew_y", skew[1]);
+        hdfdataset->add_attribute("curvature", curvature);
     }     
 ); // end edge link adaptor
 
