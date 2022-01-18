@@ -85,11 +85,6 @@ BOOST_FIXTURE_TEST_CASE(test_CustomSpace, Fixture)
     // absolute coordinates
     space.set_domain_size({2., 1.});
 
-    BOOST_CHECK_CLOSE(space.map_to_absolute_space({0.1, 0.1}).at(0), 0.2, 
-                      precision);
-    BOOST_CHECK_CLOSE(space.map_to_relative_space({0.2, 0.1}).at(0), 0.1, 
-                      precision);
-    
     if (space.bound) {
         BOOST_CHECK_CLOSE(space.map_into_space({1.2, 0.1}).at(0), 1.2,
                           precision);
@@ -107,4 +102,11 @@ BOOST_FIXTURE_TEST_CASE(test_CustomSpace, Fixture)
     BOOST_CHECK_CLOSE(space.distance({0.1, 0.1}, {1.9, 0.1}), 1.8, precision);
     BOOST_CHECK_CLOSE(space_periodic.distance({0.1, 0.1}, {1.9, 0.1}), 0.2,
                       precision);
+
+    space_periodic.set_curvature(0.02);
+    SpaceVec foo({0.1, 0.1});
+    auto [rho, theta] = space_periodic.transform_radial(foo);
+    SpaceVec _foo = space_periodic.transform_cartesian(rho, theta);
+    BOOST_CHECK_CLOSE(_foo[0], 0.1, 1.e-4);
+    BOOST_CHECK_CLOSE(_foo[1], 0.1, 1.e-4);
 }

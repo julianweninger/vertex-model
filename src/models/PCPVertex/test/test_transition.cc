@@ -914,6 +914,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         }
 
         model.get_space()->set_domain_size(domain0);
+        for (const auto& vertex : am.vertices()) {
+            SpaceVec pos = am.position_of(vertex);
+            am.move_to(vertex, am.position_of(vertex) / domain % domain0);
+        }
         _r = 1.;
         _theta = 0.;
         test_elongation_of(cell, _r, _theta, "reset.");
@@ -923,6 +927,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         double skew = 0.;
         domain = model.get_space()->get_domain_size();
         for (std::size_t i = 0; i < 5; i++) {
+            BOOST_CHECK_CLOSE(am.area_of(cell), 1., 1.e-2);
             double _skew = 0.25;
             skew += _skew;
             for (const auto& vertex : am.vertices()) {

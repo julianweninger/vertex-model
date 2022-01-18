@@ -1742,9 +1742,9 @@ public:
                                _edge_contractility);
     }
 
-    void increase_domain_size(double area);
+    void increase_domain_size(double area, bool deform_plastic);
     double stretch_domain(SpaceVec stretch, bool compensate,
-        bool fix_hc_area, bool fix_sc_area);
+        bool fix_hc_area, bool fix_sc_area, bool deform_plastic);
 
 
     // .. Simulation Control ..................................................

@@ -374,6 +374,7 @@ proliferate:
 pure_shear:
   times: []
   shear_velocity: 0.01
+  deform_plastic: True
   iterations: 20
 
 relax_area:
@@ -460,6 +461,7 @@ set_area_relax_PD_axis_FAIL:
 simple_shear:
   times: []
   shear_velocity: [0.05, 0]
+  deform_plastic: True
   iterations: 16
   minimization:
     mode: manual

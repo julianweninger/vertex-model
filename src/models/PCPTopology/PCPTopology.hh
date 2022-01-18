@@ -268,7 +268,12 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Operation name:  {}", name);
 
-                if (name == "brownian_noise") {
+                if (name == "bending_box_bc") {
+                    _operations.push_back(
+                        build_bending_box_bc(
+                            name, op_cfg, _minimization_params));
+                }
+                else if (name == "brownian_noise") {
                     _operations.push_back(
                         build_brownian_noise(name, op_cfg, _minimization_params,
                                              _log, _monitor_mngr));
@@ -418,6 +423,7 @@ private:
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
                         "Choose from: {}", name,
+                            "bending_box_bc, "
                             "brownian_noise, "
                             "differentiate_Collier, "
                             "differentiate_domain, "

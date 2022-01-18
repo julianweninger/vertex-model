@@ -53,8 +53,12 @@ void PCPVertex::jiggle_vertices(double intensity)
  * 
  *  Thereby proliferation of cells can be performed in a periodic setup
  *  without changing the parameters of the system. 
+ * 
+ *  If deform_plastic, all distances are stretched correspondingly.
+ *  I.e. relative positions in space are maintained
  */
-void PCPVertex::increase_domain_size(double area)
+void PCPVertex::increase_domain_size(double area,
+                                     bool deform_plastic = true)
 {
     if (not this->_space->periodic) {
         return;
@@ -72,6 +76,17 @@ void PCPVertex::increase_domain_size(double area)
     double lx = ratio * ly;
 
     this->_space->set_domain_size({lx, ly});
+
+    const SpaceVec new_domain = this->_space->get_domain_size();
+    if (deform_plastic) {
+        if (this->_space->get_curvature() > 1.e-12) {
+            throw std::runtime_error("Increase domain with curvature not "
+                "implemented");
+        }
+        for (const auto& vertex : _am.vertices()) {
+            _am.move_to(vertex, _am.position_of(vertex) / domain % new_domain);
+        }
+    }
 };
 
 /// Stretch the domain size
@@ -84,7 +99,7 @@ void PCPVertex::increase_domain_size(double area)
  *  \return The total change in area
  */
 double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
-        bool fix_hc_area, bool fix_sc_area)
+        bool fix_hc_area, bool fix_sc_area, bool deform_plastic = true)
 {
     if (not this->_space->periodic) {
         if (compensate) {
@@ -108,10 +123,25 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
                       fix_hc_area ? "":"not ",
                       fix_sc_area ? "":"not ");
     
-    this->_space->set_domain_size(this->_space->get_domain_size() + stretch);
-    SpaceVec domain = this->_space->get_domain_size();
+    const SpaceVec domain = this->_space->get_domain_size();
+    this->_space->set_domain_size(domain + stretch);
 
-    const double area_change = stretch[0]*domain[1] + stretch[1]*domain[0];
+    const SpaceVec new_domain = this->_space->get_domain_size();
+    const double area_change = (  stretch[0] * new_domain[1]
+                                + stretch[1] * new_domain[0]);
+
+
+    if (deform_plastic) {
+        if (this->_space->get_curvature() > 1.e-12) {
+            throw std::runtime_error("Increase domain with curvature not "
+                "implemented");
+        }
+        for (const auto& vertex : _am.vertices()) {
+            SpaceVec pos = _am.position_of(vertex);
+            _am.move_to(vertex, _am.position_of(vertex) / domain % new_domain);
+        }
+    }
+
 
     if (not compensate) {
         return area_change;

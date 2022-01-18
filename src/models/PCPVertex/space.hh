@@ -35,13 +35,16 @@ private:
     /// Lees-Edwards boundary condition, i.e. skew
     SpaceVec _skew;
 
+    double _curvature;
+
 public:
     CustomSpace(const DataIO::Config& cfg)
     :
         Space(cfg),
         bound(this->periodic),
         _domain_scale(arma::fill::ones),
-        _skew(arma::fill::zeros)
+        _skew(arma::fill::zeros),
+        _curvature(0.)
     {
         if (bound != this->periodic) {
             throw std::invalid_argument("The space can only be unbound in "
@@ -59,7 +62,8 @@ public:
         Space(),
         bound(this->periodic),
         _domain_scale(arma::fill::ones),
-        _skew(arma::fill::zeros)
+        _skew(arma::fill::zeros),
+        _curvature(0.)
     {
         if (bound != this->periodic) {
             throw std::invalid_argument("The space can only be unbound in "
@@ -69,11 +73,7 @@ public:
     }
 
     /// Whether this space contains the given coordinate (without mapping it)
-    /** \details Checks whether the given coordinate is within this space's
-      *         extent by computing the relative position and checking whether
-      *         it is within [0, 1] or [0, 1) for all elements.
-      *
-      * \note   No distinction is made between periodic and non-periodic space.
+    /** \note   No distinction is made between periodic and non-periodic space.
       *
       * \tparam  include_high_value_boundary  Whether to check the closed or
       *         the half-open interval. The latter case is useful when working
@@ -85,8 +85,23 @@ public:
         if (not bound) {
             return true;
         }
+        else if (_curvature > 1.e-12) {
+            auto [rho, theta] = transform_radial(pos);
+            
+            double Radius = 1. / _curvature;
+            SpaceVec domain = this->get_domain_size();
+            double max_theta = (domain[0] / 2.) * _curvature;
+
+            if (theta < -max_theta or theta >= max_theta) {
+                return false;
+            }
+            if (rho < Radius - domain[1]/2. or rho >= Radius + domain[1]/2.) {
+                return false;
+            }
+            return true;
+        }
         else {
-            return Space::contains(this->map_to_relative_space(pos));
+            return Space::contains(pos / _domain_scale);
         }
     }
 
@@ -102,33 +117,45 @@ public:
         if (not bound) {
             return pos;
         }
-        else if (arma::norm(_skew) > 1.e-12){
-            SpaceVec _pos = this->map_to_absolute_space(
-                Space::map_into_space(this->map_to_relative_space(pos)));
-            SpaceVec __pos = _pos;
-            if (_pos[1] < pos[1] - 1.e-10) {
-                // crossed upper boundary
-                __pos[0] -= _skew[0];
-            }
-            else if (_pos[1] > pos[1] + 1.e-10) {
-                // crossed lower boundary
-                __pos[0] += _skew[0];
-            }
-            if (_pos[0] < pos[0] - 1.e-10) {
-                // crossed left boundary
-                __pos[1] -= _skew[1];
-            }
-            else if (_pos[0] > pos[0] + 1.e-10) {
-                // crossed right boundary
-                __pos[1] += _skew[1];
+        else if (_curvature > 1.e-12) {
+            double skew_theta = _skew[0] * _curvature;
+
+            auto [rho, theta] = transform_radial(pos);
+
+            double Radius = 1. / _curvature;
+            SpaceVec domain = this->get_domain_size();
+            double max_theta = (domain[0] / 2.) * _curvature;
+
+            if (arma::norm(_skew) > 1.e-12) {
+                // correct skew
+                const double _rho = rho;
+
+                rho -= round(theta / (2 * max_theta)) * _skew[1];
+                theta -= round((_rho - Radius) / domain[1]) * skew_theta;
             }
 
-            return this->map_to_absolute_space(
-                Space::map_into_space(this->map_to_relative_space(__pos)));
+            // fix the boundaries
+            theta -= (  std::floor((theta + max_theta) / (2 * max_theta))
+                      * (2 * max_theta));
+            rho -= (  std::floor((rho - Radius + domain[1]/2.) / domain[1])
+                    * domain[1]);
+
+            SpaceVec new_pos = transform_cartesian(rho, theta);
+
+            return new_pos;
+        }
+        else if (arma::norm(_skew) > 1.e-12){
+            SpaceVec domain = this->get_domain_size();
+
+            SpaceVec add_skew = arma::floor(
+                arma::shift(pos / domain, -1) ) % _skew;
+
+            return _domain_scale % Space::map_into_space(
+                (pos - add_skew) / _domain_scale
+            );
         }
         else {
-            return this->map_to_absolute_space(Space::map_into_space(
-                    this->map_to_relative_space(pos)));
+            return Space::map_into_space(pos / _domain_scale) % _domain_scale;
         }
     }
     
@@ -142,34 +169,51 @@ public:
      *           displacement once reached half the domain size.
      */
     SpaceVec displacement(const SpaceVec& pos_0, const SpaceVec& pos_1) const {
-        SpaceVec displ = this->map_to_absolute_space(Space::displacement(
-                    this->map_to_relative_space(pos_0),
-                    this->map_to_relative_space(pos_1)));
-
-        if (arma::norm(_skew) > 1.e-12) {
-            // the virtual position (might be outside the domain)
-            SpaceVec _pos_1 = pos_0 + displ;
-
-            if (_pos_1[0] > get_domain_size()[0]) {
-                // right boundary
-                displ += _skew % SpaceVec({0., 1.});
-            }
-            else if (_pos_1[0] < 0) {
-                // left boundary
-                displ -= _skew % SpaceVec({0., 1.});
-            }
-
-            if (_pos_1[1] > get_domain_size()[1]) {
-                // upper boundary
-                displ += _skew % SpaceVec({1., 0.});
-            }
-            else if (_pos_1[1] < 0) {
-                // lower boundary
-                displ -= _skew % SpaceVec({1., 0.});
-            }
+        if (not this->periodic) {
+            return _domain_scale % Space::displacement(
+                pos_0 / _domain_scale,
+                pos_1 / _domain_scale
+            );
         }
+        else if (_curvature > 1.e-12) {
+            const auto [rho_0, theta_0] = transform_radial(pos_0);
+            auto [rho_1, theta_1] = transform_radial(pos_1);
+            
+            SpaceVec domain = this->get_domain_size();
+            double max_theta = (domain[0] / 2.) * _curvature;
 
-        return displ;
+            double skew_theta = _skew[0] * _curvature;
+            if (arma::norm(_skew) > 1.e-12) {
+                double d_rho = rho_1 - rho_0;
+                rho_1 -= round((theta_1 - theta_0) / (2*max_theta)) * _skew[1];
+                theta_1 -= round((d_rho) / domain[1]) * skew_theta;
+            }
+
+            theta_1 -= round((theta_1 - theta_0)/(2*max_theta)) * (2*max_theta);
+            rho_1 -= round((rho_1 - rho_0) / domain[1]) * domain[1];
+
+            return transform_cartesian(rho_1, theta_1) - pos_0;
+        }
+        else if (arma::norm(_skew) > 1.e-12) {
+            // the virtual position (might be outside the domain)
+            SpaceVec displ = pos_1 - pos_0;
+
+            SpaceVec domain = get_domain_size();
+
+            SpaceVec add_skew = arma::round(
+                arma::shift(displ / domain, -1) ) % _skew;
+
+            return -add_skew + _domain_scale % Space::displacement(
+                pos_0 / _domain_scale,
+                pos_1 / _domain_scale
+            );
+        }
+        else {
+            return _domain_scale % Space::displacement(
+                pos_0 / _domain_scale,
+                pos_1 / _domain_scale
+            );
+        }
     }
 
     /// The distance of 2 coordinates in space
@@ -212,6 +256,10 @@ public:
             SpaceVec pos_1, SpaceVec vec_1,
             bool finite_0=true, bool finite_1=true) const
     {
+        if (_curvature > 1.e-12) {
+            throw std::runtime_error("Intersection not implemented in "
+                "curved space!");
+        }
         // work with a copy of pos_1 relative to pos_0
         pos_1 = pos_0 + displacement(pos_0, pos_1);
 
@@ -273,17 +321,6 @@ public:
         intersection = this->map_into_space(intersection);
         return std::make_pair(intersection, true);
     }
-    
-    /// Map the position in to absolute coordinates
-    SpaceVec map_to_absolute_space(const SpaceVec& pos) const {
-        return pos % _domain_scale;
-    }
-    
-    
-    /// Map the position in to relative coordinates
-    SpaceVec map_to_relative_space(const SpaceVec& abs_pos) const {
-        return abs_pos / _domain_scale;
-    }  
 
     /// Getter for the size of the domain
     SpaceVec get_domain_size() const {
@@ -305,7 +342,7 @@ public:
     }
 
     /// Getter for skew boundary condition
-    SpaceVec get_skew() const {
+    const SpaceVec& get_skew() const {
         return _skew;
     }
 
@@ -327,6 +364,93 @@ public:
         }
 
         _skew = skew;
+    }
+
+
+    /// Getter for curved boundary condition
+    const double& get_curvature() const {
+        return _curvature;
+    }
+
+    /// Setter for curved boundary condition
+    void set_curvature(const double& curvature) {
+        if (not this->periodic) {
+            throw std::runtime_error(fmt::format(
+                "Cannot set curvature ({}) in non-periodic boundary "
+                "conditions!", curvature
+            ));
+        }
+        if (curvature < -1.e-12) {
+            throw std::runtime_error("Negative curvature!");
+        }
+
+        SpaceVec domain = get_domain_size();
+        double Radius = 1. / curvature;
+        double circumference = 2 * M_PI * Radius;
+        double fraction = domain[0] / circumference;
+
+        if (fraction > 0.90) {
+            throw std::runtime_error(fmt::format(
+                "Cannot set curvature to ({}) as 0.9 of the circle's "
+                "circumference ({}) is shorter than the domain long ({})",
+                circumference, curvature, domain[0]
+            ));
+        }
+        if (Radius - domain[1] / 2. < 12.) {
+            throw std::runtime_error(fmt::format(
+                "Cannot set curvature to {}, as it distorts distances by more "
+                "than 2.5 permille!", curvature));
+        }
+        if (Radius < domain[1]) {
+            throw std::runtime_error(fmt::format(
+                "Cannot set curvature to {}, as the point defect moves into "
+                "the first image of the domain!", curvature));
+        }
+
+        _curvature = curvature;
+    }
+
+
+    /// Transform a coordinate to radial coordinates
+    /** Only with curved periodic boundary conditions
+     * 
+     *  The radius and angle wrt to origin at half tissue + Radius in y-dir
+     */
+    std::pair<double, double> transform_radial(const SpaceVec pos) const {
+        if (_curvature < 1.e-12) {
+            throw std::runtime_error("Transform radial only possible with "
+                "finite curvature!");
+        }
+
+        SpaceVec domain = this->get_domain_size();
+
+        double Radius = 1. / _curvature;
+        SpaceVec origin({domain[0] / 2., domain[1] / 2. - Radius});
+
+        SpaceVec displ = pos - origin;
+        double rho = arma::norm(displ);
+        double theta = std::atan(displ[0] / displ[1]);
+
+        return std::make_pair(rho, theta);
+    }
+
+    /// Transform a radial coordinates to position
+    /** Only with curved periodic boundary conditions
+     * 
+     *  The radius and angle wrt to origin at half tissue + Radius in y-dir
+     */
+    SpaceVec transform_cartesian(double rho, double theta) const {
+        if (_curvature < 1.e-12) {
+            throw std::runtime_error("Transform radial only possible with "
+                "finite curvature!");
+        }
+
+        SpaceVec domain = this->get_domain_size();
+
+        double radius = 1. / _curvature;
+        SpaceVec origin({domain[0] / 2., domain[1] / 2. - radius});
+
+        return origin + rho * SpaceVec({sin(theta), cos(theta)});
     }
 }; // struct CustomSpace
 
