@@ -977,7 +977,7 @@ public:
     (const std::shared_ptr<Edge>& edge, bool flip = false) const
     {
         if (not _pcp) {
-            ProteinVec null(1, 0.);
+            ProteinVec null(1, arma::fill::zeros);
             return std::make_pair(null, null);
         }
         return _pcp->get_polarity_proteins(edge, flip);
