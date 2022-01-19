@@ -2466,7 +2466,7 @@ OperationBundle build_bending_box_bc (
                 // relative radial position
                 double rho = arma::norm(displ) - R0; 
                 // relative angular position
-                double theta = std::atan(displ[0] / displ[1]) / max_theta_0;
+                double theta = std::atan2(displ[0], displ[1]) / max_theta_0;
 
                 SpaceVec new_pos = (
                     origin_1 + (rho + R1) * SpaceVec({sin(theta * max_theta_1), 

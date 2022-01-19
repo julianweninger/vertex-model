@@ -389,11 +389,12 @@ public:
         double circumference = 2 * M_PI * Radius;
         double fraction = domain[0] / circumference;
 
-        if (fraction > 0.90) {
+        if (fraction > 1.) {
             throw std::runtime_error(fmt::format(
-                "Cannot set curvature to ({}) as 0.9 of the circle's "
-                "circumference ({}) is shorter than the domain long ({})",
-                circumference, curvature, domain[0]
+                "Cannot set curvature to ({}) as the circle's "
+                "circumference ({}) is shorter than the domain long ({}). "
+                "Max curvature is {}.",
+                curvature, circumference, domain[0], 2 * M_PI / domain[0]
             ));
         }
         if (Radius - domain[1] / 2. < 12.) {
@@ -429,7 +430,7 @@ public:
 
         SpaceVec displ = pos - origin;
         double rho = arma::norm(displ);
-        double theta = std::atan(displ[0] / displ[1]);
+        double theta = std::atan2(displ[0], displ[1]);
 
         return std::make_pair(rho, theta);
     }

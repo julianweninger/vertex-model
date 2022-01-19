@@ -5,6 +5,7 @@ from typing import Tuple, Union
 
 from math import floor, ceil
 import numpy as np
+import math as m
 from numpy.lib.function_base import select
 import xarray as xr
 import pandas as pd
@@ -321,9 +322,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 _by = by - Ly / 2. + R
                 
                 a_rho = (_ax**2 + _ay**2)**0.5
-                a_theta = np.arctan(_ax / _ay)
+                a_theta = np.arctan2(_ax, _ay)
                 b_rho = (_bx**2 + _by**2)**0.5
-                b_theta = np.arctan(_bx / _by)
+                b_theta = np.arctan2(_bx, _by)
                 
                 # skew
                 skew_theta = skew_x * curvature
@@ -453,9 +454,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     _by = _by - Ly / 2. + R
                     
                     a_rho = (_ax**2 + _ay**2)**0.5
-                    a_theta = np.arctan(_ax / _ay)
+                    a_theta = np.arctan2(_ay, _ax)
                     b_rho = (_bx**2 + _by**2)**0.5
-                    b_theta = np.arctan(_bx / _by)
+                    b_theta = np.arctan2(_by, _bx)
                     
                     # skew
                     skew_theta = skew_x * curvature
@@ -617,24 +618,31 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     Ox = Lx / 2.
                     Oy = Ly / 2. - R
                     
-                    hlpr.invoke_helper('set_limits', 
-                        x=((R + Ly/2.) * np.sin(-max_theta)+Lx/2,
-                           (R + Ly/2.) * np.sin( max_theta)+Lx/2),
-                        y=((R - Ly/2.) * np.cos(-max_theta) - R + Ly/2,
-                            Oy + R + Ly/2.))
-
-                    hlpr.ax.quiver(Ox, Oy,
-                                   (R + Ly / 2.) * np.sin( max_theta),
-                                   (R + Ly / 2.) * np.cos( max_theta),
-                                   headlength=0., headaxislength=0.,
-                                   headwidth=0., scale=1, scale_units='xy',
-                                   color='black')
-                    hlpr.ax.quiver(Ox, Oy,
-                                   (R + Ly / 2.) * np.sin(-max_theta),
-                                   (R + Ly / 2.) * np.cos(-max_theta),
-                                   headlength=0., headaxislength=0.,
-                                   headwidth=0., scale=1, scale_units='xy',
-                                   color='black')
+                    if max_theta < m.pi/2. - 0.2:
+                        hlpr.invoke_helper('set_limits', 
+                            x=((R + Ly/2.) * np.sin(-max_theta)+Lx/2,
+                            (R + Ly/2.) * np.sin( max_theta)+Lx/2),
+                            y=((R - Ly/2.) * np.cos(-max_theta) - R + Ly/2,
+                                Oy + R + Ly/2.))
+                    else:
+                        hlpr.invoke_helper('set_limits', 
+                            x=(-(R + Ly/2.) + Lx/2, (R + Ly/2.) + Lx/2),
+                            y=( (R + Ly/2.) * np.cos(-max_theta) - R + Ly/2,
+                                Oy + R + Ly/2.))
+                    
+                    if max_theta < m.pi-0.1:
+                        hlpr.ax.quiver(Ox, Oy,
+                                    (R + Ly / 2.) * np.sin( max_theta),
+                                    (R + Ly / 2.) * np.cos( max_theta),
+                                    headlength=0., headaxislength=0.,
+                                    headwidth=0., scale=1, scale_units='xy',
+                                    color='black')
+                        hlpr.ax.quiver(Ox, Oy,
+                                    (R + Ly / 2.) * np.sin(-max_theta),
+                                    (R + Ly / 2.) * np.cos(-max_theta),
+                                    headlength=0., headaxislength=0.,
+                                    headwidth=0., scale=1, scale_units='xy',
+                                    color='black')
                     circle_inner = plt.Circle((Ox, Oy), R - Ly / 2.,
                                               edgecolor='black', fill=False)
                     circle_outer = plt.Circle((Ox, Oy), R + Ly / 2.,
