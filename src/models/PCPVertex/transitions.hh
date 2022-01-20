@@ -41,9 +41,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     const SpaceVec cell_center = this->barycenter_of(cell);
 
     // generate the axis of division
-    SpaceVec domain = this->_space->get_domain_size();
-    const SpaceVec axis = SpaceVec({cos(division_angle), sin(division_angle)}) / 
-                          domain;
+    const SpaceVec axis = SpaceVec({cos(division_angle), sin(division_angle)});
 
     // determine the new vertices from this axis
     // These are the intersections of the division axis with edges of cell
