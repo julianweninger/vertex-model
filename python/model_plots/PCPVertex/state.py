@@ -267,9 +267,18 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 domain_size_max_y = Ly
             
             # periodic skrewed boundary condition
-            skew_x = e_data.attrs["skew_x"][0]
-            skew_y = e_data.attrs["skew_y"][0]
-            curvature = e_data.attrs["curvature"][0]
+            if "skew_x" in e_data.attrs:
+                skew_x = e_data.attrs["skew_x"][0]
+            else:
+                skew_x = 0.
+            if "skew_y" in e_data.attrs:
+                skew_y = e_data.attrs["skew_y"][0]
+            else:
+                skew_y = 0.
+            if "curvature" in e_data.attrs:
+                curvature = e_data.attrs["curvature"][0]
+            else: 
+                curvature = 0.
             max_theta = Lx / 2. * curvature
 
 
