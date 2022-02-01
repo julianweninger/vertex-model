@@ -18,7 +18,7 @@ PCPVertex:
       agent_params: {contractility: 0.02, linetension: 0.1}
     setup_method: hexagonal
     setup_params:
-      hexagonal: {hexagon_size: 0.6204032394013997, lattice_columns: 4, lattice_rows: 4}
+      hexagonal: {hexagon_size: 0.6204032394013997, hexagon_shape: pointy, lattice_columns: 4, lattice_rows: 4}
       single: {size: 0.6204032394013997}
       column: {size: 1., height: 1., num_cells: 4, offset: 1.}
     vertex_manager: ~
