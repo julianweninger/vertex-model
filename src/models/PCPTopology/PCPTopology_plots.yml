@@ -534,6 +534,73 @@ energy_vs_HCHC_contacts:
       x: average HC neighbors for HCs
       y: edge contractility energy
 
+      
+pressure:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - universe
+    - select_cells_properties
+
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+      ci: sd
+
+  select:
+    property:
+      path: data/PCPTopology/Cell_energies
+      transform:
+        - .sel: [!dag_prev , {energy_term: pressure}]
+        - .rename: [!dag_prev , pressure]
+  y: pressure
+  x: time
+  helpers:
+    set_labels:
+      y: pressure
+
+tension:
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - universe
+    - select_edges_properties
+
+  select:
+    property:
+      path: data/PCPTopology/Edge_energies
+      transform:
+        - .sel: [!dag_prev , {energy_term: tension}]
+        - .rename: [!dag_prev , tension]
+    
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_edges
+      label: all edges
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result ss_edges
+      label: support-support
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hs_edges
+      label: support-hair
+      ci: sd
+
+  x: time
+  y: tension
+
+
+# --- Equilibrium cellular structures -----------------------------------------
 equilibrium_cellular_structure:
   based_on:
     - .default_style_and_helpers
@@ -564,6 +631,28 @@ equilibrium_cellular_structure__elongation:
     scale: 0.75
     headwidth: 1
     headlength: 1.
+
+equilibrium_cellular_structure__tension:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+
+  property: ~
+  property_path: ~
+  edge_property: {energy_term: tension}
+  edge_property_path: Edge_energies
+  quiver_kwargs:
+    cmap: cool
+    width: 0.01
+
+equilibrium_cellular_structure__pressure:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+
+  property: {energy_term: pressure}
+  property_path: Cell_energies
+  property_interpolation_plot_kwargs:
+    cmap: cool
+
 
 equilibrium_cellular_structure__area_elasticity:
   based_on: equilibrium_cellular_structure
@@ -616,6 +705,15 @@ equilibrium_cellular_structure__rotation:
   property_bulk_cells_only: False
 
 
+equilibrium_cellular_structure__segmentation:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+  cell_marker_colors: ['w', 'cyan']
+  quiver_kwargs:
+    color: [1., 0., 1.]
+
+
+# --- Continuous cellular structures ------------------------------------------
 cellular_structure_continuous:
   based_on:
     - .default_style_and_helpers
@@ -644,6 +742,8 @@ cellular_structure__property: !pspace
   property_interpolation_plot_kwargs:
     cmap: Reds
 
+
+# --- Cellular geometries -----------------------------------------------------
 cell_neighbourhood: !pspace
   based_on:
     - .default_style_and_helpers

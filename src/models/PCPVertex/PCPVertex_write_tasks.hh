@@ -660,6 +660,7 @@ auto edges_adaptor = std::make_tuple(
 /** Energies are
  *      -# PCPVertex::get_energy_areaelasticity
  *      -# PCPVertex::get_energy_cell_contractility
+ *      -# pressure estimation
  */
 auto cell_energies_adaptor = std::make_tuple(
     // name of the task
@@ -683,12 +684,18 @@ auto cell_energies_adaptor = std::make_tuple(
                        [model](const auto& c) {
                             return model.get_energy_cell_contractility({c});
                        });
+
+        double Ka = model.get_area_elasticity();
+        dataset->write(cells.begin(), cells.end(),
+            [am, Ka](const auto& c) {
+                return - Ka * (am.area_of(c) - c->state.area_preferential());
+            });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().cells().size()});
+            {3, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -701,7 +708,8 @@ auto cell_energies_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__energy_term", 
                 std::vector<std::string>({
                     "area_elasticity",
-                    "cell_contractility"
+                    "cell_contractility",
+                    "pressure"
                 }));
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");
@@ -718,6 +726,7 @@ auto cell_energies_adaptor = std::make_tuple(
 /** Energies are
  *      -# PCPVertex::get_energy_linetension
  *      -# PCPVertex::get_energy_edge_contractility
+ *      -# tension estimation
  */
 auto edge_energies_adaptor = std::make_tuple(
 
@@ -742,12 +751,45 @@ auto edge_energies_adaptor = std::make_tuple(
                        [model](const auto& e) {
                             return model.get_energy_edge_contractility({e});
                        });
+
+        dataset->write(edges.begin(), edges.end(),
+            [am](const auto& edge) {
+                double tension = edge->state.linetension();
+                tension += edge->state.contractility() * am.length_of(edge);
+
+                // cell contractility contributions
+                const auto& [adj_1, adj_2] = am.adjoints_of(edge);
+                double c1, c2, Ds1, Ds2;
+                if (adj_1 != nullptr) {
+                    c1 = adj_1->state.contractility;
+                    Ds1 = (  am.shape_index_of(adj_1)
+                           - adj_1->state.shape_index_preferential);
+                }
+                else {
+                    c1 = 0.;
+                    Ds1 = 0.;
+                }
+                if (adj_2 != nullptr) {
+                    c2 = adj_2->state.contractility;
+                    Ds2 = (  am.shape_index_of(adj_2)
+                           - adj_2->state.shape_index_preferential);
+                }
+                else {
+                    c2 = 0.;
+                    Ds2 = 0.;
+                }
+
+                tension += c1 * Ds1;
+                tension += c2 * Ds2;
+
+                return tension;
+            });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2, m.get_am().edges().size()});
+            {3, m.get_am().edges().size()});
     },
 
     // attribute writer for basegroup
@@ -760,7 +802,8 @@ auto edge_energies_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__energy_term", 
                 std::vector<std::string>({
                     "linetension",
-                    "edge_contractility"
+                    "edge_contractility",
+                    "tension"
                 }));
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");

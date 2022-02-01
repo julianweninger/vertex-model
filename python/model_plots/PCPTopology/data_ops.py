@@ -44,6 +44,33 @@ def sortby(d: xr.DataArray, *a, **k):
 def apply(d, f, *a, **k):
     return d.apply(f, *a, **k)
 
+def classify_edges(edges):
+    """Classify edges according to the cell type on either side.
+
+    Classification:
+        - 0: same type, except hair-hair
+        - 1: different type
+        - 2: hair-hair
+        - (-1): boundary
+
+    """
+    type_alpha = edges.sel(property='type_alpha')
+    type_beta = edges.sel(property='type_beta')
+
+    # Same type edges are type 0
+    type = xr.zeros_like(type_alpha, dtype='int64')
+    type = type.where(type_alpha == type_beta, 1)
+
+    # map H-H edges to 2
+    type += 2 * (type_alpha == 1)
+
+    # map boundary edges to -1
+    type = type.where(type_alpha >= 0, -1)
+    type = type.where(type_beta >= 0, -1)
+
+    return type
+
+
 def displacement(TimeSeries, dim, coords, *, shift=1):
     """Calculate the displacement in periodic space space of a TimeSeries.
     Calculates the difference of data with itself:
