@@ -1,6 +1,7 @@
 """Tests of the output of the PCPVertex model"""
 
 import logging
+import math
 
 from utopya.testtools import ModelTest
 
@@ -40,6 +41,32 @@ def test_output():
     assert len(data['Edges']) == 4
     assert len(data['Cells']) == 4
 
+def test_hexagonal_setup():
+    def run_sim(*, hexagon_shape: str, num_rows: int=20, num_cols: int=10):
+        mv, dm = mtc.create_run_load(parameter_space={
+            'PCPVertex': {'agent_manager': {'setup_params': { 'hexagonal': {
+                'hexagon_shape': hexagon_shape,
+                'lattice_rows': num_rows,
+                'lattice_columns': num_cols}}
+            }}})
+
+        return dm['multiverse'][0]['data']['PCPVertex']['Cells'][0]
+
+    for shape in ['pointy', 'pointy_top', 'flat', 'flat_top']:
+        cells = run_sim(hexagon_shape=shape)
+        area = cells.sel(property='area')
+        perimeter = cells.sel(property='perimeter')
+        q_x = cells.sel(property='q_x')
+        q_y = cells.sel(property='q_y')
+
+        assert abs(area.mean().data - 1) < 1.e-3
+        assert abs(perimeter.mean().data - 6*(2 / 3**1.5)**0.5) < 1.e-3
+        assert abs(q_x.mean().data) < 1.e-3
+        assert abs(q_y.mean().data) < 1.e-3
+
+        Lx = cells.attrs['Lx'][0]
+        Ly = cells.attrs['Ly'][0]
+        assert abs(Lx / Ly - 10. / 20.) < 0.25 * (perimeter.mean().data / 6)
 
 def test_HC_regular_lattice():
     def run_sim(*, HC_structure: str, num_rows: int=20, num_cols: int=10):
