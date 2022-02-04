@@ -200,10 +200,10 @@ public:
 
             SpaceVec domain = get_domain_size();
 
-            SpaceVec add_skew = arma::round(
-                arma::shift(displ / domain, -1) ) % _skew;
+            SpaceVec add_skew = (  arma::shift(arma::round(displ / domain), -1)
+                                 % (-1. * _skew));
 
-            return -add_skew + _domain_scale % Space::displacement(
+            return add_skew + _domain_scale % Space::displacement(
                 pos_0 / _domain_scale,
                 pos_1 / _domain_scale
             );
@@ -352,6 +352,13 @@ public:
             throw std::runtime_error(fmt::format(
                 "Cannot set non-zero skew ({}, {}) in non-periodic boundary "
                 "conditions!", skew[0], skew[1]
+            ));
+        }
+        if (fabs(skew[0]) > 1.e-12 and fabs(skew[1]) > 1.e-12)
+        {
+            throw std::runtime_error(fmt::format(
+                "Cannot set skew in x ({}) and y ({}) using Lee-Edwards periodic "
+                "boundary condition", skew[0], skew[1]
             ));
         }
         SpaceVec domain = get_domain_size();

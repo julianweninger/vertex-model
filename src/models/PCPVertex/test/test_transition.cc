@@ -812,199 +812,121 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         model.prolog();
 
         const auto& am = model.get_am();
+        SpaceVec domain0 = model.get_space()->get_domain_size();
 
-        // for a cell
-        auto cell = am.cells()[0];
-        // NOTE cell is from initialisation a hexagon
-
-        double _theta = 0.;
-        double _r = 1.;
-
-        am.get_logger()->debug("Testing shape of cell {} ..", cell->id());
-
-        for (const auto& [edge, flip] : cell->custom_links().edges) {
-            auto a = edge->custom_links().a;
-            auto b = edge->custom_links().b;
-            if (flip) { std::swap(a, b); }
-        }
-
-        std::function<bool(
-            const std::shared_ptr<typename PCPVertex::Cell>&,
-            double, double,
-            std::string)>
-        test_elongation_of =
-        [am](const auto& cell, double _r, double _theta,
-             std::string message = "")
+        std::function<void(arma::mat22, double, double, double)>
+        check_elongation = [](arma::mat22 q, double qxx, double qxy,
+                              double p)
         {
-            am.get_logger()->debug(message);
-
-            arma::mat22 elongation = am.elongation_of(cell);
-            SpaceVec tmp = elongation.col(0);
-            double theta;
-            if (fabs(tmp[0]) < 1.e-12) {
-                if (tmp[1] > 1.e-12) {
-                    theta = M_PI_2;
-                }
-                else {
-                    theta = 3 * M_PI_2;
-                }
-            }
-            else if (tmp[0] > 1.e-12) {
-                theta = std::fmod(atan(tmp[1] / tmp[0]) + 2 * M_PI, 2 * M_PI);
+            if (fabs(qxx) > 0.1 * p) {
+                BOOST_CHECK_CLOSE(q[0],  qxx, p * 100);
+                BOOST_CHECK_CLOSE(q[3], -qxx, p * 100);
             }
             else {
-                if (tmp[1] > 0.) {
-                    theta = M_PI - atan(- tmp[1] / tmp[0]);
-                }
-                else  {
-                    theta = M_PI + atan(tmp[1] / tmp[0]);
-                }
+                BOOST_CHECK_SMALL(q[0], p);
+                BOOST_CHECK_SMALL(q[3], p);
             }
-
-            double r = exp(2*sqrt(arma::trace(elongation * elongation.t())/2.));
-
-            BOOST_CHECK_CLOSE(r, _r, 1);
-            // TODO error of 1 % might be to big for this problem !!!!
-            
-            if (fabs(1. - r) > 1.e-4) {
-                theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
-                _theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
-                if (  std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2
-                    > 1.e-3)
-                {
-                    am.get_logger()->error("angle of cell {} does not "
-                                           "correspond to expected angle {}",
-                                           theta, _theta);
-                }
-                BOOST_CHECK_SMALL(
-                    std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2,
-                    1.e-3);
+            if (fabs(qxy) > 0.1 * p) {
+                BOOST_CHECK_CLOSE(q[1], qxy, p * 100);
+                BOOST_CHECK_CLOSE(q[2], qxy, p * 100);
             }
-
-            return true;
+            else {
+                BOOST_CHECK_SMALL(q[1], p);
+                BOOST_CHECK_SMALL(q[2], p);
+            }
         };
 
+
+        // for a cell
+        auto cell = am.cells()[5];
+        // NOTE cell is from initialisation a hexagon
+
+        am.get_logger()->debug("Testing shape of cell {} ..", cell->id());
+        check_elongation(am.elongation_of(cell), 0., 0., 1.e-5);
+        std::map<std::size_t, SpaceVec> initial_positions;
+        for (const auto& v : am.vertices()) {
+            initial_positions[v->id()] = am.position_of(v);
+        }
+        std::map<std::size_t, SpaceVec> initial_edges;
+        for (const auto& e : am.edges()) {
+            initial_edges[e->id()] = am.displacement(e);
+        }
+
+
         // pure shear domain
-        SpaceVec stretch({0., 0.});
-        SpaceVec domain0 = model.get_space()->get_domain_size();
-        SpaceVec domain = model.get_space()->get_domain_size();
-        test_elongation_of(cell, _r, _theta, fmt::format("stretch ({}, {})",
-                                                     stretch[0], stretch[1]));
-        for (std::size_t i = 0; i < 4; i++) {
-            SpaceVec _stretch({0.2, -0.2});
-            model.stretch_domain(_stretch, false, false, false);
-            stretch += _stretch;
-            domain = model.get_space()->get_domain_size();
-            _r = domain[0] / domain[1] / (domain0[0] / domain0[1]);
-            test_elongation_of(cell, _r, _theta, fmt::format("stretch ({}, {})",
-                                                         stretch[0],
-                                                         stretch[1]));
+        double rho = 0.;        
+        for (std::size_t i = 0; i < 5; i++) {
+            rho += 0.2;
+            SpaceVec _stretch = domain0 % SpaceVec({exp(rho), exp(-rho)});
+            _stretch -= model.get_space()->get_domain_size();
+            model.stretch_domain(_stretch, false, false, false, true);
+            // NOTE deform plastic
+            
+            am.get_logger()->debug("Pure shear reached {}", rho);
+            check_elongation(am.elongation_of(cell), rho, 0., 1.e-3);
+        }
+        model.stretch_domain(domain0 - model.get_space()->get_domain_size(),
+                             false, false, false, true);
+
+        am.get_logger()->debug("Reset ..");
+        check_elongation(am.elongation_of(cell), 0., 0., 1.e-5);
+
+
+        // simple shear domain
+        std::vector<SpaceVec> simple_shear_experiments({
+               SpaceVec({1., 0.0}),  // simple shear
+               SpaceVec({0.0, 1.})   // simple shear
+        });
+        for (SpaceVec add_skew : simple_shear_experiments) {
+            model.skew_domain(add_skew, true, true);
+            SpaceVec skew = model.get_space()->get_skew();
+            for (const auto& c : am.cells()) {
+                BOOST_CHECK_CLOSE(am.area_of(c), 1., 1.e-2);
+            }
+
+            am.get_logger()->debug("Simple shear is ({}, {})",
+                                skew[0], skew[1]);
+            arma::mat22 q = am.elongation_of<false>(cell);
+            double strain = (skew[0]/domain0[1] + skew[1]/domain0[0]) / 2.;
+            double abs_q = sqrt(arma::trace(q * q.t()) / 2.);
+            BOOST_CHECK_CLOSE(abs_q, strain, 0.5); // precise to 5 permille
+
+
+            am.get_logger()->debug("Reset ..");
+            model.skew_domain(-1. * model.get_space()->get_skew(), true, true);
+            // NOTE undo skew does not work if skew_x != 0  and skew_y != 0
+            //  ->  use brute force
+            for (const auto& v : am.vertices()) {
+                am.move_to(v, initial_positions[v->id()]);
+            }
+            BOOST_CHECK_SMALL(arma::norm(model.get_space()->get_skew()), 1.e-5);
+            
+            check_elongation(am.elongation_of(cell), 0., 0., 1.e-5);
+            double max_displ = 0;
+            for (const auto& v : am.vertices()) {
+                SpaceVec _pos = initial_positions[v->id()];
+                SpaceVec pos = am.position_of(v);
+                SpaceVec displ = model.get_space()->displacement(pos, _pos);
+                max_displ = std::max(max_displ, arma::norm(displ));
+            }
+            BOOST_CHECK_SMALL(max_displ, 1.e-5);
         }
 
 
         // isotropic expansion
+        SpaceVec stretch(arma::fill::zeros);
         for (std::size_t i = 0; i < 4; i++) {
             SpaceVec _stretch = 0.01 * model.get_space()->get_domain_size();
             model.stretch_domain(_stretch, false, false, false);
             stretch += _stretch;
-            domain = model.get_space()->get_domain_size();
-            test_elongation_of(cell, _r, _theta, fmt::format("expand ({}, {})",
-                                                             stretch[0],
-                                                             stretch[1]));
+
+            am.get_logger()->debug("Isotropic expansion ..");
+            check_elongation(am.elongation_of(cell), 0., 0., 1.e-5);
         }
 
-        model.get_space()->set_domain_size(domain0);
-        for (const auto& vertex : am.vertices()) {
-            SpaceVec pos = am.position_of(vertex);
-            am.move_to(vertex, am.position_of(vertex) / domain % domain0);
-        }
-        _r = 1.;
-        _theta = 0.;
-        test_elongation_of(cell, _r, _theta, "reset.");
-
-
-        // simple shear domain
-        double skew = 0.;
-        domain = model.get_space()->get_domain_size();
-        for (std::size_t i = 0; i < 5; i++) {
-            BOOST_CHECK_CLOSE(am.area_of(cell), 1., 1.e-2);
-            double _skew = 0.25;
-            skew += _skew;
-            for (const auto& vertex : am.vertices()) {
-                SpaceVec pos = am.position_of(vertex);
-                SpaceVec displ({_skew * pos[1] / domain[1], 0.});
-                am.move_by(vertex, displ);
-            }
-            model.get_space()->set_skew(SpaceVec({skew, 0.}));
-            BOOST_CHECK_CLOSE(am.area_of(cell), 1., 1.e-2);
-
-            _theta = asin(skew);
-            _r = sqrt(  (std::pow(domain[0] + skew, 2) + std::pow(domain[1], 2))
-                      / (std::pow(domain[0] - skew, 2) + std::pow(domain[1], 2))
-                     );
-
-            test_elongation_of(cell, _r, _theta, fmt::format("skew {}", skew));
-        }
-
-
-        // check on entire domain
-        double dual_area = 0.;
-        arma::mat22 av_q = arma::zeros(2, 2);
-
-        arma::mat22 q_ref = am.elongation_of(cell);
-        for (const auto& cell : am.cells()) {
-            arma::mat22 q = am.elongation_of(cell);            
-            double area = arma::det(q);
-
-            dual_area += area;
-            BOOST_TEST(arma::approx_equal(q_ref, q, "absdiff", 1.e-4));
-
-            av_q += area * q;
-        }
-        av_q /= dual_area;
-
-        
-        SpaceVec tmp = av_q.col(0);
-        double theta;
-        if (fabs(tmp[0]) < 1.e-12) {
-            if (tmp[1] > 1.e-12) {
-                theta = M_PI_2;
-            }
-            else {
-                theta = 3 * M_PI_2;
-            }
-        }
-        else if (tmp[0] > 1.e-12) {
-            theta = std::fmod(atan(tmp[1] / tmp[0]) + 2 * M_PI, 2 * M_PI);
-        }
-        else {
-            if (tmp[1] > 0.) {
-                theta = M_PI - atan(- tmp[1] / tmp[0]);
-            }
-            else  {
-                theta = M_PI + atan(tmp[1] / tmp[0]);
-            }
-        }
-
-        double r = exp(2*sqrt(arma::trace(av_q * av_q.t())/2.));
-
-        BOOST_CHECK_CLOSE(r, _r, 1);
-        // TODO error of 1 % might be to big for this problem !!!!
-        
-        if (fabs(1. - r) > 1.e-4) {
-            theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
-            _theta = std::fmod(theta + 3 * M_PI_2, M_PI) - M_PI_2;
-            if (  std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2
-                > 1.e-3)
-            {
-                am.get_logger()->error("angle of cell {} does not "
-                                        "correspond to expected angle {}",
-                                        theta, _theta);
-            }
-            BOOST_CHECK_SMALL(
-                std::fmod(theta - _theta + 3 * M_PI_2, M_PI) - M_PI_2, 
-                1.e-5);
-        }
+        model.stretch_domain(domain0 - model.get_space()->get_domain_size(),
+                             false, false, false);
+        check_elongation(am.elongation_of(cell), 0., 0., 1.e-5);
     }
 
 BOOST_AUTO_TEST_SUITE_END()

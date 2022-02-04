@@ -193,6 +193,72 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
     return area_change;
 };
 
+/// Add skew to the domain's boundary condition
+/** Args:
+ *      - add_skew (SpaceVec): The additional skew
+ *      - absolute (bool): Whether add_skew is absolute values on the length
+ *                     of the domain or relative per unit length
+ *      - deform_plastic (bool): Whether to move vertices according to
+ *                     deformation in a plastic manner
+ * 
+ *  Note: Only in periodic boundary conditions as it uses the space's skew
+ *      (Lees-Edwards) boundary condition
+ */
+PCPVertex::SpaceVec PCPVertex::skew_domain
+(SpaceVec add_skew, bool absolute, bool deform_plastic) 
+{
+    if (not this->_space->periodic) {
+        throw std::runtime_error("Cannot Skipping skew domain in non-periodic "
+            "boundary conditions.");
+    }
+
+    const SpaceVec skew = _space->get_skew();
+    if (not absolute) {
+        add_skew = add_skew % _space->get_domain_size();
+    }
+
+    this->_log->debug("Skewing domain by ({}, {}){}",
+                      add_skew[0], add_skew[1],
+                      deform_plastic ? "..":" in a plastic deformation.");
+    _space->set_skew(skew + add_skew);
+    const SpaceVec new_skew = _space->get_skew();
+
+    if (deform_plastic) {
+        const SpaceVec domain = _space->get_domain_size();
+        if (fabs(_space->get_curvature()) > 1.e-12) {
+            throw std::runtime_error("not implemented skew.");
+            double curvature = _space->get_curvature();
+            for (const auto& vertex : _am.vertices()) {
+                SpaceVec pos = _am.position_of(vertex);
+                auto [rho, theta] = _space->transform_radial(pos);
+                double skew_theta = add_skew[0] * curvature;
+                double max_theta = (domain[0] / 2.) * curvature;
+
+                double r = (rho - 1. / curvature) / domain[1] + 0.5;
+                double r_theta = theta / (2 * max_theta);
+
+                theta += skew_theta * r;
+                rho += add_skew[1] * (r_theta + max_theta);
+
+                pos = _space->transform_cartesian(rho, theta);
+                _am.move_to(vertex, pos);
+            }
+        }
+        else{
+            for (const auto& vertex : _am.vertices()) {
+                SpaceVec pos = _am.position_of(vertex);
+                SpaceVec box_pos = pos - skew % arma::shift(pos / domain, -1);
+
+                SpaceVec new_pos = box_pos + new_skew % arma::shift(box_pos / domain, -1);
+                
+                _am.move_to(vertex, new_pos);
+            }
+        }
+    }
+    
+    return new_skew;
+}
+
 } // namespace PCPVertex
 } // namespace Models
 } // namespace Utopia
