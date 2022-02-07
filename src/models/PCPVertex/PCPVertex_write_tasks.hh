@@ -492,15 +492,10 @@ auto cells_adaptor = std::make_tuple(
                        [am](const auto& c) {
                            arma::mat22 q = am.elongation_of(c);
 
-                           // is q_xx positive
-                           if (q[0] > 0) {
-                               // return (q_xx, q_xy)
-                               return SpaceVec({q[0], q[1]});
-                           }
-                           else {
-                               // return (q_yx, q_yy)
-                               return SpaceVec({q[2], q[3]});
-                           }
+                            double abs_q = sqrt(arma::trace(q * q.t())/2.);
+                            double ori = atan2(q[2], q[0]) / 2.;
+
+                            return abs_q * SpaceVec({cos(ori), sin(ori)});
                        });
         dataset->write(qs.begin(), qs.end(), [](auto&& q) { return q[0]; });
         dataset->write(qs.begin(), qs.end(), [](auto&& q) { return q[1]; });

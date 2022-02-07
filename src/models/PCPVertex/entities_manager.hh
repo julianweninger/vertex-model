@@ -1149,8 +1149,6 @@ public:
      */
     template<bool ordered = false, bool c_upper_vertex = false>
     arma::mat22 shape (const Triangle& T) const {
-        arma::mat22 base_0 = equilateral_triangle();
-        
         SpaceVec a, b, c;
         std::tie(a, b, c) = T;
 
@@ -1186,6 +1184,7 @@ public:
         arma::mat22 base_1({{v0[0], v1[0]},
                             {v0[1], v1[1]}});
         
+        arma::mat22 base_0 = equilateral_triangle();
         return base_1 * base_0.i();
     }
 
@@ -1262,6 +1261,7 @@ public:
         return std::make_tuple(a, b, c);
     }
 
+    template <bool dual_lattice=true>
     arma::mat22 elongation_of (const std::shared_ptr<Cell>& cell) const {
         if (this->is_boundary(cell)) {
             arma::mat22 q;
@@ -1270,16 +1270,44 @@ public:
         }
 
         const auto& edges = cell->custom_links().edges;
+        SpaceVec center = barycenter_of(cell);
+
+        std::vector<SpaceVec> corners{};
+        if constexpr (dual_lattice) {
+            for (const auto& [edge, flip] : edges) {
+                auto [adj_a, adj_b] = adjoints_of(edge);
+                if (adj_a != cell) {
+                    SpaceVec c = barycenter_of(adj_a);
+                    c = center + _space->displacement(center, c);
+                    corners.push_back(c);
+                }
+                else {
+                    SpaceVec c = barycenter_of(adj_b);
+                    c = center + _space->displacement(center, c);
+                    corners.push_back(c);
+                }
+            }
+        }
+        else {
+            for (const auto& [edge, flip] : edges) {
+                auto a = edge->custom_links().a;
+                auto b = edge->custom_links().b;
+                if (flip) {
+                    std::swap(a, b);
+                }
+                SpaceVec pos = position_of(a);
+                pos = center + _space->displacement(center, pos);
+                corners.push_back(pos);
+            }
+        }
 
         arma::mat22 shape = arma::zeros(2, 2);
         double dual_area = 0.;
-        for (const auto& [edge, flip] : edges) {
-            std::shared_ptr<Vertex> a = edge->custom_links().a;
-            auto b = edge->custom_links().b;
-            if (flip) { std::swap(a, b); }
+        for (std::size_t i = 0; i < edges.size(); i++) {
+            std::size_t j = (i + 1) % edges.size();
+            arma::mat22 s = this->shape<true, true>(std::make_tuple(
+                center, corners[i], corners[j] ));
 
-            arma::mat22 s = this->shape<false, false>(
-                dual_triangle<false, false>(a));
             auto [area, q, r, theta] = interpretation(s);
 
             shape += area * q;

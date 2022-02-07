@@ -2377,8 +2377,11 @@ OperationBundle build_simple_shear (
 
     SpaceVec v0 = get_as_SpaceVec<2>("shear_velocity", cfg);
     bool deform_plastic = get_as<bool>("deform_plastic", cfg);
+    bool absolute = get_as<bool>("absolute_shear_velocity", cfg, true);
 
-    Operation operation = [v0, deform_plastic](PCPVertex& vertex_model)
+    Operation operation = [v0, deform_plastic, absolute](
+            PCPVertex& vertex_model
+    )
     {
         const auto& space = vertex_model.get_space();
 
@@ -2387,35 +2390,7 @@ OperationBundle build_simple_shear (
 
         skew += v0;
 
-        space->set_skew(skew);
-
-        const auto& am = vertex_model.get_am();
-        if (deform_plastic) {
-            if (fabs(space->get_curvature()) > 1.e-12) {
-                double curvature = space->get_curvature();
-                for (const auto& vertex : am.vertices()) {
-                    SpaceVec pos = am.position_of(vertex);
-                    auto [rho, theta] = space->transform_radial(pos);
-                    double skew_theta = v0[0] * curvature;
-                    double max_theta = (domain[0] / 2.) * curvature;
-
-                    double r = (rho - 1. / curvature) / domain[1] + 0.5;
-                    double r_theta = theta / (2 * max_theta);
-
-                    theta += skew_theta * r;
-                    rho += v0[1] * (r_theta + max_theta);
-
-                    pos = space->transform_cartesian(rho, theta);
-                    am.move_to(vertex, pos);
-                }
-            }
-            else {
-                for (const auto& vertex : am.vertices()) {
-                    SpaceVec rpos = am.position_of(vertex) / domain;
-                    am.move_by(vertex, v0 % SpaceVec({rpos[1], rpos[0]}));
-                }
-            }
-        }
+        vertex_model.skew_domain(v0, absolute, deform_plastic);
     };
 
     return std::make_pair(operation, params);

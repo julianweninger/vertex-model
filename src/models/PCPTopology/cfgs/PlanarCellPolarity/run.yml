@@ -56,6 +56,9 @@ parameter_space:
       - jiggle:
           times: []
           iterations_prolog: *equilibration_time
+          minimization:
+            linetension_fluctuation: 0.12
+
       # END proliferation
       
       - iterate_pcp:
@@ -71,14 +74,15 @@ parameter_space:
           default:
             simple_shear: {                  
               times: *TIMES,
-              shear_velocity: [0.01, 0.],
+              shear_velocity: [0.1, 0.],
+              deform_plastic: True,
               minimization: {mode: manual}
             }
           values:
             - {
                 simple_shear: {                  
                   times: *TIMES,
-                  shear_velocity: [0.01, 0.],
+                  shear_velocity: [0.1, 0.],
                   deform_plastic: True,
                   minimization: {mode: manual}
                 }
@@ -88,14 +92,14 @@ parameter_space:
                   times: *TIMES,
                   num_increases: 0,
                   area_threshold: 0.,
-                  angle_distribution: [1., 1.e-3],
+                  angle_distribution: [0., 5.e-1],
                   minimization: {mode: manual}
                 }
               }
             - {
                 pure_shear: {                  
                   times: *TIMES,
-                  shear_velocity: 0.01,
+                  shear_velocity: 0.05,
                   deform_plastic: True,
                   minimization: {mode: manual}
                 }
@@ -103,7 +107,7 @@ parameter_space:
             - {
                 bending_box_bc: {                  
                   times: *TIMES,
-                  increment_curvature: 2.e-4,
+                  increment_curvature: 2.e-3,
                   deform_plastic: True,
                   minimization: {mode: manual}
                 }
@@ -116,6 +120,7 @@ parameter_space:
           iterations: 250
           minimization:
             num_steps: 1
+            mode: manual
             
 
 
@@ -130,7 +135,7 @@ parameter_space:
       num_repeat: 1
       num_steps: 250
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.01
+      linetension_fluctuation: 0.06
 
       area_fluctuation: 0.0
       area_fluctuation_tau: 1.
@@ -172,7 +177,9 @@ parameter_space:
             trigger: build_once
           Energy_time: *ENERGY_PCP
           
-    PCPVertex:      
+    PCPVertex:
+      log_level: warning
+      
       area_elasticity: 1.
       
       cell_shape_implementation: contractile
@@ -210,8 +217,6 @@ parameter_space:
       T2_threshold: 0.0075
 
 
-      log_level: warning
-      
       # continuous data manager
       data_manager:
 

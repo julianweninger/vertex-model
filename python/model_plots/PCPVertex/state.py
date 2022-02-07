@@ -117,6 +117,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        select_times: list=None,
                        cell_marker_size: int=60,
                        plot_vertices: bool=False,
+                       plot_excess_length: float=2.,
                        property: dict=None,
                        property_path: str=None,
                        property_hair_cells_only: bool=False,
@@ -287,6 +288,36 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 hlpr.ax.scatter(v_data.sel(property="x"),
                                 v_data.sel(property="y"),
                                 c="black")
+                if vertex_cfg['space']['periodic']:
+                    ax = v_data.sel(property="x")
+                    ay = v_data.sel(property="y")
+                    l = plot_excess_length
+                    hlpr.ax.scatter(np.where(ax < l, ax, np.nan) + Lx,
+                                    ay + skew_y,
+                                    c="grey")
+                    hlpr.ax.scatter(np.where(ax > Lx - l, ax, np.nan) - Lx,
+                                    ay - skew_y,
+                                    c="grey")
+                    hlpr.ax.scatter(np.where(ay < l, ax, np.nan) + skew_x,
+                                    ay + Ly,
+                                    c="grey")
+                    hlpr.ax.scatter(np.where(ay > Ly - l, ax, np.nan) - skew_x,
+                                    ay - Ly,
+                                    c="grey")
+
+                    hlpr.ax.scatter(np.where(ax < l, ax, np.nan) + Lx + skew_x,
+                                    np.where(ay < l, ay, np.nan) + Ly + skew_y,
+                                    c="grey")
+                    hlpr.ax.scatter(np.where(ax>Lx-l, ax, np.nan) - Lx + skew_x,
+                                    np.where(ay < l, ay, np.nan) + Ly - skew_y,
+                                    c="grey")
+                    hlpr.ax.scatter(np.where(ax>Lx-l, ax, np.nan) - Lx - skew_x,
+                                    np.where(ay>Ly-l, ay, np.nan) - Ly - skew_y,
+                                    c="grey")
+                    hlpr.ax.scatter(np.where(ax < l, ax, np.nan) + Lx - skew_x,
+                                    np.where(ay>Ly-l, ay, np.nan) - Ly + skew_y,
+                                    c="grey")
+
 
 
             ### plot edges
@@ -314,15 +345,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     dx = bx - ax
                     dy = by - ay
 
-                    # skew
-                    dy -= np.round(dx / Lx) * skew_y
-                    dx -= np.round(dy / Ly) * skew_x
-
-                    # periodicity
-                    dx -= np.round(dx / Lx) * Lx
-                    dy -= np.round(dy / Ly) * Ly
-
-                    return dx, dy
+                    return (dx - np.round(dx/Lx) * Lx - np.round(dy/Ly)*skew_x,
+                            dy - np.round(dy/Ly) * Ly - np.round(dx/Lx)*skew_y)
 
                 R = 1. / curvature
                 _ax = ax - Lx / 2.
@@ -337,12 +361,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 
                 # skew
                 skew_theta = skew_x * curvature
-                b_rho -= np.round((b_theta - a_theta) / 2 / max_theta) * skew_y
-                b_theta -= np.round((b_rho - a_rho) / Ly) * skew_theta
+                add_skew_rho = -np.round((b_theta - a_theta)/2/max_theta)*skew_y
+                add_skew_theta = -np.round((b_rho - a_rho) / Ly) * skew_theta
 
                 # curvature
-                b_theta -= np.round((b_theta-a_theta)/2./max_theta)*2*max_theta
-                b_rho -= np.round((b_rho - a_rho) / Ly) * Ly
+                b_theta += add_skew_theta - np.round((b_theta-a_theta)/2./max_theta)*2*max_theta
+                b_rho += add_skew_rho - np.round((b_rho - a_rho) / Ly) * Ly
 
                 _ax += Lx / 2.
                 _ay += Ly / 2. - R
@@ -427,7 +451,33 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             quiver_and_colors(ax, ay, dx, dy)
 
             ### plot duplicates of periodic edges
-            if vertex_cfg['space']['periodic']:
+            if vertex_cfg['space']['periodic'] and curvature < 1.e-12:
+                length = plot_excess_length
+                quiver_and_colors(ax + skew_x, ay + Ly,
+                                  np.where(ay < length, dx, np.nan), dy)
+                quiver_and_colors(ax - skew_x, ay - Ly,
+                                  np.where(ay > Ly - length, dx, np.nan), dy)
+                quiver_and_colors(ax + Lx, ay + skew_y,
+                                  np.where(ax < length, dx, np.nan), dy)
+                quiver_and_colors(ax - Lx, ay - skew_y,
+                                  np.where(ax > Lx - length, dx, np.nan), dy)
+
+
+                quiver_and_colors(ax + Lx + skew_x, ay + Ly + skew_y,
+                                  np.where(ay < length, dx, np.nan),
+                                  np.where(ax < length, dy, np.nan))
+                quiver_and_colors(ax - Lx + skew_x, ay + Ly - skew_y,
+                                  np.where(ay < length, dx, np.nan),
+                                  np.where(ax > Lx - length, dy, np.nan))
+                quiver_and_colors(ax - Lx - skew_x, ay - Ly - skew_y,
+                                  np.where(ay > Ly - length, dx, np.nan),
+                                  np.where(ax > Lx - length, dy, np.nan))
+                quiver_and_colors(ax + Lx - skew_x, ay - Ly + skew_y,
+                                  np.where(ay > Ly - length, dx, np.nan),
+                                  np.where(ax < length, dy, np.nan))
+
+            ### plot duplicates of periodic edges
+            elif vertex_cfg['space']['periodic']:
                 mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
                 # NOTE bitwise or
 
@@ -451,10 +501,10 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
                 # rotate corners
                 if abs(curvature) < 1.e-12:
-                    _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
                     _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
-                    _by -= (2. * np.round(_by / Ly) - 1.) * Ly
+                    _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
                     _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
+                    _by -= (2. * np.round(_by / Ly) - 1.) * Ly
                 else:
                     R = 1. / curvature
                     _ax = _ax - Lx / 2.
@@ -659,9 +709,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
                     hlpr.ax.add_patch(circle_inner)
                     hlpr.ax.add_patch(circle_outer)
-                else:                    
+                else:
                     hlpr.invoke_helper('set_limits', x=(0, Lx), y=(0, Ly))
-
 
 
                 if skew_x > 1.e-12:
