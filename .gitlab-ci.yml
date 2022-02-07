@@ -115,6 +115,7 @@ update:brewtopia:
 update:brewtopia-upgrade:
   <<: *dind
   stage: update
+  timeout: 2h
   variables:
     <<: *dind_variables
     UPGRADE_BREWTOPIA: "false"
