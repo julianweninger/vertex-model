@@ -116,6 +116,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        datapath: str='PCPVertex', cfgpath: str='PCPVertex',
                        select_times: list=None,
                        cell_marker_size: int=60,
+                       cell_marker_colors: Tuple[str, str]=['gray', 'r'],
                        plot_vertices: bool=False,
                        plot_excess_length: float=2.,
                        property: dict=None,
@@ -547,7 +548,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             cell_type = c_data.sel(property="cell_type")
             x = c_data.sel(property="x")
             y = c_data.sel(property="y")
-            color = ['red' if d == 1 else 'grey' for d in cell_type]
+            hc_color = cell_marker_colors[1]
+            sc_color = cell_marker_colors[0]
+            color = [hc_color if d == 1 else sc_color for d in cell_type]
             hlpr.ax.scatter(x, y, c=color, s=cell_marker_size,
                             alpha=0.5)
             

@@ -487,6 +487,111 @@ select_cells_properties_mv.map_stage:
       tag: support_cells
 
 
+# Extract averaged data from edges dataset
+select_edges_properties:
+  select:
+      # the type of the cells
+      bond_type:
+        path: data/PCPTopology/Edges
+        transform:
+          - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
+          - import_and_call:
+            args: [model_plots.PCPTopology.data_ops, classify_edges, !dag_prev ]
+          - .rename:
+            args: [!dag_prev , cell_types]
+    
+  transform:
+    - .to_dataframe: [!dag_tag property]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_edges
+
+    # a mask to select only hair / support cells
+    - create_mask: [!dag_tag bond_type, ==, 0]
+      tag: _ss_edges
+    - create_mask: [!dag_tag bond_type, ==, 1]
+      tag: _hs_edges
+    - create_mask: [!dag_tag bond_type, ==, 2]
+      tag: _hh_edges
+    - create_mask: [!dag_tag bond_type, ==, -1]
+      tag: _boundary_edges
+
+    - .where: [!dag_tag property, !dag_tag _ss_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: ss_edges
+    - .where: [!dag_tag property, !dag_tag _hs_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hs_edges
+    - .where: [!dag_tag property, !dag_tag _hh_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hh_edges
+    - .where: [!dag_tag property, !dag_tag _boundary_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: boundary_edges
+
+
+select_edges_properties_mv:
+  select_and_combine:
+    allow_missing_or_failing: True
+    fields:
+      # the type of the cells
+      _bond_type:
+        path: data/PCPTopology/Edges
+        transform:
+          - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
+          - import_and_call:
+            args: [model_plots.PCPTopology.data_ops, classify_edges, !dag_prev ]
+          - .rename:
+            args: [!dag_prev , cell_types]
+    
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_edges
+
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _bond_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: bond_type
+
+    - create_mask: [!dag_tag bond_type, ==, 0]
+      tag: _ss_edges
+    - create_mask: [!dag_tag bond_type, ==, 1]
+      tag: _hs_edges
+    - create_mask: [!dag_tag bond_type, ==, 2]
+      tag: _hh_edges
+    - create_mask: [!dag_tag bond_type, ==, -1]
+      tag: _boundary_edges
+
+    - .where: [!dag_tag property, !dag_tag _ss_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: ss_edges
+    - .where: [!dag_tag property, !dag_tag _hs_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hs_edges
+    - .where: [!dag_tag property, !dag_tag _hh_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hh_edges
+    - .where: [!dag_tag property, !dag_tag _boundary_edges]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: boundary_edges
+
+
 cellular_structure:
   creator: universe
   universes: all

@@ -970,6 +970,11 @@ public:
         _estimate_minimizations += params.get_num_minimizations(
                                                 this->_time_max);
     }
+    
+    /// The area elasitcity parameter
+    double get_area_elasticity () const {
+        return _vertex_model.get_area_elasticity();
+    }
 
     /// Return polarity proteins of this edge
     /** See PlanarCellPolarity::get_polarity_proteins */

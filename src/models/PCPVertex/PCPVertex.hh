@@ -2537,6 +2537,11 @@ public:
     void set_pMLC_contractility (double pMLC) {
         _pMLC_contractility = pMLC;
     }
+
+    /// The area elasticity parameter
+    double get_area_elasticity () const {
+        return _area_elasticity;
+    }
 }; // class PCPVertex
 
 
