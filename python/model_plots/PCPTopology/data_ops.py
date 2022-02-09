@@ -44,6 +44,29 @@ def sortby(d: xr.DataArray, *a, **k):
 def apply(d, f, *a, **k):
     return d.apply(f, *a, **k)
 
+def to_dataframe(d: xr.DataArray):
+    """Converts a xarray.DataArray to pandas dataframe
+    and transfers all dimensions
+    """
+    _d = d.to_dataframe().reset_index()
+    rename = {}
+    coords = [d for d in d._coords.keys()]
+    coords.append(d.name)
+    for i, c in enumerate(_d.columns):
+        _c = c.split("_")
+        if _c[0] == "level":
+            rename[c] = d.dims[int(_c[1])]
+    
+    _d = _d.rename(rename, axis=1)
+
+    for i, c in enumerate(_d.columns):
+        if (c in d.dims and c != d.dims[i]) or c not in coords:
+            raise RuntimeError("Missassignment of dimension '{}' ({} vs {})"
+                                "".format(c, _d.columns, coords))
+
+    return _d
+
+
 def classify_edges(edges):
     """Classify edges according to the cell type on either side.
 
