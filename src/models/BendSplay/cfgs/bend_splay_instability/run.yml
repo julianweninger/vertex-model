@@ -1,0 +1,34 @@
+---
+perform_sweep: True
+# run_kwargs:
+#   stop_conditions:
+#     - !stop-condition
+#       name: equilibrium
+#       description: terminates a simulation if equilibrium reached
+#       enabled: true               
+#       to_check:                   
+#         - func: check_monitor_entry
+#           entry_name: BendSplay.max_change
+#           operator: <=
+#           value: 1.e-6
+
+parameter_space:
+  num_steps: 1000000
+  write_every: 10000
+
+  seed: !sweep
+    default: 42
+    range: [8]
+    order: !expr -np.inf
+
+  BendSplay:
+    initial_orientation: !sweep
+      default: 0.
+      linspace: [!expr 3.1415 / 2.,  0., 5]
+      name: init
+
+    dt: 1.e-4
+    dK: !sweep
+      default: 0.2
+      values: [0.2, -0.2]
+

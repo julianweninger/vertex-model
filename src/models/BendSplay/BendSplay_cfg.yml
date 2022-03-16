@@ -1,0 +1,30 @@
+# The model configuration for the BendSplay model
+---
+# --- Space
+# The physical space this model is embedded in
+space:
+  periodic: false
+
+# --- Initialization parameters
+N_rho: 10
+inner_radius: 1.
+outer_radius: 2.
+
+N_phi: 30
+opening_angle: !expr 3.1415 * 3/4
+
+initial_orientation: !expr 3.1415 / 2.
+initial_orientation_stddev: 0.2
+init_symmetric: True
+
+
+# --- Dynamics
+dt: 1.e-5
+
+K: 1.
+dK: 0.5
+
+
+# --- Data writing
+store_agent_data: True
+

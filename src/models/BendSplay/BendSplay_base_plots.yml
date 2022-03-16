@@ -1,0 +1,115 @@
+# Base plot configuration for this model
+#
+# The configurations given here can be used in the <model_name>_plots.yml file
+---
+# Creators ....................................................................
+universe:
+  based_on:
+    - .default_style_and_helpers
+
+  creator: universe
+  universes: all
+  file_ext: png
+
+multiverse:
+  based_on:
+    - .default_style_and_helpers
+
+  creator: multiverse
+  file_ext: png
+
+# -- Time series
+energy:
+  based_on: 
+    - multiverse
+    - .dag.multiplot
+
+  select_and_combine:
+    allow_missing_or_failing: true
+    fields:
+      _energy:
+        path: data/BendSplay/energy
+
+  transform:
+    - import_and_call:
+      args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
+      tag: energy
+
+  x: time
+  y: energy
+
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result energy
+      ci: sd
+
+
+# A time series plot of the circular mean and std of the agent orientation
+orientation:
+  based_on: 
+    - .dag.multiplot
+    - multiverse
+
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _angles:
+        path: data/BendSplay/orientation_mean
+        transform:
+          - call_lambda: 
+            - "lambda val: val + math.pi / 2."
+            - !dag_prev 
+          - .rename: [!dag_prev , angles]
+
+  transform:
+    - import_and_call:
+      args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
+    - print: [!dag_prev ]
+      tag: angles
+
+  x: angles
+  y: time
+
+  to_plot: 
+    - function: sns.scatterplot
+      data: !dag_result angles
+      # ci: sd
+  
+  helpers:
+    setup_figure:
+      subplot_kw:
+        projection: polar
+    set_limits:
+      x: [-3.1415, 3.1415]
+
+vector_field:
+  based_on: universe
+  
+  module: model_plots.BendSplay
+  plot_func: vector_field
+
+  datapath: BendSplay
+
+  helpers:
+    save_figure: {bbox_inches: tight}
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs: {}
+
+  # Can use constrained layout, because axis labels don't change
+  style:
+    figure.constrained_layout.use: true
+    axes.grid: false
+  

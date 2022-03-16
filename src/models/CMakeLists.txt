@@ -14,6 +14,7 @@ set(UTOPIA_MODELS_DIR ${CMAKE_CURRENT_SOURCE_DIR}
 message(STATUS "Starting Utopia model registration ...")
 
 # Register the model directories
+add_subdirectory(BendSplay)
 add_subdirectory(Collier)
 add_subdirectory(NotchDelta)
 add_subdirectory(PCPTopology)

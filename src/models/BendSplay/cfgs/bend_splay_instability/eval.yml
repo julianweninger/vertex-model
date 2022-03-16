@@ -1,0 +1,74 @@
+# The default plots of this model
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+configs:
+  enabled: false
+  subspace_slice: &subspace_slice
+    dK: !sweep
+      default: 0.
+      values: [0.2, -0.2]
+
+
+# A time series plot of the circular mean and std of the agent orientation
+energy: !pspace
+  based_on: energy
+
+  select_and_combine:
+    subspace: *subspace_slice
+
+  hue: init
+
+orientation: !pspace
+  based_on: orientation
+  select_and_combine:
+    fields:
+      _angles:
+        path: data/BendSplay/angles
+      x: 
+        path: data/BendSplay/coords_x
+    subspace:
+      <<: *subspace_slice
+      seed: 0
+
+  transform:
+    - create_mask: [!dag_tag x, '<', 0.]
+      tag: flip
+    - .where: [!dag_tag _angles, !dag_tag flip]
+    - call_lambda:
+      - "lambda psi: xr.ufuncs.arctan2(xr.ufuncs.sin(psi).sum(dim='ids'), xr.ufuncs.cos(psi).sum(dim='ids'))"
+      - !dag_prev
+    - import_and_call:
+      args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
+      tag: angles_left
+
+    - create_mask: [!dag_tag x, '>=', 0.]
+      tag: not_flip
+    - .where: [!dag_tag _angles, !dag_tag not_flip]
+    - call_lambda:
+      - "lambda psi: xr.ufuncs.arctan2(xr.ufuncs.sin(psi).sum(dim='ids'), xr.ufuncs.cos(psi).sum(dim='ids'))"
+      - !dag_prev
+    - import_and_call:
+      args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
+    - print: [!dag_prev ]
+      tag: angles_right
+
+
+  to_plot: 
+    - function: sns.scatterplot
+      data: !dag_result angles_left
+      style: seed
+    - function: sns.scatterplot
+      data: !dag_result angles_right
+      style: seed
+
+  hue: init
+  helpers:
+    set_limits:
+      y: [-100000, ~]
+
+vector_field:
+  based_on: vector_field
+  universes: 
+    seed: 0
