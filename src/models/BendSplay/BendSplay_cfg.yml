@@ -1,0 +1,71 @@
+# The model configuration for the BendSplay model
+---
+# --- Space
+# The physical space this model is embedded in
+space:
+  periodic: false
+
+# --- Initialization parameters
+N_rho: 10
+inner_radius: 0.5
+outer_radius: 1.5
+
+N_phi: 30
+opening_angle: !expr 3.1415 * 3/4
+
+initial_orientation: !expr 3.1415 / 2.
+initial_orientation_stddev: 0.2
+init_symmetric: False
+
+
+# --- Dynamics
+dt: 1.e-4
+
+K: 1.
+dK: 0.5
+
+
+# --- Data manager
+data_manager:
+  deciders:
+    write_always:
+      type: interval
+      args:
+        intervals:
+          - [0, 1000]
+          - [1000, 10000, 10]
+          - [10000, 100000, 100]
+          - [100000, 1000000, 1000]
+          - [1000000, 10000000, 10000]
+    write_interval:
+      type: interval
+      args:
+        intervals:
+          - [0, 10]
+          - [10, 20, 2]
+          - [20, 100, 5]
+          - [100, 200, 10]
+          - [200, 1000, 100]
+          - [1000, 10000, 1000]
+          - [10000, 20000, 2000]
+          - [20000, 100000, 10000]
+          - [100000, 200000, 20000]
+          - [200000, 1000000, 100000]
+          - [1000000, 10000000, 1000000]
+  triggers:
+    build_once: {type: once, args: {time: 0}}
+  
+  # these are the datasets written
+  tasks:
+    free_energy: &averages
+      active: True
+      trigger: build_once
+      decider: write_always
+    free_energy_time: *averages
+    orientations: &spatial
+      active: true
+      trigger: build_once
+      decider: write_interval
+    orientations_time: *spatial
+    coords_x: *spatial
+    coords_y: *spatial

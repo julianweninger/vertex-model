@@ -253,6 +253,7 @@ test:model_defaults:
   script:
     - $ENTER_UTOPIA_ENV
 
+    - utopia run BendSplay --debug
     - utopia run Collier --debug
     - utopia run NotchDelta --debug
     - utopia run PCPVertex --debug

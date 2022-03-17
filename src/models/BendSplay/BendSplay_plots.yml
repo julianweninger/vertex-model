@@ -1,0 +1,14 @@
+# The default plots of this model
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+# A time series plot of the circular mean and std of the agent orientation
+energy:
+  based_on: energy
+
+orientation:
+  based_on: orientation
+
+vector_field:
+  based_on: vector_field
