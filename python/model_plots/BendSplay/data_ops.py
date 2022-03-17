@@ -18,8 +18,6 @@ def to_dataframe(d: xr.DataArray):
     _d = d.to_dataframe().reset_index()
     
     rename = {}
-    coords = [d for d in d._coords.keys()]
-    coords.append(d.name)
     for i, c in enumerate(_d.columns):
         _c = c.split("_")
         if _c[0] == "level":

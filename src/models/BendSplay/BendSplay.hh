@@ -41,7 +41,7 @@ using CellTraits = Utopia::CellTraits<CellState, Update::sync, true>;
 
 
 /// Type helper to define types used by the model
-using ModelTypes = Utopia::ModelTypes<>;
+using ModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed>;
 
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -116,8 +116,6 @@ private:
     /// The difference of splay vs bending modulus
     double _dK;
 
-    bool _store_agent_data;
-
     /// A re-usable uniform real distribution to evaluate probabilities
     std::uniform_real_distribution<double> _prob_distr;
 
@@ -148,15 +146,16 @@ public:
      *                          one extracted from the parent model using the
      *                          instance name
      */
-    template<class ParentModel>
+    template<class ParentModel, typename... WriterArgs>
     BendSplay (
         const std::string& name,
         ParentModel& parent_model,
-        const DataIO::Config& custom_cfg = {}
+        const DataIO::Config& custom_cfg = {},
+        std::tuple<WriterArgs...> &&writer_args = {}
     )
     :
         // Initialize first via base model
-        Base(name, parent_model, custom_cfg),
+        Base(name, parent_model, custom_cfg, writer_args),
 
         // Now initialize the cell manager
         // _cm(*this),
@@ -178,8 +177,6 @@ public:
         _K(get_as<double>("K", this->_cfg)),
         _dK(get_as<double>("dK", this->_cfg)),
 
-
-        _store_agent_data(get_as<bool>("store_agent_data", this->_cfg)),
 
         // Initialize the uniform real distribution to range [0., 1.]
         _prob_distr(0., 1.),
@@ -407,45 +404,6 @@ public:
     }
 
 
-    /// Write data
-    /** \details This function is called to write out data.
-      *          The configuration determines the times at which it is invoked.
-      *          See \ref Utopia::DataIO::Dataset::write
-      */
-    void write_data () {
-        _dset_energy->write(free_energy());
-
-        auto [mean, std] = circular_mean_and_std(_angles);
-        _dset_orientation_mean->write(mean);
-        _dset_orientation_std->write(std);
-
-
-        // -- Agent-specific data
-        // ... only stored optionally
-        if (not _store_agent_data) return;
-
-        std::vector<double> coords_x(_N_rho * _N_phi);
-        std::vector<double> coords_y(_N_rho * _N_phi);
-        std::vector<double> angles(_N_rho * _N_phi);
-
-        GridMat cx = _coords_rho % arma::sin(_coords_phi);
-        GridMat cy = _coords_rho % arma::cos(_coords_phi);
-
-        for (std::size_t i = 0; i < _N_rho; i++) {
-            for (std::size_t j = 0; j < _N_phi; j++) {
-                coords_x[j + i * _N_phi] = cx(i, j);
-                coords_y[j + i * _N_phi] = cy(i, j);
-                angles[j + i * _N_phi] = _angles(i, j);
-            }
-        }
-
-        // Write out the some_trait of all cells
-        _dset_coords_x->write(coords_x);
-        _dset_coords_y->write(coords_y);
-        _dset_angles->write(angles);
-    }
-
-
     // .. Getters and setters .................................................
     // Add getters and setters here to interface with other models
     double free_energy() const {
@@ -460,6 +418,18 @@ public:
                 + _coords_rho % arma::pow(arma::cos(_angles) % d_drho(_angles), 2)
             )
         );
+    }
+
+    const arma::mat& get_orientations() const {
+        return _angles;
+    }
+
+    arma::mat get_coords_x() const {
+        return _coords_rho % arma::sin(_coords_phi);
+    }
+
+    arma::mat get_coords_y() const {
+        return _coords_rho % arma::cos(_coords_phi);
     }
 };
 

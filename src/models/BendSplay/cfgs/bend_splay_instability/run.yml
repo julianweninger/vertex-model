@@ -1,20 +1,8 @@
 ---
 perform_sweep: True
-# run_kwargs:
-#   stop_conditions:
-#     - !stop-condition
-#       name: equilibrium
-#       description: terminates a simulation if equilibrium reached
-#       enabled: true               
-#       to_check:                   
-#         - func: check_monitor_entry
-#           entry_name: BendSplay.max_change
-#           operator: <=
-#           value: 1.e-6
 
 parameter_space:
   num_steps: 1000000
-  write_every: 10000
 
   seed: !sweep
     default: 42
@@ -24,11 +12,24 @@ parameter_space:
   BendSplay:
     initial_orientation: !sweep
       default: 0.
-      linspace: [!expr 3.1415 / 2.,  0., 5]
+      linspace: [!expr 3.1415,  0., 9]
       name: init
 
-    dt: 1.e-4
+    curvature: !sweep
+      name: curvature
+      default: 1
+      values: [1, 2, 4, 8]
+    inner_radius: !coupled-sweep
+      target_name: curvature
+      name: R_in
+      values: [!expr 2/3 * 1/1, !expr 2/3 * 1/2, !expr 2/3 * 1/4, !expr 2/3 * 1/8]
+    outer_radius: !coupled-sweep
+      target_name: curvature
+      name: R_out
+      values: [!expr 2/1, !expr 2/2, !expr 2/4, !expr 2/8]
+
+    init_symmetric: True
+
     dK: !sweep
       default: 0.2
       values: [0.2, -0.2]
-

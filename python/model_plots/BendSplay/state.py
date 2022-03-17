@@ -35,12 +35,11 @@ def vector_field(dm: DataManager, *,uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.setup_figure()
 
     def update():
-        data = grp['angles'].data
+        data = grp['orientations'].data
         coords_x = grp['coords_x'].data
         coords_y = grp['coords_y'].data
 
-        scale = 10
-        _quiver_kwargs = dict(scale=scale, scale_units='xy', color='black')
+        _quiver_kwargs = dict(scale_units='xy', color='black', pivot='mid')
         if quiver_kwargs:
             _quiver_kwargs.update(quiver_kwargs)
 
@@ -58,8 +57,7 @@ def vector_field(dm: DataManager, *,uni: UniverseGroup, hlpr: PlotHelper,
             qy = np.cos(angles) * np.sin(phi) + np.sin(angles) * np.cos(phi)
 
 
-            hlpr.ax.quiver(x - qx/2./scale, y - qy/2./scale, qx, qy,
-                           **_quiver_kwargs)
+            hlpr.ax.quiver(x, y, qx, qy, **_quiver_kwargs)
 
             
             hlpr.ax.set_aspect('equal')

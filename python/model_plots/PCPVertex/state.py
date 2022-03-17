@@ -1,4 +1,4 @@
-"""SavannaHeterogeneous-model specific plot function for the state / density"""
+"""PCPVertex-model specific plot function for the state"""
 
 import logging
 from typing import Tuple, Union

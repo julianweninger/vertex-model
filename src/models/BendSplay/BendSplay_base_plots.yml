@@ -28,7 +28,7 @@ energy:
     allow_missing_or_failing: true
     fields:
       _energy:
-        path: data/BendSplay/energy
+        path: data/BendSplay/free_energy
 
   transform:
     - import_and_call:
@@ -36,7 +36,7 @@ energy:
       tag: energy
 
   x: time
-  y: energy
+  y: free_energy
 
   to_plot: 
     - function: sns.lineplot
@@ -53,26 +53,20 @@ orientation:
   select_and_combine:
     allow_missing_or_failing: silent
     fields:
-      _angles:
-        path: data/BendSplay/orientation_mean
-        transform:
-          - call_lambda: 
-            - "lambda val: val + math.pi / 2."
-            - !dag_prev 
-          - .rename: [!dag_prev , angles]
+      _orientations:
+        path: data/BendSplay/orientations
 
   transform:
     - import_and_call:
       args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
-    - print: [!dag_prev ]
-      tag: angles
+      tag: orientations
 
-  x: angles
+  x: orientations
   y: time
 
   to_plot: 
     - function: sns.scatterplot
-      data: !dag_result angles
+      data: !dag_result orientations
       # ci: sd
   
   helpers:

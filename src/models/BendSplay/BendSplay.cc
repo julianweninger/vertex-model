@@ -1,17 +1,34 @@
 #include <iostream>
 
 #include "BendSplay.hh"
+#include "BendSplay_write_tasks.hh"
 
 using namespace Utopia::Models::BendSplay;
+using namespace DataIO;
 
+
+template<typename ParentType>
+auto model_factory(ParentType &parent) {
+    return BendSplay(
+        "BendSplay", parent, {},
+        std::make_tuple(
+            energy_adaptor,
+            time_energy_adaptor,
+            orientations_adaptor,
+            orientations_time_adaptor,
+            coords_x_adaptor,
+            coords_y_adaptor
+        )
+    );
+}
 
 int main (int, char** argv) {
     try {
         // Initialize the PseudoParent from config file path
         Utopia::PseudoParent pp(argv[1]);
 
-        // Initialize the main model instance and directly run it
-        BendSplay("BendSplay", pp).run();
+        auto model = model_factory(pp);
+        model.run();
 
         // Done
         return 0;
