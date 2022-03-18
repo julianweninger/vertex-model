@@ -105,7 +105,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
             else {
                 this->_log->error("Failed to set up hexagonal cell structure "
-                    "with cfg {}", cfg);
+                    "with shape {}", shape);
                 throw std::invalid_argument(fmt::format(
                     "Invalid `hexagon_shape` {} when setting up cells in "
                     "Vertex model, chose one of the following: "
