@@ -122,8 +122,8 @@ update:brewtopia-upgrade:
   rules:
     - if: '$UPGRADE_BREWTOPIA == "true"'
       when: always
-    - if: '$CI_COMMIT_BRANCH == "master"'
-      when: always
+    # - if: '$CI_COMMIT_BRANCH == "master"'
+    #   when: always
     - when: never
   script:
     - docker build -f docker/brewtopia-upgrade.Dockerfile
