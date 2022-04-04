@@ -41,11 +41,18 @@ def test_run_and_eval_cfgs():
 
     See :py:meth:`~utopya.model.Model.run_and_eval_cfg_paths` for more info.
     """
+
     for cfg_name, cfg_paths in mtc.default_config_sets.items():
         print("\nRunning '{}' example ...".format(cfg_name))
 
-        mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
-                                    parameter_space=dict(num_steps=3))
-        mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+        if cfg_name == 'bend_splay_instability':
+            mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
+                                        parameter_space=dict(num_steps=3),
+                                        num_seeds=2)
+            mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+        else:
+            mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
+                                        parameter_space=dict(num_steps=3))
+            mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
 
         print("Succeeded running and evaluating '{}'.\n".format(cfg_name))

@@ -45,7 +45,7 @@ PCPVertex:
     max_steps: 15000
     num_repeat: 5
     tolerance: 1e-08
-  initial_jiggle: 0.05
+  initial_jiggle: 0.
   space:
     extent: [1.0, 1.0]
     periodic: true

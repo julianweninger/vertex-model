@@ -1,0 +1,134 @@
+---
+perform_sweep: true
+paths:
+  model_note: default_evaluation_relaxation
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+
+parameter_space:
+  num_steps: 300
+
+  seed: !sweep
+    default: 42
+    range: [1]
+    order: !expr -np.inf
+
+  PCPTopology:
+    log_level: info
+
+    initialisation:
+      1_by_proliferation:
+        num_generations: 2
+        minimization_between_generations:
+          num_repeat: 2
+          # NOTE remains far from equilibrium, but similar result and quick ..
+        minimization:
+          num_repeat: 25
+          # NOTE approximately 2.5 times the relaxation time
+
+    # The sequence of operations
+    operations:      
+      # Minimize the energy using different numerical resolutions
+      # NOTE Integrating to the same t_max = steps * dt
+      - jiggle:
+          times: !listgen [10001]
+          minimization:
+            linetension_fluctuation: 0.
+            dt: !sweep
+              default: 0.004
+              values: [0.1, 0.05, 0.01]
+              name: dt
+              order: 0
+            num_steps: !coupled-sweep
+              target_name: dt
+              name: num_steps
+              default: 250
+              values: [10, 20, 100]
+
+      # Add perturbations in form of a single cell division
+      - proliferate:
+          times: [50, 100, 150, 200]
+          iterations_prolog: 1
+          # NOTE cell division for t = 0 happens in prolog
+
+          num_increases: 0
+          area_threshold: 0.
+          minimization:
+            mode: manual
+          
+
+    # --- Dynamics
+    # Minimization parameter
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.05
+      num_repeat: 1
+      num_steps: 20
+
+      # no noise in the system
+      jiggle_intensity: 0.
+      linetension_fluctuation: 0.
+      area_fluctuation: 0.
+
+    PCPVertex:
+      log_level: warning
+      initial_jiggle: 1.e-2
+      
+      agent_manager:
+        cell_manager:
+          agent_params:
+            shape_index_preferential: !sweep
+              name: s0
+              default: 3.72
+              values: [3.72, 3.76, 3.8, 3.85]
+              # values: [3.72]
+              order: 1
+
+      # continuous data manager
+      data_manager:
+        deciders:
+          write_energy:
+            type: interval
+            args: 
+              intervals:
+                - [0, 1000000000, 5 ]
+        tasks:
+          Energy_total: &energy_continuous
+            decider: write_always
+            active: true
+          Energy_linetension: *energy_continuous
+          Energy_areaelasticity: *energy_continuous
+          Energy_cell_contractility: *energy_continuous
+          Energy_edge_contractility: *energy_continuous
+          Energy_boundary_area_elasticity: {active: false}
+          Energy_boundary_shape_elasticity: {active: false}
+          Energy_time: *energy_continuous
+          transitions: *energy_continuous
+
+          Vertices: &position {active: false}
+          Cells: *position
+          Edges: *position
+    data_manager:
+      deciders:
+        # write_always:
+        #   type: always
+
+        # write_stats: 
+        #   type: interval
+        #   args:
+        #     intervals:
+        #       - [0  ,  30126,  100]
+        write_interval: &interval
+          type: interval
+          args:
+            intervals:
+              - [0, 20, 1]
+              - [20, 60, 10]
+              - [60, 80, 5]
+              - [80, 501, 20]
+      triggers:
+        build_interval: *interval
+      tasks:
+        Energy_boundary_area_elasticity: {enabled: false}
+        Energy_boundary_shape_elasticity: {enabled: false}

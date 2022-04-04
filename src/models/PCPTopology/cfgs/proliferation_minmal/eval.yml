@@ -71,10 +71,11 @@ cell_shape:
   <<: *CELLAREA
 
   transform:
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: shape_index
+    - .sel: [!dag_tag _cells, {property: perimeter}]
+    - .sel: [!dag_tag _cells, {property: area_preferential}]
+    - pow: [!dag_node -1 , 0.5]
+    - div: [!dag_node -3, !dag_node -1]
+    - .rename: [!dag_prev , shape_index]
       tag: _property
     - .sel:
       args: [!dag_tag _cells]
@@ -125,10 +126,11 @@ cell_neighbourhood: !pspace
     shape_index:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: shape_index
+        - .sel: [!dag_prev , {property: perimeter}]
+        - .sel: [!dag_node -2, {property: area_preferential}]
+        - pow: [!dag_node -1 , 0.5]
+        - div: [!dag_node -3, !dag_node -1]
+        - .rename: [!dag_prev , shape_index]
     num_neighbors:
       path: data/PCPTopology/Cells
       transform:

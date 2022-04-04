@@ -87,6 +87,10 @@ PCPTopology:
         args: {time: 0}
         type: once
   operations: ~
+  initialisation: {
+    0_add_noise: {enabled: False},
+    1_by_proliferation: {enabled: False}
+  }
   space: *id008
 log_levels: {core: warning, data_io: warning, data_mngr: warning, model: info}
 monitor_emit_interval: 2.0

@@ -28,7 +28,7 @@ run_kwargs:
           seconds: !expr 60*25.    # --> terminated after 10 minutes wall time
 
 parameter_space:
-  num_steps: 3
+  num_steps: 100
 
   seed: !sweep
     default: 42
@@ -44,26 +44,16 @@ parameter_space:
       default: control
       values: [control, DITH, HIT]
 
+    initialisation:
+      1_by_proliferation:
+        num_generations: 2
+        minimization_between_generations:
+          num_repeat: 1
+        minimization:
+          num_repeat: 5
+
     # The sequence of operations
     operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-          minimization:
-            linetension_fluctuation: 0.001
-
-
-      - proliferate_generations:
-          times: []
-          iterations_prolog: 1
-          num_generations: 2
-          minimization_between_generations:
-            num_repeat: 1
-          minimization:
-            num_repeat: &equilibration_time 5
-            # NOTE 50 recommended
-      # END proliferation
-
       # Differentiate hair and support cells
       - !coupled-sweep
           target_name: initialisation
@@ -122,18 +112,12 @@ parameter_space:
     # Minimization parameter
     minimization: &minimization
       update_scheme: steepest_gradient
-      dt: 0.01
-      tolerance: 1.e-8
-      max_steps: 500000
-      num_repeat: 1
-      num_steps: 100
+      dt: 0.05
+      num_steps: 20
+      num_repeat: 25
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.
-      jiggle_tolerance: 1.e-6
-
-      area_fluctuation: 0.3
-      area_fluctuation_tau: 1.
-      area_fluctuation_A_min: 0.15
+      linetension_fluctuation: 0.1
+      linetension_fluctuation_tau: 25
 
     NotchDelta:
       cell_manager:
@@ -151,7 +135,7 @@ parameter_space:
           agent_params:
             area_preferential: 1.
             contractility: 1.
-            shape_index_preferential: 3.76
+            shape_index_preferential: 3.72
             polarity: -1.5708   # -Pi / 2
         edge_manager:
           agent_params:

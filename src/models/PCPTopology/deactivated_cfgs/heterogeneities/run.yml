@@ -25,23 +25,13 @@ parameter_space:
     range: [2]
 
   PCPTopology:
+
+    initialisation:
+      1_by_proliferation:
+        num_generations: 2
+
     # The sequence of operations
     operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-
-      - proliferate_generations:
-          times: []
-          iterations_prolog: 1
-          num_generations: 2
-          minimization_between_generations:
-            num_repeat: 1
-          minimization:
-            num_repeat: &equilibration_time 5
-            # NOTE 50 recommended
-      # END proliferation
-
       # Differentiate hair and support cells
       - differentiate_random:
           times: []
@@ -85,7 +75,7 @@ parameter_space:
           set_pMLC: 0.
 
           minimization:
-            num_repeat: *equilibration_time
+            num_repeat: 20
 
       # Introduce polarity
       - increment_edge_contractility:

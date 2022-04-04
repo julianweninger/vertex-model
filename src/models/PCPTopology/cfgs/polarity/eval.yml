@@ -634,7 +634,10 @@ cell_properties/shape: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: shape_index}]
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
           - .rename: [!dag_prev , shape_index]
   y: shape_index
   helpers:
@@ -706,7 +709,6 @@ cell_segmentation:
   enabled: false
   universes: *subspace
 
-
   property_interpolation_kwargs:
     method: nearest
 
@@ -726,36 +728,10 @@ cell_segmentation__edge_contractility:
   vector_property_hair_cells_only: True
   cell_marker_size: 10
 
-cell_segmentation__cell_contractility:
-  based_on:
-    - cell_segmentation
-
-  property: {energy_term: cell_contractility}
-  property_path: Cell_energies
-
-  select_times: *TIMES
-
-
-  vector_property: {property: polarity}
-  vector_property_hair_cells_only: True
-  cell_marker_size: 10
-
-cell_segmentation__area_elasticity:
-  based_on:
-    - cell_segmentation
-
-  property: {energy_term: area_elasticity}
-  property_path: Cell_energies
-
-  select_times: *TIMES
-
-  vector_property: {property: polarity}
-  vector_property_hair_cells_only: True
-  cell_marker_size: 10
-
 cell_segmentation__polarity:
   based_on:
     - cell_segmentation
+  enabled: false
 
   property: {property: polarity}
   property_interpolation_kwargs:
@@ -824,10 +800,10 @@ cell_neighborhood: !pspace
       _shape_index:
         path: data/PCPTopology/Cells
         transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: shape_index
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
           - .rename: [!dag_prev , shape_index]
       _num_neighbors:
         path: data/PCPTopology/Cells

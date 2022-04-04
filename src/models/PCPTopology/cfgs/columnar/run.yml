@@ -30,12 +30,13 @@ parameter_space:
       # edge contractility only applies to boundary edges that are apical
       apical_edge_contractility: True
 
-
+    initialisation:
+      1_by_proliferation:
+        enabled: false
+        num_generations: 0
+    
+      
     operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-
       # Differentiate hair and support cells
       - differentiate_random:
           times: []
@@ -75,14 +76,6 @@ parameter_space:
 
       - jiggle: 
           times: !listgen [2, 101]
-
-    minimization:
-      update_scheme: steepest_gradient
-      dt: 0.01
-      num_repeat: 1
-      num_steps: 100
-      jiggle_intensity: 0.
-      linetension_fluctuation: 0.06
 
     data_manager:
       deciders:

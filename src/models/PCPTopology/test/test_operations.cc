@@ -1519,11 +1519,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         std::tie(mean, stddev) = get_statistics(areas_HCs);
         BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         
         std::tie(mean, stddev) = get_statistics(areas_SCs);
         BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
 
         domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
@@ -1553,14 +1553,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         
         std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
         BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 10);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         BOOST_CHECK_EQUAL_COLLECTIONS(
             areas_HCs_partial.begin(), areas_HCs_partial.end(), 
             areas_HCs.begin(), areas_HCs.end());
         
         std::tie(mean, stddev) = get_statistics(areas_SCs);
         BOOST_CHECK_CLOSE(mean, 6, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
 
         domain = vertex_model.get_space()->get_domain_size();
         BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
@@ -1640,7 +1640,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         std::tie(mean, stddev) = get_statistics(areas_SCs);
 
         BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
 
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
         double cell_area = std::accumulate(areas_HCs.begin(),
@@ -1693,7 +1693,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         std::tie(mean, stddev) = get_statistics(areas_SCs);
 
         BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 15);
+        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
 
         SpaceVec domain = vertex_model.get_space()->get_domain_size();
         double cell_area = std::accumulate(areas_HCs.begin(),

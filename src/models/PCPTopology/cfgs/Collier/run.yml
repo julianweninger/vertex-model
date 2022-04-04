@@ -15,25 +15,14 @@ parameter_space:
   num_steps: 3
 
   PCPTopology:
+
+    initialisation:
+      1_by_proliferation:
+        num_generations: 1
+        minimization:
+          linetension_fluctuation: 0.
+
     operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-          minimization:
-            num_repeat: 1
-
-      - proliferate:
-          times: []
-          iterations_prolog: 16
-          num_increases: 0
-          area_threshold: 0.
-          minimization:
-            mode: manual
-
-      - jiggle:
-          times: []
-          iterations_prolog: 2
-
       - differentiate_Collier:
           times: !listgen [11]
           steps: 500

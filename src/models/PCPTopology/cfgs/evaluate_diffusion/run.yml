@@ -1,0 +1,140 @@
+---
+perform_sweep: true
+paths:
+  model_note: default_evaluation_diffusion
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+
+# run_kwargs:
+#   timeout: !expr 60*60*10
+#   stop_conditions:
+#     - !stop-condition
+#       name: single simulation timeout
+#       description: terminates a simulation if it ran for too long
+#       enabled: true               # (optional, true by default)
+#       to_check:                   # A sequence of AND-connected conditions
+#         - func: timeout_wall      # Looked up in utopya.stopcond_funcs
+#           seconds: !expr 60*20    # --> terminated after 10 minutes wall time
+
+parameter_space:
+  num_steps: 1000
+
+  seed: !sweep
+    default: 42
+    range: [1]
+    order: !expr -np.inf
+
+  PCPTopology:
+    log_level: info
+
+    initialisation:
+      1_by_proliferation:
+        num_generations: 3
+        minimization_between_generations:
+          num_repeat: 1
+        minimization:
+          num_repeat: 25
+
+    # The sequence of operations
+    operations:
+      # Put some markers into the tissue
+      - differentiate_random:
+          times: []
+          iterations_prolog: 1
+          fraction: 0.2
+          minimization:
+            mode: manual
+      # disperse them as much as possible
+      - differentiate_NotchDelta:
+          times: []
+          iterations_prolog: 1
+          discard_initialisation: True
+          steps: 2000
+          minimization:
+            mode: manual
+      
+      # Minimize the energy using different fluctuation intensities
+      - jiggle:
+          times: !listgen [10001]
+          minimization:
+            num_repeat: 30
+            # steps of 1. tau_dL
+
+            linetension_fluctuation: !sweep
+              default: 0.
+              values: 
+                - 0.
+                # - 0.01
+                - 0.02
+                # - 0.04
+                - 0.05
+                # - 0.06
+                # - 0.08
+                - 0.1
+              name: dL
+              order: 1
+            linetension_fluctuation_tau: &tau_dL 30
+            # NOTE this corresponds to 3 times the characteristic
+            #      relaxation time
+
+    # --- Dynamics
+    # Minimization parameter
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.05  # this was evaluated in the previous test to be a good dt
+      num_repeat: 1
+      num_steps: 20
+      jiggle_intensity: 0.
+
+    PCPVertex:
+      log_level: warning
+
+      agent_manager:
+        cell_manager:
+          agent_params:
+            shape_index_preferential: !sweep
+              name: s0
+              default: 3.72
+              values: [3.72, 3.76, 3.8, 3.85]
+              order: 0
+        
+      
+      # continuous data manager
+      data_manager:
+        deciders:
+          write_energy:
+            type: interval
+            args: 
+              intervals:
+                - [0, 1000000000, 50]
+        tasks:
+          Energy_total: &energy_continuous
+            decider: write_energy
+            active: true
+          Energy_linetension: *energy_continuous
+          Energy_areaelasticity: *energy_continuous
+          Energy_cell_contractility: *energy_continuous
+          Energy_edge_contractility: *energy_continuous
+          Energy_boundary_area_elasticity: {active: false}
+          Energy_boundary_shape_elasticity: {active: false}
+          Energy_time: *energy_continuous
+          transitions: *energy_continuous
+
+          Vertices: &position {active: false}
+          Cells: *position
+          Edges: *position
+    data_manager:
+      deciders:
+        write_interval: &interval
+          type: interval
+          args:
+            intervals:
+              - [0, 5, 1]
+              - [5, 25, 5]
+              - [25, 1001, 25]
+      triggers:
+        build_interval: *interval
+      tasks:
+        Energy_boundary_area_elasticity: {enabled: false}
+        Energy_boundary_shape_elasticity: {enabled: false}

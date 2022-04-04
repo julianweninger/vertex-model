@@ -33,15 +33,7 @@ energy_boundary_continuous:
       label: Boundary shape-elasticity
 
 transitions:
-  based_on:
-    - universe
-
-  model_name: PCPTopology
-  module: model_plots.PCPTopology
-  plot_func: transitions
-
-  cumsum_transitions: false
-  map_to_continuous_time: True
+  based_on: transitions
 
 transitions_cumulated:
   based_on: transitions
@@ -216,24 +208,6 @@ cell_stats/hexatic_order:
       x: time
       y: average hexatic_order
 
-cell_stats/rotation:
-  based_on:
-    - .default_style_and_helpers
-    - universe
-    - cell_property
-    - select_cell_stats
-
-  to_plot: 
-    bulk_cells:
-      label: all cells (bulk)
-
-  property: rotation
-
-  helpers:
-    set_labels:
-      x: time
-      y: average rotation
-
 cell_stats/neighbors_vs_area:
   based_on:
     - .basic_uni.lineplot
@@ -345,8 +319,11 @@ cell_properties/shape:
     property:
       path: data/PCPTopology/Cells
       transform:
-        - .sel: [!dag_prev , {property: shape_index}]
-        - .rename: [!dag_prev , shape_index]
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
   y: shape_index
   helpers:
     set_labels:
@@ -395,24 +372,6 @@ cell_properties/hexatic_order:
   helpers:
     set_labels:
       y: average hexatic order
-
-cell_properties/rotation:
-  based_on: cell_properties/area
-  select:
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-        - .sel: [!dag_prev , {property: rotation}]
-        - .rename: [!dag_prev , rotation]
-  y: rotation
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result all_cells_bulk
-      label: hair cells
-      ci: sd
-  helpers:
-    set_labels:
-      y: average rotation
 
 cell_properties/neighbors_vs_area:
   based_on:
@@ -691,19 +650,6 @@ equilibrium_cellular_structure__hexatic_order:
   property: {property: hexatic_order}
   property_path: ~
   property_hair_cells_only: True
-  
-equilibrium_cellular_structure__rotation:
-  based_on: equilibrium_cellular_structure
-  enabled: false
-
-  cell_marker_size: 0.
-  property: {property: rotation}
-  property_interpolation_plot_kwargs:
-    cmap: seismic
-    vmin: -3.1415
-    vmax: 3.1415
-  property_bulk_cells_only: False
-
 
 equilibrium_cellular_structure__segmentation:
   based_on: equilibrium_cellular_structure
@@ -773,7 +719,10 @@ cell_neighbourhood: !pspace
         - .sel:
           args: [!dag_prev ]
           kwargs:
-            property: shape_index
+        - .sel: [!dag_prev , {property: perimeter}]
+        - .sel: [!dag_node -2, {property: area_preferential}]
+        - pow: [!dag_node -1 , 0.5]
+        - div: [!dag_node -3, !dag_node -1]
         - .rename: [!dag_prev , shape_index]
     num_neighbors:
       path: data/PCPTopology/Cells
