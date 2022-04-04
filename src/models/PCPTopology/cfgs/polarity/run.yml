@@ -27,44 +27,14 @@ parameter_space:
     range: [1]
     order: -1
 
-  PCPTopology:      
+  PCPTopology:   
+    initialisation:
+      1_by_proliferation:
+        num_generations: 0
+    
+
     # The sequence of operations
-    operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-
-      # - proliferate_generations:
-      #     times: []
-      #     iterations_prolog: 1
-      #     num_generations: 2
-      #     minimization_between_generations:
-      #       num_repeat: 1
-      #     minimization:
-      #       num_repeat: &equilibration_time 5
-      #       # NOTE 50 recommended
-      # END proliferation
-
-      # Differentiate hair and support cells
-      # - differentiate_random:
-      #     times: []
-      #     iterations_prolog: 1
-      #     fraction: 0.26
-      #     minimization:
-      #       mode: manual
-      # - differentiate_NotchDelta:
-      #     times: []
-      #     iterations_prolog: 1
-      #     discard_initialisation: True
-      #     # NOTE: Notch model skipped because random differentiation terminal
-      #     #       Swap removes HC-HC contacts partially
-          
-      #     steps: 5000
-
-      #     minimization:
-      #       mode: manual
-      # END differentiation
-      
+    operations:      
       # Eliminate HC-HC contacts
       - increment_linetension:
           times: []
@@ -113,22 +83,6 @@ parameter_space:
           
 
     # --- Dynamics
-    # Minimization parameter
-    minimization: &minimization
-      update_scheme: steepest_gradient
-      dt: 0.0025
-      tolerance: 1.e-8
-      max_steps: 500000
-      num_repeat: 1
-      num_steps: 400
-      jiggle_intensity: 0.
-      linetension_fluctuation: 0.001
-      jiggle_tolerance: 1.e-6
-
-      area_fluctuation: 0.25
-      area_fluctuation_tau: 1.
-      area_fluctuation_A_min: 0.15
-
     NotchDelta: {cell_manager: {grid: { resolution: 32}}}
 
     PCPVertex:      
@@ -180,8 +134,6 @@ parameter_space:
             #     - ratio_1_to_5
             #     - ratio_1_to_6
             #   name: HC_structure
-
-      minimization: *minimization
 
       T1_threshold: 0.03
       T1_separation_factor: 1.05

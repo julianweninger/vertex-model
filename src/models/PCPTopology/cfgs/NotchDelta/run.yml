@@ -15,25 +15,11 @@ parameter_space:
   num_steps: 10
 
   PCPTopology:
+    initialisation:
+      1_by_proliferation:
+        num_generations: 2
+        
     operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-          minimization:
-            num_repeat: 1
-
-      - proliferate:
-          times: []
-          iterations_prolog: 16
-          num_increases: 0
-          area_threshold: 0.
-          minimization:
-            mode: manual
-
-      - jiggle:
-          times: []
-          iterations_prolog: 2
-
       - differentiate_NotchDelta:
           times: !listgen [11]
           steps: 40

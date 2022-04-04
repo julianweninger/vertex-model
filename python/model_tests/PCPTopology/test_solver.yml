@@ -17,17 +17,37 @@ run_kwargs:
           seconds: !expr 60*5    # --> terminated after 10 minutes wall time
 
 parameter_space:
-  num_steps: 5
+  num_steps: 2
 
   PCPTopology: !model
     model_name: PCPTopology
     
+    initialisation:
+      # Add some noise to initial lattice
+      0_add_noise:
+        enabled: true
+      
+      1_by_proliferation:
+        enabled: false
+    
     minimization:
       tolerance: 1.e-6
       max_steps: 15000
-      num_repeat: 3
       jiggle_tolerance: 1.e-5
-      jiggle_intensity: 0.01
+      dt: !coupled-sweep
+        target_name: update_scheme
+        name: dt
+        default: 0.05
+        values: [0.001, 0.01, 0.001]
+      num_steps: 100
+      num_repeat: !coupled-sweep
+        target_name: update_scheme
+        default: 1
+        values: [5, 3, 5]
+      jiggle_intensity: !coupled-sweep
+        target_name: update_scheme
+        default: 0
+        values: [0.001, 0., 0.001]
 
     periodic_BC: !sweep
       default: True
@@ -64,10 +84,6 @@ parameter_space:
           times: []
           iterations_prolog: 1
 
-          minimization:
-            num_repeat: 1
-            jiggle_intensity: 1.e-3
-
       - proliferate:
           times: [1]
 
@@ -76,8 +92,8 @@ parameter_space:
           num_increases: 0
           area_threshold: 0.
 
-          minimization:
-            mode: manual
+          # minimization:
+          #   mode: manual
 
       - proliferate:
           times: [3]
@@ -87,8 +103,8 @@ parameter_space:
           num_increases: 0
           area_threshold: 0.
 
-          minimization:
-            mode: manual
+          # minimization:
+          #   mode: manual
 
       - proliferate:
           times: [4]
@@ -98,8 +114,8 @@ parameter_space:
           num_increases: 0
           area_threshold: 0.
 
-          minimization:
-            mode: manual
+          # minimization:
+          #   mode: manual
 
       - proliferate:
           times: !listgen [5, 20]
@@ -109,8 +125,8 @@ parameter_space:
           num_increases: 0
           area_threshold: 0.
 
-          minimization:
-            mode: manual
+          # minimization:
+          #   mode: manual
 
       - jiggle:
           times: !listgen [2, 20]

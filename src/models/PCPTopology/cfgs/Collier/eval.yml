@@ -2,10 +2,12 @@
 ---
 energy:
   based_on: energy
+  enabled: False
 
 energy_continuous:
   based_on: energy
   model_name: PCPTopology/PCPVertex
+  enabled: False
       
 equilibrium_cellular_structure:
   based_on: cellular_structure
@@ -15,6 +17,7 @@ cell_neighbourhood: !pspace
     - .default_style_and_helpers
     - universe
     - _cell_neighbourhood
+  enabled: False
 
   select: &select_cell_neighbourhood
     area:
@@ -34,10 +37,11 @@ cell_neighbourhood: !pspace
     shape_index:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: shape_index
+        - .sel: [!dag_prev , {property: perimeter}]
+        - .sel: [!dag_node -2, {property: area_preferential}]
+        - pow: [!dag_node -1 , 0.5]
+        - div: [!dag_node -3, !dag_node -1]
+        - .rename: [!dag_prev , shape_index]
     num_neighbors:
       path: data/PCPTopology/Cells
       transform:

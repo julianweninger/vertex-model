@@ -125,6 +125,7 @@ polarity_histplot: !pspace
     - .dag.multiplot
     - multiverse
     - select_cells_properties_mv
+  enabled: false
   
   select_and_combine:
     fields:
@@ -495,7 +496,10 @@ cell_properties/shape: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: shape_index}]
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
           - .rename: [!dag_prev , shape_index]
   y: shape_index
   helpers:
@@ -633,10 +637,10 @@ cell_neighborhood: !pspace
       _shape_index:
         path: data/PCPTopology/Cells
         transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: shape_index
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
           - .rename: [!dag_prev , shape_index]
       _num_neighbors:
         path: data/PCPTopology/Cells

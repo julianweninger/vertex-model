@@ -34,33 +34,16 @@ parameter_space:
       - bend
 
   PCPTopology:
-    # The sequence of operations
-    operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
-      - proliferate_generations:
-          times: []
-          iterations_prolog: 1
-          num_generations: !coupled-sweep 
-            target_name: case
-            name: num_generations
-            default: 1
-            values: [1, 0, 1, 1]
-          minimization_between_generations:
-            num_repeat: 1
-            linetension_fluctuation: 0.12
-          minimization:
-            num_repeat: &equilibration_time 5
-            linetension_fluctuation: 0.12
-      - jiggle:
-          times: []
-          iterations_prolog: *equilibration_time
-          minimization:
-            linetension_fluctuation: 0.12
+    initialisation:
+      1_by_proliferation:
+        num_generations:  !coupled-sweep 
+          target_name: case
+          name: num_generations
+          default: 1
+          values: [1, 0, 1, 1]
 
-      # END proliferation
-      
+    # The sequence of operations
+    operations:      
       - iterate_pcp:
           times: []
           iterations_prolog: 1
@@ -125,22 +108,7 @@ parameter_space:
 
 
     # --- Dynamics
-    # Minimization parameter
-    minimization: &minimization
-      update_scheme: steepest_gradient
-      dt: 0.004
-      tolerance: 1.e-8
-      jiggle_tolerance: 1.e-6
-      max_steps: 500000
-      num_repeat: 1
-      num_steps: 250
-      jiggle_intensity: 0.
-      linetension_fluctuation: 0.06
-
-      area_fluctuation: 0.0
-      area_fluctuation_tau: 1.
-      area_fluctuation_A_min: 0.15
-    
+    # Minimization parameter    
     PlanarCellPolarity:
       cell_cell_polarity_interaction: 0.1
       cell_polarity_exclusion: 0.05
@@ -178,25 +146,10 @@ parameter_space:
           Energy_time: *ENERGY_PCP
           
     PCPVertex:
-      log_level: warning
-      
-      area_elasticity: 1.
-      
-      cell_shape_implementation: contractile
-      # possible contractile or shape_elastic
-      # whether to normalize shape index to A^0 or A, respectively
-
       agent_manager:
         cell_manager:
           agent_params:
-            area_preferential: 1.
-            contractility: 1.
-            shape_index_preferential: 3.64
             polarity: -1.5708   # -Pi / 2
-        edge_manager:
-          agent_params:
-            linetension: 0.
-            contractility: 0.
         setup_params:
           hexagonal:
             lattice_rows: !coupled-sweep
@@ -208,18 +161,9 @@ parameter_space:
               default: 4
               values: [16, 8, 4, 16]
 
-      minimization: *minimization
-
-      T1_threshold: 0.03
-      T1_separation_factor: 1.05
-      T1_probability: 1.
-      T1_barrier: 0.02
-      T2_threshold: 0.0075
-
 
       # continuous data manager
       data_manager:
-
         deciders:
           write_energy:
             type: interval

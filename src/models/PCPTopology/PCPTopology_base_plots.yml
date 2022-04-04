@@ -35,6 +35,17 @@ energy:
       x: time
       y: energy [a.u.]
 
+transitions:
+  based_on:
+    - universe
+
+  model_name: PCPTopology
+  module: model_plots.PCPTopology
+  plot_func: transitions
+
+  cumsum_transitions: false
+  map_to_continuous_time: True
+
 # the calculation of diffusion
 _diffusion:
   transform:
@@ -100,6 +111,13 @@ diffusion_uni:
             - [x, y]
         - .rename: [!dag_prev , displacement]
 
+  helpers:
+    set_labels:
+      x: time
+      y: diffusion
+    set_limits:
+      y: [0, ~]
+
 # Diffusion in a multiverse
 diffusion_mv:
   based_on:
@@ -111,6 +129,13 @@ diffusion_mv:
   select_and_combine:
     allow_missing_or_failing: true
     fields: *DIFFUSION_FIELDS
+  
+  helpers:
+    set_labels:
+      x: time
+      y: diffusion
+    set_limits:
+      y: [0, ~]
 
 cell_property: &CELL_PROP
   module: model_plots.PCPTopology
@@ -677,3 +702,105 @@ _cell_neighbourhood:
           dpi: 300
     animation_update_kwargs:  {}
     
+
+cell_neighbourhood_mv__map_time:
+  based_on:
+    - .default_style_and_helpers
+    - multiverse
+    - _cell_neighbourhood
+
+  stack_dims: ~
+
+  only_type: all
+  plot_hist: True
+  plot_area: false
+  plot_shape_index: false
+  
+  hist_plot_kwargs:
+    align: left
+    density: true
+
+  helpers_frame_hist:
+    set_labels:
+      x: number of neighbours
+      y: frequency
+    set_limits:
+      y: [0., 0.7]
+
+  select_and_combine:
+    allow_missing_or_failing: True
+    fields:
+      _area:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: area
+          - .rename: [!dag_prev , area]
+      _cell_type:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: cell_type
+          - .rename: [!dag_prev , cell_type]
+      _shape_index:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+      _num_neighbors:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: num_neighbors
+          - .rename: [!dag_prev , num_neighbors]
+      _num_hair_neighbors:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: num_hair_neighbors
+          - .rename: [!dag_prev , num_hair_neighbors]
+
+  transform:
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - import_and_call: &map_directional_time
+      args: [model_plots.PCPTopology.data_ops, map_directional_time,
+            !dag_prev ]
+    - .squeeze: [!dag_prev ]
+      tag: area
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - import_and_call: *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _shape_index,
+             {ids: [seed, id]}]
+    - import_and_call: *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: shape_index
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _num_neighbors,
+             {ids: [seed, id]}]
+    - import_and_call: *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: num_neighbors
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _num_hair_neighbors,
+             {ids: [seed, id]}]
+    - import_and_call: *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: num_hair_neighbors

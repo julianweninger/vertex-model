@@ -22,33 +22,32 @@ space: &SPACE
   periodic: true
 
 # --- Operations
+# A proliferation of cells before prolog operations
+
+# Often used initialisations
+initialisation:
+  # Add some noise to initial lattice
+  0_add_noise:
+    enabled: true
+
+    minimization:
+      num_repeat: 1
+
+  # Proliferate cells
+  1_by_proliferation:
+    enabled: true
+    num_generations: 1
+    minimization_between_generations: ~
+    minimization:
+      num_repeat: &equilibration_time 25
+
 # The sequence of operations
-operations:
-  - jiggle: # this is not done automatically
-      times: []
-      iterations_prolog: 1
-
-      minimization: &MinimzationQuickAndDirty
-        jiggle_intensity: 1.e-3
-        num_repeat: 4
-        tolerance: 1.e-8
-        jiggle_tolerance: 1.e-6
-      
-  - proliferate:
-      times: []
-      iterations_prolog: 2
-      iterations_epilog: 0
-      emit_interval: 4
-     
-      num_increases: 4   # in how many minimization processes the area is increased
-      area_threshold: 0.
-
-      minimization_after_increase: ~
-      minimization: ~
+operations:  
+  # this happens after the proliferation
   
   - differentiate_NotchDelta:
       times: []
-      iterations_prolog: 2    # this happens after the proliferation
+      iterations_prolog: 2
       
       steps: 1000        # only used if method='NotchDelta'
 
@@ -203,22 +202,27 @@ NotchDelta:
 
 # --- Dynamics
 # Minimization parameter
-minimization: &Minimization
-  update_scheme: conjugate_gradient
-  dt: 0.001
+minimization:
+  update_scheme: steepest_gradient
+  dt: 0.05
+  num_steps: 20
 
-  num_repeat: 20
-  
+  linetension_fluctuation: 0.1
+  linetension_fluctuation_tau: 25
+
   tolerance: 1.e-8
   jiggle_tolerance: 1.e-6
-  jiggle_intensity: 0.1
+  jiggle_intensity: 0.
   
   max_steps: 15000
+
+  num_repeat: 1
 
 
 # The model for energy minimization
 PCPVertex:
-  log_level: info
+  log_level: debug
+  initial_jiggle: 1.e-2
 
   space: *SPACE
 
@@ -257,12 +261,26 @@ PCPVertex:
       agent_params:
         area_preferential: 1.
         area_preferential_var: 0.
-        shape_index_preferential: 3.62
+        shape_index_preferential: 3.72
         contractility: 1.
         cell_type: progenitor
 
   # --- Dynamics
-  minimization: *Minimization
+  minimization:
+    update_scheme: steepest_gradient
+    dt: 0.05
+    num_steps: 20
+
+    linetension_fluctuation: 0.1
+    linetension_fluctuation_tau: 25
+
+    tolerance: 1.e-8
+    jiggle_tolerance: 1.e-6
+    jiggle_intensity: 0.
+    
+    max_steps: 15000
+
+    num_repeat: 1
 
   area_elasticity: 1.
   cell_shape_implementation: contractile

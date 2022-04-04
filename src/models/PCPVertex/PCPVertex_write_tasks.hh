@@ -445,13 +445,6 @@ auto cells_adaptor = std::make_tuple(
                        std::back_inserter(perimeters),
                        [am](const auto& c) { return am.perimeter_of(c); });
         dataset->write(perimeters);
-        
-        std::vector<double> shape_indices;
-        shape_indices.reserve(cells.size());
-        for (unsigned int i = 0; i < cells.size(); i++) {
-            shape_indices.push_back(perimeters[i]/sqrt(areas[i]));
-        }
-        dataset->write(shape_indices);
 
         dataset->write(cells.begin(), cells.end(),
                        [am](const auto& cell) {
@@ -472,16 +465,7 @@ auto cells_adaptor = std::make_tuple(
                        [am](const auto& cell) {
                            return am.hexatic_order_of(cell);
                        });
-
-        dataset->write(
-            cells.begin(), cells.end(),
-            [](const auto& cell) {
-                if (not cell->custom_links().rotation_state) {
-                    return 0.;
-                }
-                return cell->custom_links().rotation_state->tracked_rotation;
-            });
-
+                       
         dataset->write(cells.begin(), cells.end(),
                        [](const auto& cell) {
                            return cell->state.polarity();
@@ -510,7 +494,7 @@ auto cells_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {15, m.get_am().cells().size()});
+            {13, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -528,11 +512,9 @@ auto cells_adaptor = std::make_tuple(
                     "area",
                     "area_preferential",
                     "perimeter",
-                    "shape_index",
                     "num_neighbors",
                     "num_hair_neighbors",
                     "hexatic_order",
-                    "rotation",
                     "polarity",
                     "q_x",
                     "q_y",

@@ -24,11 +24,49 @@ def test_run_and_eval_cfgs():
 
     See :py:meth:`~utopya.model.Model.default_config_sets` for more info.
     """
+    _params=dict({
+        'num_steps': 3,
+        'PCPTopology': {
+            'initialisation': {
+                '1_by_proliferation': {
+                    'num_generations': 0,
+                    'iterations_prolog': 0
+                }
+            }
+        }
+    })
+    debug_params=dict({
+        'polarity': {
+            'num_steps': 5,
+            'PCPTopology': {
+                'initialisation': {
+                    '1_by_proliferation': {
+                        'enabled': False,
+                        'num_generations': 0
+                    }
+                },
+                'setup_params': {
+                    'hexagonal': {
+                        'lattice_rows': 6,
+                        'lattice_columns': 6
+                    }
+                }
+            }
+        }
+    })
+
     for cfg_name, cfg_paths in mtc.default_config_sets.items():
         print("\nRunning '{}' example ...".format(cfg_name))
 
+        if cfg_name != 'evaluate_diffusion':
+            continue
+
+        params = debug_params.get(cfg_name, _params)
+
         mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
-                                    plot_manager={'raise_exc': True})
+                                    plot_manager={'raise_exc': True},
+                                    parameter_space=params
+                                    )
         mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
 
         print("Succeeded running and evaluating '{}'.\n".format(cfg_name))

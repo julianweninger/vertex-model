@@ -282,7 +282,10 @@ cell_properties/shape: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: shape_index}]
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
           - .rename: [!dag_prev , shape_index]
   y: shape_index
   helpers:
@@ -342,24 +345,6 @@ cell_properties/hexatic_order: !pspace
       y: average hexatic order
     set_limits:
       y: [0., 1.]
-
-cell_properties/rotation: !pspace
-  based_on: cell_properties/area
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: rotation}]
-          - .rename: [!dag_prev , rotation]
-  y: rotation
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result all_cells_bulk
-      label: hair cells
-  helpers:
-    set_labels:
-      y: average rotation
 
 
 cell_properties/neighbors_vs_area_mv: !pspace
@@ -431,10 +416,11 @@ cell_neighbourhood_mv: !pspace
       shape_index:
         path: data/PCPTopology/Cells
         transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: shape_index
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
       num_neighbors:
         path: data/PCPTopology/Cells
         transform:
@@ -622,17 +608,3 @@ hexatic_order:
     set_labels:
       x: p0
       y: average hexatic_order
-
-rotation:
-  <<: *Property
-
-  to_plot: 
-    bulk_cells:
-      label: all cells (bulk)
-
-  property: rotation
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average rotation

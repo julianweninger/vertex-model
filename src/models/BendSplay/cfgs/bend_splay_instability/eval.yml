@@ -88,5 +88,7 @@ orientation: !pspace
 
 vector_field:
   based_on: vector_field
-  universes: 
+  universes:
     seed: 0
+    init: [3.1415, !expr 3.1415 / 2, 0.]
+    curvature: [1, 8]

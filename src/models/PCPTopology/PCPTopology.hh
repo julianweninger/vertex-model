@@ -266,7 +266,7 @@ private:
             for (const auto& op_pair : ops) {
                 const auto name = op_pair.first.as<std::string>();
                 const auto& op_cfg = op_pair.second;
-                this->_log->trace("  Operation name:  {}", name);
+                this->_log->trace("  Adding operation '{}' ...", name);
 
                 if (name == "bending_box_bc") {
                     _operations.push_back(
@@ -723,11 +723,45 @@ public:
     /// The prolog
     /** Performs the following tasks:
      *      1. prolog of vertex model
+     *      1. Proliferation of hexagonal lattice
      *      1. prolog operations
      *      1. default prolog tasks
      */
     void prolog () {
         _vertex_model.prolog();
+
+        const auto init_cfg = get_as<Config>("initialisation", this->_cfg);
+        auto jiggle_cfg = get_as<Config>("0_add_noise", init_cfg);
+        auto prolif_cfg = get_as<Config>("1_by_proliferation", init_cfg);
+
+        if (get_as<bool>("enabled", jiggle_cfg)) {
+            this->_log->info("Running initial jiggle ...");
+
+            jiggle_cfg["times"] = std::vector<std::size_t>({});
+            jiggle_cfg["iterations_prolog"] = get_as<std::size_t>(
+                "iterations_prolog", jiggle_cfg, 1
+            );
+
+            auto jiggle_op = build_jiggle("Initial_jiggle",
+                                          jiggle_cfg, _minimization_params);
+            apply_operation(jiggle_op, true, false);
+        }
+
+        if (get_as<bool>("enabled", prolif_cfg)) {
+            this->_log->info("Running initial proliferation ...");
+
+            prolif_cfg["times"] = std::vector<std::size_t>({});
+            prolif_cfg["iterations_prolog"] = get_as<std::size_t>(
+                "iterations_prolog", prolif_cfg, 1
+            );
+        
+            auto proliferate = build_proliferate_generations(
+                "initial_proliferation", prolif_cfg,
+                _minimization_params, _log, _monitor_mngr);
+            
+            apply_operation(proliferate, true, false);
+        }
+
 
         this->_log->info("Running prolog operations ...");
 
