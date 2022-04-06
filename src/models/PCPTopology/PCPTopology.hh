@@ -734,32 +734,43 @@ public:
         auto jiggle_cfg = get_as<Config>("0_add_noise", init_cfg);
         auto prolif_cfg = get_as<Config>("1_by_proliferation", init_cfg);
 
-        if (get_as<bool>("enabled", jiggle_cfg)) {
-            this->_log->info("Running initial jiggle ...");
+        std::unique_ptr<OperationBundle> jiggle_op(nullptr);
+        std::unique_ptr<OperationBundle> prolif_op(nullptr);
 
+        if (get_as<bool>("enabled", jiggle_cfg)) {
             jiggle_cfg["times"] = std::vector<std::size_t>({});
             jiggle_cfg["iterations_prolog"] = get_as<std::size_t>(
                 "iterations_prolog", jiggle_cfg, 1
             );
 
-            auto jiggle_op = build_jiggle("Initial_jiggle",
-                                          jiggle_cfg, _minimization_params);
-            apply_operation(jiggle_op, true, false);
+            jiggle_op = std::make_unique<OperationBundle>(
+                build_jiggle("Initial_jiggle",
+                             jiggle_cfg, _minimization_params));
+            _estimate_minimizations += std::get<1>(*jiggle_op).get_num_minimizations(0);
         }
 
         if (get_as<bool>("enabled", prolif_cfg)) {
-            this->_log->info("Running initial proliferation ...");
-
             prolif_cfg["times"] = std::vector<std::size_t>({});
             prolif_cfg["iterations_prolog"] = get_as<std::size_t>(
                 "iterations_prolog", prolif_cfg, 1
             );
         
-            auto proliferate = build_proliferate_generations(
-                "initial_proliferation", prolif_cfg,
-                _minimization_params, _log, _monitor_mngr);
+            prolif_op = std::make_unique<OperationBundle>(
+                build_proliferate_generations(
+                    "initial_proliferation", prolif_cfg,
+                    _minimization_params, _log, _monitor_mngr));
             
-            apply_operation(proliferate, true, false);
+            _estimate_minimizations += std::get<1>(*prolif_op).get_num_minimizations(0);
+        }
+
+        if (jiggle_op != nullptr) {
+            this->_log->info("Running initial jiggle ...");
+            apply_operation(*jiggle_op, true, false);
+        }
+
+        if (prolif_op != nullptr) {
+            this->_log->info("Running initial proliferation ...");
+            apply_operation(*prolif_op, true, false);
         }
 
 
