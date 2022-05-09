@@ -791,7 +791,8 @@ public:
         EdgeParamMatrix linetension, EdgeParamMatrix contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
-        double separation, double T1_barrier, double random_number);
+        double separation, double T1_barrier, double random_number,
+        std::size_t time);
 
     // see transitions.hh
     bool remove_cell_T2 (const std::shared_ptr<Cell> cell);

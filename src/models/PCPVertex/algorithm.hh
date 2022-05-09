@@ -536,7 +536,8 @@ bool PCPVertex::perform_transitions(bool enabled = true)
                         [this](const AgentContainer<Edge>& es,
                                 const AgentContainer<Cell>& cs) { 
                                     return this->get_energy(es, cs, 0.); },
-                        _T1_separation, _T1_barrier, _prob_distr(*this->_rng));
+                        _T1_separation, _T1_barrier, _prob_distr(*this->_rng),
+                        this->_time);
                 
                 if (not T1) {
                     edge->state.last_T1_attempt = this->_time;

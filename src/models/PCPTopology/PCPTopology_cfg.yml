@@ -207,7 +207,7 @@ minimization:
   dt: 0.05
   num_steps: 20
 
-  linetension_fluctuation: 0.1
+  linetension_fluctuation: 0.01
   linetension_fluctuation_tau: 25
 
   tolerance: 1.e-8
@@ -272,7 +272,7 @@ PCPVertex:
     num_steps: 20
 
     linetension_fluctuation: 0.1
-    linetension_fluctuation_tau: 25
+    linetension_fluctuation_tau: 12
 
     tolerance: 1.e-8
     jiggle_tolerance: 1.e-6
@@ -290,7 +290,8 @@ PCPVertex:
   T1_threshold: 0.03
   T1_separation_factor: 1.05
   T1_probability: 1.
-  T1_barrier: 0.02
+  T1_barrier: 0.06
+  T1_timeout: 12
   T2_threshold: 0.0075
 
   data_manager: &data_manager

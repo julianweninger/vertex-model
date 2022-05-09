@@ -301,6 +301,8 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
  *  \param separation   The separation of the new vertices 
  *  \param T1_barrier   The height of the energy barrier
  *  \param random_number    A random number in [0, 1]
+ *  \param time         Timepoint this function is called. Sets last_T1_attempt
+ *                      in new junction
  * 
  *  \returns whether edge was removed.
  *           The edge is not removed if one of the adjoint cells is triangular.
@@ -313,7 +315,8 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         EdgeParamMatrix linetension, EdgeParamMatrix contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
-        double separation, double T1_barrier, double random_number)
+        double separation, double T1_barrier, double random_number,
+        std::size_t time)
 {
     auto vertex_a = edge->custom_links().a;
     auto vertex_b = edge->custom_links().b;
@@ -692,6 +695,8 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     remove_edge(edge);
     remove_vertex(vertex_a);
     remove_vertex(vertex_b);
+
+    new_edge->state.last_T1_attempt = time;
 
     return true;
 } // remove edge T1
