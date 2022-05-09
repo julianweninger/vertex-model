@@ -118,7 +118,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        cell_marker_size: int=60,
                        cell_marker_colors: Tuple[str, str]=['gray', 'r'],
                        plot_vertices: bool=False,
-                       plot_excess_length: float=2.,
+                       plot_excess_length: float=1.,
                        property: dict=None,
                        property_path: str=None,
                        property_hair_cells_only: bool=False,
@@ -267,7 +267,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 domain_size_max_x = Lx
                 domain_size_max_y = Ly
             
-            # periodic skrewed boundary condition
+            # periodic skewed boundary condition
             if "skew_x" in e_data.attrs:
                 skew_x = e_data.attrs["skew_x"][0]
             else:
@@ -345,8 +345,14 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     dx = bx - ax
                     dy = by - ay
 
-                    return (dx - np.round(dx/Lx) * Lx - np.round(dy/Ly)*skew_x,
-                            dy - np.round(dy/Ly) * Ly - np.round(dx/Lx)*skew_y)
+                    add_skew_x = - np.round(dy/Ly) * skew_x
+                    add_skew_y = - np.round(dx/Lx) * skew_y
+
+                    dx = bx + add_skew_x - ax
+                    dy = by + add_skew_y - ay
+
+                    return (dx - np.round(dx/Lx) * Lx,
+                            dy - np.round(dy/Ly) * Ly)
 
                 R = 1. / curvature
                 _ax = ax - Lx / 2.
@@ -378,6 +384,13 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             dx, dy = displacement(ax, ay, bx, by)
 
             def quiver_and_colors(x, y, dx, dy, *, colorbar=True):
+                if vertex_cfg['space']['periodic']:
+                    # only plot within box + excess length
+                    x = xr.where(x > -2 * plot_excess_length, x, np.nan)
+                    x = xr.where(x < Lx + 2 * plot_excess_length, x, np.nan)
+                    y = xr.where(y > -2 * plot_excess_length, y, np.nan)
+                    y = xr.where(y < Ly + 2 * plot_excess_length, y, np.nan)
+
                 quiver_args = [x, y, dx, dy]
                 _quiver_kwargs = dict(headlength=0., headaxislength=0.,
                                     headwidth=0., scale=1, scale_units='xy',
@@ -453,37 +466,28 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             ### plot duplicates of periodic edges
             if vertex_cfg['space']['periodic'] and curvature < 1.e-12:
-                length = plot_excess_length
-                quiver_and_colors(ax + skew_x, ay + Ly,
-                                  np.where(ay < length, dx, np.nan), dy,
-                                  colorbar=False)
-                quiver_and_colors(ax - skew_x, ay - Ly,
-                                  np.where(ay > Ly - length, dx, np.nan), dy,
-                                  colorbar=False)
-                quiver_and_colors(ax + Lx, ay + skew_y,
-                                  np.where(ax < length, dx, np.nan), dy,
-                                  colorbar=False)
-                quiver_and_colors(ax - Lx, ay - skew_y,
-                                  np.where(ax > Lx - length, dx, np.nan), dy,
-                                  colorbar=False)
+                length = max(skew_x, skew_y) + 1 + 1.e-6
+
+                # plot periodic copies of the domain
+                for i in range(1, int(np.ceil(length / Lx) + 1)):
+                    quiver_and_colors(ax + skew_x, ay + Ly, dx, dy,
+                                      colorbar=False)
+                    quiver_and_colors(ax - skew_x, ay - Ly, dx, dy,
+                                      colorbar=False)
+                    quiver_and_colors(ax + i * Lx, ay + i * skew_y, dx, dy,
+                                      colorbar=False)
+                    quiver_and_colors(ax - i * Lx, ay - i * skew_y, dx, dy,
+                                      colorbar=False)
 
 
-                quiver_and_colors(ax + Lx + skew_x, ay + Ly + skew_y,
-                                  np.where(ay < length, dx, np.nan),
-                                  np.where(ax < length, dy, np.nan),
-                                  colorbar=False)
-                quiver_and_colors(ax - Lx + skew_x, ay + Ly - skew_y,
-                                  np.where(ay < length, dx, np.nan),
-                                  np.where(ax > Lx - length, dy, np.nan),
-                                  colorbar=False)
-                quiver_and_colors(ax - Lx - skew_x, ay - Ly - skew_y,
-                                  np.where(ay > Ly - length, dx, np.nan),
-                                  np.where(ax > Lx - length, dy, np.nan),
-                                  colorbar=False)
-                quiver_and_colors(ax + Lx - skew_x, ay - Ly + skew_y,
-                                  np.where(ay > Ly - length, dx, np.nan),
-                                  np.where(ax < length, dy, np.nan),
-                                  colorbar=False)
+                    quiver_and_colors(ax + i * Lx + skew_x, ay + Ly + i * skew_y, dx, dy,
+                                      colorbar=False)
+                    quiver_and_colors(ax - i * Lx + skew_x, ay + Ly - i * skew_y, dx, dy,
+                                      colorbar=False)
+                    quiver_and_colors(ax - i * Lx - skew_x, ay - Ly - i * skew_y, dx, dy,
+                                      colorbar=False)
+                    quiver_and_colors(ax + i * Lx - skew_x, ay - Ly + i * skew_y, dx, dy,
+                                      colorbar=False)
 
             ### plot duplicates of periodic edges
             elif vertex_cfg['space']['periodic']:
