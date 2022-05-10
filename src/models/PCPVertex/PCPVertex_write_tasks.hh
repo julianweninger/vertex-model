@@ -671,18 +671,20 @@ auto cell_energies_adaptor = std::make_tuple(
         const auto& cells = am.cells();
 
         dataset->write(cells.begin(), cells.end(),
-                       [model](const auto& c) {
-                            return model.get_energy_areaelasticity({c});
-                       });
+            [model](const auto& c) {
+                return static_cast<float>(model.get_energy_areaelasticity({c}));
+            });
         dataset->write(cells.begin(), cells.end(),
-                       [model](const auto& c) {
-                            return model.get_energy_cell_contractility({c});
-                       });
+            [model](const auto& c) {
+                return static_cast<float>(
+                            model.get_energy_cell_contractility({c}));
+            });
 
         double Ka = model.get_area_elasticity();
         dataset->write(cells.begin(), cells.end(),
             [am, Ka](const auto& c) {
-                return - Ka * (am.area_of(c) - c->state.area_preferential());
+                return static_cast<float>(
+                        - Ka * (am.area_of(c) - c->state.area_preferential()));
             });
     },
 
@@ -738,13 +740,14 @@ auto edge_energies_adaptor = std::make_tuple(
         const auto& edges = am.edges();
 
         dataset->write(edges.begin(), edges.end(),
-                       [model](const auto& e) {
-                            return model.get_energy_linetension({e});
-                       });
+            [model](const auto& e) {
+                return static_cast<float>(model.get_energy_linetension({e}));
+            });
         dataset->write(edges.begin(), edges.end(),
-                       [model](const auto& e) {
-                            return model.get_energy_edge_contractility({e});
-                       });
+            [model](const auto& e) {
+                return static_cast<float>(
+                            model.get_energy_edge_contractility({e}));
+            });
 
         dataset->write(edges.begin(), edges.end(),
             [am](const auto& edge) {
@@ -776,7 +779,7 @@ auto edge_energies_adaptor = std::make_tuple(
                 tension += c1 * Ds1;
                 tension += c2 * Ds2;
 
-                return tension;
+                return static_cast<float>(tension);
             });
     },
 
