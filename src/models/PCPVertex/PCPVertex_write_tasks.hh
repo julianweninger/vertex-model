@@ -413,42 +413,53 @@ auto cells_adaptor = std::make_tuple(
         const auto& cells = am.cells();
         dataset->write(cells.begin(), cells.end(),
                        [](const auto& cell) {
-                            return static_cast<double>(cell->state.type);
+                            return static_cast<float>(cell->state.type);
                        });
         
         std::vector<SpaceVec> centers;
         centers.reserve(cells.size());
         std::transform(cells.begin(), cells.end(), std::back_inserter(centers),
-                       [am](const auto& c) { return am.barycenter_of(c); });
+                       [am](const auto& c) { 
+                           return am.barycenter_of(c);
+                        });
         dataset->write(centers.begin(), centers.end(),
-                       [](auto&& pos) { return pos[0]; });
+                       [](auto&& pos) { 
+                           return static_cast<float>(pos[0]); 
+                        });
         dataset->write(centers.begin(), centers.end(),
-                       [](auto&& pos) { return pos[1]; });
+                       [](auto&& pos) { 
+                           return static_cast<float>(pos[1]); 
+                        });
 
-        std::vector<double> areas;
+        std::vector<float> areas;
         areas.reserve(cells.size());
         std::transform(cells.begin(), cells.end(), std::back_inserter(areas),
-                       [am](const auto& c) { return am.area_of(c); });
+                       [am](const auto& c) { 
+                           return static_cast<float>(am.area_of(c));
+                        });
         dataset->write(areas);
 
-        std::vector<double> area_preferentials;
+        std::vector<float> area_preferentials;
         area_preferentials.reserve(cells.size());
         std::transform(cells.begin(), cells.end(),
                        std::back_inserter(area_preferentials),
                        [](const auto& c) { 
-                            return c->state.area_preferential(); });
+                            return static_cast<float>(c->state.area_preferential());
+                        });
         dataset->write(area_preferentials);
         
-        std::vector<double> perimeters;
+        std::vector<float> perimeters;
         perimeters.reserve(cells.size());
         std::transform(cells.begin(), cells.end(),
                        std::back_inserter(perimeters),
-                       [am](const auto& c) { return am.perimeter_of(c); });
+                       [am](const auto& c) {
+                           return static_cast<float>(am.perimeter_of(c));
+                        });
         dataset->write(perimeters);
 
         dataset->write(cells.begin(), cells.end(),
                        [am](const auto& cell) {
-                            return static_cast<double>(
+                            return static_cast<float>(
                                    am.neighbors_of(cell).size());
                        });
         dataset->write(cells.begin(), cells.end(),
@@ -458,17 +469,17 @@ auto cells_adaptor = std::make_tuple(
                                 num_hair_neighbors += 
                                     (n->state.type == CellType::hair);
                             }
-                            return static_cast<double>(num_hair_neighbors);
+                            return static_cast<float>(num_hair_neighbors);
                        });
 
         dataset->write(cells.begin(), cells.end(),
                        [am](const auto& cell) {
-                           return am.hexatic_order_of(cell);
+                           return static_cast<float>(am.hexatic_order_of(cell));
                        });
                        
         dataset->write(cells.begin(), cells.end(),
                        [](const auto& cell) {
-                           return cell->state.polarity();
+                           return static_cast<float>(cell->state.polarity());
                        });
 
         std::vector<SpaceVec> qs;
@@ -481,20 +492,28 @@ auto cells_adaptor = std::make_tuple(
 
                             return abs_q * SpaceVec({cos(ori), sin(ori)});
                        });
-        dataset->write(qs.begin(), qs.end(), [](auto&& q) { return q[0]; });
-        dataset->write(qs.begin(), qs.end(), [](auto&& q) { return q[1]; });
+        dataset->write(qs.begin(), qs.end(), 
+                       [](auto&& q) {
+                           return static_cast<float>(q[0]);
+                        });
+        dataset->write(qs.begin(), qs.end(), 
+                       [](auto&& q) {
+                           return static_cast<float>(q[1]);
+                        });
 
         dataset->write(
             cells.begin(), cells.end(),
             [am](const auto& cell) {
-                return static_cast<double>(am.is_boundary(cell));
+                return static_cast<float>(am.is_boundary(cell));
             });
     },
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        return group->open_dataset(std::to_string(m.get_time()), 
-            {13, m.get_am().cells().size()});
+        return group->open_dataset(
+            std::to_string(m.get_time()), 
+            {13, m.get_am().cells().size()}
+        );
     },
 
     // attribute writer for basegroup
@@ -552,19 +571,17 @@ auto edges_adaptor = std::make_tuple(
         const auto& am = model.get_am();
         const auto& edges = am.edges();
         dataset->write(edges.begin(), edges.end(),
-                       [](const auto& edge) {
-                           return static_cast<double>(
-                                    edge->custom_links().a->id());
-                       });
+                    [](const auto& edge) {
+                        return static_cast<float>(edge->custom_links().a->id());
+                    });
         dataset->write(edges.begin(), edges.end(),
-                       [](const auto& edge) {
-                           return static_cast<double>(
-                                    edge->custom_links().b->id());
-                       });
+                    [](const auto& edge) {
+                        return static_cast<float>(edge->custom_links().b->id());
+                    });
         
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
-                           return static_cast<double>(am.length_of(edge));
+                           return static_cast<float>(am.length_of(edge));
                        });        
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
@@ -575,22 +592,22 @@ auto edges_adaptor = std::make_tuple(
                             // nematic angle in [0, pi / 2]
                            double angle = std::acos(arma::dot(displ, axis));
 
-                           return static_cast<double>(angle);
+                           return static_cast<float>(angle);
                        });
                        
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
-                           if (a == nullptr) { return static_cast<double>(-1); }
-                           return static_cast<double>(a->state.type);
+                           if (a == nullptr) { return static_cast<float>(-1); }
+                           return static_cast<float>(a->state.type);
                        });
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
-                           if (b == nullptr) { return static_cast<double>(-1); }
-                           return static_cast<double>(b->state.type);
+                           if (b == nullptr) { return static_cast<float>(-1); }
+                           return static_cast<float>(b->state.type);
                        });
     },
                 
