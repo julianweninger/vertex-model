@@ -600,6 +600,21 @@ auto edges_adaptor = std::make_tuple(
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
                            if (a == nullptr) { return static_cast<float>(-1); }
+                           return static_cast<float>(a->id());
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [am](const auto& edge) {
+                           auto [a, b] = am.template adjoints_of<true>(edge);
+
+                           if (b == nullptr) { return static_cast<float>(-1); }
+                           return static_cast<float>(b->id());
+                       });
+                       
+        dataset->write(edges.begin(), edges.end(),
+                       [am](const auto& edge) {
+                           auto [a, b] = am.template adjoints_of<true>(edge);
+
+                           if (a == nullptr) { return static_cast<float>(-1); }
                            return static_cast<float>(a->state.type);
                        });
         dataset->write(edges.begin(), edges.end(),
@@ -614,7 +629,7 @@ auto edges_adaptor = std::make_tuple(
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {6, m.get_am().edges().size()});
+            {8, m.get_am().edges().size()});
     },
 
     // attribute writer for basegroup
@@ -629,6 +644,8 @@ auto edges_adaptor = std::make_tuple(
                                                             "vertex_b",
                                                             "length",
                                                             "orientation",
+                                                            "id_alpha",
+                                                            "id_beta",
                                                             "type_alpha",
                                                             "type_beta"}));
         hdfdataset->add_attribute("dim_name__1", "id");
