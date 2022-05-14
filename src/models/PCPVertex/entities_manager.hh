@@ -757,22 +757,45 @@ public:
             return 0.;
         }
 
+        std::vector<SpaceVec> corners;
+        SpaceVec center = this->barycenter_of(cell);
+        for (const auto& nb : hair_neighbors) {
+            SpaceVec pos = this->barycenter_of(nb);
+            SpaceVec displ = this->_space->displacement(center, pos);
+            corners.push_back(displ);
+        }
+        
+
+        // calculate elongation and rotation of that object
+        arma::mat22 q = this->elongation_of(corners);
+
+        double abs_q = sqrt(arma::trace(q * q.t())/2.);
+        // the rotation angle
+        double phi = atan2(q[2], q[0]) / 2.;
+        // the ratio of long and short axis of the ellipse
+        double ratio_WH = exp(2 * abs_q);
+
+
+        // calculate corrected hexatic order
+        // NOTE a sheared hexagon maps to 1
         using namespace std::complex_literals;
         std::complex<double> hex_order = std::accumulate(
             hair_neighbors.begin(), hair_neighbors.end(),
             std::complex<double>(0., 0.),
-            [this, cell](std::complex<double> val,
-                        const auto& nb)
+            [this, center, phi, ratio_WH]
+            (std::complex<double> val, const auto& nb)
             {
                 using namespace std::complex_literals;
 
-                double distance = this->distance(cell, nb);
-                SpaceVec displ = this->displacement(cell, nb);
-                double theta = acos(displ[0] / distance);
-                if (displ[1] < 0) {
-                    theta *= -1;
-                } 
-                return val + std::exp(1i * 6. * theta);
+                SpaceVec pos = this->barycenter_of(nb);
+                SpaceVec displ = this->_space->displacement(center, pos);
+                double dx_ = (  (  displ[0] * cos(-phi) - displ[1] * sin(-phi))
+                              / ratio_WH);
+                double dy_ =  displ[0] * sin(-phi) + displ[1] * cos(-phi);
+                double dx = dx_ * cos(phi) - dy_ * sin(phi);
+                double dy = dx_ * sin(phi) + dy_ * cos(phi);
+
+                return val + std::exp(1i * 6. * atan2(dy, dx));
             }
         );
 
@@ -1262,6 +1285,49 @@ public:
         return std::make_tuple(a, b, c);
     }
 
+    /// Calculate the elongation tensor of the object
+    /** \param corners      The corners of a polygon
+     *  \param center       The center of the polygon
+     *  \tparam sorted      Whether the corners are sorted anti-clockwise
+     */
+    template<bool sorted = false>
+    arma::mat22 elongation_of (
+        std::vector<SpaceVec> corners,
+        SpaceVec center = SpaceVec({0., 0.})
+    ) const 
+    {
+        if (arma::norm(center) > 1.e-8) {
+            std::for_each(corners.begin(), corners.end(),
+                          [this, center](const SpaceVec& pos) {
+                                return this->_space->displacement(center, pos);
+                          });
+        }
+        
+        if constexpr (not sorted) {
+            std::sort(corners.begin(), corners.end(), 
+                     [](const SpaceVec& a, const SpaceVec& b) {
+                            return atan2(a[1], a[0]) < atan2(b[1], b[0]);
+                     }
+            );
+        }
+
+
+        arma::mat22 shape = arma::zeros(2, 2);
+        double dual_area = 0.;
+        for (std::size_t i = 0; i < corners.size(); i++) {
+            std::size_t j = (i + 1) % corners.size();
+            arma::mat22 s = this->shape<true, true>(std::make_tuple(
+                SpaceVec({0., 0.}), corners[i], corners[j]));
+
+            auto [area, q, r, theta] = interpretation(s);
+
+            shape += area * q;
+            dual_area += area;
+        }
+        
+        return shape / dual_area;
+    }
+
     template <bool dual_lattice=true>
     arma::mat22 elongation_of (const std::shared_ptr<Cell>& cell) const {
         if (this->is_boundary(cell)) {
@@ -1276,16 +1342,16 @@ public:
         std::vector<SpaceVec> corners{};
         if constexpr (dual_lattice) {
             for (const auto& [edge, flip] : edges) {
-                auto [adj_a, adj_b] = adjoints_of(edge);
+                const auto& [adj_a, adj_b] = adjoints_of(edge);
                 if (adj_a != cell) {
-                    SpaceVec c = barycenter_of(adj_a);
-                    c = center + _space->displacement(center, c);
-                    corners.push_back(c);
+                    corners.push_back(
+                        this->_space->displacement(center,
+                                                   this->barycenter_of(adj_a)));
                 }
                 else {
-                    SpaceVec c = barycenter_of(adj_b);
-                    c = center + _space->displacement(center, c);
-                    corners.push_back(c);
+                    corners.push_back(
+                        this->_space->displacement(center,
+                                                   this->barycenter_of(adj_b)));
                 }
             }
         }
@@ -1296,26 +1362,13 @@ public:
                 if (flip) {
                     std::swap(a, b);
                 }
+
                 SpaceVec pos = position_of(a);
-                pos = center + _space->displacement(center, pos);
-                corners.push_back(pos);
+                corners.push_back(_space->displacement(pos, center));
             }
         }
-
-        arma::mat22 shape = arma::zeros(2, 2);
-        double dual_area = 0.;
-        for (std::size_t i = 0; i < edges.size(); i++) {
-            std::size_t j = (i + 1) % edges.size();
-            arma::mat22 s = this->shape<true, true>(std::make_tuple(
-                center, corners[i], corners[j] ));
-
-            auto [area, q, r, theta] = interpretation(s);
-
-            shape += area * q;
-            dual_area += area;
-        }
         
-        return shape / dual_area;
+        return elongation_of<true>(corners);
     }
 
 private:
