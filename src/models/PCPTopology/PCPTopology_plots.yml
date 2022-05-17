@@ -373,6 +373,29 @@ cell_properties/hexatic_order:
     set_labels:
       y: average hexatic order
 
+cell_properties/elongation:
+  based_on: cell_properties/area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_node -1, {property: q_x}]
+        - .sel: [!dag_node -2, {property: q_y}]
+        - call_lambda:
+          - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+          - !dag_node -2
+          - !dag_node -1
+        - .rename: [!dag_prev , elongation]
+  y: elongation
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells_bulk
+      label: hair cells
+      ci: sd
+  helpers:
+    set_labels:
+      y: average hexatic order
+
 cell_properties/neighbors_vs_area:
   based_on:
     - .default_style_and_helpers
