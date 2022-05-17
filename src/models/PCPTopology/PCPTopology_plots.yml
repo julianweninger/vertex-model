@@ -599,6 +599,7 @@ equilibrium_cellular_structure__area:
   enabled: false
 
   property: {property: area}
+  property_label: cell area
 
 equilibrium_cellular_structure__elongation:
   based_on: equilibrium_cellular_structure
