@@ -1,0 +1,517 @@
+---
+single_universe:
+  enabled: False
+  universes:
+    seed: 0
+    
+_definitions:
+  enabled: false
+  hue: &HUE dL
+  subspace_slice: &subspace_slice
+    vxx: !sweep
+      name: vxx
+      default: 0.01
+      values:
+        # - 0.0025
+        - 0.005
+        # - 0.01
+        # - 0.02
+        # - 0.03
+        # - 0.04
+        - 0.06
+    HC_area: !sweep
+      default: 2
+      values:
+        # - 0.5
+        - 1.0
+        # - 1.5
+        # - 2.0
+        # - 2.5
+        # - 3.0
+    Gamma: !sweep
+      default: 0
+      values: [0., 0.4, 0.8]
+      order: 1
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+        # - 0.26
+        # - 0.1
+      order: 0
+
+  hue_2: &HUE_2 Gamma
+  hue_2_long: &HUE_2_LONG ~
+  subspace_slice_2: &subspace_slice_2
+    HC_area: !sweep
+      default: 2
+      values:
+        # - 0.5
+        - 1.0
+        # - 1.5
+        # - 2.0
+        # - 2.5
+        # - 3.0
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+        # - 0.26
+        # - 0.1
+      order: 0
+    vxx: !sweep
+      default: 0.06
+      values:
+        # - 0.0025
+        - 0.005
+        # - 0.01
+        # - 0.02
+        # - 0.03
+        # - 0.04
+        - 0.06
+
+
+# The energy at uniform t distances
+energy:
+  based_on: [energy, single_universe]
+  enabled: false
+
+# The energy at uniform numerical step distances
+energy_continuous:
+  based_on: [energy, single_universe]
+  enabled: false
+  model_name: PCPTopology/PCPVertex
+
+# Number of T1 and T2 transitions
+transitions:
+  based_on: [transitions, single_universe]
+  enabled: false
+transitions_cumulated:
+  based_on: [transitions, single_universe]
+  enabled: false
+  cumsum_transitions: true
+
+
+# effective diffusion
+diffusion: !pspace
+  based_on: diffusion_mv
+  enabled: False
+  select_and_combine:
+    subspace: *subspace_slice
+  hue: *HUE
+  helpers:
+    set_limits:
+      y: [0, 0.3]
+
+# Displacement, i.e. MSD**0.5
+displacement: !pspace
+  based_on: diffusion
+  enabled: False
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result distance
+    y: distance
+
+  helpers:
+    set_labels:
+      y: $\sqrt{MSD}$
+    set_limits:
+      y: [0, 16]
+
+diffusion_constant: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+  enabled: False
+
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _displacement:
+        path: data/PCPTopology/Cells
+        transform:
+          - import_and_call:
+            args: 
+              - model_plots.PCPTopology.data_ops
+              - displacement
+              - !dag_node -1
+              - property
+              - [x, y]
+          - .rename: [!dag_prev , displacement]
+    subspace: *subspace_slice_2
+  transform:
+    - pass: [!dag_tag _displacement]
+    - .squeeze: [!dag_prev ]
+      tag: displacement
+
+    # the time coordinates
+    - .coords: [!dag_tag displacement, time]
+      tag: time
+    - create_mask: [!dag_prev , ">=", 120]
+      tag: equilibrium_short
+    - create_mask: [!dag_tag time, ">=", 800]
+      tag: equilibrium
+
+    # square displacement
+    - pow: [!dag_tag displacement, 2]
+    - .sum: [!dag_prev , property]
+      kwargs: {skipna: False}
+    - .rename: [!dag_prev , square_displ]
+      tag: square_displ_xr
+
+    # diffusion
+    - div: [!dag_tag square_displ_xr, !dag_tag time]
+    - div: [!dag_prev , 2]
+    - .rename: [!dag_prev , diffusion]
+      tag: diffusion_xr
+    - .where: [!dag_prev , !dag_tag equilibrium]
+    - .mean: [!dag_prev , time]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion_const
+    - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
+    - .mean: [!dag_prev , time]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion_const_short
+
+  x: *HUE
+  hue: *HUE_2
+  y: diffusion
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result diffusion_const
+  - function: sns.lineplot
+    data: !dag_result diffusion_const_short
+    linestyle: ':'
+
+  helpers:
+    set_labels:
+      y: diffusion constant [$A_0^2 / \tau_\lambda$]
+    set_scales:
+      y: log
+    set_limits: 
+      y: [1.e-5, 0.25]
+
+elongation_vs_shear: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: q_x}]
+          - .sel: [!dag_node -2, {property: q_y}]
+          - call_lambda:
+            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , elongation]
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , ">=", 1500]
+          - .where: [!dag_node -3, !dag_node -1]
+          - .mean: [!dag_prev , time]
+    subspace: *subspace_slice_2
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: sd
+      markers: True
+      dashes: False
+      err_style: 'bars'
+    
+      
+  x: *HUE_2
+  y: elongation
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: *HUE_2_LONG
+      y: cell elongation
+    set_limits:
+      y: [0, 0.5]
+
+
+# The average cell area
+cell_properties/area: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  enabled: False  
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+    subspace: *subspace_slice
+
+  x: time
+  y: area
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+# The average cell shape
+cell_properties/shape: !pspace
+  based_on: cell_properties/area
+  enabled: False  
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+    set_limits:
+      y: [3.72, 4.4]
+
+cell_properties/elongation: !pspace
+  based_on: cell_properties/area
+  enabled: False  
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: q_x}]
+          - .sel: [!dag_node -2, {property: q_y}]
+          - call_lambda:
+            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , elongation]
+  y: elongation
+  helpers:
+    set_labels:
+      y: average elongation
+
+# The average cell geometry
+cell_properties/neighbors: !pspace
+  based_on: cell_properties/area
+  enabled: False  
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .rename: [!dag_prev , num_neighbors]
+  y: num_neighbors
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [3, 10]
+
+cell_properties/coordination: !pspace
+  based_on: cell_properties/neighbors
+  enabled: False  
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+
+cell_properties/subordination: !pspace
+  based_on: cell_properties/neighbors
+  enabled: False  
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      ci: sd
+
+cell_properties/HH_neighbors: !pspace
+  based_on: cell_properties/area
+  enabled: False  
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [0, 4]
+
+edge_properties/min_length: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_edges_properties_mv
+  enabled: False    
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_edges
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Edges
+        transform:
+          - .sel: [!dag_prev , {property: length}]
+          - .min: [!dag_prev , id]
+          - .expand_dims: [!dag_prev , id]
+          - .rename: [!dag_prev , length]
+    subspace: *subspace_slice
+
+  x: time
+  y: length
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+
+shape_vs_dL: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: sd
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', 1500]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , shape_index]
+    subspace: *subspace_slice_2
+
+  y: shape_index
+
+  x: *HUE
+  hue: *HUE_2
+
+pressure_vs_dL: !pspace
+  based_on: shape_vs_dL
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: ~
+      estimator: std
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - sub: [!dag_node -2, !dag_node -1]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', 1500]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , pressure]
+  y: pressure
+
+HH_contacts_vs_dL: !pspace
+  based_on: shape_vs_dL
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', 1500]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+  helpers:
+    set_limits:
+      y: [0, 3]
+
+elongation_vs_dL: !pspace
+  based_on: shape_vs_dL
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: q_x}]
+          - .sel: [!dag_node -2, {property: q_y}]
+          - call_lambda:
+            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , elongation]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', 1500]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , elongation]
+  y: elongation
+
+  
+
+
+# A 2D representation of the cells by their edges
+cell_segmentation:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+    - single_universe
+  universes:
+    rho: 0.2
+    dL: [0.02, 0.06, 0.08]
