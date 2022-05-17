@@ -127,9 +127,10 @@ def displacement(TimeSeries, dim, coords, *, shift=1):
 
 
 def map_directional_time(d: xr.DataArray):
+    if 'direction' not in d.coords:
+        raise RuntimeError("'direction' must be in dims of data {}", d.coords)
     if 'direction' not in d.dims:
-        raise RuntimeError("'direction' must be in dims of data {}", d.dims)
-
+        d = d.expand_dims(dim='direction')
     d = d.rename(time="_time")
     d = d.stack(time=("_time", "direction"))
 
@@ -142,8 +143,9 @@ def map_directional_time(d: xr.DataArray):
             - 1.e-5 * (d._time == 0) * (d.direction == 'backward'))
             
     d = d.assign_coords(time=time)
-    d = d.assign_coords(_time=("time", _time))
-    d = d.assign_coords(direction=("time", direction))
+    d = d.assign_coords(_time=("time", _time.data))
+    d = d.assign_coords(direction=("time", direction.data))
+
     
     return d.sortby("time")
 
