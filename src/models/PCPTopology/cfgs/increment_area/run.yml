@@ -1,0 +1,221 @@
+---
+perform_sweep: true
+paths:
+  model_note: default__experiment__increment_area
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+    
+parameter_space:
+  num_steps: !coupled-sweep
+    target_name: direction
+    default: 20000
+    values: [20000, 4000]
+
+  seed: !sweep
+    default: 42
+    range: [8]
+    order: -1
+
+  PCPTopology:
+    log_level: info
+
+    # --- Dynamics
+    # Minimization parameter
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.05  # this was evaluated in the previous test to be a good dt
+      num_steps: 20
+      jiggle_intensity: 0.
+      linetension_fluctuation: 0.02
+      linetension_fluctuation_tau: &tau_dL 24
+      num_repeat: *tau_dL
+
+    # -- Initialisation
+    initialisation:
+      1_by_proliferation:
+        num_generations: 4
+        minimization_between_generations: ~
+        minimization:
+          num_repeat: 240
+
+    #  --- The sequence of operations ---------------------------------
+    operations:
+      # Put some markers into the tissue
+      - differentiate_random:
+          times: []
+          iterations_prolog: 1
+          fraction: !sweep
+            name: rho
+            default: 0.2
+            values:
+              - 0.2
+              # - 0.26
+              # - 0.1
+            order: -3
+          minimization:
+            mode: manual
+      # disperse them as much as possible
+      - differentiate_NotchDelta:
+          times: []
+          iterations_prolog: 1
+          discard_initialisation: True
+          steps: 6000
+          minimization:
+            mode: manual
+      
+      # Eliminate HC-HC contacts
+      - increment_linetension:
+          times: []
+          iterations_prolog: 10
+          HC_sep: !sweep
+            name: HC_sep
+            default: True
+            values: 
+              # - True
+              - False
+            order: -2
+          hair_hair: !coupled-sweep
+            target_name: HC_sep
+            name: lambda_HH
+            default: 1.
+            values: 
+              # - 1.
+              - 0.
+      - increment_linetension:
+          times: []
+          iterations_prolog: 1
+          hair_hair: !coupled-sweep
+            target_name: HC_sep
+            name: lambda_HH_
+            default: 1000.
+            values: 
+              # - 1000.
+              - 0.
+
+      - increment_edge_contractility:
+          times: []
+          iterations_prolog: 1
+          support_support: !sweep
+            name: Gamma
+            default: 0.
+            linspace: [0, 0.8, 3]
+            order: 2
+          minimization:
+            # num_repeat: 960
+            # NOTE long equilibration recommended
+
+            linetension_fluctuation: !coupled-sweep &dL_coupled
+              target_name: Gamma
+              name: dL
+              default: 0.
+              values: [0.02, 0.06, 0.08]
+      # END differentiation
+      
+      - increment_area:
+          times: !listgen [20001]
+          hair: !coupled-sweep
+            target_name: direction
+            default: 0.0005
+            values: 
+              - !expr  2.e-4
+              - !expr -2.e-4
+            name: increment
+          direction: !sweep
+            default: forward
+            values: 
+              - forward
+              - backward
+            name: direction
+            order: 1
+          
+          adapt_support: True
+
+          minimization:
+            linetension_fluctuation: !coupled-sweep
+              <<: *dL_coupled
+              name: dL_
+
+    # --- The solver
+    PCPVertex:
+      log_level: warning
+
+      agent_manager:
+        cell_manager:
+          agent_params:
+            shape_index_preferential: 3.8
+      T1_barrier: 1.e-2
+      T1_probability: 1.
+      T1_timeout: 12
+      T1_threshold: 0.06
+              
+      # continuous data manager
+      data_manager:
+        deciders:
+          write_energy:
+            type: interval
+            args: 
+              intervals:
+                - [0, 1000000000, 320]
+        tasks:
+          Energy_total: &energy_continuous
+            decider: write_energy
+            active: true
+          Energy_linetension: *energy_continuous
+          Energy_areaelasticity: *energy_continuous
+          Energy_cell_contractility: *energy_continuous
+          Energy_edge_contractility: *energy_continuous
+          Energy_boundary_area_elasticity: {active: false}
+          Energy_boundary_shape_elasticity: {active: false}
+          Energy_time: *energy_continuous
+          transitions: *energy_continuous
+
+          Vertices: &position {active: false}
+          Cells: *position
+          Edges: *position
+
+    NotchDelta:
+      data_manager:
+        deciders: {write_always: {type: always}}
+        triggers: {build_once: {type: once}}
+        tasks:
+          Density_progenitor: &density_ND
+            active: false
+            trigger: build_once
+            decider: write_always
+          Density_hair: *density_ND
+          Density_support: *density_ND
+          Density_rosettes: *density_ND
+          Density_time: *density_ND
+
+
+    # --- Data Manager -------------------------------------------------
+    data_manager:
+      deciders:
+        write_interval: &interval
+          type: interval
+          args:
+            intervals:
+              - [0, 20001, 250]
+      triggers:
+        build_interval: *interval
+      tasks:
+        Energy_boundary_area_elasticity: {active: false}
+        Energy_boundary_shape_elasticity: {active: false}
+
+        Cell_stats: &Statistics
+          active: false
+          trigger: build_once
+          decider: write_stats
+        Hair_cell_stats: *Statistics
+        Support_cell_stats: *Statistics
+        Bulk_cell_stats: *Statistics
+        Bulk_hair_cell_stats: *Statistics
+        Bulk_support_cell_stats: *Statistics
+        Cell_neighbourhood: *Statistics
+        Cell_area_histogram: *Statistics
+        Interface_length: *Statistics
+        Statistics_time: *Statistics
+
+        Cell_energies: {active: false}
+        Edge_energies: {active: false}
