@@ -6,41 +6,55 @@ single_universe:
     
 _definitions:
   enabled: false
+  T_eq: &T_eq 2000
+
   hue: &HUE dL
   subspace_slice: &subspace_slice
-    s0: !sweep
-      default: 3.72
-      values: [3.72, 3.76, 3.8, 3.85]
-      # values: [3.72]
-      order: -10
-    # Gamma: !sweep
-    #   default: 0
-    #   linspace: [0, 1, 6]
-    #   order: 1
-    # rho: !sweep
-    #   default: 0.2
-    #   values: [0.26, 0.2, 0.1]
-    #   order: 0
+    Gamma: !sweep
+      default: 0
+      # linspace: [0, 1, 6]
+      linspace: [0, 0.8, 3]
+      order: 1
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+        # - 0.26
+        # - 0.1
+      order: 0
+    HC_area: !sweep
+      default: 0.
+      order: 3
+      values: 
+        # - 0.5
+        - 1.0
+        # - 1.5
+        # - 2.0
+        # - 2.5
+        # - 3.0
     # dL: !sweep
     #   default: 0
     #   values: [0.18, 0.12]
 
-  hue_2: &HUE_2 ~ # Gamma
+  hue_2: &HUE_2 HC_area
   subspace_slice_2: &subspace_slice_2
-    s0: !sweep
-      default: 3.72
-      values: [3.72, 3.76, 3.8, 3.85]
-      # values: [3.72]
-      order: -10
-    # rho: !sweep
-    #   default: 0.2
-    #   values: [0.26, 0.2, 0.1]
-    #   order: 0
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+        # - 0.26
+        # - 0.1
+      order: 0
+    Gamma: !sweep
+      default: 0
+      linspace: [0, 0.8, 3]
+      order: 1
 
 
 # The energy at uniform t distances
 energy:
   based_on: [energy, single_universe]
+  enabled: false
 
 # The energy at uniform numerical step distances
 energy_continuous:
@@ -51,36 +65,11 @@ energy_continuous:
 # Number of T1 and T2 transitions
 transitions:
   based_on: [transitions, single_universe]
+  enabled: false
 transitions_cumulated:
   based_on: [transitions, single_universe]
-  enabled: false
   cumsum_transitions: true
-
-
-# effective diffusion
-diffusion: !pspace
-  based_on: diffusion_mv
-  select_and_combine:
-    subspace: *subspace_slice
-  hue: *HUE
-  helpers:
-    set_limits:
-      y: [0, 0.3]
-
-# Displacement, i.e. MSD**0.5
-displacement: !pspace
-  based_on: diffusion
-
-  to_plot: 
-  - function: sns.lineplot
-    data: !dag_result distance
-    y: distance
-
-  helpers:
-    set_labels:
-      y: $\sqrt{MSD}$
-    set_limits:
-      y: [0, 16]
+  enabled: false
 
 diffusion_constant: !pspace
   based_on:
@@ -89,7 +78,7 @@ diffusion_constant: !pspace
     - multiverse
 
   select_and_combine:
-    allow_missing_or_failing: true
+    allow_missing_or_failing: silent
     fields:
       _displacement:
         path: data/PCPTopology/Cells
@@ -105,15 +94,14 @@ diffusion_constant: !pspace
     subspace: *subspace_slice_2
   transform:
     - pass: [!dag_tag _displacement]
-    - .squeeze: [!dag_prev ]
       tag: displacement
 
     # the time coordinates
     - .coords: [!dag_tag displacement, time]
       tag: time
-    - create_mask: [!dag_prev , ">=", 120]
+    - create_mask: [!dag_prev , ">=", 1000]
       tag: equilibrium_short
-    - create_mask: [!dag_tag time, ">=", 800]
+    - create_mask: [!dag_tag time, ">=", 3000]
       tag: equilibrium
 
     # square displacement
@@ -158,6 +146,31 @@ diffusion_constant: !pspace
     set_limits: 
       y: [1.e-5, 0.25]
 
+# effective diffusion
+diffusion: !pspace
+  based_on: diffusion_mv
+  select_and_combine:
+    subspace: *subspace_slice
+  hue: *HUE
+  helpers:
+    set_limits:
+      y: [0, 0.3]
+
+# Displacement, i.e. MSD**0.5
+displacement: !pspace
+  based_on: diffusion
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result distance
+    y: distance
+
+  helpers:
+    set_labels:
+      y: $\sqrt{MSD}$
+    set_limits:
+      y: [0, 16]
+
 # The average cell area
 cell_properties/area: !pspace
   based_on:
@@ -165,6 +178,7 @@ cell_properties/area: !pspace
     - .dag.multiplot
     - multiverse
     - select_cells_properties_mv
+  enabled: false
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
@@ -190,6 +204,7 @@ cell_properties/area: !pspace
 # The average cell shape
 cell_properties/shape: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -206,6 +221,30 @@ cell_properties/shape: !pspace
       y: average shape index
     set_limits:
       y: [3.72, 4.4]
+
+cell_properties/pressure: !pspace
+  based_on: cell_properties/area
+  enabled: false
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - sub: [!dag_node -2, !dag_node -1]
+          - .rename: [!dag_prev , pressure]
+  y: pressure
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      estimator: std
+      ci: ~
+  helpers:
+    set_labels:
+      y: stddev. pressure
+    set_limits:
+      y: [0, 0.2]
 
 # The average cell geometry
 cell_properties/neighbors: !pspace
@@ -260,6 +299,107 @@ cell_properties/HH_neighbors: !pspace
       y: average neighbors
     set_limits:
       y: [0, 4]
+
+
+shape_vs_dL: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: sd
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', *T_eq]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , shape_index]
+    subspace: *subspace_slice_2
+
+  y: shape_index
+
+  x: *HUE
+  hue: *HUE_2
+
+  helpers:
+    set_labels:
+      y: average shape index
+
+shape_vs_Gamma: !pspace
+  based_on: shape_vs_dL
+  enabled: false
+  x: *HUE_2
+  hue: *HUE
+
+pressure_vs_dL: !pspace
+  based_on: shape_vs_dL
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: ~
+      estimator: std
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - sub: [!dag_node -2, !dag_node -1]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', *T_eq]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , pressure]
+  y: pressure
+
+pressure_vs_Gamma: !pspace
+  based_on: [shape_vs_Gamma, pressure_vs_dL]
+  enabled: false
+
+HH_contacts_vs_dL: !pspace
+  based_on: shape_vs_dL
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+
+          - .coords: [!dag_prev , time]
+          - create_mask: [!dag_prev , '>=', *T_eq]
+          - .where: [!dag_node -3, !dag_prev ]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+
+  helpers:
+    set_limits:
+      y: [0, 3]
+
+HH_contacts_vs_Gamma: !pspace
+  based_on: [shape_vs_Gamma, HH_contacts_vs_dL]
+  enabled: false
+
+
 
 
 # A 2D representation of the cells by their edges
