@@ -1,14 +1,13 @@
 ---
 perform_sweep: true
 paths:
-  model_note: evaluation_diffusion__area_incremented
+  model_note: default__evaluation_rheology__incremented_area
 
 worker_manager:
-  nonzero_exit_handling: warn_all
-
-
+  nonzero_exit_handling: warn_all 
+    
 parameter_space:
-  num_steps: 4000
+  num_steps: 2000
 
   seed: !sweep
     default: 42
@@ -35,9 +34,8 @@ parameter_space:
             name: rho
             default: 0.2
             values: 
-              - 0.20
+              - 0.2
               # - 0.26
-              # - 0.16
               # - 0.1
             order: -1
           minimization:
@@ -58,16 +56,15 @@ parameter_space:
             name: Gamma
             default: 0.4
             values: [0., 0.4, 0.8]
-            order: 1
+            order: 2
           minimization:
             mode: manual
       # END differentiation
-
       - increment_area:
           times: []
-
           _area: !sweep
             name: HC_area
+            order: 1
             default: 2
             values:
               # - 0.5
@@ -76,8 +73,6 @@ parameter_space:
               # - 2.0
               # - 2.5
               # - 3.0
-            order: 3
-
           iterations_prolog: !coupled-sweep
             target_name: HC_area
             default: 1000
@@ -88,7 +83,6 @@ parameter_space:
               # - 1000
               # - 1500
               # - 2000
-
           hair: !coupled-sweep
             target_name: HC_area
             default: 1.e-3
@@ -115,17 +109,59 @@ parameter_space:
                 - 0.04
                 - 0.06
                 - 0.08
-                # - 0.10
-                - 0.12
+                - 0.10
+                # - 0.12
                 # - 0.14
       
       # Minimize the energy using different fluctuation intensities
-      - jiggle:
+      - simple_shear:
           times: !listgen [10001]
+          iterations: !coupled-sweep
+            target_name: vxx
+            name: iterations
+            default: 24
+            values:
+              # - 96
+              - 48
+              # - 24
+              # - 12
+              # - 8
+              # - 6
+              - 4
+
+          _shear_velocity: !sweep
+            name: vxx
+            default: 0.01
+            values:
+              # - 0.0025
+              - 0.005
+              # - 0.01
+              # - 0.02
+              # - 0.03
+              # - 0.04
+              - 0.06
+
+          shear_velocity: !coupled-sweep
+            target_name: vxx
+            name: _shear_velocity
+            default: [!expr 0.01 / 24, 0]
+            values:
+              # - [!expr 0.0025 / 24, 0]
+              - [!expr 0.005 / 24, 0]
+              # - [!expr 0.01 / 24, 0]
+              # - [!expr 0.02 / 24, 0]
+              # - [!expr 0.03 / 24, 0]
+              # - [!expr 0.04 / 24, 0]
+              - [!expr 0.06 / 24, 0]
+            order: 4
+          deform_plastic: False
+          absolute_shear_velocity: true
+
           minimization:
             linetension_fluctuation: !coupled-sweep
               target_name: dL
               name: dL_
+            num_repeat: 1
 
     # --- Dynamics
     # Minimization parameter
@@ -157,7 +193,7 @@ parameter_space:
             type: interval
             args: 
               intervals:
-                - [0, 1000000000, 480]
+                - [0, 1000000000, 320]
         tasks:
           Energy_total: &energy_continuous
             decider: write_energy
@@ -195,7 +231,7 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 4001, 50]
+              - [0, 2001, 50]
       triggers:
         build_interval: *interval
       tasks:

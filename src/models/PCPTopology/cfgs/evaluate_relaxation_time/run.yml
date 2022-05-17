@@ -48,8 +48,7 @@ parameter_space:
 
       # Add perturbations in form of a single cell division
       - proliferate:
-          times: [50, 100, 150, 200]
-          iterations_prolog: 1
+          times: [1, 50, 100, 150, 200]
           # NOTE cell division for t = 0 happens in prolog
 
           num_increases: 0
@@ -81,8 +80,7 @@ parameter_space:
             shape_index_preferential: !sweep
               name: s0
               default: 3.72
-              values: [3.72, 3.76, 3.8, 3.85]
-              # values: [3.72]
+              values: [3.64, 3.72, 3.76, 3.8, 3.85]
               order: 1
 
       # continuous data manager
@@ -124,9 +122,7 @@ parameter_space:
           args:
             intervals:
               - [0, 20, 1]
-              - [20, 60, 10]
-              - [60, 80, 5]
-              - [80, 501, 20]
+              - [20, 301, 10]
       triggers:
         build_interval: *interval
       tasks:

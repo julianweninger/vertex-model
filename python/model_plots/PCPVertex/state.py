@@ -120,6 +120,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                        plot_vertices: bool=False,
                        plot_excess_length: float=1.,
                        property: dict=None,
+                       property_label: str=None,
                        property_path: str=None,
                        property_hair_cells_only: bool=False,
                        property_support_cells_only: bool=False,
@@ -213,6 +214,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.setup_figure()
 
     def update():
+        global cbar
+        cbar = None
+
         # the domain extent for non periodic boundaries (centered on (0., 0.))
         domain_size_min_x = 0.
         domain_size_max_x = 0.
@@ -245,6 +249,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
         for time in times:
             hlpr.ax.clear()
+            if cbar: 
+                cbar.remove()
             hlpr.ax.set_aspect('auto')
             
             if not time in grp['Vertices']:
@@ -632,7 +638,12 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                           **property_interpolation_plot_kwargs)
                 
                 cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
-                cbar.set_label(label=property)
+
+                if property_label:
+                    cbar.set_label(label=property_label)
+                else:
+                    cbar.set_label(label=list(property.values())[0])
+                    
                 cbar.minorticks_on()
             
             if vector_property is not None:

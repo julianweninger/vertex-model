@@ -1,0 +1,926 @@
+---
+single_universe:
+  enabled: False
+  universes:
+    seed: 0
+    
+_definitions:
+  enabled: false
+  hue: &HUE Gamma
+  subspace_slice: &subspace_slice
+    Gamma: !sweep
+      default: 0.
+      values: [0., 0.4, 0.8]
+    HC_sep: !sweep
+      default: false
+      values: 
+        # - true
+        - false
+      order: -1
+
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+        # - 0.26
+        # - 0.1
+      order: 0
+
+  Gamma_best_fit: &Gamma_best_fit 0.4
+
+  hue_2: &HUE_2 rho
+  subspace_slice_2: &subspace_slice_2
+    HC_sep: !sweep
+      default: false
+      values: [true, false]
+      order: -1
+
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+        # - 0.26
+        # - 0.1
+      order: 0
+
+  map_directional_time: &map_directional_time
+    # pass: [!dag_prev ]
+    import_and_call:
+    args: [model_plots.PCPTopology.data_ops, map_directional_time, !dag_prev ]
+
+  BP_data_path: &BP_data_path '~/ownCloud/Institution/Collaboration_NCBS_UNIGE/data/HCA-Actn4/summary_cells.csv'
+
+
+
+# The energy at uniform t distances
+energy:
+  based_on: [energy, single_universe]
+  enabled: false
+
+# The energy at uniform numerical step distances
+energy_continuous:
+  based_on: [energy, single_universe]
+  enabled: false
+  model_name: PCPTopology/PCPVertex
+
+# Number of T1 and T2 transitions
+transitions:
+  based_on: [transitions, single_universe]
+  enabled: false
+
+transitions_cumulated:
+  based_on: [transitions, single_universe]
+  enabled: false
+  cumsum_transitions: true
+
+
+# effective diffusion
+diffusion: !pspace
+  based_on: diffusion_mv
+  enabled: False
+  select_and_combine:
+    subspace: *subspace_slice
+  hue: *HUE
+  helpers:
+    set_limits:
+      y: [0, 0.3]
+
+# Displacement, i.e. MSD**0.5
+displacement: !pspace
+  based_on: diffusion
+  enabled: False
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result distance
+    y: distance
+
+  helpers:
+    set_labels:
+      y: $\sqrt{MSD}$
+    set_limits:
+      y: [0, 16]
+
+diffusion_constant: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+  enabled: False
+
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _displacement:
+        path: data/PCPTopology/Cells
+        transform:
+          - import_and_call:
+            args: 
+              - model_plots.PCPTopology.data_ops
+              - displacement
+              - !dag_node -1
+              - property
+              - [x, y]
+          - .rename: [!dag_prev , displacement]
+    subspace: *subspace_slice_2
+  transform:
+    - pass: [!dag_tag _displacement]
+    - .squeeze: [!dag_prev ]
+      tag: displacement
+
+    # the time coordinates
+    - .coords: [!dag_tag displacement, time]
+      tag: time
+    - create_mask: [!dag_prev , ">=", 120]
+      tag: equilibrium_short
+    - create_mask: [!dag_tag time, ">=", 800]
+      tag: equilibrium
+
+    # square displacement
+    - pow: [!dag_tag displacement, 2]
+    - .sum: [!dag_prev , property]
+      kwargs: {skipna: False}
+    - .rename: [!dag_prev , square_displ]
+      tag: square_displ_xr
+
+    # diffusion
+    - div: [!dag_tag square_displ_xr, !dag_tag time]
+    - div: [!dag_prev , 2]
+    - .rename: [!dag_prev , diffusion]
+      tag: diffusion_xr
+    - .where: [!dag_prev , !dag_tag equilibrium]
+    - .mean: [!dag_prev , time]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion_const
+    - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
+    - .mean: [!dag_prev , time]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion_const_short
+
+  x: *HUE
+  hue: *HUE_2
+  y: diffusion
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result diffusion_const
+  - function: sns.lineplot
+    data: !dag_result diffusion_const_short
+    linestyle: ':'
+
+  helpers:
+    set_labels:
+      y: diffusion constant [$A_0^2 / \tau_\lambda$]
+    set_scales:
+      y: log
+    set_limits: 
+      y: [1.e-5, 0.25]
+
+
+# Mapped to area
+area_mapped/neighbors: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv.map_stage
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .rename: [!dag_prev , num_neighbors]
+    subspace: *subspace_slice
+
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .where: [!dag_prev , !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+      tag: HC_area    
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .assign_coords: [!dag_prev , {area: !dag_tag HC_area}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      color: grey
+      ci: ~
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      color: red
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+      color: royalblue
+      ci: sd
+
+  x: area
+  y: num_neighbors
+
+  helpers:
+    set_labels:
+      y: number of neighbors
+      x: normalized HC area
+    set_limits:
+      x: [0., 5.]
+      y: [3., 12]
+
+area_mapped/neighbors_w_data: !pspace
+  based_on: area_mapped/neighbors
+  enabled: False
+
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .where: [!dag_prev , !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+      tag: HC_area    
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .assign_coords: [!dag_prev , {area: !dag_tag HC_area}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, read_csv, *BP_data_path]
+    - print: [!dag_prev ]
+      tag: data_experiment
+      
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, define_exp_coordin_area]
+    # - import_and_call:
+    #   args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , area]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: experiment
+
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      color: grey
+      ci: ~
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+      color: royalblue
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      color: red
+      ci: sd
+    - function: sns.scatterplot
+      data: !dag_result experiment
+      label: basilar papilla
+      hue: stage
+      style: position
+      palette: copper
+      
+  helpers:
+    # set_legend:
+    #   ncol: 1
+    #   bbox_to_anchor: [1.05, 1]
+    #   loc: 2
+    #   borderaxespad: 0.
+    set_limits:
+      x: [0., 5.]
+      y: [3., 11]
+  
+  style:
+    legend.fontsize: 8.4
+
+area_mapped/coordination_number_errorbar: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - multiverse
+    - select_cells_properties_mv.map_stage
+  enabled: False
+
+    
+  module: model_plots.PCPTopology
+  plot_func: coordination_vs_area
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .rename: [!dag_prev , num_neighbors]
+    subspace:
+      <<: *subspace_slice
+      Gamma: [0., *Gamma_best_fit]
+
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .where: [!dag_prev , !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+      tag: HC_area    
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .assign_coords: [!dag_prev , {area: !dag_tag HC_area}]
+    - .squeeze: [!dag_prev ]
+    # - import_and_call:
+    #   args: [model_plots.PCPTopology.data_ops, sortby, !dag_prev , area]
+      tag: property
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, read_csv, *BP_data_path]
+    - print: [!dag_prev ]
+      tag: data_experiment
+
+  helpers:
+    set_limits:
+      x: [0., 6.]
+      y: [3, 11]
+    set_labels:
+      x: norm. HC area
+      y: Coordination number
+
+area_mapped/coordination_fit: !pspace
+  based_on: area_mapped/neighbors_w_data
+  enabled: False
+  
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .where: [!dag_prev , !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+      tag: HC_area    
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .assign_coords: [!dag_prev , {area: !dag_tag HC_area}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
+    
+    - .mean: [!dag_tag hair_cells_xarray, ids]
+      tag: hair_cells_mean
+    - .coords: [!dag_tag hair_cells_mean, area]
+      tag: data_coords
+    - create_mask: [!dag_prev ,'>=', 0]
+    - .where: [!dag_tag hair_cells_mean, !dag_prev ]
+      kwargs:
+        drop: true
+    - .polyfit: 
+      args: [!dag_prev , area, 1]
+      kwargs: 
+        skipna: true
+        cov: true
+    - getitem: [!dag_prev , polyfit_coefficients]
+      tag: fit
+    - getitem: [!dag_prev , 0]
+      tag: fit_slope
+    - getitem: [!dag_tag fit, 1]
+      tag: fit_offset
+
+    - mul: [!dag_tag data_coords, !dag_tag fit_slope]
+    - add: [!dag_prev , !dag_tag fit_offset]
+    - .rename: [!dag_prev , linear_fit]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: linear_fit
+
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, define_exp_coordin_area]
+    - .dropna: [!dag_prev , area]
+      tag: experiment_xr
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: experiment
+
+    - .coords: [!dag_tag experiment_xr, area]
+    - create_mask: [!dag_prev ,'>', 0]
+    - .where: [!dag_tag experiment_xr, !dag_prev ]
+      kwargs:
+        drop: true
+    - .polyfit: 
+      args: [!dag_prev , area, 1]
+      kwargs: 
+        skipna: true
+        cov: true
+    - getitem: [!dag_prev , polyfit_coefficients]
+      tag: fit_experiment
+    - getitem: [!dag_prev , 0]
+      tag: fit_experiment_slope
+    - getitem: [!dag_tag fit_experiment, 1]
+      tag: fit_experiment_offset
+
+    - mul: [!dag_tag data_coords, !dag_tag fit_experiment_slope]
+    - add: [!dag_prev , !dag_tag fit_experiment_offset]
+    - .rename: [!dag_prev , linear_fit]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: linear_fit_experiment
+    
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      hue: Gamma
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result linear_fit_experiment
+      label: lin. fit experiment
+      y: linear_fit
+      color: black
+    - function: sns.scatterplot
+      data: !dag_result experiment
+      label: 
+      hue: stage
+      style: position
+      palette: copper
+    - function: sns.lineplot
+      data: !dag_result linear_fit
+      label: lin. fit
+      y: linear_fit
+      color: orange
+
+area_mapped/coordination_quantify: !pspace
+  based_on: area_mapped/neighbors_w_data
+  enabled: False
+  
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .where: [!dag_prev , !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+      tag: HC_area    
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .assign_coords: [!dag_prev , {area: !dag_tag HC_area}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
+    
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, define_exp_coordin_area]
+    - .dropna: [!dag_prev , area]
+      tag: experiment_xr
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: experiment
+
+    - .mean: [!dag_tag hair_cells_xarray, ids]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, sortby, !dag_prev , area]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev , {area: 10}]
+      kwargs: {center: True}
+    - .mean: [!dag_prev , area]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: HC_smoothed
+    
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      hue: Gamma
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result HC_smoothed
+      ci: ~
+    - function: sns.scatterplot
+      data: !dag_result experiment
+      label: 
+      hue: stage
+      style: position
+      palette: copper
+
+area_mapped/hair_neighbors: !pspace
+  based_on: area_mapped/neighbors
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .rename: [!dag_prev , num_hair_neighbors]
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+      ci: sd
+
+  x: area
+  y: num_hair_neighbors
+
+  helpers:
+    set_labels:
+      y: number of HC contacts
+    set_limits:
+      y: [0., 5]
+
+area_mapped/hexatic_order: !pspace
+  based_on: area_mapped/neighbors
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: hexatic_order}]
+          - .rename: [!dag_prev , hexatic_order]
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      ci: sd
+
+  x: area
+  y: hexatic_order
+
+  helpers:
+    set_labels:
+      y: hexatic order
+    set_limits:
+      y: [0., 1]
+    set_hv_lines:
+      vlines: []
+
+area_mapped/hexatic_order_w_data: !pspace
+  based_on: area_mapped/neighbors_w_data
+  enabled: False
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: hexatic_order}]
+          - .rename: [!dag_prev , hexatic_order]
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      ci: sd
+    - function: sns.scatterplot
+      data: !dag_result data_experiment
+      label: basilar papilla
+      hue: stage
+      style: position
+      palette: copper
+      x: normalized_area_cells
+      y: hexatic_order
+
+  x: area
+  y: hexatic_order
+
+  helpers:
+    set_labels:
+      y: hexatic order
+    set_limits:
+      y: [0., 1]
+    set_hv_lines:
+      vlines: []
+
+
+# The average cell area
+cell_properties/area: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+    subspace: *subspace_slice
+
+  x: time
+  y: area
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+# The average cell shape
+cell_properties/shape: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+    set_limits:
+      y: [3.72, 4.4]
+
+cell_properties/elongation: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: q_x}]
+          - .sel: [!dag_node -2, {property: q_y}]
+          - call_lambda:
+            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , elongation]
+  y: elongation
+  helpers:
+    set_labels:
+      y: average elongation
+
+# The average cell geometry
+cell_properties/neighbors: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .rename: [!dag_prev , num_neighbors]
+  y: num_neighbors
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [3, 10]
+
+cell_properties/coordination: !pspace
+  based_on: cell_properties/neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+
+cell_properties/subordination: !pspace
+  based_on: cell_properties/neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      ci: sd
+
+cell_properties/HH_neighbors: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      ci: sd
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [0, 4]
+
+
+edge_properties/min_length: !pspace
+  enabled: False
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_edges_properties_mv
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_edges
+      ci: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Edges
+        transform:
+          - .sel: [!dag_prev , {property: length}]
+          - .min: [!dag_prev , id]
+          - .expand_dims: [!dag_prev , id]
+          - .rename: [!dag_prev , length]
+    subspace: *subspace_slice
+
+  x: time
+  y: length
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+
+# A 2D representation of the cells by their edges
+cell_segmentation:
+  based_on:
+    - .default_style_and_helpers
+    - cellular_structure
+    - single_universe

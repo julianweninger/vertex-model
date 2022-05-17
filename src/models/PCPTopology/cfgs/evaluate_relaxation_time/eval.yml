@@ -10,7 +10,7 @@ _definitions:
   subspace_slice: &subspace_slice
     s0: !sweep
       default: 3.72
-      values: [3.72, 3.76, 3.8, 3.85]
+      values: [3.64, 3.72, 3.76, 3.8, 3.85]
 
 # The energy at uniform t distances
 energy:
