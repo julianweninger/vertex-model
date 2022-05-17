@@ -208,7 +208,7 @@ minimization:
   num_steps: 20
 
   linetension_fluctuation: 0.01
-  linetension_fluctuation_tau: 25
+  linetension_fluctuation_tau: 24
 
   tolerance: 1.e-8
   jiggle_tolerance: 1.e-6
