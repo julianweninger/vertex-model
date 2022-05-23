@@ -351,10 +351,20 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         std::cout << std::endl << "Adding heterogeneities .. \n\n";
 
-        test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}));
+        test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), false);
         test_model.set_pMLC_contractility(0.2);
 
         test_model.perform_test();
+
+
+        std::cout << std::endl << "Adding curvature .. \n\n";
+
+        test_model.curve_boundary(0.005, true);
+        test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), true);
+
+        test_model.perform_test();
+
+        std::cout << std::endl << "Done. \n\n";
 
         test_model.epilog();
     }

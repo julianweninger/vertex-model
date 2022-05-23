@@ -283,7 +283,6 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     // remove not needed objects
     // in non periodic bc more objects are initialised that needed
     if (not _space->periodic) {
-        
         // vertices
         AgentContainer<Vertex> vertices_remove;
         vertices_remove.push_back(vertices[2*(lim_columns - 1) + 1]);
@@ -346,6 +345,12 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
             
             this->remove_edge(e);
+        }
+
+        SpaceVec origin = this->barycenter_of(this->get_boundary_edges());
+
+        for (const auto& v : this->vertices()) {
+            this->move_by(v, -1. * origin);
         }
     }
 

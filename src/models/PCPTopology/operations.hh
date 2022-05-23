@@ -716,13 +716,8 @@ OperationBundle build_differentiate_random (
             using CellType = PCPVertex::CellType;
 
             // Differentiate cell as HCs
-            PCPVertex::RuleFuncCell update_HCs = [
-                            vertex_model,
-                            prob_distr{std::move(prob_distr)}]
-                    (const auto& cell) mutable
-            {
+            PCPVertex::RuleFuncCell update_HCs = [] (const auto& cell) {
                 cell->state.type = CellType::hair;
-
                 return cell->state;
             };
 
@@ -736,12 +731,10 @@ OperationBundle build_differentiate_random (
             apply_rule<Update::sync>(update_HCs, cells);
 
             // Differentiate others as SCs
-            PCPVertex::RuleFuncCell update_SCs = [
-                            vertex_model,
-                            prob_distr{std::move(prob_distr)}]
-                    (const auto& cell) mutable
+            PCPVertex::RuleFuncCell update_SCs = [] (const auto& cell) 
             {
                 auto state = cell->state;
+
                 if (state.type == CellType::progenitor) {
                     state.type = CellType::support;
                 }
@@ -1191,6 +1184,7 @@ OperationBundle build_increment_edge_contractility (
     double ppMLC(get_as<double>("set_ppMLC", cfg, 0.));
     double ppMLC_angle(get_as<double>("set_ppMLC_angle", cfg, 0.));
     auto ppMLC_axis = SpaceVec({cos(ppMLC_angle), sin(ppMLC_angle)});
+    bool ppMLC_curved_axis(get_as<bool>("ppMLC_curved_axis", cfg, false));
 
     double pMLC(get_as<double>("set_pMLC", cfg, 0.));
     auto reset_HC_polarity(get_as<std::pair<bool, double>>(
@@ -1230,7 +1224,7 @@ OperationBundle build_increment_edge_contractility (
     Operation operation = [incr_prog_prog, incr_prog_hair, incr_prog_supp,
                            incr_hair_hair, incr_hair_supp, incr_supp_supp,
                            incr_prog_bnd, incr_hair_bnd, incr_supp_bnd,
-                           ppMLC, ppMLC_axis, pMLC,
+                           ppMLC, ppMLC_axis, ppMLC_curved_axis, pMLC,
                            reset_HC_polarity, 
                            reset_HC_polarity_antispin_nshift,
                            reset_HC_polarity_antispin_n,
@@ -1272,7 +1266,8 @@ OperationBundle build_increment_edge_contractility (
         // set the contractility and update the edge properties
         vertex_model.set_edge_contractility(contractility, true);
 
-        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis);
+        vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis,
+                                             ppMLC_curved_axis);
         vertex_model.set_pMLC_contractility(pMLC);
 
         if (std::get<bool>(reset_HC_polarity)) {
@@ -2402,8 +2397,6 @@ OperationBundle build_bending_box_bc (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
-    using SpaceVec = PCPVertex::SpaceVec;
-
     OperationParams params(name, cfg, default_minim_params);
 
     double v0 = get_as<double>("increment_curvature", cfg);
@@ -2411,46 +2404,7 @@ OperationBundle build_bending_box_bc (
 
     Operation operation = [v0, deform_plastic](PCPVertex& vertex_model)
     {
-        const auto& space = vertex_model.get_space();
-
-        double curvature = space->get_curvature();
-        curvature += v0;
-
-        space->set_curvature(curvature);
-
-        if (deform_plastic) {
-            const SpaceVec domain = space->get_domain_size();
-
-            double k0 = std::max(curvature - v0, 1.e-8);
-            double R0 = 1. / k0;
-
-            double k1 = std::max(curvature, 1.e-8);
-            double R1 = 1. / k1;
-            
-            double max_theta_0 = (domain[0] / 2.) * k0;
-            double max_theta_1 = (domain[0] / 2.) * k1;
-
-            SpaceVec origin_0({domain[0] / 2., domain[1] / 2. - R0});
-            SpaceVec origin_1({domain[0] / 2., domain[1] / 2. - R1});
-
-            const auto& am = vertex_model.get_am();
-            for (const auto& v : am.vertices()) {
-                SpaceVec pos = am.position_of(v);
-                SpaceVec displ = pos - origin_0;
-
-                // relative radial position
-                double rho = arma::norm(displ) - R0; 
-                // relative angular position
-                double theta = std::atan2(displ[0], displ[1]) / max_theta_0;
-
-                SpaceVec new_pos = (
-                    origin_1 + (rho + R1) * SpaceVec({sin(theta * max_theta_1), 
-                                                      cos(theta * max_theta_1)})
-                );
-
-                am.move_to(v, new_pos);
-            }
-        }
+        vertex_model.curve_boundary(v0, deform_plastic);
     };
 
     return std::make_pair(operation, params);

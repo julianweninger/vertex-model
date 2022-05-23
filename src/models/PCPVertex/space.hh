@@ -35,6 +35,7 @@ private:
     /// Lees-Edwards boundary condition, i.e. skew
     SpaceVec _skew;
 
+    /// Curved boundary condition
     double _curvature;
 
 public:

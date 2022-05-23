@@ -1049,6 +1049,10 @@ public:
 
         return _pcp->pcp_polarity(cell);
     }
+
+    double get_curvature_boundary() const {
+        return _vertex_model.get_curvature_boundary();
+    }
 };
 
 } // namespace PCPTopology
