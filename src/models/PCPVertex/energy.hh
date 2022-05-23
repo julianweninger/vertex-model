@@ -55,7 +55,7 @@ double PCPVertex::line_tension_energy (
 double PCPVertex::edge_contractility_energy (
         const std::shared_ptr<Edge>& edge, double beta) const
 {
-    auto [ppMLC_contract, ppMLC_axis] = _ppMLC_contractility;
+    auto [ppMLC_contract, ppMLC_axis, curved_axis] = _ppMLC_contractility;
     
     if (    fabs(edge->state.contractility()) < 1.e-12
         and fabs(ppMLC_contract) < 1.e-12
@@ -93,6 +93,32 @@ double PCPVertex::edge_contractility_energy (
         and cell_b->state.type == CellType::support)
     {
         SpaceVec displ = this->_space->displacement(a, b);
+        
+        // rotate ppMLC_axis so that points along curved tissue axis
+        if (curved_axis) {
+            double curvature;
+
+            SpaceVec pos = (  _am.position_of(edge->custom_links().a)
+                            + 0.5 * _am.displacement(edge));
+            if (not _space->periodic) {
+                curvature = _boundary_param.get_curvature();
+                double radius = 1. / curvature;
+
+                SpaceVec origin({0., -radius});
+
+                SpaceVec displ = pos - origin;
+                double theta = std::atan2(displ[0], displ[1]);
+
+                ppMLC_axis = SpaceVec({
+                    ppMLC_axis[0] * cos(-theta) - ppMLC_axis[1] * sin(-theta),
+                    ppMLC_axis[0] * sin(-theta) + ppMLC_axis[1] * cos(-theta)
+                });
+            }
+            else {
+                curvature = _space->get_curvature();
+                throw std::runtime_error("Not implemented!");
+            }
+        }
 
         // Gamma -> Gamma * cos^2 (theta), where theta angle with p-d axis
         double x = arma::dot(displ, ppMLC_axis);

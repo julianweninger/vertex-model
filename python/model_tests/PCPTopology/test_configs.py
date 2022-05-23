@@ -52,6 +52,23 @@ def test_run_and_eval_cfgs():
                     }
                 }
             }
+        },
+        'heterogeneities_and_polarity': {
+            'num_steps': 3,
+            'PCPTopology': {
+                'initialisation': {
+                    '1_by_proliferation': {
+                        'enabled': False,
+                        'num_generations': 0
+                    }
+                },
+                'setup_params': {
+                    'hexagonal': {
+                        'lattice_rows': 6,
+                        'lattice_columns': 12
+                    }
+                }
+            }
         }
     })
 

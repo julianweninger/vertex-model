@@ -427,7 +427,7 @@ private:
     /** Where theta is the angle between the junction and the axis defined
      *  by the SpaceVec
      */
-    std::pair<double, SpaceVec> _ppMLC_contractility;
+    std::tuple<double, SpaceVec, bool> _ppMLC_contractility;
 
     /// Contractility on HC-SC junctions with heterogeneous distribution
     /** The distribution is 0.5 * (sin theta + 1), where theta is the angle 
@@ -492,6 +492,9 @@ private:
     /** The boundary of the domain is treated as one cell
      */
     struct BoundaryParam {
+        /// The boundary condition's periodicity
+        const bool periodic;
+
         double area_elasticity;
         double _area_preferential; /// Per cell averaged target area
         double area_preferential(std::size_t N) const {
@@ -504,16 +507,30 @@ private:
         /// Whether to fix all vertices of the boundary in space
         bool fix_boundary;
 
-        BoundaryParam (const Config& cfg)
+        private:
+            /// A place to store curvature of the boundary
+            double virtual_curvature;
+
+
+        public:
+
+        BoundaryParam (bool periodic_bc, const Config& cfg)
         :
+            periodic(periodic_bc),
             area_elasticity(get_as<double>("area_elasticity", cfg)),
             _area_preferential(get_as<double>("area_preferential", cfg)),
             contractility(get_as<double>("contractility", cfg)),
             shape_index_preferential(
                 get_as<double>("shape_index_preferential", cfg)),
 
-            fix_boundary(get_as<bool>("fix_boundary", cfg, false))
-        { }
+            fix_boundary(get_as<bool>("fix_boundary", cfg, false)),
+            virtual_curvature(0.)
+        {
+            if (fabs(get_as<double>("curvature", cfg, 0)) > 1.e-6) {
+                throw std::runtime_error("Cannot set curvature from "
+                    "configuration! Use the interface of the VertexModel");
+            }   
+        }
 
         void update (const Config& cfg) {
             area_elasticity = get_as<double>(
@@ -531,6 +548,50 @@ private:
 
             fix_boundary = get_as<bool> (
                 "fix_boundary", cfg, fix_boundary);
+
+
+            if (fabs(get_as<double>("curvature", cfg, 0)) > 1.e-6) {
+                throw std::runtime_error("Cannot set curvature from "
+                    "configuration! Use the interface of the VertexModel");
+            }   
+        }
+
+        /// Update the virtual_curvature value
+        /** Stores information on a curved deformation of a collection of fixed
+         *  boundary vertices. 
+         *  WARNING the deformation is not applied here.
+         */
+        void set_curvature (double curvature) {
+            if (periodic) {
+                throw std::runtime_error("Cannot set curvature to boundary "
+                    "parameter in periodic space. Use boundary conditions "
+                    "in space object!");
+            }
+            if (fabs(curvature) > 1.e-9 and not fix_boundary) {
+                throw std::runtime_error("To set non-zero curvature fixed "
+                    "boundary `fix_boundary=True` required!");
+            }
+
+            virtual_curvature = curvature;
+        }
+
+        /// Get information of curved boundary 
+        /** Curved boundary in non-periodic bc are stored in deformation
+         *  of fixed boundary vertices.
+         */
+        double get_curvature () const {
+            if (periodic) {
+                throw std::runtime_error("Curvature in periodic boundary "
+                    "conditions are not stored in BoundaryParam object!");
+            }
+            if (fabs(virtual_curvature) < 1.e-9) {
+                return 0.;
+            }
+            if (not fix_boundary) {
+                throw std::runtime_error("Curved boundary conditions not "
+                    "allowed without fixed boundary conditions!");
+            }
+            return virtual_curvature;
         }
     } _boundary_param;
 
@@ -558,7 +619,7 @@ private:
         /**
          *  cfg: The initialisation config
          *      - `potential_constant` (double): Constant of quadratic potential
-         *      - `deform_tissue_to_stripe` (bool): Whether to perform solid 
+         *      - `deform_plastic` (bool): Whether to perform solid 
          *          like deformation of fit the stripe width and curvature.
          *          If false, stripe Width is set to width of current tissue
          *          and curvature = 0.
@@ -585,7 +646,7 @@ private:
                     "periodic space!");
             }
 
-            bool deform = get_as<bool>("deform_tissue_to_stripe", cfg);
+            bool deform = get_as<bool>("deform_plastic", cfg);
             if (deform) {
                 width = get_as<double>("width", cfg);
                 curvature = get_as<double>("curvature", cfg);
@@ -687,7 +748,7 @@ private:
                 origin = barycenter + SpaceVec({(rel - 0.5) * L, 0.});
 
                 width = std::max(2 * fabs(y_max - barycenter[1]),
-                                2 * fabs(y_min - barycenter[1]));
+                                 2 * fabs(y_min - barycenter[1]));
 
                 am.get_logger()->info("Initialised stripe to fit current "
                     "state of the tissue. It is {} wide (y-axis) and not "
@@ -828,7 +889,7 @@ public:
             _default_minimization_params.contractility_activity),
         _apical_contractility(
             get_as<bool>("apical_edge_contractility", this->_cfg, false)),
-        _ppMLC_contractility(std::make_pair(0., SpaceVec({1., 0.}))),
+        _ppMLC_contractility(std::make_tuple(0., SpaceVec({1., 0.}), false)),
         _pMLC_contractility(0.),
         _polarity_fluctuations(
             _default_minimization_params.polarity_fluctuations),
@@ -841,7 +902,8 @@ public:
             get_as<std::string>("cell_shape_implementation", this->_cfg)
         )),
 
-        _boundary_param(get_as<Config>("boundary_parameter", this->_cfg)),
+        _boundary_param(_space->periodic, 
+                        get_as<Config>("boundary_parameter", this->_cfg)),
         _stripe_boundary(nullptr),
         
         _enable_transitions(
@@ -1001,13 +1063,39 @@ private:
      *  \return energy associated with this edge
      */
     const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        auto [ppMLC_contract, ppMLC_axis] = _ppMLC_contractility;
+        auto [ppMLC_contract, ppMLC_axis, curved_axis] = _ppMLC_contractility;
 
         if (    fabs(edge->state.contractility()) < 1.e-12
             and fabs(ppMLC_contract) < 1.e-12
             and fabs(_pMLC_contractility) < 1.e-12)
         {
             return edge->state;
+        }
+        
+        // rotate ppMLC_axis so that points along curved tissue axis
+        if (curved_axis) {
+            double curvature;
+
+            SpaceVec pos = (  _am.position_of(edge->custom_links().a)
+                            + 0.5 * _am.displacement(edge));
+            if (not _space->periodic) {
+                curvature = _boundary_param.get_curvature();
+                double radius = 1. / curvature;
+
+                SpaceVec origin({0., -radius});
+
+                SpaceVec displ = pos - origin;
+                double theta = std::atan2(displ[0], displ[1]);
+
+                ppMLC_axis = SpaceVec({
+                    ppMLC_axis[0] * cos(-theta) - ppMLC_axis[1] * sin(-theta),
+                    ppMLC_axis[0] * sin(-theta) + ppMLC_axis[1] * cos(-theta)
+                });
+            }
+            else {
+                curvature = _space->get_curvature();
+                throw std::runtime_error("Not implemented!");
+            }
         }
 
         auto a = edge->custom_links().a;
@@ -1577,13 +1665,16 @@ private:
                 _am.vertices()
             );
         }
+        
         // set forces on fixed vertices (e.g. boundary) to zero
         // NOTE this is always done, as particular vertices can be manually
         //      fixed 
         apply_rule<Update::sync>(
             [](const auto& vertex) {
                 auto state = vertex->state;
-                if (state.fix_in_space) {  state.f = SpaceVec({0., 0.}); }
+                if (state.fix_in_space) { 
+                    state.f = SpaceVec({0., 0.});
+                }
                 return state;
             },
             _am.vertices()
@@ -1746,6 +1837,16 @@ public:
     double stretch_domain(SpaceVec stretch, bool compensate,
         bool fix_hc_area, bool fix_sc_area, bool deform_plastic);
     SpaceVec skew_domain(SpaceVec add_skew, bool absolute, bool deform_plastic);
+    
+    void curve_boundary(double add_curvature, bool deform_plastic);
+    double get_curvature_boundary() const {
+        if (_space->periodic) {
+            return _space->get_curvature();
+        }
+        else {
+            return _boundary_param.get_curvature();
+        }
+    }
 
 
     // .. Simulation Control ..................................................
@@ -2530,8 +2631,9 @@ public:
         return _stripe_boundary->curvature;
     }
 
-    void set_ppMLC_contractility (double ppMLC, SpaceVec axis) {
-        _ppMLC_contractility = std::make_pair(ppMLC, axis);
+    void set_ppMLC_contractility (double ppMLC, SpaceVec axis, bool curved_axis)
+    {
+        _ppMLC_contractility = std::make_tuple(ppMLC, axis, curved_axis);
     }
 
     void set_pMLC_contractility (double pMLC) {

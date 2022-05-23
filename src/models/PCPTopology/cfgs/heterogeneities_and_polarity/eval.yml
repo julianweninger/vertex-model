@@ -1,0 +1,502 @@
+# The evaluation of heterogeneous edge contractility simulation
+# 
+# For testing efficiency only a subspace of the parameter space is evaluated.
+# Replace the subspace values with the commented values to evaluate the full
+# space.
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+    
+_definitions:
+  enabled: false
+
+  # slice to single sweep parameter
+  subspace_slice: &subspace_slice
+    curvature: !sweep
+      default: 0.
+      values:
+        - 0.
+        - 5.e-3
+        - 1.e-2
+        - 2.e-2
+    ppMLC: !sweep
+      default: 0.4
+      values: [0.4, 0.]
+
+  # first sweep dimension
+  hue: &HUE curvature
+  hue_name: &HUE_NAME ~
+
+  # slice to single sweep parameter
+  subspace_slice_hue: &subspace_slice_hue
+    ppMLC: !sweep
+      default: 0.4
+      values: [0.4, 0.]
+
+  # second sweep dimension
+  bif_name: &BIF_NAME ~
+  bif_name_long: &BIF_NAME_LONG ~
+
+
+  # limits in over time plots
+  time_min: &TIME_MIN ~
+  time_max: &TIME_MAX ~
+  time_end: &TIME_END 20
+  
+
+# modify style parameter
+my_style:
+  enabled: false
+  # style:
+  #   font.size: 16
+  #   lines.markersize: 10
+
+  #   legend.fontsize: small
+  #   legend.markerscale: 0.8
+
+  #   axes.grid: true
+  #   grid.linewidth: .4
+  #   grid.alpha: .5
+
+    
+universe:
+  enabled: false
+  based_on:
+    - universe
+    - my_style
+
+single_universe:
+  enabled: False
+  based_on: universe
+  universes:
+    seed: 0
+
+multiverse:
+  enabled: false
+  based_on:
+    - multiverse
+    - my_style
+
+
+# -----------------------------------------------------------------------------
+
+
+# universe examples
+energy:
+  based_on: 
+    - single_universe
+    - energy
+  enabled: False
+
+energy_edge_contractility:
+  based_on:
+    - .basic_uni.lineplots
+    - single_universe
+
+  model_name: PCPTopology
+
+  to_plot:
+    Energy/Edge_contractility:
+      label: edge contractility
+
+  helpers:
+    set_labels:
+      x: time
+      y: energy [a.u.]
+
+polarity_histplot: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: polarity}]
+          - .rename: [!dag_prev , polarity]
+    subspace: *subspace_slice
+  
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+      tag: property
+
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - create_mask: [!dag_prev , ==, 1]
+      tag: _hair_cells
+
+    # mask for bulk cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+             {ids: [seed, id]}]
+    - create_mask: [!dag_prev , <, 0.5] # not boundary
+    - .rename: [!dag_prev , is_bulk]
+      tag: _is_bulk
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      tag: hair_cells_xarray
+    - .isel: [!dag_prev , {time: -1}]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+      
+    - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
+    - .isel: [!dag_prev , {time: -1}]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: hair_cells_bulk
+
+  to_plot:
+    - function: sns.histplot
+      data: !dag_result hair_cells_bulk
+      x: polarity
+      bins: 40
+  helpers:
+    setup_figure:
+      subplot_kw:
+        projection: polar
+    
+
+# --- fluidity ----------------------------------------------------------------
+transitions_multiplot_over_time: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+
+  select_and_combine:
+    allow_missing_or_failing: True
+    fields:
+      _T1s:
+        path: data/PCPTopology/Energy/transitions
+        transform:
+          - .sel: [!dag_prev ]
+            kwargs:
+              property: num_T1s
+          - .rename: [!dag_prev , num_T1s]
+    subspace: *subspace_slice_hue
+
+  transform:
+    - define: [!dag_tag _T1s]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
+             {time: 3}]
+      kwargs: {center: True}
+    - .mean: [!dag_prev , time]
+    - .squeeze: [!dag_prev ]
+    # - div: [!dag_prev , *NUM_CELLS]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: T1s
+
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result T1s
+      ci: sd
+
+  x: time
+  y: num_T1s
+  hue: *BIF_NAME
+
+  helpers:
+    set_labels:
+      x: time
+      y: average transitions
+    set_scales:
+      y: log
+    set_limits:
+      x: [*TIME_MIN, *TIME_MAX]
+      y: [1.e-5, 1.e-1]
+
+
+# Cell properties from cell data ----------------------------------------------
+cell_properties/area: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      color: grey
+      ci: ~
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+      color: royalblue
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      color: red
+      ci: sd
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+    subspace: *subspace_slice
+
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # # mask for bulk cells
+    # - import_and_call:
+    #   args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+    #          {ids: [seed, id]}]
+    # - .squeeze: [!dag_prev ]
+    # - create_mask: [!dag_prev , <, 0.5] # not boundary
+    # - .rename: [!dag_prev , is_bulk]
+    #   tag: _is_bulk
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
+
+  x: time
+  y: area
+
+  helpers:
+    set_labels:
+      x: time [$\tau_\lambda$]
+      y: $\langle area \rangle$
+    set_limits:
+      x: [*TIME_MIN, *TIME_MAX]
+      y: [0, 5.]
+
+cell_properties/shape: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+    set_limits:
+      y: [3.72, 4.3]
+
+# cell polarity as nematic quantity. Global average vector length
+cell_properties/nematic_alignment: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: polarity}]
+          - .sel: [!dag_node -2, {property: cell_type}]
+          - create_mask: [!dag_prev , ==, 1]
+          - .where: [!dag_node -3, !dag_node -1]
+          - .dropna: [!dag_prev ]
+            kwargs: {dim: id, how: all}
+          - .rename: [!dag_prev , polarity]
+  transform:
+    # stack the seeds
+    - define: [!dag_tag _property]
+    - call_lambda:
+      - "lambda d: (  np.sin(2*d).sum(dim=['id', 'seed'])**2 + np.cos(2*d).sum(dim=['id', 'seed'])**2)**0.5 / d.count(dim=['id', 'seed'])"
+      - !dag_prev 
+    - .rename: [!dag_prev , alignment]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+      
+  y: alignment
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      color: red
+      ci: sd
+  helpers:
+    set_labels:
+      y: nematic alignment
+    set_limits:
+      y: [0, 1]
+
+# cell polarity as nematic quantity. Global average vector direction
+cell_properties/nematic_direction: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: polarity}]
+          - .sel: [!dag_node -2, {property: cell_type}]
+          - create_mask: [!dag_prev , ==, 1]
+          - .where: [!dag_node -3, !dag_node -1]
+          - .dropna: [!dag_prev ]
+            kwargs: {dim: id, how: all}
+          - .rename: [!dag_prev , direction]
+  transform:
+    # stack the seeds
+    - define: [!dag_tag _property]
+    - call_lambda:
+      - "lambda d: np.arctan2(np.sin(2*d).sum(dim=['id', 'seed']), np.cos(2*d).sum(dim=['id', 'seed'])) / 2"
+      - !dag_prev
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+      
+  y: direction
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      ci: sd
+  helpers:
+    set_labels:
+      y: nematic direction
+    set_limits:
+      y: [-1.5708, 1.5708]
+
+# cell polarity. Global average vector length
+cell_properties/polar_alignment: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: polarity}]
+          - .sel: [!dag_node -2, {property: cell_type}]
+          - create_mask: [!dag_prev , ==, 1]
+          - .where: [!dag_node -3, !dag_node -1]
+          - .dropna: [!dag_prev ]
+            kwargs: {dim: id, how: all}
+          - .rename: [!dag_prev , alignment]
+  transform:
+    # stack the seeds
+    - define: [!dag_tag _property]
+    - call_lambda:
+      - "lambda d: (np.sin(d).sum(dim=['id', 'seed'])**2 + np.cos(d).sum(dim=['id', 'seed'])**2)**0.5 / d.count(dim=['id', 'seed'])"
+      - !dag_prev 
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+      
+  y: alignment
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      color: red
+      ci: sd
+  helpers:
+    set_labels:
+      y: nematic alignment
+    set_limits:
+      y: [0, 1]
+
+# cell polarity. Global average vector direction
+cell_properties/polar_direction: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: polarity}]
+          - .sel: [!dag_node -2, {property: cell_type}]
+          - create_mask: [!dag_prev , ==, 1]
+          - .where: [!dag_node -3, !dag_node -1]
+          - .dropna: [!dag_prev ]
+            kwargs: {dim: id, how: all}
+          - .rename: [!dag_prev , direction]
+  transform:
+    # stack the seeds
+    - define: [!dag_tag _property]
+    - call_lambda:
+      - "lambda d: np.arctan2(np.sin(d).sum(dim=['id', 'seed']), np.cos(d).sum(dim=['id', 'seed']))"
+      - !dag_prev
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+      
+  y: direction
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      ci: sd
+  helpers:
+    set_labels:
+      y: nematic direction
+    set_limits:
+      y: [-3.1415, 3.1415]
+
+
+# --- Cell segmentation ------------------------------------------------------
+cell_segmentation:
+  based_on:
+    - .default_style_and_helpers
+    - single_universe
+    - cellular_structure
+
+  edge_property: {energy_term: edge_contractility}
+  edge_property_path: Edge_energies
+
+  quiver_kwargs:
+    cmap: Blues
+    label: Contractility
+
+  vector_property: {property: polarity}
+  vector_property_hair_cells_only: True
+
+  cell_marker_size: 10

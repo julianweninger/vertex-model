@@ -259,6 +259,95 @@ PCPVertex::SpaceVec PCPVertex::skew_domain
     return new_skew;
 }
 
+/// Use boundary conditions to imply a curvature to system
+/** In periodic BC, use curved bc
+ *  In non-periodic BC, use fixed boundary vertices to imply curvature
+ * 
+ *  \param add_curvature        The additional curvature
+ *  \param deform_plastic       Whether to update vertices positions in a
+ *                              plastic deformation update
+ */
+void PCPVertex::curve_boundary
+(double add_curvature, bool deform_plastic)
+{
+    double curvature;
+    if (this->_space->periodic) {
+        curvature = _space->get_curvature() + add_curvature;
+        _space->set_curvature(curvature);
+    }
+    else {
+        this->fix_boundary(true);
+        curvature = _boundary_param.get_curvature() + add_curvature;
+        _boundary_param.set_curvature(curvature);
+    }
+
+    if (not this->_space->periodic or deform_plastic) {
+
+        // previous curvature
+        double k0 = std::max(curvature - add_curvature, 1.e-8);
+        double R0 = 1. / k0;
+
+        // new curvature
+        double k1 = std::max(curvature, 1.e-8);
+        double R1 = 1. / k1;
+        
+        double max_theta_0, max_theta_1;
+        SpaceVec origin_0, origin_1;
+        if (_space->periodic) {
+            const SpaceVec domain = _space->get_domain_size();
+
+            max_theta_0 = (domain[0] / 2.) * k0;
+            max_theta_1 = (domain[0] / 2.) * k1;
+
+            origin_0 = SpaceVec({domain[0] / 2., domain[1] / 2. - R0});
+            origin_1 = SpaceVec({domain[0] / 2., domain[1] / 2. - R1});
+        }
+        else {
+            origin_0 = SpaceVec({0., -R0});
+            origin_1 = SpaceVec({0., -R1});
+
+            double max_t = std::numeric_limits<double>::min();
+            double min_t = std::numeric_limits<double>::max();
+
+            for (const auto& v : _am.vertices()) {
+                SpaceVec pos = _am.position_of(v);
+                SpaceVec displ = pos - origin_0;
+
+                double theta = std::atan2(displ[0], displ[1]);
+                max_t = std::max(max_t, theta);
+                min_t = std::min(min_t, theta);
+            }
+
+            max_theta_0 = max_t - min_t;
+            
+            // conserve length of the domain
+            max_theta_1 = R0 / R1 * max_theta_0;
+        }
+
+        for (const auto& v : _am.vertices()) {
+            if (not deform_plastic and not _am.is_boundary(v)) {
+                continue;
+            }
+
+            SpaceVec pos = _am.position_of(v);
+            SpaceVec displ = pos - origin_0;
+
+            // relative radial position
+            double rho = arma::norm(displ) - R0; 
+            // relative angular position
+            double theta = std::atan2(displ[0], displ[1]) / max_theta_0;
+
+            SpaceVec new_pos = (
+                origin_1 + (rho + R1) * SpaceVec({sin(theta * max_theta_1), 
+                                                  cos(theta * max_theta_1)})
+            );
+
+            _am.move_to(v, new_pos);
+        }
+    }
+}
+
+
 } // namespace PCPVertex
 } // namespace Models
 } // namespace Utopia
