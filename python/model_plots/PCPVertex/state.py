@@ -249,7 +249,8 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
         for time in times:
             hlpr.ax.clear()
-            if cbar: 
+
+            if cbar is not None: 
                 cbar.remove()
             hlpr.ax.set_aspect('auto')
             
@@ -389,7 +390,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             dx, dy = displacement(ax, ay, bx, by)
 
-            def quiver_and_colors(x, y, dx, dy, *, colorbar=True):
+            def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
+                global cbar
+
                 if vertex_cfg['space']['periodic']:
                     # only plot within box + excess length
                     x = xr.where(x > -2 * plot_excess_length, x, np.nan)
@@ -423,9 +426,20 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     e_prop_data = e_prop_data.assign_coords(
                         {'x': (x + dx / 2.),
                          'y': (y + dy / 2.)})
-                    if edge_property is not None and edge_property_split is None:
+                    
+                    if edge_property_split is None:
                         # append coloring
                         quiver_args.append(e_prop_data)
+
+                        quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+
+                        if colorbar:
+                            cbar = hlpr.fig.colorbar(
+                                quiver, ax=hlpr.ax, extend='both'
+                            )
+                            cbar.set_label(label=_quiver_kwargs.get(
+                                'label', list(edge_property.values())[0]))
+                            cbar.minorticks_on()
 
                     else:
                         __quiver_kwargs = dict(cmap='seismic')
@@ -454,21 +468,19 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                 _x-shift_x, _y-shift_y, dx / N, dy / N, 
                                 e_prop_data.sel(**edge_property_split[N + i]),
                                 **__quiver_kwargs)
+                        
                         if colorbar:
                             cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
                                                      extend='both')
                             cbar.set_label(label=edge_property)
                             cbar.minorticks_on()
 
-                quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+                else:
+                    quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
-                if len(quiver_args) == 5 and colorbar:
-                    cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax, extend='both')
-                    cbar.set_label(label=_quiver_kwargs.get(
-                        'label', list(edge_property.values())[0]))
-                    cbar.minorticks_on()
 
-            quiver_and_colors(ax, ay, dx, dy)
+
+            quiver_and_colors(ax, ay, dx, dy, colorbar=True)
 
             ### plot duplicates of periodic edges
             if vertex_cfg['space']['periodic'] and curvature < 1.e-12:
@@ -476,24 +488,19 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
                 # plot periodic copies of the domain
                 for i in range(1, int(np.ceil(length / Lx) + 1)):
-                    quiver_and_colors(ax + skew_x, ay + Ly, dx, dy,
-                                      colorbar=False)
-                    quiver_and_colors(ax - skew_x, ay - Ly, dx, dy,
-                                      colorbar=False)
-                    quiver_and_colors(ax + i * Lx, ay + i * skew_y, dx, dy,
-                                      colorbar=False)
-                    quiver_and_colors(ax - i * Lx, ay - i * skew_y, dx, dy,
-                                      colorbar=False)
+                    quiver_and_colors(ax + skew_x, ay + Ly, dx, dy)
+                    quiver_and_colors(ax - skew_x, ay - Ly, dx, dy)
+                    quiver_and_colors(ax + i * Lx, ay + i * skew_y, dx, dy)
+                    quiver_and_colors(ax - i * Lx, ay - i * skew_y, dx, dy)
 
-
-                    quiver_and_colors(ax + i * Lx + skew_x, ay + Ly + i * skew_y, dx, dy,
-                                      colorbar=False)
-                    quiver_and_colors(ax - i * Lx + skew_x, ay + Ly - i * skew_y, dx, dy,
-                                      colorbar=False)
-                    quiver_and_colors(ax - i * Lx - skew_x, ay - Ly - i * skew_y, dx, dy,
-                                      colorbar=False)
-                    quiver_and_colors(ax + i * Lx - skew_x, ay - Ly + i * skew_y, dx, dy,
-                                      colorbar=False)
+                    quiver_and_colors(ax + i * Lx + skew_x, 
+                                      ay + Ly + i * skew_y, dx, dy)
+                    quiver_and_colors(ax - i * Lx + skew_x, 
+                                      ay + Ly - i * skew_y, dx, dy)
+                    quiver_and_colors(ax - i * Lx - skew_x, 
+                                      ay - Ly - i * skew_y, dx, dy)
+                    quiver_and_colors(ax + i * Lx - skew_x, 
+                                      ay - Ly + i * skew_y, dx, dy)
 
             ### plot duplicates of periodic edges
             elif vertex_cfg['space']['periodic']:
@@ -636,7 +643,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                                   max_y),
                                           origin='lower',
                                           **property_interpolation_plot_kwargs)
-                
+
                 cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
 
                 if property_label:
