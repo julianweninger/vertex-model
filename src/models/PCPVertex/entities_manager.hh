@@ -745,31 +745,29 @@ public:
                                     hair_neighbors.end());
     }
 
-    double hexatic_order_of (const std::shared_ptr<Cell>& cell) const 
+    /// Hexatic order of a cell
+    /** Returns the hexatic and the corrected hexatic order. 
+     *  Correction rescales the position of next neighbour HC from an elongated
+     *  arrangement to a circular configuration.
+     */
+    std::pair<double, double> hexatic_order_of (const std::shared_ptr<Cell>& cell) const 
     {
         
         if (cell->state.type != CellType::hair) {
-            return 0.;
+            return std::make_pair(0., 0.);
         }
 
         auto hair_neighbors = hair_next_neighbors_of(cell);
-        if (hair_neighbors.size() < 4) {
-            return 0.;
-        }
-
-        std::vector<SpaceVec> corners;
-        SpaceVec center = this->barycenter_of(cell);
-        for (const auto& nb : hair_neighbors) {
-            SpaceVec pos = this->barycenter_of(nb);
-            SpaceVec displ = this->_space->displacement(center, pos);
-            corners.push_back(displ);
+        if (hair_neighbors.size() < 3) {
+            return std::make_pair(0., 0.);
         }
         
+        SpaceVec center = this->barycenter_of(cell);
 
         // calculate elongation and rotation of that object
-        arma::mat22 q = this->elongation_of(corners);
-
+        arma::mat22 q = this->elongation_of(cell);
         double abs_q = sqrt(arma::trace(q * q.t())/2.);
+
         // the rotation angle
         double phi = atan2(q[2], q[0]) / 2.;
         // the ratio of long and short axis of the ellipse
@@ -780,6 +778,20 @@ public:
         // NOTE a sheared hexagon maps to 1
         using namespace std::complex_literals;
         std::complex<double> hex_order = std::accumulate(
+            hair_neighbors.begin(), hair_neighbors.end(),
+            std::complex<double>(0., 0.),
+            [this, center]
+            (std::complex<double> val, const auto& nb)
+            {
+                using namespace std::complex_literals;
+
+                SpaceVec pos = this->barycenter_of(nb);
+                SpaceVec displ = this->_space->displacement(center, pos);
+
+                return val + std::exp(1i * 6. * atan2(displ[1], displ[0]));
+            }
+        );
+        std::complex<double> hex_order_corr = std::accumulate(
             hair_neighbors.begin(), hair_neighbors.end(),
             std::complex<double>(0., 0.),
             [this, center, phi, ratio_WH]
@@ -799,8 +811,9 @@ public:
             }
         );
 
-        std::complex<double> N(hair_neighbors.size());                            
-        return std::norm(hex_order / N);
+        std::complex<double> N(hair_neighbors.size());
+        return std::make_pair(std::norm(hex_order / N),
+                              std::norm(hex_order_corr / N));
     }
 
     // see transitions.hh
