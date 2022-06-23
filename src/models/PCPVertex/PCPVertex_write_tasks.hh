@@ -472,10 +472,18 @@ auto cells_adaptor = std::make_tuple(
                             return static_cast<float>(num_hair_neighbors);
                        });
 
-        dataset->write(cells.begin(), cells.end(),
-                       [am](const auto& cell) {
-                           return static_cast<float>(am.hexatic_order_of(cell));
-                       });
+
+        std::vector<float> hex_order;
+        hex_order.reserve(cells.size());
+        std::vector<float> hex_order_corr;
+        hex_order_corr.reserve(cells.size());
+        for (const auto& cell : cells) {
+            const auto [hex, hex_corr] = am.hexatic_order_of(cell);
+            hex_order.push_back(hex);
+            hex_order_corr.push_back(hex_corr);
+        }
+        dataset->write(hex_order);
+        dataset->write(hex_order_corr);
 
         // write cell polarity wrt curved x axis
         dataset->write(cells.begin(), cells.end(),
@@ -532,7 +540,7 @@ auto cells_adaptor = std::make_tuple(
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(
             std::to_string(m.get_time()), 
-            {13, m.get_am().cells().size()}
+            {14, m.get_am().cells().size()}
         );
     },
 
@@ -554,6 +562,7 @@ auto cells_adaptor = std::make_tuple(
                     "num_neighbors",
                     "num_hair_neighbors",
                     "hexatic_order",
+                    "hexatic_order_corrected",
                     "polarity",
                     "q_x",
                     "q_y",
@@ -1081,7 +1090,7 @@ std::vector<double> generate_statistics (const CellContainer& cells,
     // hexatic order
     std::transform(cells.begin(), cells.end(), std::back_inserter(values),
                     [am](const auto& cell) {
-                        return am.hexatic_order_of(cell);
+                        return std::get<1>(am.hexatic_order_of(cell));
                     });
     stats.push_back(average(values));
     stats.push_back(stddev(values, stats.back()));
