@@ -766,6 +766,175 @@ area_mapped/hexatic_order_w_data: !pspace
       vlines: []
 
 
+stage_mapped/coordination: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv.map_stage
+    
+  module: model_plots.PCPTopology
+  plot_func: coordination_histogram
+
+  y_range: [3, 9]
+
+  select_and_combine:
+    fields:
+      _area:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .sel: [!dag_prev , {time: !slice [1, ~]}]
+          - .rename: [!dag_prev , area]
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: !slice [1, ~]}]
+          - .rename: [!dag_prev , num_neighbors]
+    subspace:
+      <<: *subspace_slice
+      seed: 0
+  
+  transform:
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - *map_directional_time
+    - pass: [!dag_prev ]
+      tag: area
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - *map_directional_time
+    - pass: [!dag_prev ]
+      tag: property
+
+    - .where: [!dag_tag area, !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+    - print: [!dag_prev ]
+      tag: hair_cells_area
+
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells_neighbors
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, read_csv, *BP_data_path]
+    - print: [!dag_prev ]
+      tag: data_experiment
+
+stage_mapped/coordination_violin: !pspace
+  based_on:
+    - .default_style_and_helpers
+    - .dag.multiplot
+    - multiverse
+    - select_cells_properties_mv.map_stage
+
+  select_and_combine:
+    fields:
+      _area:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .sel: [!dag_prev , {time: !slice [1, ~]}]
+          - .rename: [!dag_prev , area]
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: !slice [1, ~]}]
+          - .rename: [!dag_prev , num_neighbors]
+    subspace: *subspace_slice
+
+  to_plot: 
+    - function: sns.violinplot
+      # scale: count
+      data: !dag_result hair_cells
+      hue: type
+      split: true
+
+  transform: &TRANSFORM_STAGEMAP_W_DATA
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - *map_directional_time
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 2]
+      tag: _support_cells
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - *map_directional_time
+    - pass: [!dag_prev ]
+      tag: area
+
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - *map_directional_time
+    - pass: [!dag_prev ]
+      tag: property
+
+    # HC area as mapping
+    - .where: [!dag_tag area, !dag_tag _hair_cells]
+    - .mean: [!dag_prev , ids]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , time]
+      tag: HC_area
+
+    # the data for support and hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, map_stage,
+             !dag_prev , !dag_tag HC_area]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, concat_exp_coordination,
+             !dag_prev ]
+    - .to_dataframe: [!dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+
+  x: stage
+  y: num_neighbors
+
+  helpers:
+    set_limits:
+      y: [3., 12]
+    set_labels:
+      x: stage [E]
+      y: Contacts
+
+
+
 # The average cell area
 cell_properties/area: !pspace
   based_on:

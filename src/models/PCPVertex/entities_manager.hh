@@ -686,6 +686,62 @@ public:
         return neighbors;
     }
 
+    /// The neighbors of a cell given a Mannhatten-distance
+    /** The larger neighborhood of a cell.
+     * 
+     *  For distance = 1, returns neighbors_of(cell). Otherwise, iterates the 
+     *  neighbours and includes their neighbors too. Repeat N = distance times.
+     * 
+     *  \param cell     The considered cell
+     *  \param distance The manhatten-distance to cells to include in
+     *                  neighborhood. For distance = 1, equiv to 
+     *                  neighbors_of(cell). Otherwise, iterates the 
+     *                  neighbours and includes their neighbors too. 
+     *                  Repeat N = distance times.
+     *  \tparam check_confluence    Whether to check for confluence of tissue.
+     *                              If false, for distance larger the number 
+     *                              of cells in the tissue, returns all cells.
+     *                              In a non-confluent tissue, this could be a 
+     *                              subset of all cells.
+     *  
+     *  \returns A container with all neighbors of cell. This does not include 
+     *      cell itself. For distance=0, this is an empty container.
+     */
+    template<bool check_confluence=false>
+    AgentContainer<Cell> neighbors_of(
+            const std::shared_ptr<Cell>& cell,
+            const std::size_t distance
+    ) const
+    {
+        if (distance == 1) {
+            return neighbors_of(cell);
+        }
+        if (distance == 0) {
+            return AgentContainer<Cell>({});
+        }
+        if constexpr (not check_confluence) {
+            if (distance >= cells().size()) {
+                return cells();
+            }
+        }
+
+        std::unordered_set<std::shared_ptr<Cell>> neighbors({cell});
+        for (std::size_t d = 0; d < distance; d++) {
+            AgentContainer<Cell> tmp(neighbors.begin(), neighbors.end());
+            for (const auto& nb : tmp) {
+                auto nnbs = neighbors_of(nb);
+                for (const auto& nnb : nnbs) {
+                    neighbors.insert(nnb);
+                }
+            }
+        }
+
+        neighbors.erase(cell);
+        neighbors.erase(nullptr);
+        
+        return AgentContainer<Cell>(neighbors.begin(), neighbors.end());
+    }
+
     /// The neighboring cells to a cell of type `hair`
     /** The neighbors of cell that are of CellType::hair.
      * 

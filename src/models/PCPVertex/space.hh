@@ -328,7 +328,17 @@ public:
         return this->extent % _domain_scale;
     }
 
-    /// Setter for the scale of the domain
+    /// The d-dimensional volume of the domain
+    double get_domain_volume() const {
+        if (_curvature > 1.e-12) {
+            throw std::runtime_error("Domain volume not implemented for "
+                "non-zero curvature");
+        }
+
+        return arma::prod(get_domain_size());
+    }
+
+    /// Getter for the scale of the domain
     /** \details positions in space are remapped to stretches of the domain size
      */
     void get_domain_scale() const {
