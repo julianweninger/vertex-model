@@ -885,7 +885,7 @@ OperationBundle build_increment_area (
 
     Operation operation = [prog, hair, support, adapt_support,
                            gradient_hair_max, gradient_hair_min,
-                           hair_gradient_center, 
+                           hair_gradient_center,
                            relax_domain, relax_domain_PD_axis]
             (PCPVertex& vertex_model)
     {
@@ -931,14 +931,16 @@ OperationBundle build_increment_area (
         
         apply_rule<Update::sync>(update, cells);
 
+
+        // add spatial gradient in HC species
         if (fabs(gradient_hair_max) > 1.e-12) {
-            auto [min, max] = am.get_extent();
-
-            double L = (max - min)[0];
-            double x_min = min[0];
-
             std::function<double(const SpaceVec&)> map;
             if (not vertex_model.get_space()->periodic) {
+                auto [min, max] = am.get_extent();
+
+                double L = (max - min)[0];
+                double x_min = min[0];
+
                 map = 
                     [gradient_hair_max, gradient_hair_min,
                      hair_gradient_center, L, x_min]
@@ -952,43 +954,49 @@ OperationBundle build_increment_area (
                     };
             }
             else {
+                SpaceVec domain = am.get_space()->get_domain_size();
+                double L = domain[0];
                 map = 
                     [gradient_hair_max, gradient_hair_min,
-                     hair_gradient_center, L, x_min]
+                     hair_gradient_center, L]
                     (const SpaceVec& pos)
                     {
                         double hair_gradient = (  gradient_hair_max
                                                 - gradient_hair_min);
-                        double rel_x = (  (pos[0] - x_min) / L
-                                        - hair_gradient_center);
+                        double rel_x = (pos[0] / L - hair_gradient_center);
                         double fac = std::pow(cos(rel_x * M_PI), 2);
                         return hair_gradient * fac + gradient_hair_min;
                     };
             }
 
-            double area = std::accumulate(
+            double tissue_area = std::accumulate(
                 cells.begin(), cells.end(), 0.,
                 [](const double& val, const auto& cell){
                     return val + cell->state._area_preferential;
                 });
 
+            std::size_t num_SC = 0;
             for (const auto& cell : cells) {
                 if (cell->state.type == CellType::hair) {
                     SpaceVec pos = am.barycenter_of(cell);
                     double dA = map(pos);
                     cell->state._area_preferential += dA;
                 }
+                else {
+                    ++num_SC;
+                }
             }
-            if (adapt_support) {
-                double new_area = std::accumulate(
+            if (adapt_support and num_SC > 0) {
+                double new_tissue_area = std::accumulate(
                     cells.begin(), cells.end(), 0.,
                     [](const double& val, const auto& cell){
                         return val + cell->state._area_preferential;
                     });
 
                 for (const auto& cell : cells) {
-                    cell->state._area_preferential -= (  (new_area - area)
-                                                       / cells.size());
+                    cell->state._area_preferential -= ( 
+                        (new_tissue_area - tissue_area) / cells.size()
+                    );
                 }
             }
         }
@@ -1022,6 +1030,188 @@ OperationBundle build_increment_area (
 
     return std::make_pair(operation, params);
 }
+
+
+/// The operation to locally relax SC to the available area constraint
+/** SC target area is adapted such that the local mean (of cells within a 
+ *  given Manhatten-distance) of target area is relaxed to a given area.
+ *  Furthermore, relax target area to the average of local mean in SC 
+ *  target area:
+ * 
+ *  \f$ dA_\alpha^(i+1) = A_\alpha^i
+ *                        - (<A>_N / A_0 - 1) * A_\alpha^i / \tau
+ *                        + (<A>_{S \in nbs} - A_\alpha^i) / \tau
+ *  \f$ 
+ * 
+ *  Extracts the following cfgs:
+ *      - `adapt_SC_tau` (double): the characteristic time of relaxation in 
+ *              units of iterations.
+ *      - `use_area_fluctuations` (bool): The target area change is 
+ *              in area_fluctuations. Requires a minimization with 
+ *              Ornstein-Uhlenbeck fluctuations of target area
+ *      - `target_area` (double): The average target area of a cell in a 
+ *              patch. The value to which SC area is adapted
+ *      - `manhatten_distance` (uint): The distance to the furthest cell to 
+ *              include in neighborhood. Distance in unit of cell count.
+ *      - `min_area` (double): A minimum target area.
+ *          
+ */
+OperationBundle build_relax_SC_area (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double adapt_SC_tau(get_as<double>("adapt_SC_tau", cfg));
+    bool use_fluctuations(get_as<bool>("use_area_fluctuations", cfg));
+    double target_area(get_as<double>("target_area", cfg));
+    std::size_t distance(get_as<std::size_t>("manhatten_distance", cfg));
+    double min(get_as<double>("min_area", cfg));
+    // double center(get_as<double>("gradient_center", cfg, 0.5));
+
+    Operation operation = [adapt_SC_tau, target_area, distance, min,
+                           use_fluctuations]
+            (PCPVertex& vertex_model)
+    {
+        using Cell = PCPVertex::Cell;
+        using CellType = PCPVertex::CellType;
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+
+        std::map<std::shared_ptr<Cell>, double> targets({});
+        for (const auto& cell : cells) {
+            if (cell->state.type == CellType::hair) {
+                continue;
+            }
+
+            const auto& neighbors = am.neighbors_of(cell, distance);
+            
+            std::size_t N = neighbors.size() + 1;
+            std::size_t N_SC = 1;
+            double average_area = cell->state._area_preferential;
+            double average_area_sc = cell->state._area_preferential;
+            for (const auto& n : neighbors) {
+                average_area += n->state._area_preferential;
+                
+                if (n->state.type != CellType::hair) {
+                    average_area_sc += n->state._area_preferential;
+                    N_SC++;
+                }
+            }
+            average_area /= static_cast<double>(N);
+            average_area_sc /= static_cast<double>(N_SC);
+
+            auto A = cell->state._area_preferential;
+            double A_target = A - (average_area / target_area - 1.) * A / adapt_SC_tau;
+            A_target += (average_area_sc - A) / adapt_SC_tau;
+
+            targets[cell] = std::max(A_target, min);
+        }
+
+        for (const auto& [cell, A_target] : targets) {
+            double dA = A_target - cell->state._area_preferential;
+            cell->state._area_preferential += dA;
+            if (use_fluctuations) {
+                cell->state._area_preferential_fluctuations -= dA;
+            }
+        }
+
+        return;
+    };
+
+    return std::make_pair(operation, params);
+}
+
+OperationBundle build_increment_area_gradient (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    double init(get_as<double>("initialise_homogeneous_area", cfg));
+    double incr_hom(get_as<double>("increment_homogeneous_HC", cfg));
+    double incr_grad(get_as<double>("increment_HC_gradient", cfg));
+    
+    bool use_fluctuations(get_as<bool>("use_area_fluctuations", cfg));
+    double min(get_as<double>("min_area", cfg));
+
+    auto homogeneous = std::make_shared<double>(init);
+    auto gradient = std::make_shared<double>(0.);
+
+    auto __relax_SC_bundle = build_relax_SC_area("relax_SC", cfg,
+                                                 default_minim_params);
+    auto relax_SC = std::get<0>(__relax_SC_bundle);
+
+    Operation operation = [homogeneous, gradient, incr_hom, incr_grad,
+                           relax_SC, min, use_fluctuations]
+            (PCPVertex& vertex_model)
+    {
+        using CellType = PCPVertex::CellType;
+        using SpaceVec = PCPVertex::SpaceVec;
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+
+        *homogeneous += incr_hom;
+        *gradient += incr_grad;
+
+        // add spatial gradient in HC species
+        std::function<double(const SpaceVec&)> map;
+        if (not vertex_model.get_space()->periodic) {
+            auto [min, max] = am.get_extent();
+
+            double L = (max - min)[0];
+            double x_min = min[0];
+
+            map = 
+                [homogeneous, gradient, L, x_min]
+                (const SpaceVec& pos)
+                {
+                    double rel_x = (pos[0] - x_min) / L;
+
+                    return *gradient * (1. - rel_x) + *homogeneous;
+                };
+        }
+        else {
+            SpaceVec domain = am.get_space()->get_domain_size();
+            double L = domain[0];
+            map = 
+                [homogeneous, gradient, L]
+                (const SpaceVec& pos)
+                {
+                    double rel_x = pos[0] / L;
+
+                    return (  *gradient * std::pow(cos(rel_x * M_PI), 2)
+                            + *homogeneous);
+                };
+        }
+
+        // fix the area of HC according to position
+        for (const auto& cell : cells) {
+            if (cell->state.type != CellType::hair) {
+                continue;
+            }
+
+            SpaceVec pos = am.barycenter_of(cell);
+            
+            double A = std::max(map(pos), min);
+            
+            double dA = A - cell->state._area_preferential;
+            cell->state._area_preferential += dA;
+            if (use_fluctuations) {
+                cell->state._area_preferential_fluctuations -= dA;
+            }
+        }
+
+        relax_SC(vertex_model);
+
+        return;
+    };
+
+    return std::make_pair(operation, params);
+}
+
 
 /// The operation to increment cell contractility
 /** \details The following parameter are extracted from cfg 

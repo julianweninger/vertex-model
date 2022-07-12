@@ -1071,32 +1071,6 @@ private:
         {
             return edge->state;
         }
-        
-        // rotate ppMLC_axis so that points along curved tissue axis
-        if (curved_axis) {
-            double curvature;
-
-            SpaceVec pos = (  _am.position_of(edge->custom_links().a)
-                            + 0.5 * _am.displacement(edge));
-            if (not _space->periodic) {
-                curvature = _boundary_param.get_curvature();
-                double radius = 1. / curvature;
-
-                SpaceVec origin({0., -radius});
-
-                SpaceVec displ = pos - origin;
-                double theta = std::atan2(displ[0], displ[1]);
-
-                ppMLC_axis = SpaceVec({
-                    ppMLC_axis[0] * cos(-theta) - ppMLC_axis[1] * sin(-theta),
-                    ppMLC_axis[0] * sin(-theta) + ppMLC_axis[1] * cos(-theta)
-                });
-            }
-            else {
-                curvature = _space->get_curvature();
-                throw std::runtime_error("Not implemented!");
-            }
-        }
 
         auto a = edge->custom_links().a;
         auto b = edge->custom_links().b;
@@ -1121,6 +1095,32 @@ private:
             and cell_a->state.type == CellType::support
             and cell_b->state.type == CellType::support)
         {
+            // rotate ppMLC_axis so that points along curved tissue axis
+            if (curved_axis) {
+                double curvature;
+
+                SpaceVec pos = (  _am.position_of(edge->custom_links().a)
+                                + 0.5 * _am.displacement(edge));
+                if (not _space->periodic) {
+                    curvature = _boundary_param.get_curvature();
+                    double radius = 1. / curvature;
+
+                    SpaceVec origin({0., -radius});
+
+                    SpaceVec displ = pos - origin;
+                    double theta = std::atan2(displ[0], displ[1]);
+
+                    ppMLC_axis = SpaceVec({
+                        ppMLC_axis[0]*cos(-theta) - ppMLC_axis[1]*sin(-theta),
+                        ppMLC_axis[0]*sin(-theta) + ppMLC_axis[1]*cos(-theta)
+                    });
+                }
+                else {
+                    curvature = _space->get_curvature();
+                    throw std::runtime_error("Not implemented!");
+                }
+            }
+
             SpaceVec dE_dx = (  ppMLC_contract * arma::dot(displ, ppMLC_axis)
                               * ppMLC_axis);
             
@@ -1890,14 +1890,40 @@ public:
                                  get_rel_energy_change(_energy,
                                                        _energy_previous_step));
 
+        double av_area;
         if (not _space->periodic) {
-            double area = 0.;
-            double area_0 = 0.;
-            for (const auto& cell : _am.cells()) {
-                area += _am.area_of(cell);
-                area_0 += cell->state._area_preferential;
+            av_area = 0.;
+        }
+
+        double av_area_0 = 0.;
+        double av_area_0_HC = 0.;
+        std::size_t N_HC = 0;
+        for (const auto& cell : _am.cells()) {
+            if (not _space->periodic) {
+                av_area += _am.area_of(cell);
             }
-            this->_monitor.set_entry("pressure", std::pow(area - area_0, 2));
+
+            av_area_0 += cell->state.area_preferential();
+            if (cell->state.type == CellType::hair) {
+                av_area_0_HC += cell->state.area_preferential();
+                N_HC++;
+            }
+        }
+
+        av_area_0 /= static_cast<double>(_am.cells().size());
+        
+        if (not _space->periodic) {
+            av_area   /= static_cast<double>(_am.cells().size());
+            this->_monitor.set_entry("pressure", av_area - av_area_0);
+        }
+        else {
+            double area_avail = _space->get_domain_volume() /_am.cells().size();
+            this->_monitor.set_entry("pressure", av_area_0 - area_avail);
+        }
+
+        if (N_HC > 0) {
+            av_area_0_HC /= static_cast<double>(N_HC);
+            this->_monitor.set_entry("HC_area", av_area_0_HC);
         }
     }
 
@@ -2636,8 +2662,103 @@ public:
         _ppMLC_contractility = std::make_tuple(ppMLC, axis, curved_axis);
     }
 
+    double get_ppMLC_contractility (const std::shared_ptr<Edge>& edge) const
+    {
+        if (_am.is_1_cell_boundary_edge(edge)) {
+            return 0.;
+        }
+
+        auto [ppMLC_contract, ppMLC_axis, curved_axis] = _ppMLC_contractility;
+
+        auto [cell_a, cell_b] = _am.adjoints_of(edge);
+
+        if (fabs(ppMLC_contract) < 1.e-12) {
+            return 0.;
+        }
+        if (   cell_a->state.type != CellType::support
+            or cell_b->state.type != CellType::support)
+        {
+            return 0.;
+        }
+
+
+        // rotate ppMLC_axis so that points along curved tissue axis
+        if (curved_axis) {
+            double curvature;
+
+            SpaceVec pos = (  _am.position_of(edge->custom_links().a)
+                            + 0.5 * _am.displacement(edge));
+            if (not _space->periodic) {
+                curvature = _boundary_param.get_curvature();
+                double radius = 1. / curvature;
+
+                SpaceVec origin({0., -radius});
+
+                SpaceVec displ = pos - origin;
+                double theta = std::atan2(displ[0], displ[1]);
+
+                ppMLC_axis = SpaceVec({
+                    ppMLC_axis[0] * cos(-theta) - ppMLC_axis[1] * sin(-theta),
+                    ppMLC_axis[0] * sin(-theta) + ppMLC_axis[1] * cos(-theta)
+                });
+            }
+            else {
+                curvature = _space->get_curvature();
+                throw std::runtime_error("Not implemented!");
+            }
+        }
+
+        SpaceVec displ = _am.displacement(edge);
+    
+        return ppMLC_contract * std::pow(arma::dot(displ/arma::norm(displ),
+                                                   ppMLC_axis),
+                                         2);
+    }
+
     void set_pMLC_contractility (double pMLC) {
         _pMLC_contractility = pMLC;
+    }
+
+    double get_pMLC_contractility (const std::shared_ptr<Edge>& edge) const {
+        if (_am.is_1_cell_boundary_edge(edge)) {
+            return 0.;
+        }
+
+        auto [cell_a, cell_b] = _am.adjoints_of(edge);
+        
+        if (cell_a->state.type == cell_b->state.type) {
+            return 0.;
+        }
+
+        std::shared_ptr<Cell> HC;            
+        if (cell_a->state.type == CellType::hair) {
+            HC = cell_a;
+        }
+        else {
+            HC = cell_b;
+        }
+
+        // polarity rotated by 90 deg clockwise
+        SpaceVec pol = HC->state.polarity_vec(-M_PI_2);
+
+        auto e_pair = *std::find_if(
+            HC->custom_links().edges.begin(),
+            HC->custom_links().edges.end(),
+            [edge](const auto& ep) {
+                return std::get<0>(ep) == edge;
+            });
+
+        SpaceVec a = _am.position_of(edge->custom_links().a);
+        SpaceVec b = _am.position_of(edge->custom_links().b);
+        if (std::get<bool>(e_pair)) {
+            std::swap(a, b);
+        }
+
+        SpaceVec displ = this->_space->displacement(a, b);
+        double length = arma::norm(displ);
+
+        double x = arma::dot(displ / length, pol / arma::norm(pol));
+        return _pMLC_contractility * (x + 1.) / 2;
     }
 
     /// The area elasticity parameter

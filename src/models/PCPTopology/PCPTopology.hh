@@ -323,6 +323,16 @@ private:
                         build_increment_area(name, op_cfg,
                                              _minimization_params));
                 }
+                else if (name == "increment_area_gradient") {
+                    _operations.push_back(
+                        build_increment_area_gradient(name, op_cfg,
+                                                      _minimization_params));
+                }
+                else if (name == "relax_SC_area") {
+                    _operations.push_back(
+                        build_relax_SC_area(name, op_cfg,
+                                                      _minimization_params));
+                }
                 else if (name == "increment_cell_contractility") {
                     _operations.push_back(
                         build_increment_cell_contractility(name, op_cfg,
@@ -433,6 +443,7 @@ private:
                             "enable_transitions, "
                             "fix_boundary, "
                             "increment_area, "
+                            "increment_area_gradient, "
                             "increment_cell_contractility, "
                             "increment_domain, "
                             "increment_edge_contractility, "
@@ -1019,6 +1030,14 @@ public:
     /// The area elasitcity parameter
     double get_area_elasticity () const {
         return _vertex_model.get_area_elasticity();
+    }
+    
+    double get_ppMLC_contractility (const std::shared_ptr<Edge>& edge) const {
+        return _vertex_model.get_ppMLC_contractility(edge);
+    }
+
+    double get_pMLC_contractility (const std::shared_ptr<Edge>& edge) const {
+        return _vertex_model.get_pMLC_contractility(edge);
     }
 
     /// Return polarity proteins of this edge

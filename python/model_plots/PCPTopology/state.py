@@ -1,16 +1,21 @@
 """PCPTopology-model specific plot function for the state / density"""
 
+from concurrent.futures import thread
 import logging
+from tokenize import group
 import warnings
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
+from sympy import false
 import xarray as xr
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
+from matplotlib.collections import LineCollection, PatchCollection
 import matplotlib.patches as mpatches
+from matplotlib.patches import Rectangle
+import seaborn as sns
 
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
@@ -376,6 +381,340 @@ def cell_neighbourhood(*, data: dict, hlpr: PlotHelper,
 
     hlpr.register_animation_update(update)
 
+
+@is_plot_func(creator_type=MultiversePlotCreator,
+              use_dag=True,
+              required_dag_tags=(
+                  'hair_cells',
+                  'data_experiment'
+              ))
+def coordination_vs_area(*, data: dict, hlpr: PlotHelper):
+    theory = data['hair_cells']
+
+    theory = theory.sort_values(by='area')
+    if len(theory['Gamma'].unique()) > 2:
+        raise ValueError('Gamma can take a max of 2 values!')
+
+    sns.lineplot(data=theory.loc[theory['Gamma'] == 0.],
+                 x='area',
+                 y='num_neighbors',
+                 color='blue',
+                 ci='sd',
+                 label='Homogeneous',
+    )
+
+    sns.lineplot(data=theory.loc[theory['Gamma'] > 0.],
+                 x='area',
+                 y='num_neighbors',
+                 color='red',
+                 ci='sd',
+                 label='Heterogeneous',
+    )
+
+    experiment = data['data_experiment']
+    experiment = experiment.loc[~experiment['is_border_cell']]
+    experiment = experiment.loc[experiment['is_HC']]
+    experiment = experiment.loc[experiment['stage'] != 'E9']
+    experiment = experiment.loc[experiment['stage'] != 'E13']
+    experiment = experiment.loc[experiment['stage'] != 'E15']
+
+    stage_ordering = ['E8', 'E10', 'E12', 'E14']
+
+
+    data = experiment.groupby(
+        by=['stage', 'position', 'SI_position', 'PD_position', 'file_id']
+    )
+    data = data[['HC_normalized_area', 'num_neighbors']].mean()
+    data = data.reset_index()
+
+    data['SI_position_long'] = data['SI_position'].where(
+        data['SI_position'] != 'S', 'Superior')
+    data['SI_position_long'] = data['SI_position_long'].where(
+        data['SI_position'] != 'None', 'Mid')
+    data['SI_position_long'] = data['SI_position_long'].where(
+        data['SI_position'] != 'I', 'Inferior')
+
+    data['Stage'] = data['stage']
+    data['S-I position'] = data['SI_position_long']
+    data['P-D position'] = data['PD_position']
+
+    sns.scatterplot(data=data,
+                    x='HC_normalized_area', y='num_neighbors',
+                    hue='Stage', hue_order=stage_ordering,
+                    palette='copper',
+                    style='P-D position',
+                    size='S-I position',
+                    size_order=['Superior', 'Mid', 'Inferior'],
+                    # markers=True,
+                    # ls='',
+                    # dashes=False,
+                    # ci=None,
+    )
+
+    data = experiment.groupby(by='file_id')
+
+    hlpr.ax.errorbar(x=data['normalized_area_cells'].mean(),
+                     y=data['num_neighbors'].mean(),
+                     xerr=data['normalized_area_cells'].std(),
+                     yerr=data['num_neighbors'].std(),
+                     ls='', color='black', 
+                     linewidth=0.2, alpha=0.8,
+                     zorder=0)
+
+
+@is_plot_func(creator_type=MultiversePlotCreator,
+              use_dag=True
+             )
+def histogram_plot(
+    *, data: dict, hlpr: PlotHelper,
+    data_tag: str,
+    label: str=None,
+    data_tag_split: str=None,
+    label_split: str=None,
+    x: str,
+    x_order: List=None,
+    x_ticklabels: List=None,
+    y: str,
+    y_label: str=None,
+    y_range: Tuple,
+    color: str,
+    color_split: str=None,
+    x_ticks_kwargs: dict=None
+    ):
+    """A plot that creates violin plots on discrete data using histogram
+    representation.
+
+    Args:
+        - data (dict): The data
+        - hlpr (PlotHelper): PlotHelper for figure configuration
+        - data_tag (str): The key to the dataset in data
+        - label (str, optional): The label to data_tag. If none, the key is used
+        - data_tag_split (str, optional): Analogous to data_tag. 
+            If provided, the histogram is split vertically. 
+            Left, corresponds to data with data_tag.
+            Right, data with data_tag_split.
+        - label_split (str, optional): Analogous to label for data_tag_split
+        - x (str): The dimension within data mapped to x-axis
+        - x_order (List, optional): An ordering of positions on x-axis
+        - x_ticklabels (List, optional): Manually assign labels to x-axis ticks
+        - y (str): The dimension within dataset(s) mapped to the y-axis. 
+            A frequency count is performed on this dimension.
+        - y_label (str, optional): A label for the y-axis
+        - y_range (Tuple): A range-expression for datapoints along y used for
+            binning. Data needs to be discrete to these points. Forwarded to
+            np.arange(*y_range)
+        - color (str): The color used for the histogram
+        - color_split(str, optional): Color used for split histogram (right)
+        - x_ticks_kwargs (optional): Forwarded to ax.set_xticklabels(**kwargs)
+    """
+
+    if data_tag is None:
+        raise RuntimeError("No data tag provided!")
+            
+
+    if data_tag not in data.keys():
+        raise RuntimeError("Data tag '{}' not found in data! "
+                            "Available tags: {}",
+                            data_tag,
+                            data.keys())
+    if data_tag_split is not None and data_tag_split not in data.keys():
+        raise RuntimeError("Data tag '{}' not found in data! "
+                            "Available tags: {}",
+                            data_tag_split,
+                            data.keys())
+
+    x_ticks = ['']
+    if x_order is not None:
+        for _x in x_order:
+            x_ticks.append(_x)
+            x_ticks.append('')
+    else:
+        for _x in data[data_tag][x].unique():
+            x_ticks.append(_x)
+            x_ticks.append('')
+
+    def x_to_locx(x):
+        return x_ticks.index(str(x))
+
+    y_ticks = np.arange(*y_range)
+    y_min = y_ticks[0]
+
+    hlpr.ax.set_xticks(np.arange(len(x_ticks)))
+    
+
+    # x_ticklabels = [
+    #     '',
+    #     'Control\n (DMSO) 4hrs',
+    #     '',
+    #     'MLCK Inhibitor\n 4hrs',
+    #     '',
+    #     'Control\n (DMSO) 16 hrs',
+    #     '',
+    #     'MLCK Inhibitor\n washoff (4 + 12 hrs)',
+    #     '',
+    # ]
+
+    if x_ticklabels is not None:
+        hlpr.ax.set_xticklabels(x_ticklabels, **x_ticks_kwargs if x_ticks_kwargs is not None else {})
+    else:
+        hlpr.ax.set_xticklabels(x_ticks, **x_ticks_kwargs if x_ticks_kwargs is not None else {})
+    hlpr.ax.set_yticks(np.arange(len(y_ticks)))
+    hlpr.ax.set_yticklabels(y_ticks)
+    
+
+    def __plot_histogram(data, *, 
+                         groupby: str, groupby_order: List=None,
+                         data_column: str,
+                         plot_left: bool, color: str):
+        
+        norm = data.groupby(by=groupby)[data_column].count()
+
+        hist = [data.loc[data[data_column] == i].groupby(by=groupby)[data_column].count()
+                for i in y_ticks]
+        hist = pd.concat(hist, axis=1, keys=y_ticks)
+        hist = hist.divide(norm, axis=0)
+
+        hist = hist.reset_index()
+        hist[groupby] = hist[groupby].astype("category")
+        if groupby_order is not None:
+            hist[groupby].cat.set_categories(groupby_order)
+            hist = hist.sort_values(by=groupby)
+
+
+        sign = 1
+        if plot_left:
+            sign=-1
+
+        boxes = []
+        for grp in hist[groupby]:
+            d = hist.loc[hist[groupby] == grp]
+            for N in y_ticks:
+                boxes.append(
+                    Rectangle((x_to_locx(grp), N - y_min - 0.5),
+                            width=sign*min(d[N].values[0], 0.975), height=1)
+                )
+
+        pc = PatchCollection(boxes, color=color)
+        hlpr.ax.add_collection(pc)
+
+
+    __plot_histogram(
+        data[data_tag],
+        groupby=x,
+        groupby_order=x_order,
+        data_column=y,
+        plot_left=True,
+        color=color
+    )
+
+    if data_tag_split is not None:
+        __plot_histogram(
+            data[data_tag_split],
+            groupby=x,
+            groupby_order=x_order,
+            data_column=y,
+            plot_left=False,
+            color=color_split
+        )
+    else:
+        __plot_histogram(
+            data[data_tag],
+            groupby=x,
+            groupby_order=x_order,
+            data_column=y,
+            plot_left=False,
+            color=color
+        )
+
+    hlpr.invoke_helper('set_limits', y=(0, len(y_ticks)))
+    if y_label is None:
+        y_label = '{} (Frequency)'.format(y)
+    hlpr.invoke_helper('set_labels', y=y_label)
+
+    if data_tag_split is not None:
+        if label is None:
+            label = data_tag
+        if label_split is None:
+            label_split = data_tag_split
+        legend_elements = [
+            mpl.patches.Patch(facecolor=color, edgecolor=color, label=label),
+            mpl.patches.Patch(facecolor=color_split, edgecolor=color_split,
+                              label=label_split)
+        ]
+        hlpr.ax.legend(handles=legend_elements, loc='upper left')
+    elif label is not None:
+        legend_elements = [
+            mpl.patches.Patch(facecolor=color, edgecolor=color, label=label),
+            mpl.patches.Patch(facecolor=color_split, edgecolor=color_split,
+                              label=label_split)
+        ]
+        hlpr.ax.legend(handles=legend_elements, loc='upper left')
+
+
+
+@is_plot_func(creator_type=MultiversePlotCreator,
+              use_dag=True,
+              required_dag_tags=(
+                  'data_theory',
+                  'mapper_theory',
+                  'data_experiment'
+              ))
+def histogram_map_experiment(
+        *, data: dict, hlpr: PlotHelper, 
+        x: str='stage',
+        mapper_experiment: str='normalized_area_cells',
+        mapper_theory: str='area',
+        **kwargs
+    ):
+    """Performs a 'histogram_plot' where area coordinates in hair_cell data are
+        selected closest to data_experiment HC area.
+    """
+    
+    # theory = pd.concat([data['data_theory'],
+    #                     [mapper_theory]],
+    #                     axis=1, join='outer')
+    theory = data['data_theory']
+
+    experiment = data['data_experiment']
+
+    mapping = pd.DataFrame()
+    mapping['experimental'] = experiment.groupby(by=x)[mapper_experiment].mean()
+
+    theory_area = pd.DataFrame()
+    theory_area['theoretical'] = data['mapper_theory'][mapper_theory]
+        
+    for _x in experiment[x]:
+        theory_area['difference_to_' + _x] = abs(
+              theory_area['theoretical']
+            - mapping.loc[_x, 'experimental']
+        )
+        mapping.loc[_x, 'closest_theoretical'] = theory_area.loc[
+            theory_area['difference_to_' + _x].idxmin(),
+            'theoretical'
+        ]
+        
+        dt = theory_area['difference_to_' + _x].min()
+        mapping.loc[_x, 'difference'] = dt
+        time = theory_area['difference_to_' + _x].idxmin()
+        mapping.loc[_x, 'theory_time'] = time
+
+        theory.loc[theory['time'] == time, x] = _x
+    
+    theory = theory.dropna(subset=x)
+
+    print(mapping)
+
+    data['Experiment'] = experiment
+    data['Theory'] = theory
+
+    histogram_plot(
+        data=data,
+        hlpr=hlpr,
+        data_tag='Experiment',
+        data_tag_split='Theory',
+        x=x,
+        **kwargs
+    )
 
 
 def _errorbar(*, hlpr: PlotHelper, data: xr.DataArray, std: xr.DataArray,

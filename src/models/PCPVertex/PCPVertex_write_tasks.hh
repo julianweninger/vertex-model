@@ -653,12 +653,30 @@ auto edges_adaptor = std::make_tuple(
                            if (b == nullptr) { return static_cast<float>(-1); }
                            return static_cast<float>(b->state.type);
                        });
+
+
+        dataset->write(edges.begin(), edges.end(),
+                       [](const auto& edge) {
+                           return static_cast<float>(edge->state.linetension());
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [](const auto& edge) {
+                           return static_cast<float>(edge->state.contractility());
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [model](const auto& edge) {
+                           return static_cast<float>(model.get_pMLC_contractility(edge));
+                       });
+        dataset->write(edges.begin(), edges.end(),
+                       [model](const auto& edge) {
+                           return static_cast<float>(model.get_ppMLC_contractility(edge));
+                       });
     },
                 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(std::to_string(m.get_time()), 
-            {8, m.get_am().edges().size()});
+            {12, m.get_am().edges().size()});
     },
 
     // attribute writer for basegroup
@@ -669,14 +687,20 @@ auto edges_adaptor = std::make_tuple(
     [](auto& hdfdataset, auto& model) {
         hdfdataset->add_attribute("dim_name__0", "property");
         hdfdataset->add_attribute("coords__property", 
-                                  std::vector<std::string>({"vertex_a",
-                                                            "vertex_b",
-                                                            "length",
-                                                            "orientation",
-                                                            "id_alpha",
-                                                            "id_beta",
-                                                            "type_alpha",
-                                                            "type_beta"}));
+                                  std::vector<std::string>({
+                                        "vertex_a",
+                                        "vertex_b",
+                                        "length",
+                                        "orientation",
+                                        "id_alpha",
+                                        "id_beta",
+                                        "type_alpha",
+                                        "type_beta",
+                                        "linetension",
+                                        "contractility",
+                                        "contractility_pMLC",
+                                        "contractility_ppMLC",
+                                  }));
         hdfdataset->add_attribute("dim_name__1", "id");
         hdfdataset->add_attribute("coords_mode__id", "values");
         const auto& edges = model.get_am().edges();
