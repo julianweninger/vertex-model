@@ -41,6 +41,7 @@ energy:
         - !dag_node -1
         - {energy: total}
       - .rename: [!dag_node -1, Energy]
+
   to_plot:
   - {data: !dag_result lagrange_net_polarity, function: sns.lineplot, label: lagrange
       net polarity}
@@ -51,26 +52,27 @@ energy:
   - {data: !dag_result polarity_exclusion, function: sns.lineplot, label: polarity
       exclusion}
   - {data: !dag_result total, function: sns.lineplot, label: total}
+
   transform:
   - define: [!dag_tag _total]
-  - .to_dataframe: [!dag_node -1]
-  - callattr: [!dag_node -1, reset_index]
+  - import_and_call:
+    args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     tag: total
   - define: [!dag_tag _cell_cell_interaction]
-  - .to_dataframe: [!dag_node -1]
-  - callattr: [!dag_node -1, reset_index]
+  - import_and_call:
+    args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     tag: cell_cell_interaction
   - define: [!dag_tag _polarity_exclusion]
-  - .to_dataframe: [!dag_node -1]
-  - callattr: [!dag_node -1, reset_index]
+  - import_and_call:
+    args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     tag: polarity_exclusion
   - define: [!dag_tag _lagrange_net_polarity]
-  - .to_dataframe: [!dag_node -1]
-  - callattr: [!dag_node -1, reset_index]
+  - import_and_call:
+    args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     tag: lagrange_net_polarity
   - define: [!dag_tag _lagrange_concentration]
-  - .to_dataframe: [!dag_node -1]
-  - callattr: [!dag_node -1, reset_index]
+  - import_and_call:
+    args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     tag: lagrange_concentration
   x: time
   y: Energy

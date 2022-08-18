@@ -10,7 +10,9 @@ parameter_space:
   num_steps: !coupled-sweep
     target_name: direction
     default: 20000
-    values: [20000, 4000]
+    values: 
+       - 20000
+      #  - 4000
 
   seed: !sweep
     default: 42
@@ -119,13 +121,13 @@ parameter_space:
             default: 0.0005
             values: 
               - !expr  2.e-4
-              - !expr -2.e-4
+              # - !expr -2.e-4
             name: increment
           direction: !sweep
             default: forward
             values: 
               - forward
-              - backward
+              # - backward
             name: direction
             order: 1
           

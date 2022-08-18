@@ -1,4 +1,4 @@
-# A minimal configuration to do cell proliferation
+    # A minimal configuration to do cell proliferation
 # In quick and dirty during proliferation the energy is not minimized.
 # This results in a significant (~ factor 100) speed up with similar results.
 #
@@ -20,6 +20,14 @@ parameter_space:
     space: &SPACE
       periodic: false
       extent: [30, 30]
+
+    minimization:
+      dt: 0.01
+      num_steps: 100
+
+    initialisation:
+      1_by_proliferation:
+        enabled: false
 
     operations:
       - jiggle:

@@ -78,9 +78,14 @@ transitions_multiplot:
         - .rename: [!dag_prev , T1_frequency]
 
   transform:
-    - .to_dataframe: [!dag_tag _T1s]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_tag _T1s ]
       tag: T1s
-    - .to_dataframe: [!dag_tag _T1_attempts]
+    - import_and_call:
+      args: 
+        - model_plots.PCPTopology.data_ops
+        - to_dataframe
+        - !dag_tag _T1_attempts
       tag: T1_attempts
 
   to_plot: 

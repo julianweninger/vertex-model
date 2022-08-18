@@ -18,7 +18,7 @@ auto energy_adaptor = std::make_tuple(
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp;
+        return grp->open_group("Energy");
     },
 
     // writer function
@@ -52,7 +52,7 @@ auto time_energy_adaptor = std::make_tuple(
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp;
+        return grp->open_group("Energy");
     },
 
     // writer function
@@ -84,7 +84,7 @@ auto orientations_adaptor = std::make_tuple(
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp;
+        return grp->open_group("Lattice");
     },
 
     // writer function
@@ -122,7 +122,7 @@ auto orientations_time_adaptor = std::make_tuple(
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp;
+        return grp->open_group("Lattice");
     },
 
     // writer function
@@ -152,7 +152,7 @@ auto coords_x_adaptor = std::make_tuple(
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp;
+        return grp->open_group("Lattice");
     },
 
     // writer function
@@ -189,7 +189,7 @@ auto coords_y_adaptor = std::make_tuple(
 
     // basegroup builder
     [](std::shared_ptr<HDFGroup>&& grp) -> std::shared_ptr<HDFGroup> {
-        return grp;
+        return grp->open_group("Lattice");
     },
 
     // writer function

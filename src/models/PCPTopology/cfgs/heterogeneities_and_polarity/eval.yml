@@ -17,8 +17,8 @@ _definitions:
       default: 0.
       values:
         - 0.
-        - 5.e-3
-        - 1.e-2
+        # - 5.e-3
+        # - 1.e-2
         - 2.e-2
     ppMLC: !sweep
       default: 0.4
@@ -149,7 +149,8 @@ polarity_histplot: !pspace
       args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
       tag: hair_cells_xarray
     - .isel: [!dag_prev , {time: -1}]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
       
@@ -198,7 +199,8 @@ transitions_multiplot_over_time: !pspace
     - .mean: [!dag_prev , time]
     - .squeeze: [!dag_prev ]
     # - div: [!dag_prev , *NUM_CELLS]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: T1s
 
@@ -263,7 +265,8 @@ cell_properties/area: !pspace
              {ids: [seed, id]}]
     - .squeeze: [!dag_prev ]
       tag: property
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
@@ -290,13 +293,15 @@ cell_properties/area: !pspace
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
 
@@ -352,7 +357,8 @@ cell_properties/nematic_alignment: !pspace
       - "lambda d: (  np.sin(2*d).sum(dim=['id', 'seed'])**2 + np.cos(2*d).sum(dim=['id', 'seed'])**2)**0.5 / d.count(dim=['id', 'seed'])"
       - !dag_prev 
     - .rename: [!dag_prev , alignment]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
       
@@ -390,7 +396,8 @@ cell_properties/nematic_direction: !pspace
     - call_lambda:
       - "lambda d: np.arctan2(np.sin(2*d).sum(dim=['id', 'seed']), np.cos(2*d).sum(dim=['id', 'seed'])) / 2"
       - !dag_prev
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
       
@@ -427,7 +434,8 @@ cell_properties/polar_alignment: !pspace
     - call_lambda:
       - "lambda d: (np.sin(d).sum(dim=['id', 'seed'])**2 + np.cos(d).sum(dim=['id', 'seed'])**2)**0.5 / d.count(dim=['id', 'seed'])"
       - !dag_prev 
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
       
@@ -465,7 +473,8 @@ cell_properties/polar_direction: !pspace
     - call_lambda:
       - "lambda d: np.arctan2(np.sin(d).sum(dim=['id', 'seed']), np.cos(d).sum(dim=['id', 'seed']))"
       - !dag_prev
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
       

@@ -168,12 +168,14 @@ diffusion_constant: !pspace
       tag: diffusion_xr
     - .where: [!dag_prev , !dag_tag equilibrium]
     - .mean: [!dag_prev , time]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const
     - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
     - .mean: [!dag_prev , time]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const_short
 
@@ -512,6 +514,3 @@ cell_segmentation:
     - .default_style_and_helpers
     - cellular_structure
     - single_universe
-  universes:
-    rho: 0.2
-    dL: [0.02, 0.06, 0.08]

@@ -48,17 +48,19 @@ def to_dataframe(d: xr.DataArray):
     """Converts a xarray.DataArray to pandas dataframe
     and transfers all dimensions
     """
-    _d = d.to_dataframe().reset_index()
+    _d = d.to_dataframe()
     
     rename = {}
     for i, c in enumerate(_d.columns):
         _c = c.split("_")
         if _c[0] == "level":
             rename[c] = d.dims[int(_c[1])]
+        if c in _d.index.names:
+            _d = _d.drop(columns=c)
     
     _d = _d.rename(rename, axis=1)
 
-    return _d
+    return _d.reset_index()
 
 
 def classify_edges(edges):
@@ -142,11 +144,10 @@ def map_directional_time(d: xr.DataArray):
             - 1. * d._time * (d.direction == 'backward')
             - 1.e-5 * (d._time == 0) * (d.direction == 'backward'))
             
-    d = d.assign_coords(time=time)
+    d = d.assign_coords(time=time.data)
     d = d.assign_coords(_time=("time", _time.data))
     d = d.assign_coords(direction=("time", direction.data))
 
-    
     return d.sortby("time")
 
 def groupby_bins(HC, *, bins: int, **kwargs):
@@ -212,10 +213,11 @@ def concat_exp_coordination(data: xr.DataArray, *, coordins: xr.DataArray=None):
             coordins = coordins.expand_dims("seed").assign_coords(seed=[0])
             coordins = coordins.stack(ids=["id", "seed"])
 
-
     data = data.expand_dims("type").assign_coords(type=["simulation"])
+    data = to_dataframe(data)
+    coordins = to_dataframe(coordins)
 
-    return xr.concat([data, coordins], dim="type")
+    return pd.concat([data, coordins])
 
 def define_exp_coordin_area():
     """Define a dataset with the experimental data from the basilar pappillar.
