@@ -150,12 +150,14 @@ diffusion_constant: !pspace
       tag: diffusion_xr
     - .where: [!dag_prev , !dag_tag equilibrium]
     - .mean: [!dag_prev , time]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const
     - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
     - .mean: [!dag_prev , time]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const_short
 
@@ -202,7 +204,7 @@ area_mapped/neighbors: !pspace
       args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
              {ids: [seed, id]}]
     - *map_directional_time
-    - .squeeze: [!dag_prev ]
+    - pass: [!dag_prev ]
       tag: cell_type
     - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
@@ -226,21 +228,24 @@ area_mapped/neighbors: !pspace
     - .squeeze: [!dag_prev ]
       tag: property
 
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
 
@@ -306,21 +311,24 @@ area_mapped/neighbors_w_data: !pspace
     - .squeeze: [!dag_prev ]
       tag: property
 
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
 
@@ -333,7 +341,8 @@ area_mapped/neighbors_w_data: !pspace
       args: [model_plots.PCPTopology.data_ops, define_exp_coordin_area]
     # - import_and_call:
     #   args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , area]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: experiment
 
@@ -429,7 +438,8 @@ area_mapped/coordination_number_errorbar: !pspace
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 
@@ -480,21 +490,24 @@ area_mapped/coordination_fit: !pspace
     - .squeeze: [!dag_prev ]
       tag: property
 
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
     
@@ -521,7 +534,8 @@ area_mapped/coordination_fit: !pspace
     - mul: [!dag_tag data_coords, !dag_tag fit_slope]
     - add: [!dag_prev , !dag_tag fit_offset]
     - .rename: [!dag_prev , linear_fit]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: linear_fit
 
@@ -530,7 +544,8 @@ area_mapped/coordination_fit: !pspace
       args: [model_plots.PCPTopology.data_ops, define_exp_coordin_area]
     - .dropna: [!dag_prev , area]
       tag: experiment_xr
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: experiment
 
@@ -554,7 +569,8 @@ area_mapped/coordination_fit: !pspace
     - mul: [!dag_tag data_coords, !dag_tag fit_experiment_slope]
     - add: [!dag_prev , !dag_tag fit_experiment_offset]
     - .rename: [!dag_prev , linear_fit]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: linear_fit_experiment
     
@@ -614,21 +630,24 @@ area_mapped/coordination_quantify: !pspace
     - .squeeze: [!dag_prev ]
       tag: property
 
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
     
@@ -636,7 +655,8 @@ area_mapped/coordination_quantify: !pspace
       args: [model_plots.PCPTopology.data_ops, define_exp_coordin_area]
     - .dropna: [!dag_prev , area]
       tag: experiment_xr
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: experiment
 
@@ -647,7 +667,8 @@ area_mapped/coordination_quantify: !pspace
       args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev , {area: 10}]
       kwargs: {center: True}
     - .mean: [!dag_prev , area]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: HC_smoothed
     
@@ -776,6 +797,8 @@ stage_mapped/coordination: !pspace
   module: model_plots.PCPTopology
   plot_func: coordination_histogram
 
+  enabled: False
+
   y_range: [3, 9]
 
   select_and_combine:
@@ -828,14 +851,16 @@ stage_mapped/coordination: !pspace
 
     - .where: [!dag_tag area, !dag_tag _hair_cells]
     - .mean: [!dag_prev , ids]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
     - print: [!dag_prev ]
       tag: hair_cells_area
 
     - .where: [!dag_tag property, !dag_tag _hair_cells]
     - .mean: [!dag_prev , ids]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells_neighbors
 
@@ -850,6 +875,8 @@ stage_mapped/coordination_violin: !pspace
     - .dag.multiplot
     - multiverse
     - select_cells_properties_mv.map_stage
+
+  enabled: False
 
   select_and_combine:
     fields:
@@ -883,24 +910,26 @@ stage_mapped/coordination_violin: !pspace
     - .squeeze: [!dag_prev ]
       tag: cell_type
     - create_mask: [!dag_tag cell_type, ==, 1]
+    - .squeeze: [!dag_prev ]
       tag: _hair_cells
     - create_mask: [!dag_tag cell_type, ==, 2]
+    - .squeeze: [!dag_prev ]
       tag: _support_cells
 
     # stack the seeds
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _area,
              {ids: [seed, id]}]
-    - .squeeze: [!dag_prev ]
     - *map_directional_time
+    - .squeeze: [!dag_prev ]
     - pass: [!dag_prev ]
       tag: area
 
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
              {ids: [seed, id]}]
-    - .squeeze: [!dag_prev ]
     - *map_directional_time
+    - .squeeze: [!dag_prev ]
     - pass: [!dag_prev ]
       tag: property
 
@@ -919,7 +948,7 @@ stage_mapped/coordination_violin: !pspace
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, concat_exp_coordination,
              !dag_prev ]
-    - .to_dataframe: [!dag_prev ]
+    - print: [!dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 

@@ -1,7 +1,13 @@
 """Tests of the configurations for the PCPTopology"""
 
+from copy import deepcopy
+
+import signal
+import time
+
 import pytest
 
+from utopya.tools import recursive_update
 from utopya.testtools import ModelTest
 
 # Configure the ModelTest class
@@ -29,64 +35,106 @@ def test_run_and_eval_cfgs():
         'PCPTopology': {
             'initialisation': {
                 '1_by_proliferation': {
+                    'enabled': False,
                     'num_generations': 0,
                     'iterations_prolog': 0
                 }
-            }
+            },
         }
     })
     debug_params=dict({
-        'polarity': {
-            'num_steps': 5,
+        'evaluate_diffusion': {
+            'num_seeds': 2
+        },
+        'evaluate_shear_thinning': {
+            'num_seeds': 2,
+            'num_steps': 1
+        },
+        'increment_area': {
+            'num_seeds': 2,
+        },
+        'increment_area_graded': {
+            'num_seeds': 2,
+            'num_steps': 1
+        },
+        'heterogeneities_and_polarity': {
+            'num_seeds': 2,
             'PCPTopology': {
-                'initialisation': {
-                    '1_by_proliferation': {
-                        'enabled': False,
-                        'num_generations': 0
-                    }
-                },
-                'setup_params': {
-                    'hexagonal': {
-                        'lattice_rows': 6,
-                        'lattice_columns': 6
+                'PCPVertex': {
+                    'agent_manager': {
+                        'setup_params': {
+                            'hexagonal': {
+                                'lattice_rows': 4,
+                                'lattice_columns': 4
+                            }
+                        }
                     }
                 }
             }
         },
-        'heterogeneities_and_polarity': {
-            'num_steps': 3,
+        'polarity': {
+            'num_steps': 5,
             'PCPTopology': {
-                'initialisation': {
-                    '1_by_proliferation': {
-                        'enabled': False,
-                        'num_generations': 0
-                    }
-                },
-                'setup_params': {
-                    'hexagonal': {
-                        'lattice_rows': 6,
-                        'lattice_columns': 12
+                'PCPVertex': {
+                    'agent_manager': {
+                        'setup_params': {
+                            'hexagonal': {
+                                'lattice_rows': 6,
+                                'lattice_columns': 6
+                            }
+                        }
                     }
                 }
             }
+        },
+        'proliferation_minmal__by_generation': {
+            'num_steps': 2
         }
     })
+
+    print("Running the following tests: ")
+    for cfg_name, cfg_paths in mtc.default_config_sets.items():
+        print(cfg_name)
 
     for cfg_name, cfg_paths in mtc.default_config_sets.items():
         print("\nRunning '{}' example ...".format(cfg_name))
 
-        if cfg_name != 'evaluate_diffusion':
-            continue
+        params = recursive_update(deepcopy(_params),
+                                  deepcopy(debug_params.get(cfg_name, dict())))
 
-        params = debug_params.get(cfg_name, _params)
+        print("With updated config {}", params)
+        
+        class AlarmException(Exception):
+            pass
 
-        mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
-                                    plot_manager={'raise_exc': True},
-                                    parameter_space=params
-                                    )
-        mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+        def alarmHandler(signum, frame):
+            raise AlarmException
+
+        # Raise timeout after 120 seconds
+        signal.signal(signal.SIGALRM, alarmHandler)
+        signal.alarm(120)
+        
+        try:
+            mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
+                                        plot_manager={'raise_exc': True},
+                                        parameter_space=params
+                                        )
+        except AlarmException:
+            print("Aborting test of '{}' after 2 minutes.")
+            raise AlarmException
+        
+        signal.alarm(60)
+        
+        try:
+            mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+        except AlarmException:
+            print("Aborting plotting-test of '{}' after 2 minutes.")
+            raise AlarmException
+
+        signal.alarm(0)
 
         print("Succeeded running and evaluating '{}'.\n".format(cfg_name))
+
 
 def test_disabled_plots():
     mv, dm = mtc.create_run_load(

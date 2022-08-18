@@ -28,7 +28,7 @@ energy:
     allow_missing_or_failing: true
     fields:
       _energy:
-        path: data/BendSplay/free_energy
+        path: data/BendSplay/Energy/free_energy
 
   transform:
     - import_and_call:
@@ -54,7 +54,7 @@ orientation:
     allow_missing_or_failing: silent
     fields:
       _orientations:
-        path: data/BendSplay/orientations
+        path: data/BendSplay/Lattice/orientations
 
   transform:
     - import_and_call:
@@ -82,7 +82,7 @@ vector_field:
   module: model_plots.BendSplay
   plot_func: vector_field
 
-  datapath: BendSplay
+  datapath: BendSplay/Lattice
 
   helpers:
     save_figure: {bbox_inches: tight}

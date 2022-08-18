@@ -36,9 +36,9 @@ parameter_space:
 
   PCPTopology:
 
-    initialisation: !sweep
+    differentiation: !sweep
       default: random
-      values: [random, sorted]
+      values: [random, domain]
 
     case: !sweep
       default: control
@@ -56,7 +56,7 @@ parameter_space:
     operations:
       # Differentiate hair and support cells
       - !coupled-sweep
-          target_name: initialisation
+          target_name: differentiation
           default: 
             differentiate_random: 
               times: []

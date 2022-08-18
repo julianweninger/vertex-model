@@ -148,12 +148,14 @@ diffusion_constant: !pspace
       tag: diffusion_xr
     - .where: [!dag_prev , !dag_tag equilibrium]
     - .mean: [!dag_prev , time]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const
     - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
     - .mean: [!dag_prev , time]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const_short
 
@@ -289,7 +291,8 @@ cells_spatial:
       kwargs: {center: True}
     - .mean: [!dag_prev , x]
     - .dropna: [!dag_prev , x]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
@@ -301,7 +304,8 @@ cells_spatial:
       kwargs: {center: True}
     - .mean: [!dag_prev , x]
       tag: hair_cells_xr
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
 
@@ -311,7 +315,8 @@ cells_spatial:
       args: [!dag_prev , {x: &Rolling_SC 40}]
       kwargs: {center: True}
     - .mean: [!dag_prev , x]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
 

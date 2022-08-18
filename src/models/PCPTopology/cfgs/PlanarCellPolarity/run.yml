@@ -31,7 +31,7 @@ parameter_space:
       - simple_shear
       - oriented_cell_division
       - pure_shear
-      - bend
+      # - bend
 
   PCPTopology:
     initialisation:
@@ -40,7 +40,11 @@ parameter_space:
           target_name: case
           name: num_generations
           default: 1
-          values: [1, 0, 1, 1]
+          values: 
+            - 1
+            - 0
+            - 1
+            # - 1
 
     # The sequence of operations
     operations:      
@@ -87,14 +91,14 @@ parameter_space:
                   minimization: {mode: manual}
                 }
               }
-            - {
-                bending_box_bc: {                  
-                  times: *TIMES,
-                  increment_curvature: 2.e-3,
-                  deform_plastic: True,
-                  minimization: {mode: manual}
-                }
-              }
+            # - {
+            #     bending_box_bc: {                  
+            #       times: *TIMES,
+            #       increment_curvature: 2.e-5,
+            #       deform_plastic: True,
+            #       minimization: {mode: manual}
+            #     }
+            #   }
               
       - iterate_pcp: &iterate_pcp
           times: *TIMES
@@ -110,6 +114,8 @@ parameter_space:
     # --- Dynamics
     # Minimization parameter    
     PlanarCellPolarity:
+      boundary_type: Neumann
+
       cell_cell_polarity_interaction: 0.1
       cell_polarity_exclusion: 0.05
       penalty_net_polarisation: 1.
@@ -155,11 +161,19 @@ parameter_space:
             lattice_rows: !coupled-sweep
               target_name: case
               default: 4
-              values: [4, 8, 16, 4]
+              values: 
+                - 4
+                - 8
+                - 16
+                # - 4
             lattice_columns: !coupled-sweep
               target_name: case
               default: 4
-              values: [16, 8, 4, 16]
+              values: 
+                - 16
+                - 8
+                - 4
+                # - 16
 
 
       # continuous data manager

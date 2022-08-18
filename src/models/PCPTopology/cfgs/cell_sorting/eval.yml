@@ -36,15 +36,15 @@ definitions:
     case: !sweep
       default: control
       values: [control, DITH, HIT]
-    initialisation: !sweep
+    differentiation: !sweep
       default: random
-      values: [random, sorted]
+      values: [random, domain]
 
   # slice to keep one sweep dimension
   subspace_slice_hue: &subspace_slice_hue
-    initialisation: !sweep
+    differentiation: !sweep
       default: random
-      values: [random, sorted]
+      values: [random, domain]
 
   # slice to keep two sweep dimensions
   subspace_slice_bif: &subspace_slice_bif ~
@@ -168,7 +168,8 @@ transitions_multiplot_over_time: !pspace
     - .mean: [!dag_prev , time]
     - .squeeze: [!dag_prev ]
     - div: [!dag_prev , *NUM_CELLS]
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: T1s
 
@@ -234,7 +235,8 @@ cell_properties/area: !pspace
     - *map_directional_time
     - .squeeze: [!dag_prev ]
       tag: property
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
@@ -253,13 +255,15 @@ cell_properties/area: !pspace
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
-    - .to_dataframe: [!dag_prev ]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: support_cells
 

@@ -37,9 +37,11 @@ parameter_space:
           minimization:
             mode: manual
       # 32 cells
+      - jiggle:
+          times: [2]
 
       - proliferate_generations:
-          times: !listgen [2, 11]
+          times: !listgen [3, 11]
           num_generations: 1
           minimization_between_generations: ~
 

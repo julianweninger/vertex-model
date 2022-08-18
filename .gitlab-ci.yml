@@ -3,7 +3,7 @@
 # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
   # Variables for docker images
-  BASE_IMAGE: julianweninger/brewtopia:latest
+  BASE_IMAGE: julianweninger/aptopia:v1
 
   # Docker Hub login command
   DOCKER_HUB_LOGIN: docker login -u $DOCKER_USER -p $DOCKER_PW
@@ -34,6 +34,7 @@ variables:
 image: ${BASE_IMAGE}
 
 stages:
+  - setup     # build the docker images for testing
   - update    # update the docker images for testing
   - prep      # prepares the framework
   - build     # build models and tests
@@ -83,50 +84,52 @@ workflow:
 # ++ Job definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 # -- Update stage -------------------------------------------------------------
-# This stage takes care to build the brewtopia testing images
+# This stage takes care to build the aptopia testing images
 
-# .. brewtopia: the base image
+# .. aptopia: the base image
 # This takes a long time to build and should only be run if the build time of
-# brewtopia-models increases significantly.
+# aptopia-models increases significantly.
 # To run:
 #    - Go to the GitLab pipelines web interface
 #    - Select the master branch
-#    - Set the BUILD_BREWTOPIA variable to "true"
-update:brewtopia:
+#    - Set the BUILD_APTOPIA variable to "true"
+setup:aptopia:
   <<: *dind
-  stage: update
+  stage: setup
   timeout: 2h
   variables:
     <<: *dind_variables
-    BUILD_BREWTOPIA: "false"
+    BUILD_APTOPIA: "false"
   rules:
-    - if: '$BUILD_BREWTOPIA == "true" && $CI_COMMIT_BRANCH == "master"'
+    - if: '$BUILD_APTOPIA == "true"'
       when: always
     - when: never
   script:
-    - docker build -f docker/brewtopia.Dockerfile
+    - docker build -f docker/aptopia.Dockerfile
                    -t ${BASE_IMAGE}
                    ./
     - docker push ${BASE_IMAGE}
 
-# .. brewtopia-models: the testing image
-# This is updated on the master branch _OR_ if BUILD_BREWTOPIA_MODELS was set.
+# .. aptopia-models: the testing image
+# This is updated on the master branch _OR_ if BUILD_APTOPIA_MODELS was set.
 # It updates the dependencies and the Utopia installation in the test image.
-update:brewtopia-upgrade:
+update:aptopia-upgrade:
   <<: *dind
   stage: update
   timeout: 2h
   variables:
     <<: *dind_variables
-    UPGRADE_BREWTOPIA: "false"
+    UPGRADE_APTOPIA: "false"
   rules:
-    - if: '$UPGRADE_BREWTOPIA == "true"'
+    - if: '$BUILD_APTOPIA == "true"'
       when: always
-    # - if: '$CI_COMMIT_BRANCH == "master"'
-    #   when: always
+    - if: '$UPGRADE_APTOPIA == "true"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
     - when: never
   script:
-    - docker build -f docker/brewtopia-upgrade.Dockerfile
+    - docker build -f docker/aptopia-upgrade.Dockerfile
                    --build-arg BASE_IMAGE=${BASE_IMAGE}
                    -t ${BASE_IMAGE}
                    ./
@@ -142,7 +145,7 @@ prep:framework:
   script:
     # Create a build directory and run cmake
     - cd $CI_PROJECT_DIR && mkdir build && cd build
-    - cmake -DCPP_COVERAGE=On -DHDF5_ROOT=$(brew --prefix hdf5) ..
+    - cmake -DCPP_COVERAGE=On ..
 
     # Show available models
     - $RUN_IN_UTOPIA_ENV utopia models ls
@@ -183,7 +186,6 @@ build:debug: &build_debug
     - cmake
         -DCMAKE_BUILD_TYPE=Debug
         -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
-        -DHDF5_ROOT=$(brew --prefix hdf5)
       ..
 
 build:debug-clang:
@@ -198,7 +200,6 @@ build:debug-clang:
         -DCMAKE_C_COMPILER=clang
         -DCMAKE_CXX_COMPILER=clang++
         -DCMAKE_CXX_FLAGS_DEBUG="-Werror"
-        -DHDF5_ROOT=$(brew --prefix hdf5)
       ..
 
 build:docs:
