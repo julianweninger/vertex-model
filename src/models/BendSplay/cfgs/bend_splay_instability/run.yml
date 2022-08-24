@@ -18,15 +18,27 @@ parameter_space:
     curvature: !sweep
       name: curvature
       default: 1
-      values: [1, 2, 4, 8]
+      values: 
+        - 1
+        - 2
+        - 4
+        - 8
     inner_radius: !coupled-sweep
       target_name: curvature
       name: R_in
-      values: [!expr 2/3 * 1/1, !expr 2/3 * 1/2, !expr 2/3 * 1/4, !expr 2/3 * 1/8]
+      values: 
+        - !expr 2/3 * 1/1
+        - !expr 2/3 * 1/2
+        - !expr 2/3 * 1/4
+        - !expr 2/3 * 1/8
     outer_radius: !coupled-sweep
       target_name: curvature
       name: R_out
-      values: [!expr 2/1, !expr 2/2, !expr 2/4, !expr 2/8]
+      values: 
+        - !expr 2/1
+        - !expr 2/2
+        - !expr 2/4
+        - !expr 2/8
 
     init_symmetric: True
 

@@ -7,43 +7,6 @@
 densities:
   based_on: densities
 
-rosettes:
-  based_on: rosettes
-
-
 # Spatial CA animations .......................................................
 state_anim:
   based_on: state_anim
-
-
-# Multiverse plots ............................................................
-percolation_diagram:
-  based_on: percolation_diagram
-  map_dim: beta
-  
-  enabled: false
-
-# -- Bifurcation plots ...........
-bifurcation_lambda_ratio:
-  based_on: bifurcation_ratio
-  enabled: false
-  # NOTE 1d bifurcation
-  
-  dim: lambda
-
-bifurcation_lambda_contacts:
-  based_on: bifurcation_contacts
-  enabled: false
-  # NOTE 1d bifurcation
-
-  dim: lambda
-
-heatmap_density:
-  based_on: heatmap_density
-  enabled: false
-  # NOTE 2d multiverse plot
-
-heatmap_contacts:
-  based_on: heatmap_contacts
-  enabled: false
-  # NOTE 2d multiverse plot

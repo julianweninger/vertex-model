@@ -121,8 +121,7 @@ energy:
 
 energy_mv: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
 
   select_and_combine:
@@ -230,27 +229,18 @@ energy_boundary:
     - function: sns.lineplot
       data: !dag_result boundary_shape
 
-energy_edge_contractility:
-  based_on:
-    - .basic_uni.lineplots
-    - universe
-  universes: *subspace
 
-  model_name: PCPTopology
+energy_edge_contractility:
+  based_on: energy
 
   to_plot:
-    Energy/Edge_contractility:
-      label: edge contractility
-
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
+  - function: sns.lineplot
+    data: !dag_result edge_contractility
+    label: edge contractility
 
 polarity_histplot: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   
@@ -338,8 +328,7 @@ transitions:
 # --- fluidity ----------------------------------------------------------------
 transitions_multiplot_over_time: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
 
   select_and_combine:
@@ -388,159 +377,13 @@ transitions_multiplot_over_time: !pspace
       x: [*TIME_MIN, *TIME_MAX]
       y: [1.e-5, 1.e-1]
 
-
-
-# Cell properties from cell statistics ----------------------------------------
-cell_stats/area: !pspace &CellStats
-  based_on:
-    - .default_style_and_helpers
-    - multiverse
-    - cell_property
-    # - select_cell_stats_mv
-
-  to_plot:
-    cells:
-      label: all cells
-      color: grey
-    hair_cells:
-      label: hair cells
-      color: red
-    support_cells:
-      label: support cells
-      color: royalblue
-      
-  select_and_combine:
-    allow_missing_or_failing: True
-    fields:
-      _cells: data/PCPTopology/Statistics/Cell_stats
-      _hair_cells: data/PCPTopology/Statistics/Hair_cell_stats
-      _support_cells: data/PCPTopology/Statistics/Support_cell_stats
-    subspace: *subspace_slice
-
-  transform:
-    - define: [!dag_tag _cells]
-    - *map_directional_time
-    - pass: [!dag_prev ]
-      tag: cells
-    - define: [!dag_tag _hair_cells]
-    - *map_directional_time
-    - pass: [!dag_prev ]
-      tag: hair_cells
-    - define: [!dag_tag _support_cells]
-    - *map_directional_time
-    - pass: [!dag_prev ]
-      tag: support_cells
-
-  property: area
-  average_dim: seed
-
-  helpers:
-    set_labels:
-      y: average area
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [0, 5.]
-
-cell_stats/area_pref: !pspace
-  based_on: cell_stats/area
-  property: area_preferential
-
-  helpers:
-    set_labels:
-      y: average pref. area
-
-cell_stats/area_minimum: !pspace
-  based_on: cell_stats/area
-  enabled: false
-  to_plot:
-    cells:
-      plot_min_max: True
-    hair_cells:
-      plot_min_max: True
-    support_cells:
-      plot_min_max: True
-
-cell_stats/pref_area_minimum: !pspace
-  based_on:
-    - cell_stats/area_minimum
-    - cell_stats/area_pref
-  enabled: false
-
-cell_stats/shape: !pspace
-  based_on: cell_stats/area
-
-  property: shape_index
-
-  helpers:
-    set_labels:
-      y: average shape index
-    set_limits:
-      y: [3.72, 4.3]
-
-
-cell_stats/HC_neighbors: !pspace
-  <<: *CellStats
-
-  to_plot:
-    cells:
-      label: all cells
-      color: grey
-    hair_cells:
-      label: hair cells
-      color: red
-    support_cells:
-      label: support cells
-      color: royalblue
-  
-  property: num_hair_neighbors
-
-  helpers:
-    set_labels:
-      x: time
-      y: average hair cell neighbors
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [0., 3.2]
-
-cell_stats/neighbors: !pspace
-  based_on: cell_stats/HC_neighbors
-
-  property: num_neighbors
-
-  helpers:
-    set_labels:
-      x: time
-      y: average neighbors
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [3., 12.]
-
-cell_stats/hexatic_order: !pspace
-  <<: *CellStats
-
-  to_plot: 
-    hair_cells:
-      label: hair cells
-      color: red
-
-  property: hexatic_order
-
-  helpers:
-    set_labels:
-      x: time
-      y: average hexatic_order
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [0., 1.]
-
-
 # Cell properties from cell data ----------------------------------------------
-cell_properties/area: !pspace
+cell_properties: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
+  enabled: False
 
   to_plot:
     - function: sns.lineplot
@@ -560,92 +403,37 @@ cell_properties/area: !pspace
       ci: sd
 
   select_and_combine:
+    subspace: *subspace_slice
+
+  x: time
+
+  helpers:
+    set_labels:
+      x: time [$\tau_\lambda$]
+    set_limits:
+      x: [*TIME_MIN, *TIME_MAX]
+
+cell_properties/area: !pspace
+  based_on: cell_properties
+
+  select_and_combine:
     fields:
       _property:
         path: data/PCPTopology/Cells
         transform:
           - .sel: [!dag_prev , {property: area}]
           - .rename: [!dag_prev , area]
-    subspace: *subspace_slice
 
-  transform:
-    # stack the seeds
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
-             {ids: [seed, id]}]
-    - *map_directional_time
-    - .squeeze: [!dag_prev ]
-      tag: property
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: all_cells
-
-    # a mask to select only hair / support cells
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
-             {ids: [seed, id]}]
-    - *map_directional_time
-    - .squeeze: [!dag_prev ]
-      tag: cell_type
-    - create_mask: [!dag_tag cell_type, ==, 1]
-      tag: _hair_cells
-    - create_mask: [!dag_tag cell_type, ==, 2]
-      tag: _support_cells
-
-    # # mask for bulk cells
-    # - import_and_call:
-    #   args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
-    #          {ids: [seed, id]}]
-    # - .squeeze: [!dag_prev ]
-    # - create_mask: [!dag_prev , <, 0.5] # not boundary
-    # - .rename: [!dag_prev , is_bulk]
-    #   tag: _is_bulk
-
-    # the data for hair cells
-    - .where: [!dag_tag property, !dag_tag _hair_cells]
-      tag: hair_cells_xarray
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: hair_cells
-    # the data for support cells
-    - .where: [!dag_tag property, !dag_tag _support_cells]
-      tag: support_cells_xarray
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: support_cells
-
-  x: time
   y: area
 
   helpers:
     set_labels:
-      x: time [$\tau_\lambda$]
       y: $\langle area \rangle$
     set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
       y: [0, 5.]
 
-cell_properties/pref_area: !pspace
-  based_on: cell_properties/area
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: area_preferential}]
-          - .rename: [!dag_prev , area_preferential]
-  y: area_preferential
-  helpers:
-    set_labels:
-      y: average pref. area
-    set_legend:
-      loc: 2
-
 cell_properties/shape: !pspace
-  based_on: cell_properties/area
+  based_on: cell_properties
   select_and_combine:
     fields:
       _property:
@@ -664,7 +452,7 @@ cell_properties/shape: !pspace
       y: [3.72, 4.3]
 
 cell_properties/HC_neighbors: !pspace
-  based_on: cell_properties/area
+  based_on: cell_properties
   select_and_combine:
     fields:
       _property:
@@ -680,7 +468,7 @@ cell_properties/HC_neighbors: !pspace
       y: [0., 3.2]
 
 cell_properties/neighbors: !pspace
-  based_on: cell_properties/area
+  based_on: cell_properties
   select_and_combine:
     fields:
       _property:
@@ -695,33 +483,10 @@ cell_properties/neighbors: !pspace
     set_limits:
       y: [3., 11.]
 
-cell_properties/hexatic_order: !pspace
-  based_on: cell_properties/area
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: hexatic_order}]
-          - .rename: [!dag_prev , hexatic_order]
-  y: hexatic_order
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      label: hair cells
-      color: red
-      ci: sd
-  helpers:
-    set_labels:
-      y: average hexatic order
-    set_limits:
-      y: [0., 1.]
-
 
 # --- Cell segmentation ------------------------------------------------------
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
   enabled: false
   universes: *subspace
@@ -770,7 +535,6 @@ cell_segmentation__polarity:
 # --- Cell neighborhood histogram --------------------------------------------
 cell_neighborhood: !pspace
   based_on:
-    - .default_style_and_helpers
     - multiverse
     - _cell_neighbourhood
   enabled: false

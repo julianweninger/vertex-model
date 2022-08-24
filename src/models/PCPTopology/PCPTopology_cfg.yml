@@ -114,10 +114,10 @@ Collier:
   time_resolution: 1000
 
   degradation_delta: 1.
-  degradation_notch: 1.
+  degradation_notch: 0.1
 
   production_notch: 1.
-  production_delta: 50.
+  production_delta: 200.
   production_nicd: 200.
 
   interaction_strength_trans: 1.

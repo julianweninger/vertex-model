@@ -9,18 +9,13 @@ import copy
 import scipy
 import numpy as np
 import xarray as xr
-import matplotlib as mpl
-import os
+import seaborn as sns
 
-import dantro.utils.data_ops as dops
+import dantro.data_ops.db as dops
 
-from dantro.plot_creators.ext_funcs.generic import facet_grid
+from utopya.plotting import is_plot_func, PlotHelper
+from dantro.plot.funcs import facet_grid
 
-from utopya import DataManager, MultiverseGroup
-from utopya.plotting import is_plot_func, PlotHelper, MultiversePlotCreator
-from utopya.dataprocessing import transform
-
-from utopya.plot_funcs._basic import _errorbar
 
 
 # Get a logger

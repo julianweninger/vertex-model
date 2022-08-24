@@ -36,7 +36,7 @@ RUN mkdir utopia
 WORKDIR /home/utopia
 
 ARG UTOPIA_REPO="https://gitlab.com/utopia-project/utopia.git"
-ARG UTOPIA_BRANCH="v1"
+ARG UTOPIA_BRANCH="master"
 
 RUN    git clone ${UTOPIA_REPO} \
     && cd utopia \

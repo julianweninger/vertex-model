@@ -101,8 +101,7 @@ displacement: !pspace
 
 diffusion_constant: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
   enabled: False
 
@@ -182,8 +181,7 @@ diffusion_constant: !pspace
 # Spatial mapping in graded space ---------------------------------------------
 cells_spatial:
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   enabled: False
@@ -502,8 +500,7 @@ cells_spatial/migration: !pspace
 # The average cell area
 cell_properties: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   enabled: false
@@ -654,8 +651,7 @@ cell_properties/HH_neighbors: !pspace
 edge_properties/min_length: !pspace
   enabled: False
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_edges_properties_mv
   to_plot: 
@@ -686,7 +682,6 @@ edge_properties/min_length: !pspace
 # A 2D representation of the cells by their edges
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
     - single_universe
 

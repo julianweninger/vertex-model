@@ -9,25 +9,17 @@ energy:
     seed: 0
 
 transitions:
-  based_on: universe
-  universes:
-    seed: 0
+  based_on: transitions
 
-  model_name: PCPTopology
-  module: model_plots.PCPTopology
-  plot_func: transitions
-
-  map_to_continuous_time: True
+transitions_cumulated:
+  based_on: transitions
+  cumsum_transitions: true
+  enabled: false
 
 transitions_continuous:
-  based_on:
-    - universe
-    - transitions
-
-  model_name: PCPTopology/PCPVertex
-  
-  map_to_continuous_time: False
-  map_to_discrete_time: True
+  based_on: transitions_continuous
+  cumsum_transitions: true
+  enabled: false
 
 
 diffusion:
@@ -43,187 +35,19 @@ displacement:
 
 equilibrium_cellular_structure:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
   universes:
     seed: 0
 
 
-# --- Average cell properties from stats --------------------------------------
-
-cell_stats/cell_area: !pspace &cell_stats
-  based_on:
-    - .default_style_and_helpers
-    - multiverse
-    - cell_property
-    - select_cell_stats_mv
-  
-  plot_func: errorbars
-
-  to_plot:
-    cells:
-      label: all cells
-    hair_cells:
-      label: hair cells
-    support_cells:
-      label: support cells
-
-  property: area
-  average_dim: seed
-
-  select_and_combine:
-    subspace:
-      p0: !sweep
-        default: 3.77
-        values: &SWEEP_VALUES [3.62, 3.72, 3.77, 3.805]
-
-  helpers:
-    set_labels:
-      x: time
-      y: average area
-    set_limits:
-      x: [0, &TIME_MAX 2]
-      y: [0, 5.]
-
-cell_stats/cell_area_pref: !pspace
-  based_on: cell_stats/cell_area
-
-  property: area_preferential
-
-  helpers:
-    set_labels:
-      y: average pref. area
-    set_limits:
-      y: [0, 5.]
-
-cell_stats/cell_shape: !pspace
-  based_on: cell_stats/cell_area
-
-  property: shape_index
-
-  helpers:
-    set_labels:
-      y: average shape index
-    set_limits:
-      y: [3.72, 4.3]
-
-cell_stats/HC_neighbors: !pspace
-  <<: *cell_stats
-
-  to_plot:
-    bulk_cells:
-      label: all cells (bulk)
-    bulk_hair_cells:
-      label: hair cells (bulk)
-    bulk_support_cells:
-      label: support cells (bulk)
-  
-  property: num_hair_neighbors
-
-  helpers:
-    set_labels:
-      x: time
-      y: average hair cell neighbors
-    set_limits:
-      x: [0, *TIME_MAX]
-      y: [0., 3.2]
-
-cell_stats/neighbors: !pspace
-  based_on: cell_stats/HC_neighbors
-
-  property: num_neighbors
-
-  helpers:
-    set_labels:
-      x: time
-      y: average neighbors
-    set_limits:
-      y: [3., 12.]
-
-cell_stats/hexatic_order: !pspace
-  <<: *cell_stats
-
-  to_plot: 
-    bulk_hair_cells:
-      label: hair cells (bulk)
-
-  property: hexatic_order
-
-  helpers:
-    set_labels:
-      x: time
-      y: average hexatic_order
-    set_limits:
-      x: [0, *TIME_MAX]
-      y: [0., 1.]
-
-cell_stats/neighbors_vs_area_mv: !pspace
-  based_on:
-    - .default_style_and_helpers
-    - multiverse
-
-  module: model_plots.PCPTopology
-  plot_func: scatter_xy_data
-
-  plot_time_color_gradient: true
-  cmap: plasma
-
-  select_and_combine:
-    fields:
-      bulk_hair_cells:
-        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: area
-      bulk_support_cells:
-        path: data/PCPTopology/Statistics/Bulk_support_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: area
-      _y:
-        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: num_neighbors
-    subspace:
-      p0: !sweep
-        default: 0.2
-        values: *SWEEP_VALUES
-          
-  transform:
-    - .mean:
-      args: [!dag_tag bulk_hair_cells]
-      kwargs:
-        dim: seed
-      tag: x
-
-    - .mean:
-      args: [!dag_tag _y]
-      kwargs:
-        dim: seed
-      tag: y
-
-  helpers:
-    set_labels:
-      x: aver. HC area
-      y: Coordination number
-    set_limits:
-      x: [0., 7.]
-      y: [3., 12]
 
 # Cell properties from cell data ----------------------------------------------
-cell_properties/area: !pspace
+cell_properties: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
+  enabled: False
 
   to_plot: 
     - function: sns.lineplot
@@ -240,23 +64,31 @@ cell_properties/area: !pspace
     fields:
       _property:
         path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: area}]
-          - .rename: [!dag_prev , area]
     subspace:
       p0: !sweep
         default: 0.2
-        values: *SWEEP_VALUES
+        values: &p0_Sweep_Values [3.62, 3.72, 3.77, 3.805]
 
   x: time
-  y: area
 
   helpers:
     set_labels:
       x: time
+
+cell_properties/area: !pspace
+  based_on: cell_properties
+
+  select_and_combine:
+    fields:
+      _property:
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+  y: area
+  helpers:
+    set_labels:
       y: average area
     set_limits:
-      x: [0, *TIME_MAX]
       y: [0, 5.]
 
 cell_properties/pref_area: !pspace
@@ -264,7 +96,6 @@ cell_properties/pref_area: !pspace
   select_and_combine:
     fields:
       _property:
-        path: data/PCPTopology/Cells
         transform:
           - .sel: [!dag_prev , {property: area_preferential}]
           - .rename: [!dag_prev , area_preferential]
@@ -280,7 +111,6 @@ cell_properties/shape: !pspace
   select_and_combine:
     fields:
       _property:
-        path: data/PCPTopology/Cells
         transform:
           - .sel: [!dag_prev , {property: perimeter}]
           - .sel: [!dag_node -2, {property: area_preferential}]
@@ -299,7 +129,6 @@ cell_properties/HC_neighbors: !pspace
   select_and_combine:
     fields:
       _property:
-        path: data/PCPTopology/Cells
         transform:
           - .sel: [!dag_prev , {property: num_hair_neighbors}]
           - .rename: [!dag_prev , num_hair_neighbors]
@@ -349,8 +178,7 @@ cell_properties/hexatic_order: !pspace
 
 cell_properties/neighbors_vs_area_mv: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv.xy_data
 
@@ -369,7 +197,7 @@ cell_properties/neighbors_vs_area_mv: !pspace
     subspace:
       p0: !sweep
         default: 0.2
-        values: *SWEEP_VALUES
+        values: *p0_Sweep_Values
 
   to_plot:
     - function: sns.scatterplot
@@ -381,7 +209,6 @@ cell_properties/neighbors_vs_area_mv: !pspace
 
 cell_neighbourhood_mv: !pspace
   based_on:
-    - .default_style_and_helpers
     - multiverse
     - _cell_neighbourhood
 
@@ -438,173 +265,4 @@ cell_neighbourhood_mv: !pspace
     subspace:
       p0: !sweep
         default: 0.2
-        values: *SWEEP_VALUES
-
-# MSD_mv: !pspace
-#   based_on:
-#     - .default_style_and_helpers
-#     - .dag.multiplot
-#     - multiverse
-#     - select_cells_MSD_multiverse
-
-#   select_and_combine:
-#     subspace:
-#       p0: !sweep
-#         default: 0.2
-#         values: *SWEEP_VALUES
-  
-#   to_plot:
-#     - function: sns.lineplot
-#       data: !dag_result MSD
-#       color: blue
-#       label: cells
-#     - function: sns.lineplot
-#       data: !dag_result MSD_HCs
-#       color: orange
-#       label: hair cells
-#     - function: sns.lineplot
-#       data: !dag_result MSD_SCs
-#       color: green
-#       label: support cells
-
-#   x: time
-#   y: MSD
-
-#   helpers:
-#     set_limits:
-#       x: [0, *TIME_MAX]
-#       y: [0., 1.25]
-    
-# --- Average seeds, bifurcation diagram --------------------------------------
-
-cell_area: &Property
-  based_on:
-    - .default_style_and_helpers
-    - multiverse
-    - cell_property
-  
-  plot_func: errorbars
-  
-  select_and_combine:
-    fields:
-      cells:
-        path: data/PCPTopology/Statistics/Cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              time: &END_TIME 1
-      hair_cells:
-        path: data/PCPTopology/Statistics/Hair_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              time: *END_TIME
-      support_cells:
-        path: data/PCPTopology/Statistics/Support_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              time: *END_TIME
-      bulk_cells:
-        path: data/PCPTopology/Statistics/Bulk_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              time: *END_TIME
-      bulk_hair_cells:
-        path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              time: *END_TIME
-      bulk_support_cells:
-        path: data/PCPTopology/Statistics/Bulk_support_cell_stats
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              time: *END_TIME
-
-  property: area
-  average_dim: seed
-
-  to_plot: 
-    cells:
-      label: all cells
-    hair_cells:
-      label: hair cells
-    support_cells:
-      label: support cells
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average area
-
-cell_area_pref:
-  based_on: cell_area
-
-  property: area_preferential  
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average pref. area
-
-cell_shape:
-  based_on: cell_area
-
-  property: shape_index
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average shape index
-
-HC_neighbors:
-  <<: *Property
-
-  to_plot:
-    bulk_cells:
-      label: all cells (bulk)
-    bulk_hair_cells:
-      label: hair cells (bulk)
-    bulk_support_cells:
-      label: support cells (bulk)
-
-  property: num_hair_neighbors
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average hair cell neighbors
-
-neighbors:
-  based_on: HC_neighbors
-
-  property: num_neighbors
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average neighbors
-
-
-hexatic_order:
-  <<: *Property
-
-  to_plot: 
-    bulk_hair_cells:
-      label: hair cells (bulk)
-  
-  property: hexatic_order
-
-  helpers:
-    set_labels:
-      x: p0
-      y: average hexatic_order
+        values: *p0_Sweep_Values

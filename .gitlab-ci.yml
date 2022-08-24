@@ -3,7 +3,7 @@
 # ++ Pipeline preparations ++++++++++++++++++++++++++++++++++++++++++++++++++++
 variables:
   # Variables for docker images
-  BASE_IMAGE: julianweninger/aptopia:v1
+  BASE_IMAGE: julianweninger/aptopia:latest
 
   # Docker Hub login command
   DOCKER_HUB_LOGIN: docker login -u $DOCKER_USER -p $DOCKER_PW
@@ -57,7 +57,6 @@ workflow:
     name: "$CI_JOB_NAME"
     paths:
       - $CI_PROJECT_DIR/.config        # copied from ~/.config
-      - $CI_PROJECT_DIR/.cmake         # copied from ~/.cmake
       - $CI_PROJECT_DIR/build          # created in build stage
     expire_in: 3 hours
 
@@ -150,10 +149,8 @@ prep:framework:
     # Show available models
     - $RUN_IN_UTOPIA_ENV utopia models ls
 
-    # Carry over user config directory and CMake package registry (to have them
-    # available in artifacts)
+    # Carry over user config directory (to have them available in artifacts)
     - cp -r ~/.config $CI_PROJECT_DIR/
-    - cp -r ~/.cmake $CI_PROJECT_DIR/
 
 
 
@@ -170,7 +167,6 @@ build:all: &build
     # back into the home directory, where the frontend expects it.
     # In the same manner, place the cmake registry where it is expected.
     - &copy_config_to_home cp -r $CI_PROJECT_DIR/.config ~/
-    - &copy_cmake_reg_to_home cp -r $CI_PROJECT_DIR/.cmake ~/
   script:
     - cd $CI_PROJECT_DIR/build
     - make $MAKE_FLAGS_BUILD all
@@ -180,7 +176,6 @@ build:debug: &build_debug
   <<: *build
   before_script:
     - *copy_config_to_home
-    - *copy_cmake_reg_to_home
     - &fresh_build_dir rm -rf $CI_PROJECT_DIR/build && mkdir -p $CI_PROJECT_DIR/build
     - cd $CI_PROJECT_DIR/build
     - cmake
@@ -192,7 +187,6 @@ build:debug-clang:
   <<: *build_debug
   before_script:
     - *copy_config_to_home
-    - *copy_cmake_reg_to_home
     - *fresh_build_dir
     - cd $CI_PROJECT_DIR/build
     - cmake
@@ -234,7 +228,6 @@ test:models: &test_models
   needs: ['build:all']
   before_script:
     - *copy_config_to_home
-    - *copy_cmake_reg_to_home
     #
     # Need to install requirements again
     - $RUN_IN_UTOPIA_ENV pip install -r python/requirements.txt

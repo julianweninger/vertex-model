@@ -9,9 +9,6 @@ densities:
 
 protein_densities:
   based_on: protein_concentrations_per_cell
-  
-rosettes:
-  based_on: rosettes
 
 
 # Spatial CA animations .......................................................

@@ -103,8 +103,7 @@ displacement: !pspace
 
 diffusion_constant: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
   enabled: False
 
@@ -184,8 +183,7 @@ diffusion_constant: !pspace
 # Mapped to area
 area_mapped/neighbors: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv.map_stage
 
@@ -385,7 +383,6 @@ area_mapped/neighbors_w_data: !pspace
 
 area_mapped/coordination_number_errorbar: !pspace
   based_on:
-    - .default_style_and_helpers
     - multiverse
     - select_cells_properties_mv.map_stage
   enabled: False
@@ -789,8 +786,7 @@ area_mapped/hexatic_order_w_data: !pspace
 
 stage_mapped/coordination: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv.map_stage
     
@@ -871,8 +867,7 @@ stage_mapped/coordination: !pspace
 
 stage_mapped/coordination_violin: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv.map_stage
 
@@ -967,8 +962,7 @@ stage_mapped/coordination_violin: !pspace
 # The average cell area
 cell_properties/area: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   to_plot: 
@@ -1087,8 +1081,7 @@ cell_properties/HH_neighbors: !pspace
 edge_properties/min_length: !pspace
   enabled: False
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_edges_properties_mv
   to_plot: 
@@ -1119,6 +1112,5 @@ edge_properties/min_length: !pspace
 # A 2D representation of the cells by their edges
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
     - single_universe
