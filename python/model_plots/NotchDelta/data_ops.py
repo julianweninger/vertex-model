@@ -9,13 +9,8 @@ import xarray as xr
 import matplotlib as mpl
 import os
 
-from dantro.utils.data_ops import count_unique
 
-from utopya import DataManager, MultiverseGroup
-from utopya.plotting import is_plot_func, PlotHelper, MultiversePlotCreator
-from utopya.dataprocessing import transform
-
-from utopya.plot_funcs._basic import _errorbar
+from ..PCPTopology.data_ops import to_dataframe
 
 
 # Get a logger

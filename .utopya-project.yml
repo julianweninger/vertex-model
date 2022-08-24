@@ -1,0 +1,13 @@
+project_name: UtopiaVertexModel
+framework_name: Utopia
+paths:
+  models_dir: src/models
+  py_tests_dir: python/model_tests
+  py_plots_dir: python/model_plots
+metadata:
+  authors:
+    - Julian Weninger
+  description:  This projects contains an ABM implementation of a vertex model.
+  long_description:
+    The vertex-model can be operated through the Topology model, which triggers events, e.g. cell division, and orchestrates the mechanical relaxation in the vertex-model.
+    Several coupled models, e.g. Notch-Delta signalling and Planar Cell Polarity are proposed to develop a hierarchical representation of a biological tissue.

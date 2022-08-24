@@ -33,9 +33,9 @@ orientation: !pspace
   select_and_combine:
     fields:
         _angles:
-          path: data/BendSplay/orientations
+          path: data/BendSplay/Lattice/orientations
         x: 
-          path: data/BendSplay/coords_x
+          path: data/BendSplay/Lattice/coords_x
     subspace: *subspace_slice
 
   transform:
@@ -43,7 +43,7 @@ orientation: !pspace
       tag: flip
     - .where: [!dag_tag _angles, !dag_tag flip]
     - call_lambda:
-      - "lambda psi: xr.ufuncs.arctan2(xr.ufuncs.sin(psi).sum(dim='ids'), xr.ufuncs.cos(psi).sum(dim='ids'))"
+      - "lambda psi: np.arctan2(np.sin(psi).sum(dim='ids'), np.cos(psi).sum(dim='ids'))"
       - !dag_prev
     - import_and_call:
       args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
@@ -53,14 +53,14 @@ orientation: !pspace
       tag: not_flip
     - .where: [!dag_tag _angles, !dag_tag not_flip]
     - call_lambda:
-      - "lambda psi: xr.ufuncs.arctan2(xr.ufuncs.sin(psi).sum(dim='ids'), xr.ufuncs.cos(psi).sum(dim='ids'))"
+      - "lambda psi: np.arctan2(np.sin(psi).sum(dim='ids'), np.cos(psi).sum(dim='ids'))"
       - !dag_prev
     - import_and_call:
       args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]
       tag: angles_right
 
     - call_lambda:
-      - "lambda psi: xr.ufuncs.arctan2(xr.ufuncs.sin(psi).sum(dim='ids'), xr.ufuncs.cos(psi).sum(dim='ids'))"
+      - "lambda psi: np.arctan2(np.sin(psi).sum(dim='ids'), np.cos(psi).sum(dim='ids'))"
       - !dag_tag _angles
     - import_and_call:
       args: [model_plots.BendSplay.data_ops, to_dataframe, !dag_prev ]

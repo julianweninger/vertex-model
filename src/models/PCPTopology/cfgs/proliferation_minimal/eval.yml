@@ -4,96 +4,82 @@ energy:
   based_on: energy
 
 energy_continuous:
-  based_on: energy
-  model_name: PCPTopology/PCPVertex
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
 
 transitions:
-  based_on:
-    - universe
+  based_on: transitions
 
-  model_name: PCPTopology
-  module: model_plots.PCPTopology
-  plot_func: transitions
-
-  map_to_continuous_time: True
+transitions_cumulated:
+  based_on: transitions
+  cumsum_transitions: true
 
 transitions_continuous:
+  based_on: transitions_continuous
+  cumsum_transitions: true
+
+
+
+cell_properties:
   based_on:
+    - .plot.multiplot
     - universe
+    - select_cells_properties
+  enabled: False
 
-  model_name: PCPTopology/PCPVertex
-  module: model_plots.PCPTopology
-  plot_func: transitions
-  
-  map_to_discrete_time: True
-
-cell_area: &CELLAREA
-  based_on:
-    - .default_style_and_helpers
-    - cell_property
-
-  enabled: false
-  # WARNING: does not work with TimeSeriesGroup of flexible cell number
+  select:
+    property:
+      path: data/PCPTopology/Cells
 
   to_plot: 
-    cells:
+    - function: sns.lineplot
+      data: !dag_result all_cells
       label: all cells
-    hair_cells:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair_cells
       label: hair cells
-    support_cells:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
       label: support cells
+      ci: sd
 
-  transform:
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: area
-      tag: _property
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-      tag: _cell_kind
-
-    - .mean:
-      args: [!dag_tag _property, id]
-      tag: cells
-    - .std:
-      args: [!dag_tag _property, id]
-      tag: cells__std
+  x: time
 
   helpers:
     set_labels:
       x: time
+
+cell_properties/area:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , area]
+  y: area
+  helpers:
+    set_labels:
       y: average area
 
-cell_shape:
-  <<: *CELLAREA
 
-  transform:
-    - .sel: [!dag_tag _cells, {property: perimeter}]
-    - .sel: [!dag_tag _cells, {property: area_preferential}]
-    - pow: [!dag_node -1 , 0.5]
-    - div: [!dag_node -3, !dag_node -1]
-    - .rename: [!dag_prev , shape_index]
-      tag: _property
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-      tag: _cell_kind
-
-    - .mean:
-      args: [!dag_tag _property, id]
-      tag: cells
-    - .std:
-      args: [!dag_tag _property, id]
-      tag: cells__std
-
+cell_properties/shape:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
   helpers:
     set_labels:
-      x: time
       y: average shape index
+      
       
 equilibrium_cellular_structure:
   based_on: cellular_structure
@@ -102,9 +88,9 @@ cellular_structure:
   based_on: cellular_structure
   datapath: PCPTopology/PCPVertex
 
+
 cell_neighbourhood: !pspace
   based_on:
-    - .default_style_and_helpers
     - universe
     - _cell_neighbourhood
 

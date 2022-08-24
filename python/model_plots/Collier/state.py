@@ -6,23 +6,12 @@ import logging
 from typing import Union, Tuple, List
 import copy
 
-import scipy
 import math
 import numpy as np
 import xarray as xr
 import matplotlib as mpl
 
-import os
-
-import dantro.utils.data_ops as dops
-
-from dantro.plot_creators.ext_funcs.generic import facet_grid
-
-from utopya import DataManager, UniverseGroup, MultiverseGroup
-from utopya.plotting import is_plot_func, PlotHelper, MultiversePlotCreator
-from utopya.dataprocessing import transform
-
-from utopya.plot_funcs._basic import _errorbar
+from utopya.plotting import is_plot_func, PlotHelper
 
 
 # Get a logger

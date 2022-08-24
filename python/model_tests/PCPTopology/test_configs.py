@@ -87,7 +87,7 @@ def test_run_and_eval_cfgs():
                 }
             }
         },
-        'proliferation_minmal__by_generation': {
+        'proliferation_minimal__by_generation': {
             'num_steps': 2
         }
     })

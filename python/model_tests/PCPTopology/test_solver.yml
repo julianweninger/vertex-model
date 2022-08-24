@@ -19,7 +19,7 @@ run_kwargs:
 parameter_space:
   num_steps: 2
 
-  PCPTopology: !model
+  PCPTopology:
     model_name: PCPTopology
     
     initialisation:

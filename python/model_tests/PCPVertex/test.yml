@@ -1,7 +1,7 @@
 # The model configuration for the heterogeneous Savanna Model
 ---
 parameter_space:  
-  PCPVertex: !model
+  PCPVertex:
     model_name: PCPVertex
 
     space: 

@@ -1,8 +1,7 @@
 ---
 energy:
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - universe
 
   select:
@@ -81,7 +80,6 @@ energy:
 
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
 
   edge_property_path: PlanarCellPolarity/Proteins
@@ -132,7 +130,6 @@ cell_segmentation:
   
 cell_segmentation__elongation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
   enabled: true
 
@@ -148,7 +145,6 @@ cell_segmentation__elongation:
 
 cell_segmentation__cell_polarity:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
   enabled: false
 

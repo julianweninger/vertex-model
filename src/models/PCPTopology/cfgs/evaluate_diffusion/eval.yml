@@ -7,6 +7,7 @@ single_universe:
 _definitions:
   enabled: false
   T_eq: &T_eq 2000
+  T_eq_long: &T_eq_long 3000
 
   hue: &HUE dL
   subspace_slice: &subspace_slice
@@ -58,8 +59,9 @@ energy:
 
 # The energy at uniform numerical step distances
 energy_continuous:
-  based_on: [energy, single_universe]
-  model_name: PCPTopology/PCPVertex
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
   enabled: false
 
 # Number of T1 and T2 transitions
@@ -73,8 +75,7 @@ transitions_cumulated:
 
 diffusion_constant: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
 
   select_and_combine:
@@ -99,9 +100,9 @@ diffusion_constant: !pspace
     # the time coordinates
     - .coords: [!dag_tag displacement, time]
       tag: time
-    - create_mask: [!dag_prev , ">=", 1000]
+    - create_mask: [!dag_prev , ">=", *T_eq]
       tag: equilibrium_short
-    - create_mask: [!dag_tag time, ">=", 3000]
+    - create_mask: [!dag_tag time, ">=", *T_eq_long]
       tag: equilibrium
 
     # square displacement
@@ -176,8 +177,7 @@ displacement: !pspace
 # The average cell area
 cell_properties/area: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   enabled: false
@@ -305,8 +305,7 @@ cell_properties/HH_neighbors: !pspace
 
 shape_vs_dL: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   to_plot: 
@@ -407,6 +406,5 @@ HH_contacts_vs_Gamma: !pspace
 # A 2D representation of the cells by their edges
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
     - single_universe

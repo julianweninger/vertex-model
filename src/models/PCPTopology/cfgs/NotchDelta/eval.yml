@@ -4,15 +4,97 @@ energy:
   based_on: energy
 
 energy_continuous:
-  based_on: energy
-  model_name: PCPTopology/PCPVertex
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
       
+
+NotchDelta_densities:
+  based_on:
+    - .plot.multiplot
+    - universe
+
+  select:
+    _progenior: 
+      path: data/PCPTopology/NotchDelta/Densities/Progenitor
+      transform:
+        - .rename: [!dag_prev , density]
+    _support: 
+      path: data/PCPTopology/NotchDelta/Densities/Support
+      transform:
+        - .rename: [!dag_prev , density]
+    _hair: 
+      path: data/PCPTopology/NotchDelta/Densities/Hair
+      transform:
+        - .rename: [!dag_prev , density]
+    _rosettes: 
+      path: data/PCPTopology/NotchDelta/Densities/Rosettes
+      transform:
+        - .rename: [!dag_prev , density]
+
+  transform:
+    - import_and_call:
+      args: 
+        - model_plots.PCPTopology.data_ops
+        - to_dataframe
+        - !dag_tag _progenior
+      tag: progenior
+    - import_and_call:
+      args: 
+        - model_plots.PCPTopology.data_ops
+        - to_dataframe
+        - !dag_tag _support
+      tag: support
+    - import_and_call:
+      args: 
+        - model_plots.PCPTopology.data_ops
+        - to_dataframe
+        - !dag_tag _hair
+      tag: hair
+    - import_and_call:
+      args: 
+        - model_plots.PCPTopology.data_ops
+        - to_dataframe
+        - !dag_tag _rosettes
+      tag: rosettes
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result progenior
+      label: Progenitor
+      color: gray
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support
+      label: Support
+      color: black
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair
+      label: Hair
+      color: red
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result rosettes
+      label: Rosettes
+      color: violet
+      ci: sd
+
+  x: time
+  y: density
+
+  helpers:
+    set_labels:
+      x: time
+      y: density
+    set_limits:
+      y: [0, 1.]
+
 equilibrium_cellular_structure:
   based_on: cellular_structure
 
 cell_neighbourhood: !pspace
   based_on:
-    - .default_style_and_helpers
     - universe
     - _cell_neighbourhood
 
@@ -62,29 +144,3 @@ cell_neighbourhood: !pspace
       - support
       - support_hair
       - hair_hair
-
-NotchDelta_densities:
-  based_on: .basic_uni.lineplots
-  model_name: PCPTopology
-  file_ext: png
-
-  to_plot:
-    NotchDelta/Densities/Progenitor:
-      label: Progenitor
-      color: gray
-    NotchDelta/Densities/Support:
-      label: Support
-      color: black
-    NotchDelta/Densities/Hair:
-      label: Hair
-      color: red
-    NotchDelta/Densities/Rosettes:
-      label: Rosettes
-      color: violet
-
-  helpers:
-    set_labels:
-      x: time
-      y: density
-    set_limits:
-      y: [0,1.]

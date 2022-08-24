@@ -5,6 +5,9 @@ single_universe:
     seed: 0
     
 _definitions:
+  T_eq: &T_eq 200
+  T_eq_long: &T_eq_long 800
+
   enabled: false
   hue: &HUE dL
   subspace_slice: &subspace_slice
@@ -78,9 +81,10 @@ energy:
 
 # The energy at uniform numerical step distances
 energy_continuous:
-  based_on: [energy, single_universe]
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
   enabled: false
-  model_name: PCPTopology/PCPVertex
 
 # Number of T1 and T2 transitions
 transitions:
@@ -121,8 +125,7 @@ displacement: !pspace
 
 diffusion_constant: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
   enabled: False
 
@@ -149,9 +152,9 @@ diffusion_constant: !pspace
     # the time coordinates
     - .coords: [!dag_tag displacement, time]
       tag: time
-    - create_mask: [!dag_prev , ">=", 120]
+    - create_mask: [!dag_prev , ">=", *T_eq]
       tag: equilibrium_short
-    - create_mask: [!dag_tag time, ">=", 800]
+    - create_mask: [!dag_tag time, ">=", *T_eq_long]
       tag: equilibrium
 
     # square displacement
@@ -200,8 +203,7 @@ diffusion_constant: !pspace
 
 elongation_vs_shear: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   select_and_combine:
@@ -217,7 +219,7 @@ elongation_vs_shear: !pspace
             - !dag_node -1
           - .rename: [!dag_prev , elongation]
           - .coords: [!dag_prev , time]
-          - create_mask: [!dag_prev , ">=", 1500]
+          - create_mask: [!dag_prev , ">=", *T_eq_long]
           - .where: [!dag_node -3, !dag_node -1]
           - .mean: [!dag_prev , time]
     subspace: *subspace_slice_2
@@ -245,8 +247,7 @@ elongation_vs_shear: !pspace
 # The average cell area
 cell_properties/area: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   enabled: False  
@@ -370,8 +371,7 @@ cell_properties/HH_neighbors: !pspace
 
 edge_properties/min_length: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_edges_properties_mv
   enabled: False    
@@ -402,8 +402,7 @@ edge_properties/min_length: !pspace
 
 shape_vs_dL: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   to_plot: 
@@ -422,7 +421,7 @@ shape_vs_dL: !pspace
           - div: [!dag_node -3, !dag_node -1]
 
           - .coords: [!dag_prev , time]
-          - create_mask: [!dag_prev , '>=', 1500]
+          - create_mask: [!dag_prev , '>=', *T_eq_long]
           - .where: [!dag_node -3, !dag_prev ]
           - .mean: [!dag_prev , time]
           - .rename: [!dag_prev , shape_index]
@@ -450,7 +449,7 @@ pressure_vs_dL: !pspace
           - sub: [!dag_node -2, !dag_node -1]
 
           - .coords: [!dag_prev , time]
-          - create_mask: [!dag_prev , '>=', 1500]
+          - create_mask: [!dag_prev , '>=', *T_eq_long]
           - .where: [!dag_node -3, !dag_prev ]
           - .mean: [!dag_prev , time]
           - .rename: [!dag_prev , pressure]
@@ -470,7 +469,7 @@ HH_contacts_vs_dL: !pspace
           - .sel: [!dag_prev , {property: num_hair_neighbors}]
 
           - .coords: [!dag_prev , time]
-          - create_mask: [!dag_prev , '>=', 1500]
+          - create_mask: [!dag_prev , '>=', *T_eq_long]
           - .where: [!dag_node -3, !dag_prev ]
           - .mean: [!dag_prev , time]
           - .rename: [!dag_prev , num_hair_neighbors]
@@ -499,7 +498,7 @@ elongation_vs_dL: !pspace
           - .rename: [!dag_prev , elongation]
 
           - .coords: [!dag_prev , time]
-          - create_mask: [!dag_prev , '>=', 1500]
+          - create_mask: [!dag_prev , '>=', *T_eq_long]
           - .where: [!dag_node -3, !dag_prev ]
           - .mean: [!dag_prev , time]
           - .rename: [!dag_prev , elongation]
@@ -511,6 +510,5 @@ elongation_vs_dL: !pspace
 # A 2D representation of the cells by their edges
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
     - single_universe

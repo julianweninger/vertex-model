@@ -18,9 +18,10 @@ energy:
 
 # The energy at uniform numerical step distances
 energy_continuous:
-  based_on: [energy, single_universe]
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
   enabled: false
-  model_name: PCPTopology/PCPVertex
 
 # Number of T1 and T2 transitions
 transitions:
@@ -54,8 +55,7 @@ displacement: !pspace
 # The average cell area
 cell_properties/area: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   enabled: false
@@ -119,6 +119,5 @@ cell_properties/neighbors: !pspace
 # A 2D representation of the cells by their edges
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
     - single_universe

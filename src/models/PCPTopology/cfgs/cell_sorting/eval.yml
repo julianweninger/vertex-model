@@ -24,13 +24,6 @@ definitions:
   # second sweep dimension
   hue_name: &HUE_NAME initialisation
 
-  # reduce the direction dimension by mapping 'backward' direction to time < 0
-  map_directional_time: &map_directional_time
-    pass: [!dag_prev ]
-    # import_and_call:
-    # args: [model_plots.PCPTopology.data_ops, map_directional_time,
-    #        !dag_prev ]
-
   # slice to single sweep parameter
   subspace_slice: &subspace_slice
     case: !sweep
@@ -108,98 +101,35 @@ energy:
     <<: *subspace
 
 energy_edge_contractility:
-  based_on:
-    - .basic_uni.lineplots
-    - universe
-  enabled: False
-  universes:
-    <<: *subspace
-
-  model_name: PCPTopology
+  based_on: energy
 
   to_plot:
-    Energy/Edge_contractility:
-      label: edge contractility
-
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
+  - function: sns.lineplot
+    data: !dag_result edge_contractility
+    label: edge contractility
 
 transitions:
-  based_on: universe
+  based_on: transitions
   enabled: False
   universes:
     <<: *subspace
-
-  model_name: PCPTopology
-  module: model_plots.PCPTopology
-  plot_func: transitions
-
-  map_to_continuous_time: True
     
 
 # --- fluidity ----------------------------------------------------------------
-transitions_multiplot_over_time: !pspace
+transitions_multiplot: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - transitions_multiplot
     - multiverse
-
-  select_and_combine:
-    allow_missing_or_failing: True
-    fields:
-      _T1s:
-        path: data/PCPTopology/Energy/transitions
-        transform:
-          - .sel: [!dag_prev ]
-            kwargs:
-              property: num_T1s
-          - .rename: [!dag_prev , num_T1s]
-    subspace: *subspace_slice_hue
-
-  transform:
-    - define: [!dag_tag _T1s]
-    - *map_directional_time
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
-             {time: 3}]
-      kwargs: {center: True}
-    - .mean: [!dag_prev , time]
-    - .squeeze: [!dag_prev ]
-    - div: [!dag_prev , *NUM_CELLS]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: T1s
-
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result T1s
-      ci: sd
-
-  x: time
-  y: num_T1s
-  hue: *BIF_NAME
-
-  helpers:
-    set_labels:
-      x: time
-      y: average transitions
-    set_scales:
-      y: log
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [1.e-5, 1]
+    - select.mv.transitions
 
 
 # Cell properties from cell data ----------------------------------------------
-cell_properties/area: !pspace
+cell_properties: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
+  enabled: False
 
   to_plot:
     - function: sns.lineplot
@@ -219,67 +149,37 @@ cell_properties/area: !pspace
       ci: sd
 
   select_and_combine:
+    subspace: *subspace_slice
+
+  x: time
+
+  helpers:
+    set_labels:
+      x: time [$\tau_\lambda$]
+    set_limits:
+      x: [*TIME_MIN, *TIME_MAX]
+
+cell_properties/area: !pspace
+  based_on: cell_properties
+
+  select_and_combine:
     fields:
       _property:
         path: data/PCPTopology/Cells
         transform:
           - .sel: [!dag_prev , {property: area}]
           - .rename: [!dag_prev , area]
-    subspace: *subspace_slice
 
-  transform:
-    # stack the seeds
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
-             {ids: [seed, id]}]
-    - *map_directional_time
-    - .squeeze: [!dag_prev ]
-      tag: property
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: all_cells
-
-    # a mask to select only hair / support cells
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
-             {ids: [seed, id]}]
-    - *map_directional_time
-    - .squeeze: [!dag_prev ]
-      tag: cell_type
-    - create_mask: [!dag_tag cell_type, ==, 1]
-      tag: _hair_cells
-    - create_mask: [!dag_tag cell_type, ==, 2]
-      tag: _support_cells
-
-    # the data for hair cells
-    - .where: [!dag_tag property, !dag_tag _hair_cells]
-      tag: hair_cells_xarray
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: hair_cells
-    # the data for support cells
-    - .where: [!dag_tag property, !dag_tag _support_cells]
-      tag: support_cells_xarray
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: support_cells
-
-  x: time
   y: area
 
   helpers:
     set_labels:
-      x: time [$\tau_\lambda$]
       y: $\langle area \rangle$
     set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
       y: [0, 5.]
 
 cell_properties/shape: !pspace
-  based_on: cell_properties/area
+  based_on: cell_properties
   select_and_combine:
     fields:
       _property:
@@ -298,7 +198,7 @@ cell_properties/shape: !pspace
       y: [3.72, 4.3]
 
 cell_properties/HC_neighbors: !pspace
-  based_on: cell_properties/area
+  based_on: cell_properties
   select_and_combine:
     fields:
       _property:
@@ -314,7 +214,7 @@ cell_properties/HC_neighbors: !pspace
       y: [0., 3.2]
 
 cell_properties/neighbors: !pspace
-  based_on: cell_properties/area
+  based_on: cell_properties
   select_and_combine:
     fields:
       _property:
@@ -333,7 +233,6 @@ cell_properties/neighbors: !pspace
 # --- Cell segmentation ------------------------------------------------------
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - cellular_structure
   enabled: false
   universes:

@@ -11,7 +11,7 @@ set(UTOPIA_PYTHON_MODEL_PLOTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/model_plots
     CACHE STRING "the directory containing all python-based model plots" FORCE)
 
 # Register the existing models and associated frontend-related information
-register_models_with_frontend()
+register_models_with_utopya()
 
 
 # Tests .......................................................................

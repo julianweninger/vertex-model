@@ -2,31 +2,92 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
-densities:
-  based_on: .basic_uni.lineplots
-  model_name: Collier
+universe:
+  based_on:
+    - .defaults.style
+    - .creator.universe.all
   file_ext: png
 
+densities:
+  based_on:
+    - .plot.multiplot
+    - universe
+
+  select:
+    _progenior: 
+      path: data/Collier/Densities/Progenitor
+      transform:
+        - .rename: [!dag_prev , density]
+    _support: 
+      path: data/Collier/Densities/Support
+      transform:
+        - .rename: [!dag_prev , density]
+    _hair: 
+      path: data/Collier/Densities/Hair
+      transform:
+        - .rename: [!dag_prev , density]
+    _rosettes: 
+      path: data/Collier/Densities/Rosettes
+      transform:
+        - .rename: [!dag_prev , density]
+
+  transform:
+    - import_and_call:
+      args: 
+        - model_plots.Collier.data_ops
+        - to_dataframe
+        - !dag_tag _progenior
+      tag: progenior
+    - import_and_call:
+      args: 
+        - model_plots.Collier.data_ops
+        - to_dataframe
+        - !dag_tag _support
+      tag: support
+    - import_and_call:
+      args: 
+        - model_plots.Collier.data_ops
+        - to_dataframe
+        - !dag_tag _hair
+      tag: hair
+    - import_and_call:
+      args: 
+        - model_plots.Collier.data_ops
+        - to_dataframe
+        - !dag_tag _rosettes
+      tag: rosettes
+
   to_plot:
-    Densities/Progenitor:
+    - function: sns.lineplot
+      data: !dag_result progenior
       label: Progenitor
       color: gray
-    Densities/Support:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support
       label: Support
       color: black
-    Densities/Hair:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair
       label: Hair
       color: red
-    Densities/Rosettes:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result rosettes
       label: Rosettes
       color: violet
-      
+      ci: sd
+
+  x: time
+  y: density
+
   helpers:
     set_labels:
       x: time
       y: density
-    # set_limits:
-    #   y: [0,1.]
+    set_limits:
+      y: [0, 1.]
 
 protein_concentrations_per_cell:
   creator: universe
@@ -47,18 +108,8 @@ protein_concentrations_per_cell:
       ncols: 3
       scale_figsize_with_subplots_shape: True
 
-rosettes:
-  based_on: .dag.generic.facet_grid
-  creator: multiverse
-  file_ext: png
-
-  select_and_combine:
-    fields:
-      data: Densities/Rosettes
-    base_path: data/Collier
-
 rosettes_bifurcation:
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid.line
   creator: multiverse
   file_ext: png
 
@@ -137,7 +188,7 @@ state_anim:
     enabled: true
 
 heatmap_density: &heatmap_density
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid.line
   creator: multiverse
   # module: model_plots.Collier
   # plot_func: heatmap
@@ -175,7 +226,7 @@ heatmap_contacts:
 # Plot the size of the biggest cluster vs density
 # Multiverse plot with beta remapped to density
 percolation_diagram:
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid.line
   module: model_plots.Collier
   plot_func: percolation_diagram
   creator: multiverse
@@ -212,7 +263,7 @@ percolation_diagram:
       use_legend: true
 
 percolation_bifurcation:
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid.line
   module: model_plots.Collier
   plot_func: percolation_bifurcation
   creator: multiverse

@@ -90,25 +90,16 @@ energy:
   enabled: False
 
 energy_edge_contractility:
-  based_on:
-    - .basic_uni.lineplots
-    - single_universe
-
-  model_name: PCPTopology
+  based_on: energy
 
   to_plot:
-    Energy/Edge_contractility:
-      label: edge contractility
-
-  helpers:
-    set_labels:
-      x: time
-      y: energy [a.u.]
+  - function: sns.lineplot
+    data: !dag_result edge_contractility
+    label: edge contractility
 
 polarity_histplot: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
   
@@ -174,8 +165,7 @@ polarity_histplot: !pspace
 # --- fluidity ----------------------------------------------------------------
 transitions_multiplot_over_time: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
 
   select_and_combine:
@@ -227,8 +217,7 @@ transitions_multiplot_over_time: !pspace
 # Cell properties from cell data ----------------------------------------------
 cell_properties/area: !pspace
   based_on:
-    - .default_style_and_helpers
-    - .dag.multiplot
+    - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
 
@@ -494,7 +483,6 @@ cell_properties/polar_direction: !pspace
 # --- Cell segmentation ------------------------------------------------------
 cell_segmentation:
   based_on:
-    - .default_style_and_helpers
     - single_universe
     - cellular_structure
 

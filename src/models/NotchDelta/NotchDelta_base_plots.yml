@@ -2,44 +2,96 @@
 #
 # The configurations given here can be used in the <model_name>_plots.yml file
 ---
-densities:
-  based_on: .basic_uni.lineplots
-  model_name: NotchDelta
+universe:
+  based_on:
+    - .defaults.style
+    - .creator.universe.all
   file_ext: png
 
+densities:
+  based_on:
+    - .plot.multiplot
+    - universe
+
+  select:
+    _progenior: 
+      path: data/NotchDelta/Densities/Progenitor
+      transform:
+        - .rename: [!dag_prev , density]
+    _support: 
+      path: data/NotchDelta/Densities/Support
+      transform:
+        - .rename: [!dag_prev , density]
+    _hair: 
+      path: data/NotchDelta/Densities/Hair
+      transform:
+        - .rename: [!dag_prev , density]
+    _rosettes: 
+      path: data/NotchDelta/Densities/Rosettes
+      transform:
+        - .rename: [!dag_prev , density]
+
+  transform:
+    - import_and_call:
+      args: 
+        - model_plots.NotchDelta.data_ops
+        - to_dataframe
+        - !dag_tag _progenior
+      tag: progenior
+    - import_and_call:
+      args: 
+        - model_plots.NotchDelta.data_ops
+        - to_dataframe
+        - !dag_tag _support
+      tag: support
+    - import_and_call:
+      args: 
+        - model_plots.NotchDelta.data_ops
+        - to_dataframe
+        - !dag_tag _hair
+      tag: hair
+    - import_and_call:
+      args: 
+        - model_plots.NotchDelta.data_ops
+        - to_dataframe
+        - !dag_tag _rosettes
+      tag: rosettes
+
   to_plot:
-    Densities/Progenitor:
+    - function: sns.lineplot
+      data: !dag_result progenior
       label: Progenitor
       color: gray
-    Densities/Support:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result support
       label: Support
       color: black
-    Densities/Hair:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result hair
       label: Hair
       color: red
-    Densities/Rosettes:
+      ci: sd
+    - function: sns.lineplot
+      data: !dag_result rosettes
       label: Rosettes
       color: violet
-      
+      ci: sd
+
+  x: time
+  y: density
+
   helpers:
     set_labels:
       x: time
       y: density
     set_limits:
-      y: [0,1.]
+      y: [0, 1.]
 
-rosettes:
-  based_on: .dag.generic.facet_grid
-  creator: multiverse
-  file_ext: png
-
-  select_and_combine:
-    fields:
-      data: Densities/Rosettes
-    base_path: data/NotchDelta
 
 rosettes_bifurcation:
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid
   creator: multiverse
   file_ext: png
 
@@ -121,7 +173,7 @@ state_anim:
     enabled: true
 
 heatmap_density: &heatmap_density
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid
   creator: multiverse
   # module: model_plots.NotchDelta
   # plot_func: heatmap
@@ -159,7 +211,7 @@ heatmap_contacts:
 # Plot the size of the biggest cluster vs density
 # Multiverse plot with beta remapped to density
 percolation_diagram:
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid
   module: model_plots.NotchDelta
   plot_func: percolation_diagram
   creator: multiverse
@@ -172,15 +224,9 @@ percolation_diagram:
     base_path: data/NotchDelta/CM
 
   transform:
-    - .isel:
-      args: [!dag_tag _cells]
-      kwargs:
-        time: -1
+    - .isel: [!dag_tag _cells, {time: -1}]
       tag: cells
-    - .isel:
-      args: [!dag_tag _cluster_id]
-      kwargs:
-        time: -1
+    - .isel: [!dag_tag _cluster_id, {time: -1}]
       tag: cluster_id
 
   marker: '.'
@@ -196,7 +242,7 @@ percolation_diagram:
       use_legend: true
 
 percolation_bifurcation:
-  based_on: .dag.generic.facet_grid
+  based_on: .plot.facet_grid
   module: model_plots.NotchDelta
   plot_func: percolation_bifurcation
   creator: multiverse
@@ -212,16 +258,9 @@ percolation_bifurcation:
     base_path: data/NotchDelta/CM
 
   transform:
-    - .isel:
-      args: [!dag_tag _cells]
-      kwargs:
-        time: -1
+    - .isel: [!dag_tag _cells, {time: -1}]
       tag: cells
-    - .isel:
-      args: [!dag_tag _cluster_id]
-      kwargs:
-        time: -1
-          
+    - .isel: [!dag_tag _cluster_id, {time: -1}]
       tag: cluster_id
 
 bifurcation: &bifurcation

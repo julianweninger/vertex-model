@@ -24,7 +24,7 @@ RUN apt-get upgrade -y
 # Update Utopia itself, reconfigure, and build
 WORKDIR /home/utopia/utopia
 
-ARG UTOPIA_BRANCH="v1"
+ARG UTOPIA_BRANCH="master"
 RUN git config --global http.sslverify false
 RUN    git checkout ${UTOPIA_BRANCH} \
     && git pull
