@@ -4,7 +4,7 @@
 # and sets it up in working condition.
 # =============================================================================
 
-ARG BASE_IMAGE="ubuntu:20.04"
+ARG BASE_IMAGE="ubuntu:22.04"
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="Julian Weninger <julian.weninger@unige.ch>"
