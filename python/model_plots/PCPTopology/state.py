@@ -590,11 +590,15 @@ def histogram_plot(
             d = hist.loc[hist[groupby] == grp]
             for N in y_ticks:
                 boxes.append(
-                    Rectangle((x_to_locx(grp), N - y_min - 0.5),
-                            width=sign*min(d[N].values[0], 0.975), height=1)
+                    Rectangle(
+                        (x_to_locx(grp), N - y_min - 0.5),
+                        width=sign*min(d[N].values[0], 0.975),
+                        height=1,
+                        ls='', lw=None
+                    )
                 )
 
-        pc = PatchCollection(boxes, color=color)
+        pc = PatchCollection(boxes, facecolor=color, edgecolor='None')
         hlpr.ax.add_collection(pc)
 
 
@@ -637,15 +641,15 @@ def histogram_plot(
         if label_split is None:
             label_split = data_tag_split
         legend_elements = [
-            mpl.patches.Patch(facecolor=color, edgecolor=color, label=label),
-            mpl.patches.Patch(facecolor=color_split, edgecolor=color_split,
+            mpl.patches.Patch(facecolor=color, edgecolor='None', label=label),
+            mpl.patches.Patch(facecolor=color_split, edgecolor='None',
                               label=label_split)
         ]
         hlpr.ax.legend(handles=legend_elements, loc='upper left')
     elif label is not None:
         legend_elements = [
-            mpl.patches.Patch(facecolor=color, edgecolor=color, label=label),
-            mpl.patches.Patch(facecolor=color_split, edgecolor=color_split,
+            mpl.patches.Patch(facecolor=color, edgecolor='None', label=label),
+            mpl.patches.Patch(facecolor=color_split, edgecolor='None',
                               label=label_split)
         ]
         hlpr.ax.legend(handles=legend_elements, loc='upper left')
