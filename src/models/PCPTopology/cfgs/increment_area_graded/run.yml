@@ -23,7 +23,7 @@ parameter_space:
 
   seed: !sweep
     default: 42
-    range: [2]
+    range: [1]
     order: -1
 
   PCPTopology:

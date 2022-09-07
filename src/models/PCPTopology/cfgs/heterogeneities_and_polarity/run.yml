@@ -33,7 +33,7 @@ parameter_space:
 
   seed: !sweep
     default: 42
-    range: [16]
+    range: [1]
     order: !expr -np.inf
 
   PCPTopology:
