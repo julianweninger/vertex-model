@@ -438,6 +438,12 @@ private:
      */
     double _pMLC_contractility;
 
+    /// The adaptivity of cell polarity to mechanical forcing
+    /** The integration constant (gamma) for update of cell polarity
+     *  F_\phi = gamma * dt * dE / d\phi
+     */
+    double _polarity_adaptivity;
+
     /// The timescale and amplitude of fluctuations on HC intrinsic polarity
     /** Implemented as Ornstein-Uhlenbeck process    
      */
@@ -891,6 +897,7 @@ public:
             get_as<bool>("apical_edge_contractility", this->_cfg, false)),
         _ppMLC_contractility(std::make_tuple(0., SpaceVec({1., 0.}), false)),
         _pMLC_contractility(0.),
+        _polarity_adaptivity(0.),
         _polarity_fluctuations(
             _default_minimization_params.polarity_fluctuations),
         _area_fluctuations(
@@ -2715,8 +2722,9 @@ public:
                                          2);
     }
 
-    void set_pMLC_contractility (double pMLC) {
+    void set_pMLC_contractility (double pMLC, double adaptivity) {
         _pMLC_contractility = pMLC;
+        _polarity_adaptivity = adaptivity;
     }
 
     double get_pMLC_contractility (const std::shared_ptr<Edge>& edge) const {

@@ -29,11 +29,11 @@ worker_manager:
   #         seconds: 0.1 # !expr 60*40  
 
 parameter_space:
-  num_steps: 500
+  num_steps: 200
 
   seed: !sweep
     default: 42
-    range: [8]
+    range: [16]
     order: !expr -np.inf
 
   PCPTopology:
@@ -41,12 +41,7 @@ parameter_space:
       periodic: false
 
     initialisation:
-      1_by_proliferation:
-        iterations_prolog: 0
-        num_generations: 0
-        minimization_between_generations: ~
-        minimization:
-          num_repeat: 1
+      1_by_proliferation: {enabled: False}
 
     # The sequence of operations
     operations:
@@ -60,9 +55,9 @@ parameter_space:
               - 0.
               # - 5.e-3
               # - 1.e-2
-              - 2.e-2
-              # - 6.e-2
-              # - 1.e-1
+              # - 2.e-2
+              # - 4.e-2
+              - 6.e-2
           deform_plastic: True
           minimization:
             mode: manual
@@ -110,25 +105,15 @@ parameter_space:
           ppMLC_curved_axis: True
 
           set_pMLC: &pMLC 0.1
+          polarity_adaptivity: !sweep
+            name: adapt
+            default: 1
+            values: [-10, 10]
           reset_HC_polarity: [False, 0.]
           reset_HC_polarity_shuffle: 3.1415
           
           minimization:
             mode: manual
-
-
-      # Introduce polarity
-      # - increment_edge_contractility:
-      #     times: []
-
-      #     set_ppMLC: 0.
-      #     set_ppMLC_angle: 0.
-
-      #     set_pMLC: *pMLC
-      #     reset_HC_polarity: [False, 0.]
-          
-      #     minimization:
-      #       mode: manual
 
       - jiggle:
           times: !listgen [1, 501]
@@ -136,16 +121,6 @@ parameter_space:
             linetension_fluctuation: 0.0001
             linetension_fluctuation_tau: 24
             num_repeat: 24
-
-      # - jiggle:
-      #     times: !listgen [100, 10001]
-      #     minimization:
-      #       linetension_fluctuation: !sweep
-      #         name: dL
-      #         default: 0.06
-      #         values: [0.06]  
-      #       linetension_fluctuation_tau: &tau_dL_ 1000
-      #       num_repeat: *tau_dL_
 
     # --- Dynamics
     # Minimization parameter
@@ -191,7 +166,7 @@ parameter_space:
         setup_params:
           hexagonal:
             # HC_structure: ratio_1_to_2
-            lattice_rows: 10
+            lattice_rows: 12
             lattice_columns: 24
       
       T1_barrier: 1.e-2
@@ -235,9 +210,10 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0  ,  50, 5]
-              - [50  ,  100, 10]
-              - [100  ,  1001, 50]
+              - [  0,    10,  1]
+              - [ 10,    50,  5]
+              - [ 50,   100, 10]
+              - [100,  1001, 50]
       triggers:
         build_interval: *interval
       tasks:
