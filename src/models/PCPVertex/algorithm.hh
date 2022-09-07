@@ -297,7 +297,7 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
  
     apply_rule<Update::sync>(update_position, _am.vertices());
 
-    if (std::get<1>(_polarity_fluctuations) > 1.e-12) {
+    if (minimize_polarity()) {
         apply_rule<Update::sync>(
             [this](const auto& cell) {
                 auto state = cell->state;
@@ -306,12 +306,26 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
                     return state;
                 }
 
-                state._polarity = std::fmod(  state._polarity
-                                            + state.polarity_torque * _dt
-                                            + 2 * M_PI,
-                                            2 * M_PI);
+                double gamma = _polarity_adaptivity * _dt;
+                double p1 = state._polarity + state.polarity_torque * gamma;
 
-                auto [tau, dP] = this->_polarity_fluctuations;        
+                state._polarity = std::fmod(p1 + 2 * M_PI, 2 * M_PI);
+
+                return state;
+            },
+            _am.cells()
+        );
+    }
+    if (std::get<1>(_polarity_fluctuations) > 1.e-12) {
+        apply_rule<Update::sync>(
+            [this](const auto& cell) {
+                auto state = cell->state;
+                if (state.fix_polarity)
+                {
+                    return state;
+                }
+
+                auto [tau, dP] = this->_polarity_fluctuations;
                 double rand_p = (  dP * sqrt(2. * _dt / tau)
                                  * _normal_distr(*this->_rng));
 
@@ -319,25 +333,6 @@ double PCPVertex::steepest_gradient_step (bool adaptive_step)
                       state._polarity_fluctuations
                      + rand_p
                      - _dt / tau * state._polarity_fluctuations);
-
-                return state;
-            },
-            _am.cells()
-        );        
-    }
-    else if (minimize_polarity()) {
-        apply_rule<Update::sync>(
-            [this](const auto& cell) {
-                auto state = cell->state;
-                if (state.fix_polarity or fabs(state.polarity_torque) < 1.e-12)
-                {
-                    return state;
-                }
-
-                state._polarity = std::fmod(  state._polarity
-                                            + state.polarity_torque * _dt
-                                            + 2 * M_PI,
-                                            2 * M_PI);
 
                 return state;
             },

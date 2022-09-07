@@ -43,22 +43,13 @@ def test_run_and_eval_cfgs():
         }
     })
     debug_params=dict({
-        'evaluate_diffusion': {
-            'num_seeds': 2
-        },
         'evaluate_shear_thinning': {
-            'num_seeds': 2,
             'num_steps': 1
         },
-        'increment_area': {
-            'num_seeds': 2,
-        },
         'increment_area_graded': {
-            'num_seeds': 2,
             'num_steps': 1
         },
         'heterogeneities_and_polarity': {
-            'num_seeds': 2,
             'PCPTopology': {
                 'PCPVertex': {
                     'agent_manager': {
@@ -102,34 +93,41 @@ def test_run_and_eval_cfgs():
         params = recursive_update(deepcopy(_params),
                                   deepcopy(debug_params.get(cfg_name, dict())))
 
-        print("With updated config {}", params)
+        print("  With update config {}".format(params))
         
-        class AlarmException(Exception):
-            pass
+                
+        # Run multiverse with a timeout of 120 seconds
+        timeout = 120
+        def timeout_handler(signum, frame):
+            print("Aborting test of '{}' after {} seconds. "
+                  "Timeout reached!".format(cfg_name, timeout))
+            raise RuntimeError(
+                "Aborting test of '{}' after {} seconds. "
+                "Timeout reached!".format(cfg_name, timeout))
 
-        def alarmHandler(signum, frame):
-            raise AlarmException
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout)
 
-        # Raise timeout after 120 seconds
-        signal.signal(signal.SIGALRM, alarmHandler)
-        signal.alarm(120)
         
-        try:
-            mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
-                                        plot_manager={'raise_exc': True},
-                                        parameter_space=params
-                                        )
-        except AlarmException:
-            print("Aborting test of '{}' after 2 minutes.")
-            raise AlarmException
+        mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
+                                    plot_manager={'raise_exc': True},
+                                    parameter_space=params
+                                    )
+    
+        # Evaluate multiverse with a timeout of 60 seconds
+        timeout = 120
+        def timeout_handler(signum, frame):
+            print("Aborting test of '{}' after {} seconds. "
+                  "Timeout reached!".format(cfg_name, timeout))
+            raise RuntimeError(
+                "Aborting test of '{}' after {} seconds. "
+                "Timeout reached!".format(cfg_name, timeout))
+
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout)
         
-        signal.alarm(60)
-        
-        try:
-            mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
-        except AlarmException:
-            print("Aborting plotting-test of '{}' after 2 minutes.")
-            raise AlarmException
+        mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+
 
         signal.alarm(0)
 

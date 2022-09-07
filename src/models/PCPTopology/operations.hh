@@ -1377,6 +1377,7 @@ OperationBundle build_increment_edge_contractility (
     bool ppMLC_curved_axis(get_as<bool>("ppMLC_curved_axis", cfg, false));
 
     double pMLC(get_as<double>("set_pMLC", cfg, 0.));
+    double adaptivity(get_as<double>("polarity_adaptivity", cfg, 1));
     auto reset_HC_polarity(get_as<std::pair<bool, double>>(
         "reset_HC_polarity", cfg, std::make_pair(false, -M_PI_2)));
     std::size_t reset_HC_polarity_antispin_nshift = get_as<std::size_t>(
@@ -1415,7 +1416,7 @@ OperationBundle build_increment_edge_contractility (
                            incr_hair_hair, incr_hair_supp, incr_supp_supp,
                            incr_prog_bnd, incr_hair_bnd, incr_supp_bnd,
                            ppMLC, ppMLC_axis, ppMLC_curved_axis, pMLC,
-                           reset_HC_polarity, 
+                           adaptivity, reset_HC_polarity, 
                            reset_HC_polarity_antispin_nshift,
                            reset_HC_polarity_antispin_n,
                            reset_HC_polarity_shuffle]
@@ -1458,7 +1459,7 @@ OperationBundle build_increment_edge_contractility (
 
         vertex_model.set_ppMLC_contractility(ppMLC, ppMLC_axis,
                                              ppMLC_curved_axis);
-        vertex_model.set_pMLC_contractility(pMLC);
+        vertex_model.set_pMLC_contractility(pMLC, adaptivity);
 
         if (std::get<bool>(reset_HC_polarity)) {
             const auto& cells = vertex_model.get_am().cells();
