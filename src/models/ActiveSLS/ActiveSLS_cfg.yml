@@ -1,0 +1,30 @@
+# The model configuration for the AdaptiveJunctionContraction model
+---
+# --- Space
+# The physical space this model is embedded in
+space:
+  periodic: false
+
+# --- Initialization parameters
+length: 1.
+activity: 1.
+
+# --- Dynamics
+external_tension: 0.5
+
+target_length: 1.
+
+tau_activation: 1000
+activation_rate: 1.
+activation_rate_slope: !expr 2. / 0.3
+threshold_tension: 0.3
+
+dissipation_tau: 100
+
+maxwell_stiffness: 1.
+maxwell_tau_viscous: 1000
+spring_constant: 0.2
+spring_restlength: 1.
+
+active_tension: 2.5
+background_activity: 0.5

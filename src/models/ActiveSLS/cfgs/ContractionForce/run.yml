@@ -1,0 +1,17 @@
+---
+perform_sweep: True
+paths:
+  model_note: default__ContractionForce
+
+parameter_space:
+  num_steps: 0
+  ActiveSLS:
+    external_tension: !sweep
+      default: 0.01
+      linspace: [0, 1, 51]
+      name: T_ext
+
+    active_tension: !sweep
+      default: 0.2
+      linspace: [0., 5., 51]
+      name: beta
