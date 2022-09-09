@@ -1,0 +1,41 @@
+---
+state:
+  based_on: state.universe
+  enabled: False
+
+response_curve:
+  based_on:
+    - .creator.multiverse
+    - .plot.multiplot
+  file_ext: png
+
+  select_and_combine:
+    fields:
+      u: 
+        path: junction
+        transform: 
+          - .sel: [!dag_node -1, {property: length}]
+          - .sel: [!dag_node -2, {property: target_length}]
+          - sub: [!dag_node -2, !dag_node -1]
+          - .rename: [!dag_prev , u]
+      m:
+        path: activity
+        transform: 
+          - .rename: [!dag_prev , m]
+
+  transform:
+    - xr.Dataset: 
+        data_vars:
+          u: !dag_tag u
+          m: !dag_tag m
+    - .to_dataframe: [!dag_prev ]
+    - print: [!dag_prev ]
+      tag: data
+
+    
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result data
+      x: m
+      y: u
+      hue: B

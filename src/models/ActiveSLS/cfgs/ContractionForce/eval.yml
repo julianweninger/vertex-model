@@ -1,0 +1,36 @@
+---
+Heatmap_ContractionForce:
+  based_on:
+    - .creator.multiverse
+    - .plot.multiplot
+
+  select_and_combine:
+    fields:
+      data:
+        path: tension
+        transform:
+          - call_lambda:
+            - "lambda data: data.attrs['maximum_barrier_height'][0]"
+            - !dag_prev
+
+  x: T_ext
+  y: beta
+  
+  to_plot:
+    - function: [xarray.plot, contourf]
+      args:
+        - !dag_result data
+      levels: 51
+      cmap: seismic
+    - function: [xarray.plot, contour]
+      args:
+        - !dag_result data
+      levels: 11
+      colors: k
+
+  helpers:
+    set_title:
+      title: max. barrier height
+    set_labels:
+      x: $T_{ext} \ [ka]$
+      y: $\beta \ [ka]$
