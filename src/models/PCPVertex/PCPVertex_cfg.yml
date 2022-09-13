@@ -22,6 +22,18 @@ space:
   periodic: true
 
 # --- Initialization parameters
+work_function_terms:
+- linetension:
+    linetension: 0.1
+- edge_contractility:
+    contractility: 0.01
+- area_elasticity:
+    elastic_modulus: 1
+    preferential_area: 1
+- cell_contractility:
+    contractility: 1.
+    preferential_perimeter: 3.72
+
 agent_manager:
   setup_method: hexagonal
   setup_params:
@@ -29,46 +41,31 @@ agent_manager:
       size: !expr (2 / 3**1.5)**0.5
     hexagonal:
       hexagon_size: !expr (2 / 3**1.5)**0.5
-      hexagon_shape: pointy_top
-      # NOTE either pointy_top or flat_top
-      lattice_rows: 4
-      lattice_columns: 4
+      hexagon_shape: pointy_top            # NOTE either pointy_top or flat_top
+      lattice_rows: 16
+      lattice_columns: 16
     column:
       size: 1.
       height: 1.
       num_cells: 8
       offset: 1.
   vertex_manager: ~
-
-  edge_manager:
-    agent_params:
-      linetension: 0.1
-      contractility: 0.02
-
+  edge_manager: ~
   cell_manager:
     agent_params:
-      area_preferential: 1.
-      area_preferential_var: 0.
-      shape_index_preferential: 3.6
-      contractility: 1.
-      cell_type: progenitor
+      type: 0
 
-initial_jiggle: 0.01
+initial_jiggle: 1.e-1
 
 # --- Dynamics
 # damping factor
 minimization:
-  dt: 0.01                      # only used with fixed step size
+  dt: 0.001                      # only used with fixed step size
   tolerance: 1e-8               # only used with adaptive steps size
   update_scheme: steepest_gradient
   max_steps: 10000000000000
   temperature: 0.001
 # can be steepest_gradient, steepest_gradient_adaptive, conjugate_gradient
-
-area_elasticity: 1.
-cell_shape_implementation: contractile
-# can be contractile or shape_elastic
-# shape index normalization is to cell area and target cell area, resp.
 
 boundary_parameter:
   area_elasticity: 0.
@@ -82,6 +79,8 @@ T1_probability: 1.
 T1_barrier: 0.02
 T2_threshold: 0.0075
 
+Energy_buffer_size: 10
+
 # --- Data manager
 data_manager:
   # this builds the deciders
@@ -93,7 +92,7 @@ data_manager:
       type: interval
       args:
         intervals:
-          - [0, 1000000, 5]
+          - [0, 1000000, 100]
 
     write_at_last:
       type: once
@@ -127,31 +126,14 @@ data_manager:
   
   # these are the datasets written
   tasks:
-    Energy_total: &energy
+    Energy: &write_always
       active: true
       trigger: build_once
       decider: write_always
-    Energy_linetension: *energy
-    Energy_areaelasticity: *energy
-    Energy_cell_contractility: *energy
-    Energy_edge_contractility: *energy
-    Energy_boundary_area_elasticity: *energy
-    Energy_boundary_shape_elasticity: *energy
-    Energy_time: *energy
+    Energy_time: *write_always
 
-    transitions: *energy
-
-    Cell_stats: &Statistics
-      active: true
-      trigger: build_once
-      decider: write_always
-    Hair_cell_stats: *Statistics
-    Support_cell_stats: *Statistics
-    Bulk_cell_stats: *Statistics
-    Bulk_hair_cell_stats: *Statistics
-    Bulk_support_cell_stats: *Statistics
-    Interface_length: *Statistics
-    Statistics_time: *Statistics
+    Transitions: *write_always
+    Interface_length: *write_always
 
     Vertices: &agents
       active: true

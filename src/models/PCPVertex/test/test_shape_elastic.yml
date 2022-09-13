@@ -1,5 +1,17 @@
 ---
 PCPVertex:
+  work_function_terms:
+  - linetension:
+      linetension: 0.1
+  - edge_contractility:
+      contractility: 0.02
+  - area_elasticity:
+      elastic_modulus: 1
+      preferential_area: 1
+  - cell_contractility:
+      contractility: 1.
+      preferential_perimeter: 3.6
+      
   T1_barrier: 0.02
   T1_probability: 1.0
   T1_separation_factor: 1.05
@@ -45,6 +57,7 @@ PCPVertex:
   space:
     extent: [1.0, 1.0]
     periodic: false
+  Energy_buffer_size: 20
 log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 0

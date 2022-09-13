@@ -3,7 +3,6 @@
 #include <utopia/data_io/data_manager/defaults.hh>
 
 #include "PCPVertex.hh"
-#include "energy.hh"
 #include "algorithm.hh"
 #include "operations.hh"
 #include "PCPVertex_write_tasks.hh"
@@ -23,24 +22,13 @@ auto model_factory(ParentType &parent) {
     return PCPVertex("PCPVertex", parent, {}, std::make_tuple(
         // the energy adaptors
         time_energy_adaptor, energy_adaptor,
-        linetension_adaptor, areaelasticity_adaptor,
-        cell_contractility_adaptor, edge_contractility_adaptor,
-        boundary_area_elasticity_adaptor, boundary_shape_elasticity_adaptor,
         // transition adaptors
         transition_adaptor,
         // statistics
-        statistics_time_adaptor,
-        cell_stats_adaptor<typename PCPVertex::Cell>,
-        hair_cell_stats_adaptor<typename PCPVertex::Cell>,
-        support_cell_stats_adaptor<typename PCPVertex::Cell>,
-        bulk_cell_stats_adaptor<typename PCPVertex::Cell>,
-        bulk_hair_cell_stats_adaptor<typename PCPVertex::Cell>,
-        bulk_support_cell_stats_adaptor<typename PCPVertex::Cell>,
         interface_length_adaptor,
         // the position adaptors
         vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
-        cells_adaptor<typename PCPVertex::Space::SpaceVec,
-                      typename PCPVertex::CellType>,
+        cells_adaptor<typename PCPVertex::Space::SpaceVec>,
         edges_adaptor<typename PCPVertex::Space::SpaceVec>,
         cell_energies_adaptor, edge_energies_adaptor
         ),

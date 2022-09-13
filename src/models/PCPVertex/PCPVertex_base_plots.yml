@@ -15,30 +15,12 @@ multiverse:
 
 select.uni.energy_terms:
   select:
-    total: 
-      path: data/PCPVertex/Energy/Total
-      transform: &transform_energy_to_dataframe
+    energy: 
+      path: data/PCPVertex/Energy/Terms
+      transform:
         - .rename: [!dag_prev , energy]
         - import_and_call:
           args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
-    line_tension: 
-      path: data/PCPVertex/Energy/Linetension
-      transform: *transform_energy_to_dataframe
-    area_elasticity: 
-      path: data/PCPVertex/Energy/Areaelasticity
-      transform: *transform_energy_to_dataframe
-    cell_contractility: 
-      path: data/PCPVertex/Energy/Cell_contractility
-      transform: *transform_energy_to_dataframe
-    edge_contractility: 
-      path: data/PCPVertex/Energy/Edge_contractility
-      transform: *transform_energy_to_dataframe
-    boundary_area_elasticity: 
-      path: data/PCPVertex/Energy/Boundary_area_elasticity
-      transform: *transform_energy_to_dataframe
-    boundary_shape_elasticity: 
-      path: data/PCPVertex/Energy/Boundary_shape_elasticity
-      transform: *transform_energy_to_dataframe
 
 _energy:
   based_on:
@@ -46,6 +28,7 @@ _energy:
 
   x: time
   y: energy
+  hue: term
 
   helpers:
     set_labels:
@@ -60,57 +43,42 @@ energy:
 
   to_plot:
   - function: sns.lineplot
-    data: !dag_result total
-    label: total
-  - function: sns.lineplot
-    data: !dag_result line_tension
-    label: line tension
-  - function: sns.lineplot
-    data: !dag_result area_elasticity
-    label: area elasticity
-  - function: sns.lineplot
-    data: !dag_result cell_contractility
-    label: cell contractility
-  - function: sns.lineplot
-    data: !dag_result edge_contractility
-    label: edge contractility
-    
-energy_boundary:
-  based_on:
-    - universe
-    - _energy
-    - select.uni.energy_terms
-
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result total
-      label: total
-    - function: sns.lineplot
-      data: !dag_result line_tension
-      label: line tension
-    - function: sns.lineplot
-      data: !dag_result area_elasticity
-      label: area elasticity
-    - function: sns.lineplot
-      data: !dag_result cell_contractility
-      label: cell contractility
-    - function: sns.lineplot
-      data: !dag_result edge_contractility
-      label: edge contractility
-    - function: sns.lineplot
-      data: !dag_result boundary_area_elasticity
-      label: boundary area elasticity
-    - function: sns.lineplot
-      data: !dag_result boundary_shape_elasticity
-      label: boundary shape elasticity
+    data: !dag_result energy
 
 transitions:
   based_on:
     - universe
+    - .plot.multiplot
+    - select.uni.energy_terms
 
-  model_name: PCPVertex
-  module: model_plots.PCPVertex
-  plot_func: transitions
+  select:
+    transitions: 
+      path: data/PCPVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+
+  x: time
+
+  to_plot:
+    [0, 0]:
+    - function: sns.lineplot
+      data: !dag_result energy
+      hue: term
+      y: energy
+
+    [1, 0]:
+    - function: sns.lineplot
+      data: !dag_result transitions
+      y: transitions
+
+  helpers:
+    setup_figure:
+      ncols: 2
+      constrained_layout: True
+    set_labels:
+      x: time
 
 
 
@@ -207,7 +175,7 @@ cellular_structure:
   datapath: PCPVertex
   cfgpath: PCPVertex
 
-  plot_vertices: false
+  plot_vertices: False
   cell_marker_size: 40
 
   helpers:

@@ -5,43 +5,45 @@
 
 namespace Utopia::Models::PCPVertex {
 
-/// The Vertex
-struct VertexState {
+/// The state of a Vertex
+class VertexState {
+public:
     using SpaceVec = Utopia::SpaceVecType<2>;
 
+private:
     /// The steepest gradient slope
-    /** \f$ f = - \nabla V (r_0) \f$ with \f$r_0\f$ the position of this vertex 
-     */
     SpaceVec f;
 
-    /// Conjugate gradient
-    SpaceVec g;
-
-    /// Direction of update (conjugate gradient)
-    SpaceVec h;
-
-    /// The position of the vertex when moved by beta along direction of update.
-    /** The first value (double) is beta, the latter (SpaceVec) the virtual
-     *  position.
-     */
-    std::pair<double, SpaceVec> virtual_pos;
+public:
+    /// Whether to fix the position of this vertex, i.e. boundary condition
+    bool fix_in_space;
 
     /// Whether to remove
     bool remove;
 
-    /// Whether to fix the position of this vertex, i.e. boundary condition
-    bool fix_in_space;
+    // friend class EntitiesManager;
 
+public:
     /// Constructor
     VertexState ()
     :  
-        f(), g(), h(),
-        remove(false),
-        fix_in_space(false)
+        f(),
+        fix_in_space(false),
+        remove(false)
     {
         f.zeros();
-        g.zeros();
-        h.zeros();
+    }
+
+    inline const SpaceVec& get_force () const {
+        return f;
+    }
+
+    inline void add_force (const SpaceVec& force) {
+        f += force;
+    }
+
+    inline void reset_force () {
+        f = SpaceVec({0., 0.});
     }
 };
 
@@ -52,31 +54,13 @@ struct VertexState {
  *  Every edge has two adjoint cells, one to either side, except boundary edges
  *  have only one.
  */
-struct EdgeState {
-    /// The linetension parameter
-    double _linetension;
+class EdgeState {
+private:
+    std::map<std::string, std::vector<double>> _parameters;
 
-    /// Fluctuations to the linetension parameter (Ornstein-Uhlenbeck process)
-    double _linetension_fluctuation;
+public:
+    double tension;
 
-    /// The linetension property to this edge
-    double linetension() const { 
-        return _linetension + _linetension_fluctuation;
-    };
-
-    /// The contractility parameter
-    double _contractility;
-
-    double contractility() const {
-        if (not contractility_on) {
-            return 0.;
-        }
-        else {
-            return _contractility;
-        }
-    }
-
-    bool contractility_on;
     /// The time T1 transition was last attempted
     /** 0 if never attempted */
     std::size_t last_T1_attempt;
@@ -84,222 +68,154 @@ struct EdgeState {
     /// Whether this object is to be removed 
     bool remove;
 
+    // friend class EntitiesManager;
 
+public:
     /// Constructor
-    /** \param linetension   The linetension property
-     *  \param contractility The contractility parameter
-     */
-    EdgeState (const Utopia::DataIO::Config& cfg)
+    EdgeState ()
     :
-        _linetension(get_as<double>("linetension", cfg)),
-        _linetension_fluctuation(0.),
-        _contractility(get_as<double>("contractility", cfg)),
-        contractility_on(true),
+        _parameters({}),
+        tension(0.),
         last_T1_attempt(0),
         remove(false)
     { }
 
-    Utopia::DataIO::Config get_cfg() const {
-        Utopia::DataIO::Config cfg;
-
-        cfg["linetension"] = _linetension;
-        cfg["contractility"] = _contractility;
-
-        return cfg;
-    }
-};
-
-
-struct RotationCellState {
-    double torque;
-
-    double tracked_rotation;
-
-    double tracking_persistence;
-
-    RotationCellState(const Utopia::DataIO::Config& cfg)
-    :
-        torque(get_as<double>("torque", cfg)),
-        tracked_rotation(0.),
-        tracking_persistence(1. / get_as<double>("tracking", cfg, 
-                                        std::numeric_limits<double>::max()))
-    { }
-
-    template <typename Cell, typename AgentManager>
-    double angular_velocity(const Cell& cell, const AgentManager& am) const
-    {
-        using SpaceVec = typename AgentManager::SpaceVec;
-
-        const SpaceVec cell_center = am.barycenter_of(cell);
-
-        double angular_velocity = 0.;
-        for (const auto& vertex : cell->custom_links().vertices) {
-            SpaceVec pos = am.position_of(vertex);
-            SpaceVec displ = am.get_space()->displacement(cell_center, pos);
-            double length = arma::norm(displ);
-
-            SpaceVec vel = vertex->state.f;
-
-            double cross_prod = (displ[0] * vel[1] - displ[1] * vel[0]);
-            angular_velocity += cross_prod / std::pow(length, 2.);
+public:
+    // getters and setters ....................................................
+    const std::unordered_set<std::string> list_parameters () const {
+        std::unordered_set<std::string> keys({});
+        for(const auto& kv : _parameters) {
+            keys.insert(kv.first);
         }
+        return keys;
+    }
 
-        return angular_velocity / cell->custom_links().vertices.size();
+    const auto& get_parameter (const std::string& name) const {
+        if (_parameters.find(name) == _parameters.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot find EdgeState parameter with name `{}`", name));
+        }
+        return _parameters.at(name);
+    }
+
+    /// Register parameter
+    void register_parameter (const std::string& name,
+                             const std::vector<double>& values) {
+        if (_parameters.find(name) != _parameters.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register EdgeState parameter with name `{}`! "
+                "A parameter with such a name is already registered.", name));
+        }
+        _parameters[name] = values;
+    }
+
+    /// Remove parameter from register
+    void unregister_parameter (const std::string& name) {
+        _parameters.erase(name);
+    }
+
+    /// Update value of parameter
+    void update_parameter (const std::string& name,
+                        const std::vector<double>& values) {
+        if (_parameters.find(name) == _parameters.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot find EdgeState parameter registered with name `{}`. "
+                "Please register the parameter first.", name));
+        }
+        _parameters[name] = values;
+    }
+
+    void inherit_from_state (const EdgeState& state) {
+        for (const auto& k : state.list_parameters()) {
+            this->register_parameter(k, state.get_parameter(k));
+        }
     }
 };
 
 
 /// The Cell defined by its id, its vertices and its area
 struct CellState {
+public:
     using SpaceVec = Utopia::SpaceVecType<2>;
 
+private:
+    std::map<std::string, std::vector<double>> _parameters;
+
+public:
+    double pressure;
+
     /// The type of a cell
-    enum CellType {
-        progenitor,
-        hair,
-        support,
-        num_cell_types,
-    } type;
-
-    /// The preferential area of the cell
-    double _area_preferential;
-
-    /// Fluctuation of the A0 parameter (Ornstein-Uhlenbeck process)
-    double _area_preferential_fluctuations;
-
-    double area_preferential () const {
-        return _area_preferential + _area_preferential_fluctuations;
-    }
-
-    /// The reference shape index
-    double shape_index_preferential;
-
-    /// The contractility of the cell
-    double contractility;
-
-    /// An intrinsic polarity angle wrt x axis
-    double _polarity;
-
-    double _polarity_fluctuations;
-
-    double polarity(double rotate = 0.) const {
-        return std::fmod(  _polarity + _polarity_fluctuations
-                         + rotate + 2 * M_PI, 2 * M_PI);
-    }
-
-    SpaceVec polarity_vec(double rotate = 0.) {
-        double pol = this->polarity(rotate);
-        return SpaceVec({cos(pol), sin(pol)});
-    }
-
-    double polarity_torque;
-
-    bool fix_polarity;
+    std::size_t type;
 
     /// Whether this object is to be removed 
     bool remove;
 
-    /// Create a config from the cell's properties
-    DataIO::Config create_cfg_from_props () const {
-        DataIO::Config cfg;
-        cfg["area_preferential"] = _area_preferential;
-        cfg["shape_index_preferential"] = shape_index_preferential;
-        cfg["contractility"] = contractility;
-        cfg["polarity"] = this->polarity();
-        
-        if (type == CellType::progenitor) {
-            cfg["cell_type"] = "progenitor";
-        }
-        else if (type == CellType::hair) {
-            cfg["cell_type"] = "hair";
-        }
-        else if (type == CellType::support) {
-            cfg["cell_type"] = "support";
-        }
-        else { 
-            cfg["cell_type"] = "not implemented within division";
-        }
+    // friend class EntitiesManager;
 
-        return cfg;
-    }
-
+public:
     /// Constructor of a cell
     /** Construct a cell from a configuration
      * 
      *  \param cfg      The configuration
-     *      -  `area_preferential` (double): The preferential size of this cell
-     *      -  `area_preferential_var` (double, default: 0): The variation of
-     *              the preferential area in a normal distribution
-     *      -  `shape_index_preferential` (double):    The preferential shape 
-     *              index of this cell. 
-     *              p0 = Perimeter0 / sqrt(area preferential)
-     *      -  `contractility` (double): The contractility of the cell
-     *              associated with contractility of the actin-myosin ring
-     *      -  `cell_type` (str): The type of cell. See CellState::setup_type.
-     * 
-     *  \param rng      A random number generator
+     *      -  `type` (uint, default: 0): The type of cell.
      */
-    template<class RNGType>
-    CellState (const Utopia::DataIO::Config& cfg,
-               const std::shared_ptr<RNGType>& rng)
+    CellState (const Config& cfg)
     :
-        type(setup_type(cfg)),
-        _area_preferential(get_as<double>("area_preferential", cfg)),
-        _area_preferential_fluctuations(0.),
-        shape_index_preferential(get_as<double>("shape_index_preferential",
-                                 cfg)),
-        contractility(get_as<double>("contractility", cfg)),
-        _polarity(get_as<double>("polarity", cfg, -M_PI_2)),
-        _polarity_fluctuations(0.),
-        polarity_torque(0.),
-        fix_polarity(false),
+        _parameters({}),
+        pressure(0.),
+        type(get_as<std::size_t>("type", cfg, 0)),
         remove(false)
-    {
-        double area_preferential_var = get_as<double>("area_preferential_var",
-                                                      cfg, 0.);
-        if (area_preferential_var > 1.e-12) {
-            auto dist = get_lognormal_distribution(_area_preferential,
-                                                   area_preferential_var);
-            _area_preferential_fluctuations = dist(*rng) - _area_preferential;
+    { }
+  
+public:
+    // getters and setters ....................................................
+    const std::unordered_set<std::string> list_parameters () const {
+        std::unordered_set<std::string> keys({});
+        for(const auto& kv : _parameters) {
+            keys.insert(kv.first);
         }
-
-        // give it another try, but negative area_preferential wont work ..
-        if (area_preferential() <= 0.)
-        {
-            throw std::invalid_argument(fmt::format("Cannot construct a cell "
-                "with negative or 0 preferential area! Received preferential "
-                "area: {}", area_preferential()));
-        }
-        if (shape_index_preferential <= 0.) {
-            throw std::invalid_argument(fmt::format("Cannot construct a cell "
-                "with negative or 0 preferential shape_index! Received "
-                "preferential shape_index: {}", shape_index_preferential));
-        }
+        return keys;
     }
 
-private:
-    /// Setup the type of the cell from config
-    /** \param cfg      The configuration containing
-     *      - `cell_type` (str): Can be one of
-     *             - `progenitor`
-     *             - `hair`
-     *             - `support`
-     */
-    CellType setup_type (const Utopia::DataIO::Config& cfg) {
-        auto cell_type = get_as<std::string>("cell_type", cfg);
+    const auto get_parameter (const std::string& name) const {
+        if (_parameters.find(name) == _parameters.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot find EdgeState parameter with name `{}`", name));
+        }
+        return _parameters.at(name);
+    }
 
-        if (cell_type == "progenitor") {
-            return CellType::progenitor;
+    /// Register parameter
+    void register_parameter (const std::string& name,
+                             const std::vector<double>& values) {
+        if (_parameters.find(name) != _parameters.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register EdgeState parameter with name `{}`! "
+                "A parameter with such a name is already registered.", name));
         }
-        else if (cell_type == "hair") {
-            return CellType::hair;
+        _parameters[name] = values;
+    }
+
+    /// Remove parameter from register
+    void unregister_parameter (const std::string& name) {
+        _parameters.erase(name);
+    }
+
+    /// Update value of parameter
+    void update_parameter (const std::string& name,
+                        const std::vector<double>& values) {
+        if (_parameters.find(name) == _parameters.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot find EdgeState parameter registered with name `{}`. "
+                "Please register the parameter first.", name));
         }
-        else if (cell_type == "support") {
-            return CellType::support;
-        }
-        else {
-            throw KeyError(cell_type, cfg, "Cell type can be 'progenitor', "
-                           "'hair', or 'support'.");
+        _parameters[name] = values;
+    }
+
+    void inherit_from_state (const CellState& state) {
+        this->type = state.type;
+        for (const auto& k : state.list_parameters()) {
+            this->register_parameter(k, state.get_parameter(k));
         }
     }
 };

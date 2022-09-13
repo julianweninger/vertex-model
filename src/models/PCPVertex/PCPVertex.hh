@@ -4,8 +4,10 @@
 // standard library includes
 #include <random>
 #include <math.h>
+#include <queue>
 
 // third-party library includes
+#include <boost/circular_buffer.hpp>
 
 // Utopia-related includes
 #include <utopia/core/model.hh>
@@ -20,6 +22,7 @@
 #include "initialisation.hh"
 #include "transitions.hh"
 #include "utils.hh"
+#include "work_function.hh"
 
 namespace Utopia {
 namespace Models {
@@ -121,7 +124,6 @@ struct MinimizationParams {
     MinimizationParams(const Config& cfg)
     :
         tolerance(get_as<double>("tolerance", cfg)),
-        update_scheme(setup_update_scheme(cfg)),
         dt(get_as<double>("dt", cfg)),
         max_steps(get_as<std::size_t>("max_steps", cfg)),
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
@@ -164,17 +166,6 @@ struct MinimizationParams {
                 "Value must be larger or equal to 'tolerance', but was {} < {}",
                 jiggle_tolerance, tolerance));
         }
-
-        if (    temperature.param().stddev() > 1.e-12
-            and update_scheme != UpdateScheme::SteepestGradient)
-        {
-            throw Utopia::KeyError("temperature", cfg, fmt::format("Random "
-                "brownian motion from temperature ({} > 0) is only allowed in "
-                "fixed stepsize update scheme, such as `SteepestGradient`. "
-                "Either set temperature to 0 or select a fixed stepsize update "
-                "scheme (selected scheme: {}).", temperature.param().stddev(),
-                get_update_scheme(update_scheme)));
-        }
     }
 
     /// Initialize from config and inherit not defined values from default
@@ -182,9 +173,6 @@ struct MinimizationParams {
     MinimizationParams(const Config& cfg, const MinimizationParams& defaults)
     :
         tolerance(get_as<double>("tolerance", cfg, defaults.tolerance)),
-        update_scheme(
-            setup_update_scheme(cfg,
-                                get_update_scheme(defaults.update_scheme))),
         dt(get_as<double>("dt", cfg, defaults.dt)),
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
@@ -245,54 +233,6 @@ struct MinimizationParams {
             throw Utopia::KeyError("jiggle_tolerance", cfg, fmt::format(
                 "Value must be larger or equal to 'tolerance', but was {} < {}",
                 jiggle_tolerance, tolerance));
-        }
-    }
-
-    /// Setup function for the update scheme
-    /** Currently implemented update schemes:
-     *      -# steepest_gradient : Steepest gradient update at fixed step size
-     *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
-     *              step size. Step size is to next minimum of energy in the 
-     *              direction of steepest gradient
-     *      -# conjugate_gradient : Conjugate gradient update method
-     */
-    template <typename Config>
-    UpdateScheme setup_update_scheme(const Config& cfg,
-                                     std::string default_scheme = "") {
-        const auto update_scheme = get_as<std::string>("update_scheme", cfg,
-                                                       default_scheme);
-
-        if (update_scheme == "steepest_gradient") {
-            return SteepestGradient;
-        }
-        if (update_scheme == "steepest_gradient_adaptive") {
-            return SteepestGradientAdaptive;
-        }
-        if (update_scheme == "conjugate_gradient") {
-            return ConjugateGradient;
-        }
-
-        throw KeyError("update_scheme", cfg, 
-            "Update scheme must be one of the following: "
-                "'steepest_gradient', "
-                "'steepest_gradient_adaptive', "
-                "'conjugate_gradient'.");
-    }
-    
-    /// Transform the update scheme into a human readable string
-    std::string get_update_scheme(UpdateScheme scheme) const {
-        if (scheme == SteepestGradient) {
-            return "steepest_gradient";
-        }
-        if (scheme == SteepestGradientAdaptive) {
-            return "steepest_gradient_adaptive";
-        }
-        if (scheme == ConjugateGradient) {
-            return "conjugate_gradient";
-        }
-        else {
-            throw std::runtime_error(fmt::format("Unknown update scheme {}!",
-                                                 scheme));
         }
     }
 };
@@ -356,9 +296,6 @@ public:
     /// The types of a cell
     using CellState = typename Cell::State;
 
-    /// The types of a cell
-    using CellType = typename CellState::CellType;
-
     using OrderedEdgeContainer = typename AgentManager::OrderedEdgeContainer;
 
     /// The type of a rule function acting on vertices of the agent manager
@@ -370,12 +307,21 @@ public:
     /// The type of a rule function acting on cells of the agent manager
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
-    /// A matrix for properties depending on the state of 2 cells 
-    using CellCellPropertyMatrix = 
-            arma::Mat<double>::fixed<CellType::num_cell_types + 1,
-                                     CellType::num_cell_types + 1>;
-
     using UpdateScheme = MinimizationParams::UpdateScheme;
+
+
+    using Tension = std::function<double(const std::shared_ptr<Edge>&)>;
+
+    using TensionEnergy = std::function<double(const std::shared_ptr<Edge>&)>;
+
+    using TensionCell = std::function<double(const std::shared_ptr<Cell>&)>;
+
+    using TensionCellEnergy = std::function<double(const std::shared_ptr<Cell>&)>;
+
+
+    using Pressure = std::function<double(const std::shared_ptr<Cell>&)>;
+
+    using PressureEnergy = std::function<double(const std::shared_ptr<Cell>&)>;
 
 
 private:
@@ -395,104 +341,22 @@ private:
     /// timestep scaling
     double _dt;
 
-    /// The update scheme for energy minimization
-    /** Currently implemented update schemes:
-     *      -# steepest_gradient : Steepest gradient update at fixed step size
-     *      -# steepest_gradient_adaptive : Steepest gradient update at adaptive
-     *              step size. Step size is to next minimum of energy in the 
-     *              direction of steepest gradient
-     *      -# conjugate_gradient : Conjugate gradient update method
-     */
-    UpdateScheme _update_scheme;
-    
     /// The tolerance during minimization
     double _minimization_tolerance;
-
-    /// The temperature for random brownian motion
-    /** With mean 0 and variance \f$ \sigma^2 = 2 T \f$.
-     */
-    std::normal_distribution<double> _distr_temperature;
-
-    /// The timescale and amplitude of Ornstein-Uhlenbeck fluctuations on
-    /// linetension
-    std::pair<double, double> _linetension_fluctuations;
-
-    /// The activation and deactivation rate of edge contractility
-    std::pair<double, double> _contractility_activity;
-
-    /// Whether edge contractility only aplies to apical boundary edges
-    bool _apical_contractility;
-
-    /// Contractility on SC-SC junctions that is distributed with cos^2(theta)
-    /** Where theta is the angle between the junction and the axis defined
-     *  by the SpaceVec
-     */
-    std::tuple<double, SpaceVec, bool> _ppMLC_contractility;
-
-    /// Contractility on HC-SC junctions with heterogeneous distribution
-    /** The distribution is 0.5 * (sin theta + 1), where theta is the angle 
-     *  between the junction and a polarity vector defined for the adjacent HC.
-     *  The orientation of the junction is anti-clockwise in the boundary 
-     *  of the adjacent HC. Hence if polarity = {0., 1.}, sin(theta) = 0 for 
-     *  lower boundary and 1 for upper boundary.
-     */
-    double _pMLC_contractility;
-
-    /// The adaptivity of cell polarity to mechanical forcing
-    /** The integration constant (gamma) for update of cell polarity
-     *  F_\phi = gamma * dt * dE / d\phi
-     */
-    double _polarity_adaptivity;
-
-    /// The timescale and amplitude of fluctuations on HC intrinsic polarity
-    /** Implemented as Ornstein-Uhlenbeck process    
-     */
-    std::pair<double, double> _polarity_fluctuations;
-
-    /// Whether there is HC intrinsic polarity involved
-    inline bool minimize_polarity() const {
-        return fabs(_pMLC_contractility) > 1.e-12;
-    }
-
-    /// The timescale, amplitude, and lower area limit of Ornstein-Uhlenbeck
-    /// fluctuations on preferential area using a lognormal distribution
-    std::tuple<double, double, double> _area_fluctuations;
 
 
 
     // -- Mechanical parameters -----------------------------------------------
+    std::unordered_map<std::string, 
+                       std::pair<Tension, TensionEnergy>> _tensions;
+    std::unordered_map<std::string, 
+                       std::pair<TensionCell,
+                                 TensionCellEnergy>> _tensions_cell;
 
-    /// Linetension constant Lambda
-    /** The entries are linetensions at interfaces between two cells of types i 
-     *  and j.
-     *  \note The values of this matrix are used for new edges, e.g. in T1
-     *        transitions. There is no other generic way to determine the
-     *        surface tension between two cells from the previous edge.
-     *  \note This is a symmetric matrix
-     */
-    CellCellPropertyMatrix _linetension;
+    std::unordered_map<std::string, 
+                       std::pair<Pressure, PressureEnergy>> _pressures;
 
-    /// Linetension constant Lambda
-    /** The entries are contractility at interfaces between two cells of types
-     *  i and j
-     *  \note The values of this matrix are used for new edges, e.g. in T1
-     *        transitions. There is no other generic way to determine the
-     *        surface tension between two cells from the previous edge.
-     *  \note This is a symmetric matrix
-     */
-    CellCellPropertyMatrix _edge_contractility;
-    
-    /// Area elasticity constant K
-    double _area_elasticity;
-
-    /// Cell contractility implementation
-    enum CellContractility {
-        /// Normalize shape index to target cell area
-        Contractile,
-
-        /// Normalize shape index to cell area
-        Shape_elastic
-    } _cell_contractility_impl;
+    std::vector<std::string> _work_function_terms_disabled;
 
     /// Mechanical parameters for boundary
     /** The boundary of the domain is treated as one cell
@@ -812,11 +676,7 @@ private:
 
     // .. Temporary objects ...................................................
 protected:
-    /// The total energy in the last step
-    double _energy_previous_step;
-
-    /// Current energy
-    double _energy;
+    boost::circular_buffer<double> _energy_buffer;
 
     /// The number of T1 transitions
     std::size_t _num_T1s;
@@ -886,28 +746,11 @@ public:
         _default_minimization_params(get_as<Config>("minimization",
                                                     this->_cfg)),
         _dt(_default_minimization_params.dt),
-        _update_scheme(_default_minimization_params.update_scheme),
         _minimization_tolerance(_default_minimization_params.tolerance),
-        _distr_temperature(_default_minimization_params.temperature),
-        _linetension_fluctuations(
-            _default_minimization_params.linetension_fluctuations),
-        _contractility_activity(
-            _default_minimization_params.contractility_activity),
-        _apical_contractility(
-            get_as<bool>("apical_edge_contractility", this->_cfg, false)),
-        _ppMLC_contractility(std::make_tuple(0., SpaceVec({1., 0.}), false)),
-        _pMLC_contractility(0.),
-        _polarity_adaptivity(0.),
-        _polarity_fluctuations(
-            _default_minimization_params.polarity_fluctuations),
-        _area_fluctuations(
-            _default_minimization_params.area_fluctuations),
-        _linetension(this->setup_linetension(this->_cfg)),
-        _edge_contractility(this->setup_edge_contractility(this->_cfg)),
-        _area_elasticity(get_as<double>("area_elasticity", this->_cfg)),
-        _cell_contractility_impl(setup_cell_contractility_impl(
-            get_as<std::string>("cell_shape_implementation", this->_cfg)
-        )),
+        _tensions({}),
+        _tensions_cell({}),
+        _pressures({}),
+        _work_function_terms_disabled({}),
 
         _boundary_param(_space->periodic, 
                         get_as<Config>("boundary_parameter", this->_cfg)),
@@ -928,8 +771,7 @@ public:
         _T2_threshold(get_as<double>("T2_threshold", this->_cfg)),
         _prob_distr(0.,1.),
         _normal_distr(0.,1.),
-        _energy_previous_step(std::numeric_limits<double>::max()),
-        _energy(0.),
+        _energy_buffer(get_as<std::size_t>("Energy_buffer_size", this->_cfg)),
         _num_T1s(0),
         _num_T1s_total(0),
         _T1_frequency_acc(0.),
@@ -941,6 +783,12 @@ public:
         _T2_frequency_acc(0.),
         _num_minimizations(0)
     {
+        this->setup_work_function(get_as<Config>(
+            "work_function_terms",
+            this->_cfg
+        ));
+
+
         if (not _space->periodic and this->_cfg["stripe_boundary"]) {
             initialise_stripe_boundary(get_as<Config>("stripe_boundary",
                                                       this->_cfg));
@@ -957,647 +805,275 @@ public:
 
 private:
     // .. Setup functions .....................................................
-    /// Setup up the linetension from config
-    CellCellPropertyMatrix setup_linetension(const Config& cfg)
-    {
-        const auto edge_cfg = cfg["agent_manager"]["edge_manager"];
-        const double linetension = get_as<double>("linetension",
-                                                  edge_cfg["agent_params"]);
-        // NOTE not checking paths, because happened in constructor of _am
-        
-        CellCellPropertyMatrix matrix;
-        return matrix.fill(linetension);
-    }
+    void setup_work_function (const Config& cfg) {
+        using namespace WorkFunction;
 
-    /// Setup up the edge contractility from config
-    CellCellPropertyMatrix setup_edge_contractility(const Config& cfg)
-    {
-        const auto edge_cfg = cfg["agent_manager"]["edge_manager"];
-        const double contractility = get_as<double>("contractility",
-                                                    edge_cfg["agent_params"]);
-        // NOTE not checking paths, because happened in constructor of _am
-        
-        CellCellPropertyMatrix matrix;
-        return matrix.fill(contractility);
-    }
+        this->_log->info("Setting up work-function from {} configuration entr{}"
+                         " ...", cfg.size(), cfg.size() != 1 ? "ies" : "y");
 
-    CellContractility setup_cell_contractility_impl (const std::string& impl)
-    {
-        if (impl == "contractile") {
-            return CellContractility::Contractile;
-        }
-        else if (impl == "shape_elastic") {
-            return CellContractility::Shape_elastic;
-        }
-        else {
-            throw std::invalid_argument(fmt::format(
-                "While setting up cell contractility implementation, received "
-                "invalid configuration. {} is not a valid implementation. "
-                "Choose one of the following: 'contractile', 'shape_elastic'.",
-                impl
-            ));
-        }
-    }
-
-
-    // ..energy terms .........................................................
-    // See energy.hh for implementation
-
-    double line_tension_energy (const std::shared_ptr<Edge>& edge,
-                                double beta = 0.) const;
-    double edge_contractility_energy (const std::shared_ptr<Edge>& edge,
-                                      double beta = 0.) const;
-    double area_elasticity_energy (const std::shared_ptr<Cell>& cell,
-                                   double beta = 0.) const;
-    double cell_contractility_energy (const std::shared_ptr<Cell>& cell,
-                                      double beta = 0.) const;
-
-    // .. Force setter functions ..............................................
-    /// Resets the forces of this vertex
-    const RuleFuncVertex reset_forces = [] (const auto& vertex)
-    {
-        auto state = vertex->state;
-        state.f.zeros();
-        state.virtual_pos = std::make_pair(0, state.f);
-        return state;
-    };
-
-    /// Resets the torque of this cell's polarity
-    const RuleFuncCell reset_torques = [] (const auto& cell)
-    {
-        auto state = cell->state;
-        state.polarity_torque = 0.;
-        return state;
-    };
-
-    /** Calculates the forces from linetension
-     * 
-     *  Contractive force of the edge where energy is proportional to the edge's
-     *  length.
-     * 
-     *  @param  e   Pointer to the edge for which to calculate the forces
-     *              NOTE that forces only act on vertices
-     * 
-     *  \return energy associated with this edge
-     */
-    const RuleFuncEdge set_grad_linetension = [this](const auto& edge) {
-        if (fabs(edge->state.linetension()) < 1.e-12) {
-            return edge->state;
+        if (not cfg.size()) {
+            throw std::runtime_error("No term registered to work-function! "
+                "Note that also initially disabled terms must be registered!");
         }
 
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
-        
-        SpaceVec displ = this->_am.displacement(a, b);
-        auto length = arma::norm(displ);
-
-        SpaceVec force = edge->state.linetension() * displ / length;
-
-        a->state.f += force;
-        b->state.f -= force;
-
-        return edge->state;
-    };
-
-    /** Calculates the forces from edge contractility
-     * 
-     *  Contractive force of the edge where energy is proportional to the edge's
-     *  length.
-     * 
-     *  @param  e   Pointer to the edge for which to calculate the forces
-     *              NOTE that forces only act on vertices
-     * 
-     *  \return energy associated with this edge
-     */
-    const RuleFuncEdge set_grad_edge_contractility = [this](const auto& edge) {
-        auto [ppMLC_contract, ppMLC_axis, curved_axis] = _ppMLC_contractility;
-
-        if (    fabs(edge->state.contractility()) < 1.e-12
-            and fabs(ppMLC_contract) < 1.e-12
-            and fabs(_pMLC_contractility) < 1.e-12)
-        {
-            return edge->state;
+        // Otherwise, require a sequence
+        if (not cfg.IsSequence()) {
+            throw std::invalid_argument("The config for initializing the "
+                "work-function must be a sequence!");
         }
 
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
+        // Iterate over the sequence of mappings
+        for (const auto& terms : cfg) {
+            // ops.IsMap() == true
+            // The top `ops` keys are now the names of the desired environment
+            // functions. Iterate over those ...
+            for (const auto& term_pair : terms) {
+                const std::string term = term_pair.first.as<std::string>();
+                const Config& params = term_pair.second;
 
-        SpaceVec displ = this->_am.displacement(a, b);
-        SpaceVec dE_dx = edge->state.contractility() * displ;
+                if (not get_as<bool>("enabled", params, true)) {
+                    this->_log->debug("  Pre-registering work-function term "
+                        "'{}', but disabling it.");
+                    
+                }
 
-        a->state.f += dE_dx;
-        b->state.f -= dE_dx;
+                this->_log->debug("  Registering work-function term '{}' ...",
+                                  term);
 
-        if (_am.is_1_cell_boundary_edge(edge)) {
-            return edge->state;
-        }
-        // NOTE below not defined for 1 cell boundary edges
-        // TODO perform check that non-nullptr before accessing state
-
-
-        auto [cell_a, cell_b] = _am.adjoints_of(edge);
-
-        // horizontal ppMLC contractility
-        if (    fabs(ppMLC_contract) > 1.e-12
-            and cell_a->state.type == CellType::support
-            and cell_b->state.type == CellType::support)
-        {
-            // rotate ppMLC_axis so that points along curved tissue axis
-            if (curved_axis) {
-                double curvature;
-
-                SpaceVec pos = (  _am.position_of(edge->custom_links().a)
-                                + 0.5 * _am.displacement(edge));
-                if (not _space->periodic) {
-                    curvature = _boundary_param.get_curvature();
-                    double radius = 1. / curvature;
-
-                    SpaceVec origin({0., -radius});
-
-                    SpaceVec displ = pos - origin;
-                    double theta = std::atan2(displ[0], displ[1]);
-
-                    ppMLC_axis = SpaceVec({
-                        ppMLC_axis[0]*cos(-theta) - ppMLC_axis[1]*sin(-theta),
-                        ppMLC_axis[0]*sin(-theta) + ppMLC_axis[1]*cos(-theta)
-                    });
+                if (term == "linetension") {
+                    const auto [T, TE] = setup_linetension(params, *this);
+                    this->register_tension(term, T, TE);      
+                }
+                else if (term == "edge_contractility") {
+                    const auto [T, TE] = setup_edge_contractility(params,
+                                                                  *this);
+                    this->register_tension(term, T, TE);                   
+                }
+                else if (term == "cell_contractility") {
+                    const auto [TC, TCE] = setup_cell_contractility(params,
+                                                                     *this);
+                    this->register_tension_cell(term, TC, TCE);                   
+                }
+                else if (term == "area_elasticity") {
+                    const auto [P, PE] = setup_area_elasticity(params, *this);
+                    this->register_pressure(term, P, PE);
                 }
                 else {
-                    curvature = _space->get_curvature();
-                    throw std::runtime_error("Not implemented!");
+                    throw std::runtime_error(fmt::format(
+                        "No term `{}` known in PCPVertex namespace. "
+                        "Use the `register_work_function_term` interface, or "
+                        "choose one of the following available terms:\n"
+                        "linetension\n"
+                        "edge_contractility\n"
+                        "cell_contractility\n"
+                        "area_elasticity\n",
+                        term
+                    ));
                 }
-            }
 
-            SpaceVec dE_dx = (  ppMLC_contract * arma::dot(displ, ppMLC_axis)
-                              * ppMLC_axis);
+            }
+        }
+    }
+
+    // .. Force setter functions ..............................................
+
+
+    // void set_grad_boundary_area_elasticity
+    //         (const OrderedEdgeContainer& boundary)
+    // {
+    //     if (   _space->periodic
+    //         or fabs(_boundary_param.area_elasticity) < 1.e-12)
+    //     {
+    //         return;
+    //     }
+
+    //     double area = _am.area_of(boundary);
+    //     double N = _am.cells().size();
+
+    //     const auto rel_area = area / _boundary_param.area_preferential(N);
+        
+    //     for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++) {
+    //         std::shared_ptr<Edge> e0; bool e0_flip;
+    //         if (edges_it > 0) { 
+    //             std::tie(e0, e0_flip) = boundary[edges_it - 1];
+    //         }
+    //         else {
+    //             std::tie(e0, e0_flip) = boundary.back();
+    //         }
+
+    //         const auto [e1, e1_flip] = boundary[edges_it];
             
-            a->state.f += dE_dx;
-            b->state.f -= dE_dx;
-        }
-        // polar pMLC contractility
-        else if (    fabs(_pMLC_contractility) > 1.e-12
-                 and cell_a->state.type != cell_b->state.type)
-        {
-            std::shared_ptr<Cell> HC;            
-            if (cell_a->state.type == CellType::hair) {
-                HC = cell_a;
-            }
-            else {
-                HC = cell_b;
-            }
+    //         // vertices in ordering
+    //         auto v_center = e0->custom_links().b;
+    //         auto v_prior  = e0->custom_links().a;
+    //         if (e0_flip) {
+    //             std::swap(v_center, v_prior);
+    //         }
 
-            // polarity rotated by 90 deg clockwise
-            SpaceVec pol = HC->state.polarity_vec(-M_PI_2);
+    //         std::shared_ptr<Vertex> v_post;
+    //         if (not e1_flip) {
+    //             v_post = e1->custom_links().b;
+    //         }
+    //         else {
+    //             v_post = e1->custom_links().a;
+    //         }
 
-            auto e_pair = *std::find_if(
-                HC->custom_links().edges.begin(),
-                HC->custom_links().edges.end(),
-                [edge](const auto& ep) {
-                    return std::get<0>(ep) == edge;
-                });
+    //         // get positions relative to cell center
+    //         SpaceVec prior = _am.position_of(v_prior);
+    //         SpaceVec post  = _am.position_of(v_post);
+
+    //         SpaceVec displ = post - prior;
+
+    //         // derivative of A to x_i, i.e. the position of v_center 
+    //         SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
+
+    //         SpaceVec force = (  -1. * _boundary_param.area_elasticity
+    //                           * (rel_area - 1) * dA_dx
+    //                           / _boundary_param.area_preferential(N));
+
+    //         v_center->state.f += force;
+    //     }
+        
+    //     return;
+    // };
+
+    // void set_grad_boundary_shape_elasticity 
+    //         (const OrderedEdgeContainer& boundary)
+    // {
+    //     if (   _space->periodic
+    //         or fabs(_boundary_param.contractility) < 1.e-12)
+    //     {
+    //         return;
+    //     }
+
+    //     const double area = _am.area_of(boundary);
+    //     const double perimeter = this->_am.perimeter_of(boundary);
+    //     const double shape_index = perimeter / sqrt(area);
+        
+    //     for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++)
+    //     {
+    //         std::shared_ptr<Edge> e0; bool e0_flip;
+    //         if (edges_it > 0) { 
+    //             std::tie(e0, e0_flip) = boundary[edges_it - 1];
+    //         }
+    //         else {
+    //             std::tie(e0, e0_flip) = boundary.back();
+    //         }
+
+    //         const auto [e1, e1_flip] = boundary[edges_it];
             
-            bool flip = std::get<bool>(e_pair);
-            if (flip) {
-                std::swap(a, b);
-            }
+    //         // vertices in ordering
+    //         auto v_center = e0->custom_links().b;
+    //         auto v_prior  = e0->custom_links().a;
+    //         if (e0_flip) {
+    //             std::swap(v_center, v_prior);
+    //         }
 
-            SpaceVec displ = this->_am.displacement(a, b);
-            double length = arma::norm(displ);
+    //         std::shared_ptr<Vertex> v_post;
+    //         if (not e1_flip) {
+    //             v_post = e1->custom_links().b;
+    //         }
+    //         else {
+    //             v_post = e1->custom_links().a;
+    //         }
 
-            SpaceVec T1 = pol * length;
-            SpaceVec T2 = arma::dot(displ, pol) * displ / length;
-            SpaceVec T3 = 2 * displ;
-            SpaceVec dE_dx = 0.25 * _pMLC_contractility * (T1 + T2 + T3);
+    //         // get positions relative to cell center
+    //         SpaceVec center = _am.position_of(v_center);
+    //         SpaceVec prior  = _am.position_of(v_prior);
+    //         SpaceVec post   = _am.position_of(v_post);
 
-            a->state.f += dE_dx;
-            b->state.f -= dE_dx;
+    //         // calculate dA / dx_i
+    //         SpaceVec displ = post - prior;
+    //         SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
 
-            if (flip) {
-                std::swap(a, b);
-            }
-        }
+    //         // calculate dP / dx_i
+    //         SpaceVec displ_2 = this->_space->displacement(prior, center);
+    //         SpaceVec displ_3 = this->_space->displacement(center, post);
+    //         SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
+    //                           - displ_3 / arma::norm(displ_3));
 
-        return edge->state;
-    };
+    //         SpaceVec dE_dx = (  _boundary_param.contractility
+    //                           * (  shape_index
+    //                              - _boundary_param.shape_index_preferential)
+    //                           * (  dP_dx / sqrt(area)
+    //                              - 0.5 * dA_dx * shape_index / area));
 
-    /** Calculates the forces from area elasticity
-     * 
-     *  Response force to a deformation in area where the energy is 
-     *  K/2 * (A - A0)**2
-     * 
-     *  @param c    Pointer to the cell for which to calculate the forces
-     *              NOTE that forces only act on vertices
-     * 
-     *  \return energy associated with this edge
-     */
-    const RuleFuncCell set_grad_area_elasticity = [this](const auto& cell) {
-        const auto state = cell->state;
+    //         v_center->state.f -= dE_dx;
+    //     }
 
-        const auto rel_cell_area = (  this->_am.area_of(cell)
-                                    / state.area_preferential());
-        const SpaceVec cell_center = this->_am.barycenter_of(cell);
+    //     return;
+    // };
+
+    // void set_grad_boundary_contractility
+    //         (const OrderedEdgeContainer& boundary)
+    // {
+    //     if (   _space->periodic
+    //         or fabs(_boundary_param.contractility) < 1.e-12)
+    //     {
+    //         return;
+    //     }
+
+    //     const double perimeter = this->_am.perimeter_of(boundary);
+    //     const auto N = _am.cells().size();
         
-        const auto& edges = cell->custom_links().edges;
-        for (unsigned int edges_it = 0; edges_it < edges.size(); edges_it++) {
-            std::shared_ptr<Edge> e0; bool e0_flip;
-            if (edges_it > 0) { 
-                std::tie(e0, e0_flip) = edges[edges_it - 1];
-            }
-            else {
-                std::tie(e0, e0_flip) = edges.back();
-            }
+    //     for (auto [e, flip] : boundary) {
+    //         auto a = e->custom_links().a;
+    //         auto b = e->custom_links().b;
+    //         if (flip) { std::swap(a, b); }
 
-            const auto [e1, e1_flip] = edges[edges_it];
-            
-            // vertices in ordering
-            auto v_center = e0->custom_links().b;
-            auto v_prior = e0->custom_links().a;
-            if (e0_flip) {
-                std::swap(v_center, v_prior);
-            }
+    //         SpaceVec displ = this->_am.displacement(a, b);
+    //         double length = arma::norm(displ);
 
-            std::shared_ptr<Vertex> v_post;
-            if (not e1_flip) {
-                v_post = e1->custom_links().b;
-            }
-            else {
-                v_post = e1->custom_links().a;
-            }
+    //         SpaceVec force = (  _boundary_param.contractility
+    //                           * (    perimeter
+    //                                / sqrt(_boundary_param.area_preferential(N))
+    //                              - _boundary_param.shape_index_preferential)
+    //                           * displ / length
+    //                           / sqrt(_boundary_param.area_preferential(N))
+    //                          );
 
-            // get positions relative to cell center
-            SpaceVec prior = cell_center + 
-                             this->_space->displacement(cell_center,
-                                                    _am.position_of(v_prior));
-            SpaceVec post = cell_center + 
-                            this->_space->displacement(cell_center,
-                                                    _am.position_of(v_post));
+    //         a->state.f += force;
+    //         b->state.f -= force;
+    //     }
 
-            SpaceVec displ = post - prior;
+    //     return;
+    // };
 
-            // derivative of A to x_i, i.e. the position of v_center 
-            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
+    // /// Derivative of a quadratic boundary potential
+    // void set_grad_boundary_stripe () {
+    //     if (   _space->periodic
+    //         or _stripe_boundary == nullptr)
+    //     {
+    //         return;
+    //     }
 
-            SpaceVec force = (  -1. * this->_area_elasticity
-                              * (rel_cell_area - 1) * dA_dx
-                              / state.area_preferential());
+    //     auto params = *_stripe_boundary;
 
-            v_center->state.f += force;
-        }
+    //     double curvature = std::max(params.curvature, 1.e-10);
+    //     double R = 1. / curvature;
+
+    //     // the (fixed) center of the circle stripe
+    //     SpaceVec origin = params.origin - SpaceVec({0., R});
+
+    //     double inner_radius = (R - params.width / 2.);
+    //     double outer_radius = (R + params.width / 2.);
         
-        return state;
-    };
-
-    const RuleFuncCell set_grad_shape_elasticity = [this](const auto& cell)
-    {
-        auto state = cell->state;
-
-        if (fabs(state.contractility) < 1.e-12) {
-            return state;
-        }
-
-        const double area = _am.area_of(cell);
-        const double perimeter = this->_am.perimeter_of(cell);
-        const double shape_index = perimeter / sqrt(area);
-
-        const SpaceVec cell_center = this->_am.barycenter_of(cell);
-        
-        const auto& edges = cell->custom_links().edges;
-        for (unsigned int edges_it = 0; edges_it < edges.size(); edges_it++) {
-            std::shared_ptr<Edge> e0; bool e0_flip;
-            if (edges_it > 0) { 
-                std::tie(e0, e0_flip) = edges[edges_it - 1];
-            }
-            else {
-                std::tie(e0, e0_flip) = edges.back();
-            }
-
-            const auto [e1, e1_flip] = edges[edges_it];
-            
-            // vertices in ordering
-            auto v_center = e0->custom_links().b;
-            auto v_prior = e0->custom_links().a;
-            if (e0_flip) {
-                std::swap(v_center, v_prior);
-            }
-
-            std::shared_ptr<Vertex> v_post;
-            if (not e1_flip) {
-                v_post = e1->custom_links().b;
-            }
-            else {
-                v_post = e1->custom_links().a;
-            }
-
-            // get positions relative to cell center
-            SpaceVec center = cell_center + 
-                              this->_space->displacement(cell_center,
-                                                    _am.position_of(v_center));
-            SpaceVec prior = cell_center + 
-                             this->_space->displacement(cell_center,
-                                                    _am.position_of(v_prior));
-            SpaceVec post = cell_center + 
-                            this->_space->displacement(cell_center,
-                                                    _am.position_of(v_post));
-
-            // calculate dA / dx_i
-            SpaceVec curv = post - prior;
-            SpaceVec dA_dx({0.5 * curv[1], -0.5 * curv[0]});
-
-            // calculate dP / dx_i
-            SpaceVec displ_e_0 = this->_space->displacement(prior, center);
-            SpaceVec displ_e_1 = this->_space->displacement(center, post);
-            SpaceVec dP_dx = (  displ_e_0 / arma::norm(displ_e_0)
-                              - displ_e_1 / arma::norm(displ_e_1));
-
-            SpaceVec dE_dx = (  state.contractility
-                              * (shape_index - state.shape_index_preferential)
-                              * (  dP_dx / sqrt(area)
-                                 - 0.5 * dA_dx * shape_index / area));
-
-            v_center->state.f -= dE_dx;
-        }
-
-        return state;
-    };
-
-    /// Constriction on the cell's shape index
-    const RuleFuncCell set_grad_cell_contractility = [this](const auto& cell)
-    {
-        auto state = cell->state;
-
-        if (fabs(state.contractility) < 1.e-12) {
-            return state;
-        }
-
-        double perimeter = this->_am.perimeter_of(cell);
-
-        for (auto [e, flip] : cell->custom_links().edges) {
-            auto a = e->custom_links().a;
-            auto b = e->custom_links().b;
-            if (flip) { std::swap(a, b); }
-
-            SpaceVec displ = this->_am.displacement(a, b);
-            double length = arma::norm(displ);
-
-            SpaceVec force = (  state.contractility
-                              * (  perimeter / sqrt(state.area_preferential())
-                                 - state.shape_index_preferential)
-                              * displ / length / sqrt(state.area_preferential())
-                             );
-
-            a->state.f += force;
-            b->state.f -= force;
-        }
-
-        if (    fabs(_pMLC_contractility) > 1.e-12
-            and state.type == CellType::hair)
-        {
-            // polarity rotated by 90 deg clockwise
-            SpaceVec pol = state.polarity_vec(-M_PI_2);
-
-            SpaceVec dp({0., 0.});
-
-            for (auto [e, flip] : cell->custom_links().edges) {
-                auto a = e->custom_links().a;
-                auto b = e->custom_links().b;
-                if (flip) { std::swap(a, b); }
-
-                SpaceVec displ = this->_am.displacement(a, b);
-                double length = arma::norm(displ);
-
-                SpaceVec T1 = displ / length;
-                SpaceVec T2 = arma::dot(displ, pol) / length * pol;
-                dp += std::pow(length, 2) * (T1 - T2);
-            }
-
-            state.polarity_torque -= (  (0.25 * _pMLC_contractility)
-                                      * (pol[0] * dp[1] - pol[1] * dp[0]));
-        }
-
-        return state;
-    };
-
-    /// Apply a torque to the vertices of the cell
-    const RuleFuncCell set_grad_torque = [this](const auto& cell) {
-        if (not cell->custom_links().rotation_state) {
-            return cell->state;
-        }
-
-        const SpaceVec cell_center = _am.barycenter_of(cell);
-        double torque = cell->custom_links().rotation_state->torque;
-
-        for (const auto& vertex : cell->custom_links().vertices) {
-            const SpaceVec pos = _am.position_of(vertex);
-            SpaceVec displ = _space->displacement(pos, cell_center);
-            double distance = arma::norm(displ);
-
-            SpaceVec force = torque / distance * SpaceVec({-displ[1],
-                                                           displ[0]});
-
-            vertex->state.f += force;
-        }
-
-        return cell->state;
-    };
-
-
-
-    void set_grad_boundary_area_elasticity
-            (const OrderedEdgeContainer& boundary)
-    {
-        if (   _space->periodic
-            or fabs(_boundary_param.area_elasticity) < 1.e-12)
-        {
-            return;
-        }
-
-        double area = _am.area_of(boundary);
-        double N = _am.cells().size();
-
-        const auto rel_area = area / _boundary_param.area_preferential(N);
-        
-        for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++) {
-            std::shared_ptr<Edge> e0; bool e0_flip;
-            if (edges_it > 0) { 
-                std::tie(e0, e0_flip) = boundary[edges_it - 1];
-            }
-            else {
-                std::tie(e0, e0_flip) = boundary.back();
-            }
-
-            const auto [e1, e1_flip] = boundary[edges_it];
-            
-            // vertices in ordering
-            auto v_center = e0->custom_links().b;
-            auto v_prior  = e0->custom_links().a;
-            if (e0_flip) {
-                std::swap(v_center, v_prior);
-            }
-
-            std::shared_ptr<Vertex> v_post;
-            if (not e1_flip) {
-                v_post = e1->custom_links().b;
-            }
-            else {
-                v_post = e1->custom_links().a;
-            }
-
-            // get positions relative to cell center
-            SpaceVec prior = _am.position_of(v_prior);
-            SpaceVec post  = _am.position_of(v_post);
-
-            SpaceVec displ = post - prior;
-
-            // derivative of A to x_i, i.e. the position of v_center 
-            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
-
-            SpaceVec force = (  -1. * _boundary_param.area_elasticity
-                              * (rel_area - 1) * dA_dx
-                              / _boundary_param.area_preferential(N));
-
-            v_center->state.f += force;
-        }
-        
-        return;
-    };
-
-    void set_grad_boundary_shape_elasticity 
-            (const OrderedEdgeContainer& boundary)
-    {
-        if (   _space->periodic
-            or fabs(_boundary_param.contractility) < 1.e-12)
-        {
-            return;
-        }
-
-        const double area = _am.area_of(boundary, 0.);
-        const double perimeter = this->_am.perimeter_of(boundary, 0.);
-        const double shape_index = perimeter / sqrt(area);
-        
-        for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++)
-        {
-            std::shared_ptr<Edge> e0; bool e0_flip;
-            if (edges_it > 0) { 
-                std::tie(e0, e0_flip) = boundary[edges_it - 1];
-            }
-            else {
-                std::tie(e0, e0_flip) = boundary.back();
-            }
-
-            const auto [e1, e1_flip] = boundary[edges_it];
-            
-            // vertices in ordering
-            auto v_center = e0->custom_links().b;
-            auto v_prior  = e0->custom_links().a;
-            if (e0_flip) {
-                std::swap(v_center, v_prior);
-            }
-
-            std::shared_ptr<Vertex> v_post;
-            if (not e1_flip) {
-                v_post = e1->custom_links().b;
-            }
-            else {
-                v_post = e1->custom_links().a;
-            }
-
-            // get positions relative to cell center
-            SpaceVec center = _am.position_of(v_center);
-            SpaceVec prior  = _am.position_of(v_prior);
-            SpaceVec post   = _am.position_of(v_post);
-
-            // calculate dA / dx_i
-            SpaceVec displ = post - prior;
-            SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
-
-            // calculate dP / dx_i
-            SpaceVec displ_2 = this->_space->displacement(prior, center);
-            SpaceVec displ_3 = this->_space->displacement(center, post);
-            SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
-                              - displ_3 / arma::norm(displ_3));
-
-            SpaceVec dE_dx = (  _boundary_param.contractility
-                              * (  shape_index
-                                 - _boundary_param.shape_index_preferential)
-                              * (  dP_dx / sqrt(area)
-                                 - 0.5 * dA_dx * shape_index / area));
-
-            v_center->state.f -= dE_dx;
-        }
-
-        return;
-    };
-
-    void set_grad_boundary_contractility
-            (const OrderedEdgeContainer& boundary)
-    {
-        if (   _space->periodic
-            or fabs(_boundary_param.contractility) < 1.e-12)
-        {
-            return;
-        }
-
-        const double perimeter = this->_am.perimeter_of(boundary, 0.);
-        const auto N = _am.cells().size();
-        
-        for (auto [e, flip] : boundary) {
-            auto a = e->custom_links().a;
-            auto b = e->custom_links().b;
-            if (flip) { std::swap(a, b); }
-
-            SpaceVec displ = this->_am.displacement(a, b);
-            double length = arma::norm(displ);
-
-            SpaceVec force = (  _boundary_param.contractility
-                              * (    perimeter
-                                   / sqrt(_boundary_param.area_preferential(N))
-                                 - _boundary_param.shape_index_preferential)
-                              * displ / length
-                              / sqrt(_boundary_param.area_preferential(N))
-                             );
-
-            a->state.f += force;
-            b->state.f -= force;
-        }
-
-        return;
-    };
-
-    /// Derivative of a quadratic boundary potential
-    void set_grad_boundary_stripe () {
-        if (   _space->periodic
-            or _stripe_boundary == nullptr)
-        {
-            return;
-        }
-
-        auto params = *_stripe_boundary;
-
-        double curvature = std::max(params.curvature, 1.e-10);
-        double R = 1. / curvature;
-
-        // the (fixed) center of the circle stripe
-        SpaceVec origin = params.origin - SpaceVec({0., R});
-
-        double inner_radius = (R - params.width / 2.);
-        double outer_radius = (R + params.width / 2.);
-        
-        // apply to all vertices outside the domain
-        for (const auto &v : _am.vertices()) {
-            // the position wrt origin
-            SpaceVec pos = _am.position_of(v) - origin;
-
-            double radius = arma::norm(pos);
-            if (radius < inner_radius) {
-                v->state.f += fabs(radius - inner_radius) * pos / radius;
-            }
-            else if (radius > outer_radius) {
-                v->state.f -= fabs(radius - outer_radius) * pos / radius;
-            }
-        }
-
-        return;
-    };
+    //     // apply to all vertices outside the domain
+    //     for (const auto &v : _am.vertices()) {
+    //         // the position wrt origin
+    //         SpaceVec pos = _am.position_of(v) - origin;
+
+    //         double radius = arma::norm(pos);
+    //         if (radius < inner_radius) {
+    //             v->state.f += fabs(radius - inner_radius) * pos / radius;
+    //         }
+    //         else if (radius > outer_radius) {
+    //             v->state.f -= fabs(radius - outer_radius) * pos / radius;
+    //         }
+    //     }
+
+    //     return;
+    // };
 
 
     /// Set the gradient of energy within the vertices
@@ -1606,54 +1082,42 @@ private:
      *  \note    When adding energy terms, remember to add their gradient here!
      */
     void set_gradient () {
-        // reset forces
-        apply_rule<Update::sync>(reset_forces, _am.vertices());
-        apply_rule<Update::sync>(reset_torques, _am.cells());
 
-        // apply new forces
-        apply_rule<Update::async, Shuffle::off>(set_grad_linetension,
-                                                _am.edges());
-        apply_rule<Update::async, Shuffle::off>(set_grad_edge_contractility,
-                                                _am.edges());
-        apply_rule<Update::async, Shuffle::off>(set_grad_area_elasticity,
-                                                _am.cells());
-        if (this->_cell_contractility_impl == Contractile) {
-            apply_rule<Update::async, Shuffle::off>(set_grad_cell_contractility,
-                                                    _am.cells());
-        }
-        else if (this->_cell_contractility_impl == Shape_elastic) {
-            apply_rule<Update::async, Shuffle::off>(set_grad_shape_elasticity,
-                                                    _am.cells());
-        }
-        else {
-            throw std::runtime_error(fmt::format(
-                "Not Implemented Error: "
-                "Cell Contractility Implementation {}!",
-                this->_cell_contractility_impl));
+        update_tensions_and_pressures();
+
+        for (const auto& vertex : _am.vertices()) {
+            vertex->state.reset_force();
         }
 
-        // apply boundary forces
-        if (not _space->periodic) {
-            const auto boundary = _am.get_boundary_edges();
-            set_grad_boundary_area_elasticity(boundary);
-            if (this->_cell_contractility_impl == Contractile) {
-                set_grad_boundary_contractility(boundary);
-            }
-            else if (this->_cell_contractility_impl == Shape_elastic) {
-                set_grad_boundary_shape_elasticity(boundary);
-            }
-            else {
-                throw std::runtime_error(fmt::format(
-                    "Not Implemented Error: "
-                    "Cell Contractility Implementation {}!",
-                    this->_cell_contractility_impl));
-            }
-            set_grad_boundary_stripe();
-        }
+        // apply forces from tensions and pressures
+        for (const auto& edge : _am.edges()) {
+            SpaceVec displ = _am.displacement(edge);
+            SpaceVec director = displ / arma::norm(displ);
 
-        if (_update_scheme == UpdateScheme::SteepestGradient) {
-            apply_rule<Update::async, Shuffle::off>(set_grad_torque, 
-                                                    _am.cells());
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            const double& T = edge->state.tension;
+            a->state.add_force(+ T * director);
+            b->state.add_force(- T * director);
+
+
+            // left and right cell when facing along edge
+            const auto& [cl, cr] = _am.adjoints_of<true>(edge);
+
+            // get pressure difference between left and right cell
+            double delta_P = 0.;
+            if (cl != nullptr) {
+                delta_P += cl->state.pressure;
+            }
+            if (cr != nullptr) {
+                delta_P -= cr->state.pressure;
+            }
+
+            // force is normal to edge
+            double Fa = 0.5 * delta_P;
+            a->state.add_force(Fa * SpaceVec({-displ[1], displ[0]}));
+            b->state.add_force(Fa * SpaceVec({-displ[1], displ[0]}));
         }
 
         // fix the boundary
@@ -1672,27 +1136,29 @@ private:
                 _am.vertices()
             );
         }
+
+        // decider on whether to fix vertex
+        std::function<bool(const std::shared_ptr<Vertex>& vertex)> fix_vertex;
+        fix_vertex = [](const auto& vertex) {
+            if (vertex->state.fix_in_space) {
+                return true;
+            }
+            return false;
+        };
+        if (not _space->periodic and _boundary_param.fix_boundary) {
+            fix_vertex = [this, fix_vertex](const auto& vertex) {
+                return (fix_vertex(vertex) or this->_am.is_boundary(vertex));
+            };
+        }
         
         // set forces on fixed vertices (e.g. boundary) to zero
-        // NOTE this is always done, as particular vertices can be manually
-        //      fixed 
         apply_rule<Update::sync>(
-            [](const auto& vertex) {
+            [fix_vertex](const auto& vertex) {
                 auto state = vertex->state;
-                if (state.fix_in_space) { 
-                    state.f = SpaceVec({0., 0.});
+                if (fix_vertex(vertex)) { 
+                    state.reset_force();
                 }
                 return state;
-            },
-            _am.vertices()
-        );
-
-        // reset the virtual position
-        apply_rule<Update::sync>(
-            [this](const auto& vertex) {
-                vertex->state.virtual_pos = 
-                    std::make_pair(0., _am.position_of(vertex));
-                return vertex->state;
             },
             _am.vertices()
         );
@@ -1705,117 +1171,89 @@ private:
      *  @param v    The pointer to the vertex to update
      */
     const RuleFuncVertex update_position = [this](const auto& vertex) {
-        _am.move_by(vertex, vertex->state.f * this->_dt);
+        _am.move_by(vertex, vertex->state.get_force() * this->_dt);
         return vertex->state;
     };
 
-    const RuleFuncVertex update_brownian_motion = [this](const auto& vertex) {
-        SpaceVec temp = {_distr_temperature(*this->_rng),
-                         _distr_temperature(*this->_rng)};
-        _am.move_by(vertex, temp * this->_dt);
+    // const RuleFuncVertex update_brownian_motion = [this](const auto& vertex) {
+    //     SpaceVec temp = {_distr_temperature(*this->_rng),
+    //                      _distr_temperature(*this->_rng)};
+    //     _am.move_by(vertex, temp * this->_dt);
         
-        return vertex->state;
-    };
+    //     return vertex->state;
+    // };
 
-    /// Update linetension fluctuation in an Ornstein-Uhlenbeck process
-    const RuleFuncEdge update_linetension_ornstein =
-    [this](const auto& edge)
-    {
-        double linetension = edge->state._linetension_fluctuation;
+    // /// Update linetension fluctuation in an Ornstein-Uhlenbeck process
+    // const RuleFuncEdge update_linetension_ornstein =
+    // [this](const auto& edge)
+    // {
+    //     double linetension = edge->state._linetension_fluctuation;
 
-        auto [tau, dL] = this->_linetension_fluctuations;
+    //     auto [tau, dL] = this->_linetension_fluctuations;
         
-        double rand_l = dL * sqrt(2. * _dt / tau) * _normal_distr(*this->_rng);
+    //     double rand_l = dL * sqrt(2. * _dt / tau) * _normal_distr(*this->_rng);
 
-        linetension += rand_l - _dt / tau * linetension;
+    //     linetension += rand_l - _dt / tau * linetension;
 
-        edge->state._linetension_fluctuation = linetension;
+    //     edge->state._linetension_fluctuation = linetension;
         
-        return edge->state;
-    };
+    //     return edge->state;
+    // };
 
-    const RuleFuncEdge update_edge_contractility =
-    [this](const auto& edge)
-    {
-        auto state = edge->state;
+    // const RuleFuncEdge update_edge_contractility =
+    // [this](const auto& edge)
+    // {
+    //     auto state = edge->state;
 
-        const auto [act, deact] = this->_contractility_activity;
+    //     const auto [act, deact] = this->_contractility_activity;
 
-        if (not state.contractility_on) {
-            state.contractility_on = (_prob_distr(*this->_rng) < act);
-        }
-        else {
-            state.contractility_on = (_prob_distr(*this->_rng) > deact);
-        }
+    //     if (not state.contractility_on) {
+    //         state.contractility_on = (_prob_distr(*this->_rng) < act);
+    //     }
+    //     else {
+    //         state.contractility_on = (_prob_distr(*this->_rng) > deact);
+    //     }
 
-        return state;
-    };
+    //     return state;
+    // };
 
-    /// Update area preferential fluctuation in an Ornstein-Uhlenbeck process
-    /** \note A^(0) > 0 required. Hence using a lognormal distribution enforcing
-     *        A^(0) > A_min
-     */
-    const RuleFuncCell update_area_preferential_ornstein =
-    [this](const auto& cell)
-    {
-        double A_fluc = cell->state._area_preferential_fluctuations;
-        double A_targ = cell->state._area_preferential;
+    // /// Update area preferential fluctuation in an Ornstein-Uhlenbeck process
+    // /** \note A^(0) > 0 required. Hence using a lognormal distribution enforcing
+    //  *        A^(0) > A_min
+    //  */
+    // const RuleFuncCell update_area_preferential_ornstein =
+    // [this](const auto& cell)
+    // {
+    //     double A_fluc = cell->state._area_preferential_fluctuations;
+    //     double A_targ = cell->state._area_preferential;
 
-        // the timescale, relative fluctuation amplitude, and minimum area
-        auto [tau, dA, A_min] = this->_area_fluctuations;
+    //     // the timescale, relative fluctuation amplitude, and minimum area
+    //     auto [tau, dA, A_min] = this->_area_fluctuations;
         
-        // shift lognormal distribution to account for A_min
-        double mean_distr = cell->state.area_preferential() - A_min;
+    //     // shift lognormal distribution to account for A_min
+    //     double mean_distr = cell->state.area_preferential() - A_min;
 
-        auto distr = get_lognormal_distribution(mean_distr, dA * A_targ);
-        double rn = distr(*this->_rng) - mean_distr;
-        // NOTE the rns have mean 0, min A_min, and stddev dA * A_targ
+    //     auto distr = get_lognormal_distribution(mean_distr, dA * A_targ);
+    //     double rn = distr(*this->_rng) - mean_distr;
+    //     // NOTE the rns have mean 0, min A_min, and stddev dA * A_targ
 
-        // the Ornstein Uhlenbeck step for fluctuations
-        A_fluc += sqrt(2. * _dt / tau) * rn - _dt / tau * A_fluc;
+    //     // the Ornstein Uhlenbeck step for fluctuations
+    //     A_fluc += sqrt(2. * _dt / tau) * rn - _dt / tau * A_fluc;
 
-        cell->state._area_preferential_fluctuations = A_fluc;
+    //     cell->state._area_preferential_fluctuations = A_fluc;
         
-        return cell->state;
-    };
+    //     return cell->state;
+    // };
     
 
     // -- The algorithm    ----------------------------------------------------
     // see algorithm.hh
-    std::tuple<bool, double, double> determine_timestep (
-        double dt,
-        const double energy_0,
-        const double tolerance) const;
-    double steepest_gradient_step (bool adaptive_step);
-    double conjugate_gradient_step ();
-    double perform_update_step(UpdateScheme update_scheme);
+    double steepest_gradient_step ();
+    double perform_update_step();
     bool perform_transitions(bool enabled);
 
 
     // -- Helper functions ----------------------------------------------------
-
-    /// Update the rotation tracking of a cell
-    /** Tracks the average angular velocity of the cell's vertices
-     */
-    const RuleFuncCell track_rotation = [this](const auto& cell)
-    {
-        if (not cell->custom_links().rotation_state) {
-            return cell->state;
-        }
-
-        const auto& rot_state = cell->custom_links().rotation_state;
-
-        double angular_vel = rot_state->angular_velocity(cell, _am);
-        angular_vel *= _dt;
-
-        double tracked_rotation = rot_state->tracked_rotation;
-        double alpha = rot_state->tracking_persistence;
-
-        rot_state->tracked_rotation += (  angular_vel
-                                        - tracked_rotation * alpha);
-
-        return cell->state;
-    };
 
 public:
     // -- Public Interface ----------------------------------------------------
@@ -1836,8 +1274,7 @@ public:
      *  \param division_angle   angle (in rad) at which the cell is divided
      */
     void divide_cell(std::shared_ptr<Cell> cell, double division_angle) {
-        return _am.divide_cell(cell, division_angle, _linetension,
-                               _edge_contractility);
+        return _am.divide_cell(cell, division_angle);
     }
 
     void increase_domain_size(double area, bool deform_plastic);
@@ -1866,21 +1303,12 @@ public:
      *      -# tracking of variables
      */
     void perform_step () {
-        bool transition_occurred = perform_transitions(_enable_transitions);
+        perform_transitions(_enable_transitions);
 
-        if (transition_occurred) {
-            // restart the conjugate gradient update
-            this->init_minimization();
-        }
+        double E = perform_update_step();
 
-        _energy_previous_step = _energy;
-        _energy = perform_update_step(_update_scheme);
-
-        apply_rule<Update::sync>(track_rotation, _am.cells());
-
-        this->_log->trace("Energy changed by {}",
-                          get_rel_energy_change(_energy,
-                                                _energy_previous_step));
+        this->_log->trace("Energy changed by {}", E - _energy_buffer.back());
+        _energy_buffer.push_back(E);
     }
 
     void prolog () {
@@ -1892,45 +1320,29 @@ public:
     /// Monitor model information
     void monitor () {
         this->_monitor.set_entry("time", this->_time);
-        this->_monitor.set_entry("energy", _energy);
-        this->_monitor.set_entry("energy_change",
-                                 get_rel_energy_change(_energy,
-                                                       _energy_previous_step));
 
-        double av_area;
-        if (not _space->periodic) {
-            av_area = 0.;
+        double mean_energy = 0.;
+        if (_energy_buffer.size() >= 1) {
+            mean_energy = std::accumulate(
+                _energy_buffer.begin(),
+                _energy_buffer.end(),
+                0.
+            );
+            mean_energy /= _energy_buffer.size();
+
+            this->_monitor.set_entry("energy", mean_energy);
         }
-
-        double av_area_0 = 0.;
-        double av_area_0_HC = 0.;
-        std::size_t N_HC = 0;
-        for (const auto& cell : _am.cells()) {
-            if (not _space->periodic) {
-                av_area += _am.area_of(cell);
+        if (_energy_buffer.size() >= 2) {
+            double mid = _energy_buffer.size() / 2.;
+            double trend = 0.;
+            double norm = 0.;
+            for (std::size_t i = 0; i < _energy_buffer.size(); i++) {
+                double val = _energy_buffer[_energy_buffer.size() - i];
+                trend += (val - mean_energy) * (mid - i);
+                norm += std::pow(i - mid, 2.);
             }
 
-            av_area_0 += cell->state.area_preferential();
-            if (cell->state.type == CellType::hair) {
-                av_area_0_HC += cell->state.area_preferential();
-                N_HC++;
-            }
-        }
-
-        av_area_0 /= static_cast<double>(_am.cells().size());
-        
-        if (not _space->periodic) {
-            av_area   /= static_cast<double>(_am.cells().size());
-            this->_monitor.set_entry("pressure", av_area - av_area_0);
-        }
-        else {
-            double area_avail = _space->get_domain_volume() /_am.cells().size();
-            this->_monitor.set_entry("pressure", av_area_0 - area_avail);
-        }
-
-        if (N_HC > 0) {
-            av_area_0_HC /= static_cast<double>(N_HC);
-            this->_monitor.set_entry("HC_area", av_area_0_HC);
+            this->_monitor.set_entry("energy_gradient", trend / norm);
         }
     }
 
@@ -1965,38 +1377,7 @@ public:
         _status = Status::Minimization;
 
 
-        _update_scheme = params.update_scheme;
         _dt = params.dt;
-        _distr_temperature = params.temperature;
-        _linetension_fluctuations = params.linetension_fluctuations;
-        _polarity_fluctuations = params.polarity_fluctuations;
-        _area_fluctuations = params.area_fluctuations;
-        if (std::get<1>(_linetension_fluctuations) < 1.e-12) {
-            for (const auto& e : _am.edges()) {
-                e->state._linetension_fluctuation = 0.;
-            }
-        }
-        if (std::get<1>(_polarity_fluctuations) < 1.e-12) {
-            for (const auto& c : _am.cells()) {
-                c->state._polarity = (  c->state._polarity
-                                      + c->state._polarity_fluctuations);
-                c->state._polarity_fluctuations = 0.;
-            }
-        }
-        if (std::get<1>(_area_fluctuations) < 1.e-12) {
-            for (const auto& c : _am.cells()) {
-                c->state._area_preferential_fluctuations = 0.;
-            }
-        }
-        _contractility_activity = params.contractility_activity;
-        if (std::get<1>(_contractility_activity) < 1.e-10) {
-            for (const auto& e : _am.edges()) {
-                e->state.contractility_on = true;
-            }
-        }
-
-
-        const double energy_after_perturbation = this->get_energy();
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
@@ -2072,17 +1453,17 @@ public:
                 monitor_mngr();
 
                 minimum_reached = equilibrium_condition();
-                double energy_change = get_rel_energy_change(
-                    _energy, _energy_previous_step);
+                double energy_change = get_rel_energy_change();
                 
                 if (not minimum_reached 
                     and this->get_time() - time_start >= params.max_steps)
                 {
                     throw std::runtime_error(fmt::format(
                         "Equilibrium not reached within {} steps at a "
-                        "tolerance of {}! Relative energy change in last step "
-                        "was {}.",
-                        params.max_steps, tolerance, energy_change));
+                        "tolerance of {}! Relative energy change in last {} "
+                        "steps was {}.",
+                        params.max_steps, tolerance, _energy_buffer.size(),
+                        energy_change));
                 }
 
                 if (stop_now.load()) {
@@ -2100,176 +1481,194 @@ public:
             // NOTE restore initial state of transitions allowed
         }
 
-        auto num_steps = this->get_time() - time_0;
-        if (get_rel_energy_change(_energy, energy_after_perturbation) > -1.e-3)
-        {
-            this->_log->info("WARN Energy minimized in {} steps and changed by "
-                "{} (rel.).",
-                num_steps,
-                get_rel_energy_change(_energy, energy_after_perturbation));
-        }
-        else {
-            this->_log->info("Energy minimized in {} steps and changed by "
-                "{} (rel.).",
-                num_steps,
-                get_rel_energy_change(_energy, energy_after_perturbation));
-        }
-
-        return num_steps;
+        return this->get_time() - time_0;
     }
 
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-protected:
-
-    // .. Prediction of energy terms ..........................................
-    // see energy.hh for implementation
-    // NOTE when adding energy terms remember to add them to get_energy(..)
-
-    double get_energy_linetension(const AgentContainer<Edge>& es,
-                                  double beta) const;
-    double get_energy_edge_contractility(const AgentContainer<Edge>& es,
-                                         double beta) const;
-    double get_energy_areaelasticity (const AgentContainer<Cell>& cs,
-                                      double beta) const;    
-    double get_energy_cell_contractility (const AgentContainer<Cell>& cs,
-                                          double beta) const;
-                                          
-    double get_boundary_area_energy (double beta) const;
-    double get_boundary_shape_energy(double beta) const;
-    double get_boundary_stripe_energy(double beta) const;
-
-    double get_energy(const AgentContainer<Edge>& es,
-                      const AgentContainer<Cell>& cs,
-                      double beta = 0.) const;
-    
-    // .. Derived and global energy term predictions  .........................
-
-    /// Predict the energy from linetension term
-    /** by moving the vertices towards energy minimum at stepsize beta.
-     *  This uses steepest gradient direction or conjugate gradient direction
-     *  depending on update scheme.
-     * 
-     *  \warning The gradient is not updated! Must be done manually.
-     */    
-    double get_energy_linetension(double beta) const {
-        return get_energy_linetension(_am.edges(), beta);
-    }
-    
-    /// Predict the energy from edge contractility
-    /** by moving the vertices towards energy minimum at stepsize beta.
-     *  This uses steepest gradient direction or conjugate gradient direction
-     *  depending on update scheme.
-     * 
-     *  \warning The gradient is not updated! Must be done manually.
-     */        
-    double get_energy_edge_contractility(double beta) const {
-        return get_energy_edge_contractility(_am.edges(), beta);
-    }
-    
-    /// Predict the energy from area elasticity
-    /** by moving the vertices towards energy minimum at stepsize beta.
-     *  This uses steepest gradient direction or conjugate gradient direction
-     *  depending on update scheme.
-     * 
-     *  \warning The gradient is not updated! Must be done manually.
-     */        
-    double get_energy_areaelasticity (double beta) const {
-        return get_energy_areaelasticity(_am.cells(), beta);
-    }
-    
-    /// Predict the energy from cell contractility
-    /** by moving the vertices towards energy minimum at stepsize beta.
-     *  This uses steepest gradient direction or conjugate gradient direction
-     *  depending on update scheme.
-     * 
-     *  \warning The gradient is not updated! Must be done manually.
-     */
-    double get_energy_cell_contractility (double beta) const {
-        return get_energy_cell_contractility(_am.cells(), beta);
-    }
-
-    /// Predict the energy contribution of tbe boundary
-    /** Includes shape and area elasticity
-     */
-    double get_boundary_energy(double beta) const {
-        if (_space->periodic) {
-            return 0.;
-        }
-        return (  get_boundary_area_energy(beta)
-                + get_boundary_shape_energy(beta)
-                + get_boundary_stripe_energy(beta));
-    }
-    
-    /// Predict the energy
-    /** by moving the vertices towards energy minimum at stepsize beta.
-     *  This uses steepest gradient direction or conjugate gradient direction
-     *  depending on update scheme.
-     * 
-     *  \warning The gradient is not updated! Must be done manually.
-     */        
-    double get_energy(double beta) const {
-        return get_energy(_am.edges(), _am.cells(), beta);
-    }
 
 public:
     // .. Public energy terms .................................................
 
-    /// Getter for energy associated with linetension
-    /** Sums PCPVertex::line_tension_energy for all entities
-     */
-    double get_energy_linetension() const {
-        return get_energy_linetension(_am.edges(), 0.);
-    }
-    
-    /// Getter for energy associated with contractility of junctions
-    /** Sums PCPVertex::edge_contractility_energy for all entities
-     */
-    double get_energy_edge_contractility() const {
-        return get_energy_edge_contractility(_am.edges(), 0.);
-    }
-    
-    /// Getter for energy associated with area elasticity
-    /** Sums PCPVertex::area_elasticity_energy for all entities
-     */
-    double get_energy_areaelasticity () const {
-        return get_energy_areaelasticity(_am.cells(), 0.);
-    }
-
-    /// Getter for energy associated with contractility of cells
-    /** Sums PCPVertex::cell_contractility_energy for all entities
-     */
-    double get_energy_cell_contractility () const {
-        return get_energy_cell_contractility(_am.cells(), 0.);
-    }
-
-    double get_boundary_shape_energy() const {
-        return get_boundary_shape_energy(0.);
-    }
-    double get_boundary_area_energy () const {
-        return get_boundary_area_energy(0.);
-    }
-    double get_boundary_stripe_energy () const {
-        return get_boundary_stripe_energy(0.);
-    }
-
-    double get_boundary_energy() const {
-        if (_space->periodic) {
-            return 0.;
+    void register_tension(
+        std::string name,
+        Tension tension,
+        TensionEnergy energy
+    )
+    {
+        if (_tensions.find(name) != _tensions.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register tension with name `{}`, because a tension "
+                "with that name is already registered!",
+                name
+            ));
         }
-        return (  get_boundary_area_energy(0.)
-                + get_boundary_shape_energy(0.)
-                + get_boundary_stripe_energy(0.));
+
+        _tensions[name] = std::make_pair(tension, energy);
+
+        this->_log->info("Successfully registered tension `{}`.", name);
+    }
+    void register_tension_cell(
+        std::string name,
+        TensionCell tension,
+        TensionCellEnergy energy
+    )
+    {
+        if (_tensions_cell.find(name) != _tensions_cell.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register cell-tension with name `{}`, because a "
+                "cell-tension with that name is already registered!",
+                name
+            ));
+        }
+        if (_tensions.find(name) != _tensions.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register cell-tension with name `{}`, because a "
+                "junction-tension with that name is already registered!",
+                name
+            ));
+        }
+        if (_pressures.find(name) != _pressures.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register cell-tension with name `{}`, because a "
+                "pressure with that name is already registered!",
+                name
+            ));
+        }
+
+        _tensions_cell[name] = std::make_pair(tension, energy);
+
+        this->_log->info("Successfully registered cell-tension `{}`.", name);
     }
 
-    /// Getter for the total energy
-    double get_energy() const {
-        return get_energy(_am.edges(), _am.cells(), 0.);
+    void register_pressure(
+        std::string name,
+        Pressure pressure,
+        PressureEnergy energy
+    )
+    {
+        if (_pressures.find(name) != _pressures.end()) {
+            throw std::runtime_error(fmt::format(
+                "Cannot register pressure with name `{}`, because a pressure "
+                "with that name is already registered!",
+                name
+            ));
+        }
+
+        _pressures[name] = std::make_pair(pressure, energy);
+
+        this->_log->info("Successfully registered pressure `{}`.", name);
     }
 
-    double get_rel_energy_change () const;
-    double get_rel_energy_change (double energy, double energy_0) const;
+    void update_tensions_and_pressures () {
+        for (const auto& edge : _am.edges()) {
+            double tension = 0.;
+            for (const auto& [name, v] : _tensions) {
+                const auto& [T, E] = v;
+                tension += T(edge);
+            }
+
+            const auto& [cl, cr] = this->_am.adjoints_of<true>(edge);
+            for (const auto& [name, v] : _tensions_cell) {
+                const auto& [TC, EC] = v;
+                if (cl) {
+                    tension += TC(cl);
+                }
+                if (cr) {
+                    tension += TC(cr);
+                }
+            }
+
+            edge->state.tension = tension;
+        }
+
+        for (const auto& cell : _am.cells()) {
+            double pressure = 0.;
+            for (const auto& [name, v] : _pressures) {
+                const auto& [P, E] = v;
+                pressure += P(cell);
+            }
+            cell->state.pressure = pressure;
+        }
+    }
+
+    /// Get energy for an edge
+    double get_energy (const TensionEnergy& E_function) const {
+        double E = 0.;
+        for (const auto& edge : _am.edges()) {
+            E += E_function(edge);
+        }
+        return E;
+    }
+
+    /// Get energy for a cell
+    double get_energy (const PressureEnergy& E_function) const {
+        double E = 0.;
+        for (const auto& cell : _am.cells()) {
+            E += E_function(cell);
+        }
+        return E;
+    }
+
+    /// Getter for energy of a container of edges and cells, resp.
+    double get_energy (
+            const AgentContainer<Edge>& es,
+            const AgentContainer<Cell>& cs
+    ) const
+    {
+        double E = 0.;
+        for (const auto& [name, T_E] : _tensions) {
+            const auto& E_function = T_E.second;
+            for (const auto& e : es) {
+                E += E_function(e);
+            }
+        }
+        for (const auto& [name, TC_CE] : _tensions_cell) {
+            const auto& E_function = TC_CE.second;
+            for (const auto& c : cs) {
+                E += E_function(c);
+            }
+        }
+        for (const auto& [name, P_E] : _pressures) {
+            const auto& E_function = P_E.second;
+            for (const auto& c : cs) {
+                E += E_function(c);
+            }
+        }
+
+        return E;
+    }
+
+    /// Getter for energy all edges and cells
+    double get_energy () const {
+        return get_energy(_am.edges(), _am.cells());
+    }
+
+
+    /// Getter for the relative energy change from previous to last step
+    double get_rel_energy_change () const
+    {
+        if (_energy_buffer.size() < 2) {
+            return std::numeric_limits<double>::lowest();
+        }
+        double mean_energy = std::accumulate(
+            _energy_buffer.begin(),
+            _energy_buffer.end(),
+            0.
+        );
+
+        double mid = _energy_buffer.size() / 2.;
+        double trend = 0.;
+        double norm = 0.;
+        for (std::size_t i = 0; i < _energy_buffer.size(); i++) {
+            double val = _energy_buffer[_energy_buffer.size() - i];
+            trend += (val - mean_energy) * (mid - i);
+            norm += std::pow(i - mid, 2.);
+        }
+
+        return trend / norm;
+    }
 
     /// Whether the relative change in energy fulfills the equilibrium condition
     bool equilibrium_condition() const {
@@ -2277,59 +1676,21 @@ public:
             return false;
         }
 
-        double energy_change = get_rel_energy_change(_energy,
-                                                     _energy_previous_step);
+        double energy_change = get_rel_energy_change();
         return (energy_change > - _minimization_tolerance);
     }
 
 
     // .. Public energy terms for subset of entities ..........................
-
-    /// Getter for energy associated with linetension
-    /** Sums PCPVertex::line_tension_energy for provided entities
-     */
-    double get_energy_linetension(const AgentContainer<Edge>& es) const {
-        return get_energy_linetension(es, 0.);
+    const auto get_work_function_terms () const {
+        return std::make_tuple(
+            _tensions,
+            _tensions_cell,
+            _pressures,
+            _work_function_terms_disabled
+        );
     }
-    
-    /// Getter for energy associated with contractility of junctions
-    /** Sums PCPVertex::edge_contractility_energy for provided entities
-     */
-    double get_energy_edge_contractility(const AgentContainer<Edge>& es) const {
-        return get_energy_edge_contractility(es, 0.);
-    }
-    
-    /// Getter for energy associated with area elasticity
-    /** Sums PCPVertex::area_elasticity_energy for provided entities
-     */
-    double get_energy_areaelasticity (const AgentContainer<Cell>& cs) const {
-        return get_energy_areaelasticity(cs, 0.);
-    }
-
-    /// Getter for energy associated with contractility of cells
-    /** Sums PCPVertex::cell_contractility_energy for provided entities
-     */
-    double get_energy_cell_contractility (const AgentContainer<Cell>& cs) const
-    {
-        return get_energy_cell_contractility(cs, 0.);
-    }
-
-    /// Getter for energy associated with contractility of cells
-    /** Sums the following energies for provided entities
-     *      -# PCPVertex::get_energy_linetension
-     *      -# PCPVertex::get_energy_edge_contractility
-     *      -# PCPVertex::get_energy_areaelasticity
-     *      -# PCPVertex::get_energy_cell_contractility
-     *      -# PCPVertex::get_boundary_area_energy
-     *      -# PCPVertex::get_boundary_shape_energy
-     *      -# PCPVertex::get_boundary_stripe_energy
-     */
-    double get_energy(const AgentContainer<Edge>& es,
-                      const AgentContainer<Cell>& cs) const {
-        return get_energy(es, cs, 0.);
-    }
-
-    
+        
     // .. Counter for transitions, etc.. ......................................
 
     /// Counter for the T1 neighborhood exchange transitions in last iteration
@@ -2405,58 +1766,54 @@ public:
     }
 
     /// Label all clusters of same type cells
-    /** Here progenitor cells have label 0, hair cells impair and support cells 
-     *  pair labels
-     */
-    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids () {
+    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids (
+        const std::size_t type
+    ) const
+    {
         std::unordered_map<std::shared_ptr<Cell>, std::size_t> cluster_ids;
         cluster_ids.reserve(_am.cells().size());
         
-        std::size_t cluster_id;
-        std::size_t hair_cluster_id_cnt = 1;
-        std::size_t support_cluster_id_cnt = 0;
+        std::size_t cluster_id = 0;
         for (const auto& cell : _am.cells()) {
             cluster_ids[cell] = 0;
         }
 
-        std::vector<std::shared_ptr<Cell>> cluster_members;
-        cluster_members.reserve(_am.cells().size());
+        std::set<std::shared_ptr<Cell>> cluster_members;
+        std::queue<std::shared_ptr<Cell>> cluster_members_candidates;
 
         for (const auto& cell : _am.cells()) {
-            if (   cluster_ids.at(cell) != 0
-                or cell->state.type == CellType::progenitor)
+            // skip assigned cells
+            if (cluster_ids.at(cell) != 0)
             {
                 continue;
             }
 
-            if (cell->state.type == CellType::hair) {
-                hair_cluster_id_cnt += 2;
-                cluster_id = hair_cluster_id_cnt;
+            if (cell->state.type != type) {
+                continue;
             }
-            else {
-                support_cluster_id_cnt += 2;
-                cluster_id = support_cluster_id_cnt;
-            }
+
+            cluster_id++;
             cluster_ids[cell] = cluster_id;
+            cluster_members_candidates.push(cell);
 
-            cluster_members.clear();
-            cluster_members.push_back(cell);
-
-            for (std::size_t it = 0; it < cluster_members.size(); it++) {
-                const auto& c_it = cluster_members[it];
-                for (const auto& nb : this->_am.neighbors_of(c_it)) {
-                    if (nb->state.type == c_it->state.type)
-                    {
-                        if (cluster_ids.at(nb) == 0) {
-                            cluster_ids[nb] = cluster_id;
-                            cluster_members.push_back(nb);
-                        }
-                        else if (cluster_ids.at(nb) != cluster_id) {
-                            throw std::runtime_error("Messing with clusters!");
+            while (cluster_members_candidates.size()) {
+                const auto& candidate = cluster_members_candidates.front();
+                if (candidate->state.type == type) {
+                    const auto [it, insert] = cluster_members.insert(candidate);
+                    if (insert) {
+                        for (const auto& n : _am.neighbors_of(candidate)) {
+                            cluster_members_candidates.push(n);
                         }
                     }
                 }
+                cluster_members_candidates.pop();
             }
+
+            for (const auto& m : cluster_members) {
+                cluster_ids[m] = cluster_id;
+            }
+
+            cluster_members.clear();
         }
 
         return cluster_ids;
@@ -2465,107 +1822,7 @@ public:
 
     // .. Model properties ....................................................
     
-    /// Get linetension matrix
-    CellCellPropertyMatrix get_linetension () const {
-        return _linetension;
-    }
     
-    /// Set linetension matrix
-    void set_linetension (CellCellPropertyMatrix linetension,
-                          bool update_edges)
-    {
-        for (int i = 0; i < CellType::num_cell_types + 1; i++) {
-            for (int j = i + 1; j < CellType::num_cell_types + 1; j++) {
-                if (linetension(i, j) != linetension(j, i)) {
-                    throw std::invalid_argument(fmt::format(
-                            "Cannot set edge linetension! "
-                            "Linetension matrix needs to be symmetric, "
-                            "but entry ({}, {})={} and ({}, {})={}",
-                            i, j, linetension(i, j),
-                            j, i, linetension(j, i)));
-                }
-            }
-        }
-        _linetension = linetension;
-
-        if (update_edges) {
-            RuleFuncEdge update = [this] (const auto& edge)
-            {
-                auto state = edge->state;
-                auto [a, b] = this->_am.adjoints_of(edge);
-                if (a and b) {
-                    state._linetension = this->_linetension(a->state.type,
-                                                            b->state.type);
-                }
-                else {
-                    if (not a) {
-                        std::swap(a, b);
-                    }
-                    if (not a) {
-                        throw std::runtime_error(fmt::format(
-                            "Adjoints of edge {} are two nullptr!",
-                            edge->id()));
-                    }
-                    state._linetension = this->_linetension(
-                        a->state.type, CellType::num_cell_types);
-                }
-                return state;
-            };
-
-            apply_rule<Update::sync>(update, this->_am.edges());
-        }
-    }
-
-    /// Getter for edge contractility matrix
-    CellCellPropertyMatrix get_edge_contractility () const {
-        return _edge_contractility;
-    }
-    
-    /// Setter for edge contractility matrix
-    void set_edge_contractility (CellCellPropertyMatrix contractility,
-                                 bool update_edges) 
-    {
-        for (int i = 0; i < CellType::num_cell_types + 1; i++) {
-            for (int j = i + 1; j < CellType::num_cell_types + 1; j++) {
-                if (contractility(i, j) != contractility(j, i)) {
-                    throw std::invalid_argument(fmt::format(
-                            "Cannot set edge contractility! "
-                            "Contractility matrix needs to be symmetric, "
-                            "but entry ({}, {})={} and ({}, {})={}",
-                            i, j, contractility(i, j),
-                            j, i, contractility(j, i)));
-                }
-            }
-        }
-        _edge_contractility = contractility;
-
-        if (update_edges) {
-            RuleFuncEdge update = [this] (const auto& edge)
-            {
-                auto state = edge->state;
-                auto [a, b] = this->_am.adjoints_of(edge);
-                if (a and b) {
-                    state._contractility = this->_edge_contractility(
-                        a->state.type, b->state.type);
-                }
-                else {
-                    if (not a) {
-                        std::swap(a, b);
-                    }
-                    if (not a) {
-                        throw std::runtime_error(fmt::format(
-                            "Adjoints of edge {} are two nullptr!",
-                            edge->id()));
-                    }
-                    state._contractility = this->_edge_contractility(
-                        a->state.type, CellType::num_cell_types);
-                }
-                return state;
-            };
-
-            apply_rule<Update::sync>(update, this->_am.edges());
-        }
-    }
 
     /// Updater for boundary parameter
     void update_boundary_parameter (const Config& cfg) {
@@ -2662,116 +1919,6 @@ public:
                           _stripe_boundary->curvature);
 
         return _stripe_boundary->curvature;
-    }
-
-    void set_ppMLC_contractility (double ppMLC, SpaceVec axis, bool curved_axis)
-    {
-        _ppMLC_contractility = std::make_tuple(ppMLC, axis, curved_axis);
-    }
-
-    double get_ppMLC_contractility (const std::shared_ptr<Edge>& edge) const
-    {
-        if (_am.is_1_cell_boundary_edge(edge)) {
-            return 0.;
-        }
-
-        auto [ppMLC_contract, ppMLC_axis, curved_axis] = _ppMLC_contractility;
-
-        auto [cell_a, cell_b] = _am.adjoints_of(edge);
-
-        if (fabs(ppMLC_contract) < 1.e-12) {
-            return 0.;
-        }
-        if (   cell_a->state.type != CellType::support
-            or cell_b->state.type != CellType::support)
-        {
-            return 0.;
-        }
-
-
-        // rotate ppMLC_axis so that points along curved tissue axis
-        if (curved_axis) {
-            double curvature;
-
-            SpaceVec pos = (  _am.position_of(edge->custom_links().a)
-                            + 0.5 * _am.displacement(edge));
-            if (not _space->periodic) {
-                curvature = _boundary_param.get_curvature();
-                double radius = 1. / curvature;
-
-                SpaceVec origin({0., -radius});
-
-                SpaceVec displ = pos - origin;
-                double theta = std::atan2(displ[0], displ[1]);
-
-                ppMLC_axis = SpaceVec({
-                    ppMLC_axis[0] * cos(-theta) - ppMLC_axis[1] * sin(-theta),
-                    ppMLC_axis[0] * sin(-theta) + ppMLC_axis[1] * cos(-theta)
-                });
-            }
-            else {
-                curvature = _space->get_curvature();
-                throw std::runtime_error("Not implemented!");
-            }
-        }
-
-        SpaceVec displ = _am.displacement(edge);
-    
-        return ppMLC_contract * std::pow(arma::dot(displ/arma::norm(displ),
-                                                   ppMLC_axis),
-                                         2);
-    }
-
-    void set_pMLC_contractility (double pMLC, double adaptivity) {
-        _pMLC_contractility = pMLC;
-        _polarity_adaptivity = adaptivity;
-    }
-
-    double get_pMLC_contractility (const std::shared_ptr<Edge>& edge) const {
-        if (_am.is_1_cell_boundary_edge(edge)) {
-            return 0.;
-        }
-
-        auto [cell_a, cell_b] = _am.adjoints_of(edge);
-        
-        if (cell_a->state.type == cell_b->state.type) {
-            return 0.;
-        }
-
-        std::shared_ptr<Cell> HC;            
-        if (cell_a->state.type == CellType::hair) {
-            HC = cell_a;
-        }
-        else {
-            HC = cell_b;
-        }
-
-        // polarity rotated by 90 deg clockwise
-        SpaceVec pol = HC->state.polarity_vec(-M_PI_2);
-
-        auto e_pair = *std::find_if(
-            HC->custom_links().edges.begin(),
-            HC->custom_links().edges.end(),
-            [edge](const auto& ep) {
-                return std::get<0>(ep) == edge;
-            });
-
-        SpaceVec a = _am.position_of(edge->custom_links().a);
-        SpaceVec b = _am.position_of(edge->custom_links().b);
-        if (std::get<bool>(e_pair)) {
-            std::swap(a, b);
-        }
-
-        SpaceVec displ = this->_space->displacement(a, b);
-        double length = arma::norm(displ);
-
-        double x = arma::dot(displ / length, pol / arma::norm(pol));
-        return _pMLC_contractility * (x + 1.) / 2;
-    }
-
-    /// The area elasticity parameter
-    double get_area_elasticity () const {
-        return _area_elasticity;
     }
 }; // class PCPVertex
 

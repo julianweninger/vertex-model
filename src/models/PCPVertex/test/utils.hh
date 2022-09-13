@@ -557,16 +557,8 @@ void test_custom_links(PCPVertex& model) {
 
     model.get_logger()->info("Testing Vertex model energy terms ...");
     
-    BOOST_TEST( std::isfinite(model.get_energy_linetension()) );
-    BOOST_TEST( std::isfinite(model.get_energy_edge_contractility()) );
-    BOOST_TEST( std::isfinite(model.get_energy_areaelasticity()) );
-    BOOST_TEST( std::isfinite(model.get_energy_cell_contractility()) );
-    
-    BOOST_TEST( std::isfinite(model.get_boundary_shape_energy()) );
-    BOOST_TEST( std::isfinite(model.get_boundary_area_energy()) );
-    
     BOOST_TEST( std::isfinite(model.get_energy()) );
-
+    
     model.get_logger()->info("Ended test of model energy terms.");
 }
 

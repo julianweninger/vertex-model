@@ -23,10 +23,7 @@ void PCPVertex::jiggle_vertices(double intensity)
         domain_area = domain[0]*domain[1];
     }
     else {
-        domain_area = 0.;
-        for (const auto& c : this->_am.cells()) {
-            domain_area += c->state.area_preferential();
-        }
+        domain_area = this->_am.cells().size();
     }
     intensity *= sqrt(domain_area / num_cells);
 
@@ -147,50 +144,53 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
         return area_change;
     }
 
-    const auto& cells = _am.cells();
-    if (fix_hc_area) {
-        const auto num_cells = std::count_if(
-            cells.begin(), cells.end(), 
-            [](const auto& c) {
-                return c->state.type != CellType::hair;
-            });
-        double dA = area_change / num_cells;
-        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
-            auto state = cell->state;
-            if (state.type != CellType::hair) {
-                state._area_preferential += dA;
-            }
-            return state;
-        };
-        apply_rule<Update::sync>(compensate_dA, cells);    
-    }
-    else if (fix_sc_area) {
-        const auto num_cells = std::count_if(
-            cells.begin(), cells.end(), 
-            [](const auto& c) {
-                return c->state.type != CellType::support;
-            });
-        double dA = area_change / num_cells;
-        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
-            auto state = cell->state;
-            if (state.type != CellType::support) {
-                state._area_preferential += dA;
-            }
-            return state;
-        };
-        apply_rule<Update::sync>(compensate_dA, cells);
-    }
-    else {
-        const auto num_cells = cells.size();
-        double dA = area_change / num_cells;
-        const RuleFuncCell compensate_dA = [dA](const auto& cell) {
-            cell->state._area_preferential += dA;
-            return cell->state;
-        };
-        apply_rule<Update::sync>(compensate_dA, cells);
-    }
+    throw std::runtime_error("Stretch domain with compensation not "
+                             "implemented!");
+
+    // const auto& cells = _am.cells();
+    // if (fix_hc_area) {
+    //     const auto num_cells = std::count_if(
+    //         cells.begin(), cells.end(), 
+    //         [](const auto& c) {
+    //             return c->state.type != CellType::hair;
+    //         });
+    //     double dA = area_change / num_cells;
+    //     const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+    //         auto state = cell->state;
+    //         if (state.type != CellType::hair) {
+    //             state._area_preferential += dA;
+    //         }
+    //         return state;
+    //     };
+    //     apply_rule<Update::sync>(compensate_dA, cells);    
+    // }
+    // else if (fix_sc_area) {
+    //     const auto num_cells = std::count_if(
+    //         cells.begin(), cells.end(), 
+    //         [](const auto& c) {
+    //             return c->state.type != CellType::support;
+    //         });
+    //     double dA = area_change / num_cells;
+    //     const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+    //         auto state = cell->state;
+    //         if (state.type != CellType::support) {
+    //             state._area_preferential += dA;
+    //         }
+    //         return state;
+    //     };
+    //     apply_rule<Update::sync>(compensate_dA, cells);
+    // }
+    // else {
+    //     const auto num_cells = cells.size();
+    //     double dA = area_change / num_cells;
+    //     const RuleFuncCell compensate_dA = [dA](const auto& cell) {
+    //         cell->state._area_preferential += dA;
+    //         return cell->state;
+    //     };
+    //     apply_rule<Update::sync>(compensate_dA, cells);
+    // }
     
-    return area_change;
+    // return area_change;
 };
 
 /// Add skew to the domain's boundary condition

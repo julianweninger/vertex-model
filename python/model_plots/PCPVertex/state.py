@@ -267,7 +267,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             v_data = grp['Vertices'][time]
             e_data = grp['Edges'][time]
             c_data = grp['Cells'][time]
-            
+
             Lx = v_data.attrs["Lx"][0]
             Ly = v_data.attrs["Ly"][0]
             if (vertex_cfg['space']['periodic']):
@@ -477,7 +477,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
                 else:
                     quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
-
 
 
             quiver_and_colors(ax, ay, dx, dy, colorbar=True)

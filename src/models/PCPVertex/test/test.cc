@@ -12,7 +12,6 @@
 #include <utopia/core/apply.hh>
 
 #include "../PCPVertex.hh"
-#include "../energy.hh"
 #include "../algorithm.hh"
 #include "../operations.hh"
 #include "../PCPVertex_write_tasks.hh"
@@ -114,11 +113,11 @@ struct FixtureColumnar {
     }
 };
 
-class TEST_PCPVertex_energy_prediction : public PCPVertex
+class TEST_PCPVertex_energy : public PCPVertex
 {
 public:
     template<class ParentModel>
-    TEST_PCPVertex_energy_prediction (
+    TEST_PCPVertex_energy (
         const std::string name,
         ParentModel &parent_model,
         const Utopia::DataIO::Config custom_cfg = {})
@@ -137,87 +136,11 @@ public:
     }
 
     /** Performs the full test */
-    void perform_test() {
-        // test the energy prediction throughout time
-        for (int i = 0; i < 100; i++) {
-            test_energy_prediction();
-            // NOTE involves iteration
-
-            if ((i % 40) == 0) {
-                this->jiggle_vertices(0.02);
-            }
-        }
-        
-        // compare dE with energy prediction
+    void perform_test() {        
+        // compare dE with energy
         this->jiggle_vertices(0.02);
         for (std::size_t i = 0; i < 100; i++) {
             test_energy_gradient();
-        }
-    }
-
-    /// Test that the predicted energy and that obtained by iteration are equal
-    /** Predicted energy: energy(beta = dt). Is compared to energy after
-     *  iteration with step size dt.
-     */
-    void test_energy_prediction() {
-        const double precision = 1e-9;
-
-        auto minim_cfg = get_as<Config>("minimization", this->_cfg);
-        std::string update_scheme(get_as<std::string>("update_scheme",
-                                                      minim_cfg));
-        BOOST_TEST(update_scheme == "steepest_gradient",
-            "Test of energy prediction relies on fixed step size!");
-        
-        const auto dt = get_as<double>("dt", minim_cfg);
-
-        // set the gradient
-        this->init_minimization();
-
-        // predict the energy terms
-        auto energy = this->get_energy(dt);
-        auto linetension = this->get_energy_linetension(dt);
-        auto e_contr = this->get_energy_edge_contractility(dt);
-        auto area_elast = this->get_energy_areaelasticity(dt);
-        auto c_contr = this->get_energy_cell_contractility(dt);
-        auto b_area_elast = this->get_boundary_area_energy(dt);
-        auto b_shape_elast = this->get_boundary_shape_energy(dt);
-        
-        this->iterate();
-
-        // test the tracing of energy
-        BOOST_CHECK_CLOSE(this->_energy, this->get_energy(), precision);
-
-        // energy prediction does not work in case of topological transitions
-        if (this->get_num_T1s() == 0 and this->get_num_T2s() == 0) {
-            // test the predictions
-            BOOST_CHECK_CLOSE(energy, this->get_energy(),
-                              precision);
-            BOOST_CHECK_CLOSE(linetension, this->get_energy_linetension(),
-                              precision);
-            BOOST_CHECK_CLOSE(e_contr, this->get_energy_edge_contractility(),
-                              precision);
-            BOOST_CHECK_CLOSE(area_elast, this->get_energy_areaelasticity(),
-                              precision);
-            BOOST_CHECK_CLOSE(c_contr, this->get_energy_cell_contractility(),
-                              precision);
-            
-            BOOST_CHECK_CLOSE(b_area_elast, this->get_boundary_area_energy(),
-                              precision);
-            BOOST_CHECK_CLOSE(b_shape_elast, this->get_boundary_shape_energy(),
-                              precision);
-
-            // test that energy is deterministic value
-            std::vector<bool> energies_equal(100);
-            std::transform(
-                energies_equal.begin(), energies_equal.end(),
-                energies_equal.begin(),
-                [this, energy, precision](const auto&) {
-                    return (  std::abs(this->get_energy() - energy)
-                            < precision);
-                });        
-
-            BOOST_TEST(   energies_equal
-                       == std::vector<bool>(energies_equal.size(), true));
         }
     }
 
@@ -228,12 +151,6 @@ public:
         // chose a step size in steepest gradient update
         double dt = 0.00001;
         // NOTE error is expected to be smaller with small step size
-
-        auto minim_cfg = get_as<Config>("minimization", this->_cfg);
-        std::string update_scheme(get_as<std::string>("update_scheme",
-                                                      minim_cfg));
-        BOOST_TEST(update_scheme == "steepest_gradient",
-            "Test of energy prediction relies on fixed step size!");
         
         // set the gradient
         this->init_minimization();
@@ -249,13 +166,16 @@ public:
         // move a random vertex
         const auto& random_vertex = am.vertices()[prob_distr(*this->_rng)];
         const SpaceVec pos = am.position_of(random_vertex);
-        this->get_am().move_by(random_vertex, random_vertex->state.f * dt);
+        this->get_am().move_by(
+            random_vertex,
+            random_vertex->state.get_force() * dt
+        );
 
         const SpaceVec d_pos = this->get_space()->displacement(
             pos, am.position_of(random_vertex));
 
         // integrate the gradient to obtain the energy change
-        double dE = arma::dot(-1. * random_vertex->state.f, d_pos);
+        double dE = arma::dot(-1. * random_vertex->state.get_force(), d_pos);
 
         // compare to the change in energy
         BOOST_CHECK_CLOSE(dE, this->get_energy() - energy, precision);
@@ -287,7 +207,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                                   "steepest gradient scheme .. \n\n";
 
         minimization_cfg["tolerance"] = 1e-6;
-        minimization_cfg["update_scheme"] = "steepest_gradient";
         minimization_cfg["dt"] = 1e-2;
         minimization_cfg["max_steps"] = 10000;
         minimization_cfg["num_repeat"] = 2;
@@ -302,67 +221,52 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
 
         std::cout << std::endl << "Beginning test of minimization in "
-                                  "conjugate gradient scheme .. \n\n";
-
-
-        minimization_cfg["update_scheme"] = "conjugate_gradient";
-
-        auto time_start = model.get_time();
-        minimization = MinimizationParams(minimization_cfg);
-        model.minimize_energy(minimization);
-
-        BOOST_TEST(model.get_time() - time_start >= 5);
-        BOOST_TEST(model.get_rel_energy_change() < minimization.tolerance);
-
-
-        std::cout << std::endl << "Beginning test of minimization in "
                                   "steepest gradient noisy scheme .. \n\n";
 
-        minimization_cfg["update_scheme"] = "steepest_gradient";
         minimization_cfg["num_steps"] = 100;
         minimization_cfg["temperature"] = 0.0001;
         minimization_cfg["linetension_fluctuation"] = 0.0001;
         minimization_cfg["area_fluctuation"] = 0.0001;
 
-        time_start = model.get_time();
+        auto time_start = model.get_time();
         minimization = MinimizationParams(minimization_cfg);
         model.minimize_energy(minimization);
 
         BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
     }
 
-    BOOST_AUTO_TEST_CASE(test_energy_prediction_periodic)
+    BOOST_AUTO_TEST_CASE(test_energy_periodic)
     {
         Utopia::PseudoParent pp("test_periodic.yml");
-        TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
+        TEST_PCPVertex_energy test_model("PCPVertex", pp);
 
         test_model.run_test();
     }
 
-    BOOST_AUTO_TEST_CASE(test_energy_prediction)
+    BOOST_AUTO_TEST_CASE(test_energy)
     {
         Utopia::PseudoParent pp("test.yml");
-        TEST_PCPVertex_energy_prediction test_model("PCPVertex", pp);
+        TEST_PCPVertex_energy test_model("PCPVertex", pp);
 
         test_model.prolog();
 
         test_model.perform_test();
 
 
-        std::cout << std::endl << "Adding heterogeneities .. \n\n";
+        // std::cout << std::endl << "Adding heterogeneities .. \n\n";
 
-        test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), false);
-        test_model.set_pMLC_contractility(0.2, 1.);
+        // test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), false);
+        // test_model.set_pMLC_contractility(0.2, 1.);
 
-        test_model.perform_test();
+        // test_model.perform_test();
 
 
-        std::cout << std::endl << "Adding curvature .. \n\n";
+        // std::cout << std::endl << "Adding curvature .. \n\n";
 
-        test_model.curve_boundary(0.005, true);
-        test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), true);
+        // test_model.curve_boundary(0.005, true);
+        // test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), true);
 
-        test_model.perform_test();
+        // test_model.perform_test();
 
         std::cout << std::endl << "Done. \n\n";
 

@@ -18,8 +18,6 @@ namespace Utopia::Models::PCPVertex {
  * 
  *  \param cell         the cell that is to be divided
  *  \param division_angle   angle (in rad) at which the cell is divided
- *  \param linetension  The linetension of the dividing edge
- *  \param edge_contractility   The contractility of the dividing egde
  * 
  *  \note The remaining parameters of objects are inherited from existing 
  *        objects.
@@ -27,10 +25,8 @@ namespace Utopia::Models::PCPVertex {
  *  \warning Does not conserve the ordering of vertices
  */
 template <class Model>
-template <typename EdgeParamMatrix>
 void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
-        double division_angle,
-        EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility)
+        double division_angle)
 {
     this->_log->debug("Dividing cell ...");
 
@@ -114,11 +110,6 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     _vertices_adjoint_edges[new_vertices[1]->id()].clear();
 
     // create the new edge dividing the cell
-    DataIO::Config edge_cfg;
-    edge_cfg["linetension"] = linetension.at(cell->state.type,
-                                             cell->state.type);
-    edge_cfg["contractility"] = edge_contractility.at(cell->state.type,
-                                                      cell->state.type);
     const auto new_edge = add_edge(new_vertices[0], new_vertices[1]);
 
     // this is how to divide an edge at a pivot vertex
@@ -146,11 +137,9 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
                 adj_edges.end());
         }
 
-        DataIO::Config edge_cfg = edge->state.get_cfg();
-
-        // Divide edge at pivot intow two new edges
-        auto new_edge_0 = this->add_edge(a, pivot, edge_cfg);
-        auto new_edge_1 = this->add_edge(pivot, b, edge_cfg);
+        // Divide edge at pivot into two new edges
+        auto new_edge_0 = this->add_edge(a, pivot, edge);
+        auto new_edge_1 = this->add_edge(pivot, b, edge);
 
         _edges_adjoint_cells[new_edge_0->id()] = adjoints_of(edge);
         _edges_adjoint_cells[new_edge_1->id()] = adjoints_of(edge);
@@ -254,8 +243,8 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
     }
 
     // create 2 new cells
-    const auto new_cell_0 = this->add_cell(cell_center, new_edges_cell_0, cell);
-    const auto new_cell_1 = this->add_cell(cell_center, new_edges_cell_1, cell);
+    const auto new_cell_0 = this->add_cell(new_edges_cell_0, cell);
+    const auto new_cell_1 = this->add_cell(new_edges_cell_1, cell);
     
     // remove expired crosslinks
     for (const auto& new_c : {new_cell_0, new_cell_1}) {
@@ -295,8 +284,6 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
 /** \details Adds a new edge separating the adjoint cells
  * 
  *  \param edge         The edge to remodel
- *  \param linetension  The linetension of the new edge
- *  \param contractility  The contractility of the new edge
  *  \param get_energy   Calculate the energy for container of edges and cells
  *  \param separation   The separation of the new vertices 
  *  \param T1_barrier   The height of the energy barrier
@@ -310,9 +297,7 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
  *           The edge is also not removed if the transition increases energy.
  */
 template <class Model>
-template <typename EdgeParamMatrix>
 bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
-        EdgeParamMatrix linetension, EdgeParamMatrix contractility,
         std::function<double(const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number,
@@ -530,27 +515,7 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     _vertices_adjoint_cells[new_v_b->id()] = adjoint_cells_b;
 
     // create a new edge
-    DataIO::Config edge_cfg;
-    if (adj_cell_c and adj_cell_d) {
-        edge_cfg["linetension"] = linetension.at(adj_cell_c->state.type,
-                                                 adj_cell_d->state.type);
-        edge_cfg["contractility"] = contractility.at(adj_cell_c->state.type,
-                                                     adj_cell_d->state.type);
-    }
-    else if (adj_cell_c) {
-        edge_cfg["linetension"] = linetension.at(adj_cell_c->state.type,
-                                                 CellType::num_cell_types);
-        edge_cfg["contractility"] = contractility.at(adj_cell_c->state.type,
-                                                     CellType::num_cell_types);
-    }
-    else if (adj_cell_d) {
-        edge_cfg["linetension"] = linetension.at(adj_cell_d->state.type,
-                                                 CellType::num_cell_types);
-        edge_cfg["contractility"] = contractility.at(adj_cell_d->state.type,
-                                                     CellType::num_cell_types);
-    }
-
-    auto new_edge = add_edge(new_v_a, new_v_b, edge_cfg);
+    auto new_edge = add_edge(new_v_a, new_v_b);
     _edges_adjoint_cells[new_edge->id()] = std::make_pair(adj_cell_c,
                                                           adj_cell_d);
     // NOTE OK also if adj_cell_c or _d nullptr
