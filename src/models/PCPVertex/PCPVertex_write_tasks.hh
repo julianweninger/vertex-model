@@ -44,19 +44,16 @@ auto energy_adaptor = std::make_tuple(
         double E_total = 0.;
         std::map<std::string, double> terms({});
         const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, T_E] : Ts) {
-            const auto& E_function = T_E.second;
-            terms[name] = model.get_energy(E_function);
+        for (const auto& [name, functor] : Ts) {
+            terms[name] = model.get_energy(functor);
             E_total += terms[name];
         }
-        for (const auto& [name, TC_E] : TCs) {
-            const auto& E_function = TC_E.second;
-            terms[name] = model.get_energy(E_function);
+        for (const auto& [name, functor] : TCs) {
+            terms[name] = model.get_energy(functor);
             E_total += terms[name];
         }
-        for (const auto& [name, P_E] : Ps) {
-            const auto& E_function = P_E.second;
-            terms[name] = model.get_energy(E_function);
+        for (const auto& [name, functor] : Ps) {
+            terms[name] = model.get_energy(functor);
             E_total += terms[name];
         }
         for (const auto& name : Ds) {
@@ -90,13 +87,13 @@ auto energy_adaptor = std::make_tuple(
         
         std::set<std::string> terms({});
         const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, T_E] : Ts) {
+        for (const auto& [name, functor] : Ts) {
             terms.insert(name);
         }
-        for (const auto& [name, TC_E] : TCs) {
+        for (const auto& [name, functor] : TCs) {
             terms.insert(name);
         }
-        for (const auto& [name, P_E] : Ps) {
+        for (const auto& [name, functor] : Ps) {
             terms.insert(name);
         }
         for (const auto& name : Ds) {
@@ -522,13 +519,25 @@ auto cell_energies_adaptor = std::make_tuple(
         std::map<std::string, double> terms({});
         const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
 
-        for (const auto& [name, TC_E] : TCs) {
-            dataset->write(cells.begin(), cells.end(), TC_E.first);
-            dataset->write(cells.begin(), cells.end(), TC_E.second);
+        for (const auto& [name, functor] : TCs) {
+            dataset->write(cells.begin(), cells.end(), 
+                           [functor](const auto& cell) {
+                                return functor->compute_tension(cell);
+                           });
+            dataset->write(cells.begin(), cells.end(), 
+                           [functor](const auto& cell) {
+                                return functor->compute_energy(cell);
+                           });
         }
-        for (const auto& [name, P_E] : Ps) {
-            dataset->write(cells.begin(), cells.end(), P_E.first);
-            dataset->write(cells.begin(), cells.end(), P_E.second);
+        for (const auto& [name, functor] : Ps) {
+            dataset->write(cells.begin(), cells.end(), 
+                           [functor](const auto& cell) {
+                                return functor->compute_pressure(cell);
+                           });
+            dataset->write(cells.begin(), cells.end(), 
+                           [functor](const auto& cell) {
+                                return functor->compute_energy(cell);
+                           });
         }
     },
 
@@ -548,11 +557,11 @@ auto cell_energies_adaptor = std::make_tuple(
     [](auto& hdfdataset, auto& model) {
         std::vector<std::string> terms({});
         const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, TC_E] : TCs) {
-            terms.push_back(name + "__pressure");
+        for (const auto& [name, functor] : TCs) {
+            terms.push_back(name + "__tension");
             terms.push_back(name);
         }
-        for (const auto& [name, P_E] : Ps) {
+        for (const auto& [name, functor] : Ps) {
             terms.push_back(name + "__pressure");
             terms.push_back(name);
         }
@@ -591,26 +600,20 @@ auto edge_energies_adaptor = std::make_tuple(
         std::map<std::string, double> terms({});
         const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
 
-        for (const auto& [name, T_E] : Ts) {
-            dataset->write(edges.begin(), edges.end(), T_E.first);
-            dataset->write(edges.begin(), edges.end(), T_E.second);
+        for (const auto& [name, functor] : Ts) {
+            dataset->write(
+                edges.begin(), edges.end(),
+                [functor](const auto& e) { return functor->compute_tension(e); });
+            dataset->write(
+                edges.begin(), edges.end(),
+                [functor](const auto& e) { return functor->compute_energy(e); });
         }
-        for (const auto& [name, TC_E] : TCs) {
-            const auto& TC = TC_E.first;
+        for (const auto& [name, functor] : TCs) {
             std::function<double(const std::shared_ptr<Edge>&)> T_function = \
-            [am, TC]
+            [functor]
             (const std::shared_ptr<Edge>& edge)
             {
-                const auto& [cl, cr] = am.template adjoints_of<true>(edge);
-
-                double T = 0.;
-                if (cl) {
-                    T += TC(cl);
-                }
-                if (cr) {
-                    T += TC(cr);
-                }
-                return T;
+                return functor->compute_tension(edge);
             };
             dataset->write(edges.begin(), edges.end(), T_function);
         }
@@ -632,11 +635,11 @@ auto edge_energies_adaptor = std::make_tuple(
     [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         std::vector<std::string> terms({});
         const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, TC_E] : TCs) {
+        for (const auto& [name, functor] : TCs) {
             terms.push_back(name + "__tension");
             terms.push_back(name);
         }
-        for (const auto& [name, P_E] : Ps) {
+        for (const auto& [name, functor] : Ps) {
             terms.push_back(name + "__tension");
         }
         hdfdataset->add_attribute("dim_name__0", "term");

@@ -307,26 +307,16 @@ public:
     /// The type of a rule function acting on cells of the agent manager
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
-    using UpdateScheme = MinimizationParams::UpdateScheme;
 
+    using TensionTerm = WorkFunction::WorkFunctionTensionTerm<PCPVertex>;
 
-    using Tension = std::function<double(const std::shared_ptr<Edge>&)>;
+    using TensionCellTerm = WorkFunction::WorkFunctionTensionCellTerm<PCPVertex>;
 
-    using TensionEnergy = std::function<double(const std::shared_ptr<Edge>&)>;
-
-    using TensionCell = std::function<double(const std::shared_ptr<Cell>&)>;
-
-    using TensionCellEnergy = std::function<double(const std::shared_ptr<Cell>&)>;
-
-
-    using Pressure = std::function<double(const std::shared_ptr<Cell>&)>;
-
-    using PressureEnergy = std::function<double(const std::shared_ptr<Cell>&)>;
+    using PressureTerm = WorkFunction::WorkFunctionPressureTerm<PCPVertex>;
 
 
 private:
     // Base members: _time, _name, _cfg, _hdfgrp, _rng, _monitor, _space
-    // ... but you should definitely check out the documentation ;)
 
     // -- Members -------------------------------------------------------------
     /// The manager of the model's entities
@@ -347,16 +337,14 @@ private:
 
 
     // -- Mechanical parameters -----------------------------------------------
+    std::unordered_map<std::string, std::shared_ptr<TensionTerm>> _tensions;
     std::unordered_map<std::string, 
-                       std::pair<Tension, TensionEnergy>> _tensions;
-    std::unordered_map<std::string, 
-                       std::pair<TensionCell,
-                                 TensionCellEnergy>> _tensions_cell;
+                       std::shared_ptr<TensionCellTerm>> _tensions_cell;
+    std::unordered_map<std::string, std::shared_ptr<PressureTerm>> _pressures;
 
-    std::unordered_map<std::string, 
-                       std::pair<Pressure, PressureEnergy>> _pressures;
+    std::set<std::string> _work_function_terms_disabled;
 
-    std::vector<std::string> _work_function_terms_disabled;
+
 
     /// Mechanical parameters for boundary
     /** The boundary of the domain is treated as one cell
@@ -832,42 +820,60 @@ private:
                 const Config& params = term_pair.second;
 
                 if (not get_as<bool>("enabled", params, true)) {
-                    this->_log->debug("  Pre-registering work-function term "
+                    this->_log->debug("Pre-registering work-function term "
                         "'{}', but disabling it.");
-                    
+
+                    _work_function_terms_disabled.insert(term);                    
                 }
 
-                this->_log->debug("  Registering work-function term '{}' ...",
+                this->_log->debug("Registering work-function term '{}' ...",
                                   term);
+                _work_function_terms_disabled.insert(term);                    
 
-                if (term == "linetension") {
-                    const auto [T, TE] = setup_linetension(params, *this);
-                    this->register_tension(term, T, TE);      
-                }
-                else if (term == "edge_contractility") {
-                    const auto [T, TE] = setup_edge_contractility(params,
-                                                                  *this);
-                    this->register_tension(term, T, TE);                   
+                if (term == "area_elasticity") {
+                    register_pressure(
+                        term,
+                        std::make_shared<AreaElasticity<PCPVertex>>(params,
+                                                                    *this)
+                    );
                 }
                 else if (term == "cell_contractility") {
-                    const auto [TC, TCE] = setup_cell_contractility(params,
-                                                                     *this);
-                    this->register_tension_cell(term, TC, TCE);                   
+                    register_tension_cell(
+                        term,
+                        std::make_shared<CellContractility<PCPVertex>>(params,
+                                                                       *this)
+                    );
                 }
-                else if (term == "area_elasticity") {
-                    const auto [P, PE] = setup_area_elasticity(params, *this);
-                    this->register_pressure(term, P, PE);
+                else if (term == "edge_contractility") {                  
+                    register_tension(
+                        term,
+                        std::make_shared<EdgeContractility<PCPVertex>>(params,
+                                                                       *this)
+                    );
+                }
+                else if (term == "linetension") {
+                    register_tension(
+                        term,
+                        std::make_shared<Linetension<PCPVertex>>(params, *this)
+                    );
+                }
+                else if (term == "shape_elasticity") {
+                    register_tension_cell(
+                        term,
+                        std::make_shared<ShapeElasticity<PCPVertex>>(params,
+                                                                     *this)
+                    );
                 }
                 else {
                     throw std::runtime_error(fmt::format(
                         "No term `{}` known in PCPVertex namespace. "
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
-                        "linetension\n"
-                        "edge_contractility\n"
+                        "area_elasticity\n"
                         "cell_contractility\n"
-                        "area_elasticity\n",
-                        term
+                        "edge_contractility\n"
+                        "linetension\n"
+                        "", term
                     ));
                 }
 
@@ -1333,16 +1339,7 @@ public:
             this->_monitor.set_entry("energy", mean_energy);
         }
         if (_energy_buffer.size() >= 2) {
-            double mid = _energy_buffer.size() / 2.;
-            double trend = 0.;
-            double norm = 0.;
-            for (std::size_t i = 0; i < _energy_buffer.size(); i++) {
-                double val = _energy_buffer[_energy_buffer.size() - i];
-                trend += (val - mean_energy) * (mid - i);
-                norm += std::pow(i - mid, 2.);
-            }
-
-            this->_monitor.set_entry("energy_gradient", trend / norm);
+            this->_monitor.set_entry("energy_gradient",  get_energy_change());
         }
     }
 
@@ -1453,7 +1450,7 @@ public:
                 monitor_mngr();
 
                 minimum_reached = equilibrium_condition();
-                double energy_change = get_rel_energy_change();
+                double energy_change = get_energy_change();
                 
                 if (not minimum_reached 
                     and this->get_time() - time_start >= params.max_steps)
@@ -1487,126 +1484,142 @@ public:
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-
-public:
-    // .. Public energy terms .................................................
-
-    void register_tension(
-        std::string name,
-        Tension tension,
-        TensionEnergy energy
-    )
-    {
-        if (_tensions.find(name) != _tensions.end()) {
+private:
+    /// Checks that a term with this name is disabled and can thus be registered
+    void prepare_register_term (const std::string& name) {
+        if (not _work_function_terms_disabled.erase(name)) {
+            this->_log->error("A list of pre-registered work-function terms "
+                "available for registration:");
+            for (const auto& n : _work_function_terms_disabled) {
+                this->_log->error("  {}", n);
+            }
             throw std::runtime_error(fmt::format(
-                "Cannot register tension with name `{}`, because a tension "
-                "with that name is already registered!",
+                "Cannot register work-function term with name `{}`, because it "
+                "was not pre-registered! See above for available "
+                "pre-registered terms.",
                 name
             ));
         }
 
-        _tensions[name] = std::make_pair(tension, energy);
+        if (   _tensions.find(name) != _tensions.end()
+            or _tensions_cell.find(name) != _tensions_cell.end()
+            or _pressures.find(name) != _pressures.end())
+        {
+            throw std::runtime_error(fmt::format(
+                "Cannot register work-function term with name `{}`, because a "
+                "term with that name is already registered!",
+                name
+            ));
+        }
+    }
+
+public:
+    // .. Public energy terms .................................................
+    void register_tension(
+        std::string name,
+        const std::shared_ptr<TensionTerm>& tension
+    )
+    {
+        prepare_register_term(name);
+
+        _tensions.emplace(name, tension);
 
         this->_log->info("Successfully registered tension `{}`.", name);
     }
     void register_tension_cell(
         std::string name,
-        TensionCell tension,
-        TensionCellEnergy energy
+        const std::shared_ptr<TensionCellTerm>& tension
     )
     {
-        if (_tensions_cell.find(name) != _tensions_cell.end()) {
-            throw std::runtime_error(fmt::format(
-                "Cannot register cell-tension with name `{}`, because a "
-                "cell-tension with that name is already registered!",
-                name
-            ));
-        }
-        if (_tensions.find(name) != _tensions.end()) {
-            throw std::runtime_error(fmt::format(
-                "Cannot register cell-tension with name `{}`, because a "
-                "junction-tension with that name is already registered!",
-                name
-            ));
-        }
-        if (_pressures.find(name) != _pressures.end()) {
-            throw std::runtime_error(fmt::format(
-                "Cannot register cell-tension with name `{}`, because a "
-                "pressure with that name is already registered!",
-                name
-            ));
-        }
+        prepare_register_term(name);
 
-        _tensions_cell[name] = std::make_pair(tension, energy);
+        _tensions_cell.emplace(name, tension);
 
         this->_log->info("Successfully registered cell-tension `{}`.", name);
     }
 
     void register_pressure(
         std::string name,
-        Pressure pressure,
-        PressureEnergy energy
+        const std::shared_ptr<PressureTerm>& pressure
     )
     {
-        if (_pressures.find(name) != _pressures.end()) {
-            throw std::runtime_error(fmt::format(
-                "Cannot register pressure with name `{}`, because a pressure "
-                "with that name is already registered!",
-                name
-            ));
-        }
+        prepare_register_term(name);
 
-        _pressures[name] = std::make_pair(pressure, energy);
+        _pressures[name] = pressure;
 
         this->_log->info("Successfully registered pressure `{}`.", name);
+    }
+
+
+    /// Remove a term from the work function register
+    /** Adds the term to the disabled terms (can be reused).
+     */
+    bool unregister_term(const std::string& name) {
+        bool found = _tensions.erase(name);
+
+        if (not found) {
+            found = found or _tensions_cell.erase(name);
+        }
+
+        if (not found) {
+            found = found or _pressures.erase(name);
+        }
+
+        if (found) {
+            _work_function_terms_disabled.insert(name);
+        }
+
+        return found;
     }
 
     void update_tensions_and_pressures () {
         for (const auto& edge : _am.edges()) {
             double tension = 0.;
-            for (const auto& [name, v] : _tensions) {
-                const auto& [T, E] = v;
-                tension += T(edge);
+            for (const auto& [name, functor] : _tensions) {
+                tension += functor->compute_tension(edge);
             }
-
-            const auto& [cl, cr] = this->_am.adjoints_of<true>(edge);
-            for (const auto& [name, v] : _tensions_cell) {
-                const auto& [TC, EC] = v;
-                if (cl) {
-                    tension += TC(cl);
-                }
-                if (cr) {
-                    tension += TC(cr);
-                }
-            }
-
             edge->state.tension = tension;
         }
 
         for (const auto& cell : _am.cells()) {
+            double tension = 0.;
+            for (const auto& [name, functor] : _tensions_cell) {
+                tension += functor->compute_tension(cell);
+            }
+            for (const auto& [edge, f] : cell->custom_links().edges) {
+                edge->state.tension += tension;
+            }
+
             double pressure = 0.;
-            for (const auto& [name, v] : _pressures) {
-                const auto& [P, E] = v;
-                pressure += P(cell);
+            for (const auto& [name, functor] : _pressures) {
+                pressure += functor->compute_pressure(cell);
             }
             cell->state.pressure = pressure;
         }
     }
 
     /// Get energy for an edge
-    double get_energy (const TensionEnergy& E_function) const {
+    double get_energy (const std::shared_ptr<TensionTerm>& functor) const {
         double E = 0.;
         for (const auto& edge : _am.edges()) {
-            E += E_function(edge);
+            E += functor->compute_energy(edge);
+        }
+        return E;
+    }
+
+    double get_energy (const std::shared_ptr<TensionCellTerm>& functor) const {
+        double E = 0.;
+        for (const auto& cell : _am.cells()) {
+            E += functor->compute_energy(cell);
         }
         return E;
     }
 
     /// Get energy for a cell
-    double get_energy (const PressureEnergy& E_function) const {
+    double get_energy (const std::shared_ptr<PressureTerm>& functor) const {
         double E = 0.;
         for (const auto& cell : _am.cells()) {
-            E += E_function(cell);
+            E += functor->compute_energy(cell);
         }
         return E;
     }
@@ -1618,23 +1631,14 @@ public:
     ) const
     {
         double E = 0.;
-        for (const auto& [name, T_E] : _tensions) {
-            const auto& E_function = T_E.second;
-            for (const auto& e : es) {
-                E += E_function(e);
-            }
+        for (const auto& [name, functor] : _tensions) {
+            E += get_energy(functor);
         }
-        for (const auto& [name, TC_CE] : _tensions_cell) {
-            const auto& E_function = TC_CE.second;
-            for (const auto& c : cs) {
-                E += E_function(c);
-            }
+        for (const auto& [name, functor] : _tensions_cell) {
+            E += get_energy(functor);
         }
-        for (const auto& [name, P_E] : _pressures) {
-            const auto& E_function = P_E.second;
-            for (const auto& c : cs) {
-                E += E_function(c);
-            }
+        for (const auto& [name, functor] : _pressures) {
+            E += get_energy(functor);
         }
 
         return E;
@@ -1647,7 +1651,7 @@ public:
 
 
     /// Getter for the relative energy change from previous to last step
-    double get_rel_energy_change () const
+    double get_energy_change () const
     {
         if (_energy_buffer.size() < 2) {
             return std::numeric_limits<double>::lowest();
@@ -1657,6 +1661,7 @@ public:
             _energy_buffer.end(),
             0.
         );
+        mean_energy /= _energy_buffer.size();
 
         double mid = _energy_buffer.size() / 2.;
         double trend = 0.;
@@ -1676,7 +1681,7 @@ public:
             return false;
         }
 
-        double energy_change = get_rel_energy_change();
+        double energy_change = get_energy_change();
         return (energy_change > - _minimization_tolerance);
     }
 

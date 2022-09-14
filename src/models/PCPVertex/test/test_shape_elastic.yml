@@ -8,9 +8,9 @@ PCPVertex:
   - area_elasticity:
       elastic_modulus: 1
       preferential_area: 1
-  - cell_contractility:
-      contractility: 1.
-      preferential_perimeter: 3.6
+  - shape_elasticity:
+      elastic_modulus: 1.
+      preferential_shape_index: 3.72
       
   T1_barrier: 0.02
   T1_probability: 1.0

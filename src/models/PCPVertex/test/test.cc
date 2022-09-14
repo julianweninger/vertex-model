@@ -217,22 +217,22 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         model.minimize_energy(minimization);
 
         BOOST_TEST(model.get_time() >= 5);
-        BOOST_TEST(model.get_rel_energy_change() < minimization.tolerance);
+        BOOST_TEST(model.get_energy_change() < minimization.tolerance);
 
 
-        std::cout << std::endl << "Beginning test of minimization in "
-                                  "steepest gradient noisy scheme .. \n\n";
+        // std::cout << std::endl << "Beginning test of minimization in "
+        //                           "steepest gradient noisy scheme .. \n\n";
 
-        minimization_cfg["num_steps"] = 100;
-        minimization_cfg["temperature"] = 0.0001;
-        minimization_cfg["linetension_fluctuation"] = 0.0001;
-        minimization_cfg["area_fluctuation"] = 0.0001;
+        // minimization_cfg["num_steps"] = 100;
+        // minimization_cfg["temperature"] = 0.0001;
+        // minimization_cfg["linetension_fluctuation"] = 0.0001;
+        // minimization_cfg["area_fluctuation"] = 0.0001;
 
-        auto time_start = model.get_time();
-        minimization = MinimizationParams(minimization_cfg);
-        model.minimize_energy(minimization);
+        // auto time_start = model.get_time();
+        // minimization = MinimizationParams(minimization_cfg);
+        // model.minimize_energy(minimization);
 
-        BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
+        // BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_periodic)

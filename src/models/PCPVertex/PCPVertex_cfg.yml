@@ -42,8 +42,8 @@ agent_manager:
     hexagonal:
       hexagon_size: !expr (2 / 3**1.5)**0.5
       hexagon_shape: pointy_top            # NOTE either pointy_top or flat_top
-      lattice_rows: 16
-      lattice_columns: 16
+      lattice_rows: 4
+      lattice_columns: 4
     column:
       size: 1.
       height: 1.
@@ -60,7 +60,7 @@ initial_jiggle: 1.e-1
 # --- Dynamics
 # damping factor
 minimization:
-  dt: 0.001                      # only used with fixed step size
+  dt: 0.05                      # only used with fixed step size
   tolerance: 1e-8               # only used with adaptive steps size
   update_scheme: steepest_gradient
   max_steps: 10000000000000
