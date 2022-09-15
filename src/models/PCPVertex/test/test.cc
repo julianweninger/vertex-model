@@ -338,7 +338,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 );
             }
 
-            for (const auto kv_pair : vertex_pos0) {
+            for (const auto& kv_pair : vertex_pos0) {
                 am.move_to(kv_pair.first, kv_pair.second);
             }
 

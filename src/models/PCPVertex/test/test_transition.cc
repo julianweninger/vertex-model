@@ -72,71 +72,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         test_custom_links(fixture.vertex_model);
     }
 
-    BOOST_AUTO_TEST_CASE_TEMPLATE(test_divide_cell, F, Fixtures) {
-        F fixture;
-        auto& model = fixture.vertex_model;
-        bool periodic_BC = model.get_space()->periodic;
-
-        model.prolog();
-
-        const auto& am = model.get_am();
-
-        const auto cells = am.cells();
-        const auto edges = am.edges();
-        const auto vertices = am.vertices();
-
-        // find the first cell that is not a boundary cell
-        auto cell = *std::find_if(cells.begin(), cells.end(),
-                                  [am, periodic_BC](const auto& cell) {
-                                      if (periodic_BC) {
-                                          return (not am.is_boundary(cell));
-                                      }
-                                      else {
-                                          return am.is_boundary(cell);
-                                      }
-                                  });
-        if (periodic_BC) {
-            BOOST_TEST(not am.is_boundary(cell));
-            // NOTE this is a bulk cell
-            // NOTE implicit test of removal of bulk cell in non-periodic BC
-        }
-        else {
-            BOOST_TEST(am.is_boundary(cell));
-        }
-
-        // set arbitrary values and check inheritance
-        cell->state.type = 1;
-        cell->state.register_parameter("foo", {1.});
-        model.divide_cell(cell, 0.);
-
-        const auto cells_new = am.cells();
-        const auto edges_new = am.edges();
-        const auto vertices_new = am.vertices();
-
-        BOOST_TEST(cells.size() + 1 == cells_new.size());
-        BOOST_TEST(edges.size() + 3 == edges_new.size());
-        BOOST_TEST(vertices.size() + 2 == vertices_new.size());
-
-        for (auto new_cell : {cells_new[cells_new.size() - 2],
-                              cells_new[cells_new.size() - 1]})
-        {
-            BOOST_TEST(new_cell->state.list_parameters().size()
-                       ==  cell->state.list_parameters().size());
-            BOOST_TEST(new_cell->state.type
-                       ==  cell->state.type);
-            BOOST_TEST(new_cell->state.get_parameter("foo")[0]
-                       ==  cell->state.get_parameter("foo")[0]);
-        }
-
-        test_custom_links(model);
-
-        BOOST_TEST_MESSAGE("Iterating model after cell division.");
-        
-        // check that it does not fail somewhere ...
-        model.iterate();
-        test_custom_links(model);
-    } // test divide cell
-
     BOOST_AUTO_TEST_CASE_TEMPLATE(test_T1, F, Fixtures) {
         F fixture;
         auto& model = fixture.vertex_model;
@@ -493,6 +428,26 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                                       return (not am.is_boundary(cell));
                                   });
         BOOST_TEST(not am.is_boundary(cell));
+
+        cell->state.type = 1;
+
+        // remove edges until cell is triangular
+        std::size_t cnt = 0;
+        while (cell->custom_links().edges.size() > 3) {
+            const auto& edges = cell->custom_links().edges;
+            const auto& [edge, flip] = edges[123456789 % edges.size()];
+
+            SpaceVec displ = am.displacement(edge);
+            am.move_by(edge->custom_links().a,  0.49 * displ);
+            am.move_by(edge->custom_links().b, -0.49 * displ);
+    
+            model.iterate();
+
+            if (cnt > 10) {
+                throw std::runtime_error("Unable to remove junctions to reach "
+                    "triangular cell.");
+            }
+        }
         
         // move all vertices close to center
         SpaceVec center = am.barycenter_of(cell);
@@ -578,6 +533,76 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         test_custom_links(model);
     }
+
+    BOOST_AUTO_TEST_CASE_TEMPLATE(test_divide_cell, F, Fixtures) {
+        F fixture;
+        auto& model = fixture.vertex_model;
+        bool periodic_BC = model.get_space()->periodic;
+
+        model.prolog();
+
+        const auto& am = model.get_am();
+
+        const auto cells = am.cells();
+        const auto edges = am.edges();
+        const auto vertices = am.vertices();
+        
+
+        // find the first cell that is not a boundary cell
+        auto cell = *std::find_if(cells.begin(), cells.end(),
+                                  [am, periodic_BC](const auto& cell) {
+                                      if (periodic_BC) {
+                                          return (not am.is_boundary(cell));
+                                      }
+                                      else {
+                                          return am.is_boundary(cell);
+                                      }
+                                  });
+        if (periodic_BC) {
+            BOOST_TEST(not am.is_boundary(cell));
+            // NOTE this is a bulk cell
+            // NOTE implicit test of removal of bulk cell in non-periodic BC
+        }
+        else {
+            BOOST_TEST(am.is_boundary(cell));
+        }
+
+        // set arbitrary values and check inheritance
+        cell->state.type = 1;
+        cell->state.register_parameter("some_cell_value", {1.});
+        model.divide_cell(cell, 0.);
+
+
+        const auto cells_new = am.cells();
+        const auto edges_new = am.edges();
+        const auto vertices_new = am.vertices();
+
+        BOOST_TEST(cells.size() + 1 == cells_new.size());
+        BOOST_TEST(edges.size() + 3 == edges_new.size());
+        BOOST_TEST(vertices.size() + 2 == vertices_new.size());
+
+        for (auto new_cell : {cells_new[cells_new.size() - 2],
+                              cells_new[cells_new.size() - 1]})
+        {
+            BOOST_TEST(new_cell->state.list_parameters().size()
+                       ==  cell->state.list_parameters().size());
+            BOOST_TEST(new_cell->state.type
+                       ==  cell->state.type);
+            BOOST_TEST(new_cell->state.get_parameter("some_cell_value")[0]
+                       ==  cell->state.get_parameter("some_cell_value")[0]);
+
+            new_cell->state.type = 0;
+            new_cell->state.unregister_parameter("some_cell_value");
+        }
+
+        test_custom_links(model);
+
+        BOOST_TEST_MESSAGE("Iterating model after cell division.");
+        
+        // check that it does not fail somewhere ...
+        model.iterate();
+        test_custom_links(model);
+    } // test divide cell
 
     
     BOOST_AUTO_TEST_CASE(test_triangle_deformation) {
