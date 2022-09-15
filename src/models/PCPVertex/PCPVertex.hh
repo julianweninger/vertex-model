@@ -45,6 +45,9 @@ struct MinimizationParams {
     double dt;
 
     /// The maximum number of steps per minimization
+    std::size_t min_steps;
+
+    /// The maximum number of steps per minimization
     std::size_t max_steps;
 
     /// Iterate for a fixed number of steps
@@ -69,6 +72,7 @@ struct MinimizationParams {
      *  \f$ \Delta \Lambda \f$.
      */
     std::pair<double, double> linetension_fluctuations;
+
     std::pair<double, double> polarity_fluctuations;
 
     /// Area fluctuation parameter
@@ -125,6 +129,7 @@ struct MinimizationParams {
     :
         tolerance(get_as<double>("tolerance", cfg)),
         dt(get_as<double>("dt", cfg)),
+        min_steps(get_as<std::size_t>("min_steps", cfg, 0)),
         max_steps(get_as<std::size_t>("max_steps", cfg)),
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
         temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.))),
@@ -166,6 +171,12 @@ struct MinimizationParams {
                 "Value must be larger or equal to 'tolerance', but was {} < {}",
                 jiggle_tolerance, tolerance));
         }
+
+        if (min_steps > max_steps) {
+            throw Utopia::KeyError("min_steps", cfg, fmt::format(
+                "Value must be smaller or equal `max_steps`, but was {} > {}.",
+                min_steps, max_steps));
+        }
     }
 
     /// Initialize from config and inherit not defined values from default
@@ -174,6 +185,7 @@ struct MinimizationParams {
     :
         tolerance(get_as<double>("tolerance", cfg, defaults.tolerance)),
         dt(get_as<double>("dt", cfg, defaults.dt)),
+        min_steps(get_as<std::size_t>("min_steps", cfg, defaults.min_steps)),
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
         temperature(0., 0.),
@@ -233,6 +245,12 @@ struct MinimizationParams {
             throw Utopia::KeyError("jiggle_tolerance", cfg, fmt::format(
                 "Value must be larger or equal to 'tolerance', but was {} < {}",
                 jiggle_tolerance, tolerance));
+        }
+
+        if (min_steps > max_steps) {
+            throw Utopia::KeyError("min_steps", cfg, fmt::format(
+                "Value must be smaller or equal `max_steps`, but was {} > {}.",
+                min_steps, max_steps));
         }
     }
 };
@@ -308,11 +326,9 @@ public:
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
 
-    using TensionTerm = WorkFunction::WorkFunctionTensionTerm<PCPVertex>;
+    using WFEdgeTerm = WorkFunction::WorkFunctionEdgeTerm<PCPVertex>;
 
-    using TensionCellTerm = WorkFunction::WorkFunctionTensionCellTerm<PCPVertex>;
-
-    using PressureTerm = WorkFunction::WorkFunctionPressureTerm<PCPVertex>;
+    using WFCellTerm = WorkFunction::WorkFunctionCellTerm<PCPVertex>;
 
 
 private:
@@ -337,10 +353,8 @@ private:
 
 
     // -- Mechanical parameters -----------------------------------------------
-    std::unordered_map<std::string, std::shared_ptr<TensionTerm>> _tensions;
-    std::unordered_map<std::string, 
-                       std::shared_ptr<TensionCellTerm>> _tensions_cell;
-    std::unordered_map<std::string, std::shared_ptr<PressureTerm>> _pressures;
+    std::unordered_map<std::string, std::shared_ptr<WFEdgeTerm>> _tensions;
+    std::unordered_map<std::string, std::shared_ptr<WFCellTerm>> _pressures;
 
     std::set<std::string> _work_function_terms_disabled;
 
@@ -736,7 +750,6 @@ public:
         _dt(_default_minimization_params.dt),
         _minimization_tolerance(_default_minimization_params.tolerance),
         _tensions({}),
-        _tensions_cell({}),
         _pressures({}),
         _work_function_terms_disabled({}),
 
@@ -838,7 +851,7 @@ private:
                     );
                 }
                 else if (term == "cell_contractility") {
-                    register_tension_cell(
+                    register_pressure(
                         term,
                         std::make_shared<CellContractility<PCPVertex>>(params,
                                                                        *this)
@@ -858,7 +871,7 @@ private:
                     );
                 }
                 else if (term == "shape_elasticity") {
-                    register_tension_cell(
+                    register_pressure(
                         term,
                         std::make_shared<ShapeElasticity<PCPVertex>>(params,
                                                                      *this)
@@ -1122,8 +1135,8 @@ private:
 
             // force is normal to edge
             double Fa = 0.5 * delta_P;
-            a->state.add_force(Fa * SpaceVec({-displ[1], displ[0]}));
-            b->state.add_force(Fa * SpaceVec({-displ[1], displ[0]}));
+            a->state.add_force(-1. * Fa * SpaceVec({displ[1], -displ[0]}));
+            b->state.add_force(-1. * Fa * SpaceVec({displ[1], -displ[0]}));
         }
 
         // fix the boundary
@@ -1365,8 +1378,8 @@ public:
         this->increment_time();
         this->_datamanager(*this);            
         this->_log->debug("Incremented time (initial condition after external "
-                          "perturbation): {:7d} / {:d}",
-                          this->_time, this->_time_max);
+                          "perturbation): {:7d}",
+                          this->_time);
 
         const auto time_0 = this->get_time();
         this->_log->debug("Minimizing energy from step {} with {} repeats ...",
@@ -1385,8 +1398,8 @@ public:
                 this->increment_time();
                 this->_datamanager(*this);            
                 this->_log->debug("Incremented time after jiggling: "
-                                  "{:7d} / {:d}",
-                                  this->_time, this->_time_max);
+                                  "{:7d}",
+                                  this->_time);
                 
                 // reset status
                 _status = Status::Minimization;
@@ -1441,16 +1454,23 @@ public:
 
             // iterate until minimum reached
             while (not minimum_reached) {
+                std::size_t step = this->get_time() - time_start;
                 // disable topological transitions in first iteration
-                if (this->get_time() - time_start == 0) {
-                    _enable_transitions = false; }
+                if (step == 0) { _enable_transitions = false; }
                 else { _enable_transitions = tmp_enable_transitions; }
 
                 this->iterate();
                 monitor_mngr();
 
-                minimum_reached = equilibrium_condition();
+                if (step >= params.min_steps) {
+                    minimum_reached = equilibrium_condition();
+                }
                 double energy_change = get_energy_change();
+
+                if (not minimum_reached) {
+                    this->_log->trace("Energy changed by {} in last {} steps",
+                                      energy_change, _energy_buffer.size());
+                }
                 
                 if (not minimum_reached 
                     and this->get_time() - time_start >= params.max_steps)
@@ -1469,7 +1489,7 @@ public:
                     throw GotSignal(received_signum.load());
                 }
             }
-            this->_log->trace("  Energy minimized in {} steps.",
+            this->_log->debug("  Energy minimized in {} steps.",
                               this->get_time() - time_start);
 
             _num_minimizations++;
@@ -1502,7 +1522,6 @@ private:
         }
 
         if (   _tensions.find(name) != _tensions.end()
-            or _tensions_cell.find(name) != _tensions_cell.end()
             or _pressures.find(name) != _pressures.end())
         {
             throw std::runtime_error(fmt::format(
@@ -1517,7 +1536,7 @@ public:
     // .. Public energy terms .................................................
     void register_tension(
         std::string name,
-        const std::shared_ptr<TensionTerm>& tension
+        const std::shared_ptr<WFEdgeTerm>& tension
     )
     {
         prepare_register_term(name);
@@ -1526,21 +1545,10 @@ public:
 
         this->_log->info("Successfully registered tension `{}`.", name);
     }
-    void register_tension_cell(
-        std::string name,
-        const std::shared_ptr<TensionCellTerm>& tension
-    )
-    {
-        prepare_register_term(name);
-
-        _tensions_cell.emplace(name, tension);
-
-        this->_log->info("Successfully registered cell-tension `{}`.", name);
-    }
 
     void register_pressure(
         std::string name,
-        const std::shared_ptr<PressureTerm>& pressure
+        const std::shared_ptr<WFCellTerm>& pressure
     )
     {
         prepare_register_term(name);
@@ -1556,17 +1564,18 @@ public:
      */
     bool unregister_term(const std::string& name) {
         bool found = _tensions.erase(name);
-
-        if (not found) {
-            found = found or _tensions_cell.erase(name);
-        }
-
         if (not found) {
             found = found or _pressures.erase(name);
         }
 
         if (found) {
             _work_function_terms_disabled.insert(name);
+
+            this->_log->info("Removed `{}` term from work function.", name);
+        }
+        else {
+            this->_log->debug("Unable t remove `{}` term from work function. "
+                              "It is not registered. ", name);
         }
 
         return found;
@@ -1583,7 +1592,7 @@ public:
 
         for (const auto& cell : _am.cells()) {
             double tension = 0.;
-            for (const auto& [name, functor] : _tensions_cell) {
+            for (const auto& [name, functor] : _pressures) {
                 tension += functor->compute_tension(cell);
             }
             for (const auto& [edge, f] : cell->custom_links().edges) {
@@ -1599,7 +1608,7 @@ public:
     }
 
     /// Get energy for an edge
-    double get_energy (const std::shared_ptr<TensionTerm>& functor) const {
+    double get_energy (const std::shared_ptr<WFEdgeTerm>& functor) const {
         double E = 0.;
         for (const auto& edge : _am.edges()) {
             E += functor->compute_energy(edge);
@@ -1607,16 +1616,8 @@ public:
         return E;
     }
 
-    double get_energy (const std::shared_ptr<TensionCellTerm>& functor) const {
-        double E = 0.;
-        for (const auto& cell : _am.cells()) {
-            E += functor->compute_energy(cell);
-        }
-        return E;
-    }
-
     /// Get energy for a cell
-    double get_energy (const std::shared_ptr<PressureTerm>& functor) const {
+    double get_energy (const std::shared_ptr<WFCellTerm>& functor) const {
         double E = 0.;
         for (const auto& cell : _am.cells()) {
             E += functor->compute_energy(cell);
@@ -1632,9 +1633,6 @@ public:
     {
         double E = 0.;
         for (const auto& [name, functor] : _tensions) {
-            E += get_energy(functor);
-        }
-        for (const auto& [name, functor] : _tensions_cell) {
             E += get_energy(functor);
         }
         for (const auto& [name, functor] : _pressures) {
@@ -1663,11 +1661,11 @@ public:
         );
         mean_energy /= _energy_buffer.size();
 
-        double mid = _energy_buffer.size() / 2.;
+        double mid = (_energy_buffer.size() - 1) / 2.;
         double trend = 0.;
         double norm = 0.;
         for (std::size_t i = 0; i < _energy_buffer.size(); i++) {
-            double val = _energy_buffer[_energy_buffer.size() - i];
+            double val = _energy_buffer[_energy_buffer.size() - 1 - i];
             trend += (val - mean_energy) * (mid - i);
             norm += std::pow(i - mid, 2.);
         }
@@ -1682,7 +1680,7 @@ public:
         }
 
         double energy_change = get_energy_change();
-        return (energy_change > - _minimization_tolerance);
+        return (energy_change >= -_minimization_tolerance);
     }
 
 
@@ -1690,7 +1688,6 @@ public:
     const auto get_work_function_terms () const {
         return std::make_tuple(
             _tensions,
-            _tensions_cell,
             _pressures,
             _work_function_terms_disabled
         );

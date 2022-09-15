@@ -10,7 +10,10 @@ PCPVertex:
       preferential_area: 1
   - cell_contractility:
       contractility: 1.
-      preferential_perimeter: 3.6
+      preferential_perimeter: 3.72
+  - shape_elasticity:
+      elastic_modulus: 1.
+      preferential_shape_index: 3.72
 
   log_level: trace
   T1_barrier: 0.02

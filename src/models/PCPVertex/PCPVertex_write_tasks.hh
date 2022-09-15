@@ -43,12 +43,8 @@ auto energy_adaptor = std::make_tuple(
     [](auto& dataset, auto& model) {
         double E_total = 0.;
         std::map<std::string, double> terms({});
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
         for (const auto& [name, functor] : Ts) {
-            terms[name] = model.get_energy(functor);
-            E_total += terms[name];
-        }
-        for (const auto& [name, functor] : TCs) {
             terms[name] = model.get_energy(functor);
             E_total += terms[name];
         }
@@ -71,8 +67,8 @@ auto energy_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& model) -> decltype(auto) {
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        std::size_t size = Ts.size() + TCs.size() + Ps.size() + Ds.size();
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
+        std::size_t size = Ts.size() + Ps.size() + Ds.size();
         return group->open_dataset("Terms", {H5S_UNLIMITED, size + 1});
     },
     
@@ -86,11 +82,8 @@ auto energy_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__time", "Time");
         
         std::set<std::string> terms({});
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
         for (const auto& [name, functor] : Ts) {
-            terms.insert(name);
-        }
-        for (const auto& [name, functor] : TCs) {
             terms.insert(name);
         }
         for (const auto& [name, functor] : Ps) {
@@ -517,19 +510,13 @@ auto cell_energies_adaptor = std::make_tuple(
         const auto& cells = am.cells();
 
         std::map<std::string, double> terms({});
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
 
-        for (const auto& [name, functor] : TCs) {
+        for (const auto& [name, functor] : Ps) {
             dataset->write(cells.begin(), cells.end(), 
                            [functor](const auto& cell) {
                                 return functor->compute_tension(cell);
                            });
-            dataset->write(cells.begin(), cells.end(), 
-                           [functor](const auto& cell) {
-                                return functor->compute_energy(cell);
-                           });
-        }
-        for (const auto& [name, functor] : Ps) {
             dataset->write(cells.begin(), cells.end(), 
                            [functor](const auto& cell) {
                                 return functor->compute_pressure(cell);
@@ -543,10 +530,10 @@ auto cell_energies_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        const auto [Ts, TCs, Ps, Ds] = m.get_work_function_terms();
-        std::size_t cnt = TCs.size() + Ps.size();
+        const auto [Ts, Ps, Ds] = m.get_work_function_terms();
+        std::size_t cnt = Ps.size();
         return group->open_dataset(std::to_string(m.get_time()), 
-            {2 * cnt, m.get_am().cells().size()});
+            {3 * cnt, m.get_am().cells().size()});
     },
 
     // attribute writer for basegroup
@@ -556,12 +543,9 @@ auto cell_energies_adaptor = std::make_tuple(
     // attribute writer for dataset
     [](auto& hdfdataset, auto& model) {
         std::vector<std::string> terms({});
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, functor] : TCs) {
-            terms.push_back(name + "__tension");
-            terms.push_back(name);
-        }
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
         for (const auto& [name, functor] : Ps) {
+            terms.push_back(name + "__tension");
             terms.push_back(name + "__pressure");
             terms.push_back(name);
         }
@@ -598,7 +582,7 @@ auto edge_energies_adaptor = std::make_tuple(
         const auto& edges = am.edges();
 
         std::map<std::string, double> terms({});
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
 
         for (const auto& [name, functor] : Ts) {
             dataset->write(
@@ -608,7 +592,7 @@ auto edge_energies_adaptor = std::make_tuple(
                 edges.begin(), edges.end(),
                 [functor](const auto& e) { return functor->compute_energy(e); });
         }
-        for (const auto& [name, functor] : TCs) {
+        for (const auto& [name, functor] : Ps) {
             std::function<double(const std::shared_ptr<Edge>&)> T_function = \
             [functor]
             (const std::shared_ptr<Edge>& edge)
@@ -621,8 +605,8 @@ auto edge_energies_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        const auto [Ts, TCs, Ps, Ds] = m.get_work_function_terms();
-        std::size_t cnt = 2 * Ts.size() + TCs.size();
+        const auto [Ts, Ps, Ds] = m.get_work_function_terms();
+        std::size_t cnt = 2 * Ts.size() + Ps.size();
         return group->open_dataset(std::to_string(m.get_time()), 
             {cnt, m.get_am().edges().size()});
     },
@@ -634,8 +618,8 @@ auto edge_energies_adaptor = std::make_tuple(
     // attribute writer for dataset
     [](auto& hdfdataset, [[maybe_unused]] auto& model) {
         std::vector<std::string> terms({});
-        const auto [Ts, TCs, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, functor] : TCs) {
+        const auto [Ts, Ps, Ds] = model.get_work_function_terms();
+        for (const auto& [name, functor] : Ts) {
             terms.push_back(name + "__tension");
             terms.push_back(name);
         }

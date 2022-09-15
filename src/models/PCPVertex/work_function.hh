@@ -11,7 +11,7 @@ namespace WorkFunction {
 /// @tparam Model   The model within which the AgentManager lives
 /** A tension is the derivative of the energy to the length of an junction */
 template <typename Model>
-class WorkFunctionTensionTerm {
+class WorkFunctionEdgeTerm {
 public:
     using AgentManager = typename Model::AgentManager;
     using Edge = typename Model::Edge;
@@ -20,7 +20,7 @@ protected:
     const AgentManager& _am;
 
 public:
-    WorkFunctionTensionTerm (const DataIO::Config& cfg, const Model& model)
+    WorkFunctionEdgeTerm (const DataIO::Config& cfg, const Model& model)
     :
         _am(model.get_am())
     { }
@@ -30,29 +30,28 @@ public:
     virtual double compute_energy(const std::shared_ptr<Edge>& edge) const = 0;
 };
 
-/// @brief The class of a tension term calculated on a cell in the work function
+/// @brief The class of a pressure term in the work function
 /// @tparam Model   The model within which the AgentManager lives
-/** A cell-tension is the derivative of the energy to the perimeter of a cell.
- *  Thus, the tension of a junction is the sum of tensions of the left and right
- *  cell.
+/** A pressure is the derivative of the energy to the area of a cell. 
  */
 template <typename Model>
-class WorkFunctionTensionCellTerm {
+class WorkFunctionCellTerm {
 public:
     using AgentManager = typename Model::AgentManager;
-    using Edge = typename Model::Edge;
     using Cell = typename Model::Cell;
+    using Edge = typename Model::Edge;
+
 
 protected:
     const AgentManager& _am;
-
+    
 public:
-    WorkFunctionTensionCellTerm (const DataIO::Config& cfg, const Model& model)
+    WorkFunctionCellTerm (const DataIO::Config& cfg, const Model& model)
     :
         _am(model.get_am())
     { }
 
-    virtual double compute_tension(const std::shared_ptr<Cell>& cell) const = 0;
+    virtual double compute_tension(const std::shared_ptr<Cell>& cell) const=0;
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const {
         const auto& [cl, cr] = this->_am.template adjoints_of<true>(edge);
@@ -67,28 +66,6 @@ public:
         return T;
     };
 
-    virtual double compute_energy(const std::shared_ptr<Cell>& cell) const = 0;
-};
-
-/// @brief The class of a pressure term in the work function
-/// @tparam Model   The model within which the AgentManager lives
-/** A pressure is the derivative of the energy to the area of a cell. 
- */
-template <typename Model>
-class WorkFunctionPressureTerm {
-public:
-    using AgentManager = typename Model::AgentManager;
-    using Cell = typename Model::Cell;
-
-protected:
-    const AgentManager& _am;
-    
-public:
-    WorkFunctionPressureTerm (const DataIO::Config& cfg, const Model& model)
-    :
-        _am(model.get_am())
-    { }
-
     virtual double compute_pressure(const std::shared_ptr<Cell>& cell) const=0;
 
     virtual double compute_energy(const std::shared_ptr<Cell>& cell) const = 0;
@@ -102,9 +79,9 @@ public:
  *      - `linetension`: the tension \f$ k \f$
  */
 template <typename Model>
-class Linetension : public WorkFunctionTensionTerm<Model>
+class Linetension : public WorkFunctionEdgeTerm<Model>
 {
-    using Base = WorkFunctionTensionTerm<Model>;
+    using Base = WorkFunctionEdgeTerm<Model>;
 
     using Edge = typename Base::Edge;
 
@@ -134,9 +111,9 @@ public:
  *      - `contractility`: the contractility \f$ k \f$
  */
 template <typename Model>
-class EdgeContractility : public WorkFunctionTensionTerm<Model>
+class EdgeContractility : public WorkFunctionEdgeTerm<Model>
 {
-    using Base = WorkFunctionTensionTerm<Model>;
+    using Base = WorkFunctionEdgeTerm<Model>;
 
     using Edge = typename Base::Edge;
 
@@ -169,11 +146,12 @@ public:
  *              at which cell is tension free.
  */
 template <typename Model>
-class CellContractility : public WorkFunctionTensionCellTerm<Model>
+class CellContractility : public WorkFunctionCellTerm<Model>
 {
-    using Base = WorkFunctionTensionCellTerm<Model>;
+    using Base = WorkFunctionCellTerm<Model>;
 
     using Cell = typename Base::Cell;
+    using Edge = typename Base::Edge;
 
 private:
     const double _contractility;
@@ -190,7 +168,13 @@ public:
 
     double compute_tension(const std::shared_ptr<Cell>& cell) const final {
         const double& P0 = _preferential_perimeter;
-        return _contractility * (this->_am.perimeter_of(cell) / P0 - 1);
+        return _contractility * (this->_am.perimeter_of(cell) / P0 - 1) / P0;
+    }
+
+    double compute_pressure([[maybe_unused]] const std::shared_ptr<Cell>& cell)
+    const final
+    {
+        return 0.;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
@@ -212,9 +196,9 @@ public:
  *              at which cell is tension free.
  */
 template <typename Model>
-class ShapeElasticity : public WorkFunctionTensionCellTerm<Model>
+class ShapeElasticity : public WorkFunctionCellTerm<Model>
 {
-    using Base = WorkFunctionTensionCellTerm<Model>;
+    using Base = WorkFunctionCellTerm<Model>;
 
     using Cell = typename Base::Cell;
 
@@ -234,9 +218,21 @@ public:
 
     double compute_tension(const std::shared_ptr<Cell>& cell) const final {
         const double& s0 = _preferential_shape_index;
-        const double s = this->_am.shape_index_of(cell);
-        return _elastic_modulus * (s - s0);
+        const double area = this->_am.area_of(cell);
+        const double perimeter = this->_am.perimeter_of(cell);
+        const double s = perimeter / sqrt(area);
+        return _elastic_modulus * (s - s0) / sqrt(area);
     }
+
+    double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
+        const double& s0 = _preferential_shape_index;
+        const double area = this->_am.area_of(cell);
+        const double perimeter = this->_am.perimeter_of(cell);
+        const double s = perimeter / sqrt(area);
+        return (  _elastic_modulus * (s - s0) * perimeter
+                * (-0.5 * std::pow(area, -1.5)));
+    }
+
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
         const double& s0 = _preferential_shape_index;
@@ -255,9 +251,9 @@ public:
  *              at which cell is pressure free.
  */
 template <typename Model>
-class AreaElasticity : public WorkFunctionPressureTerm<Model>
+class AreaElasticity : public WorkFunctionCellTerm<Model>
 {
-    using Base = WorkFunctionPressureTerm<Model>;
+    using Base = WorkFunctionCellTerm<Model>;
 
     using Cell = typename Base::Cell;
 
@@ -273,6 +269,12 @@ public:
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _preferential_area(get_as<double>("preferential_area", cfg))
     { }
+
+    double compute_tension([[maybe_unused]] const std::shared_ptr<Cell>& cell)
+    const final 
+    {
+        return 0.;
+    }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
         const double& A0 = _elastic_modulus;
