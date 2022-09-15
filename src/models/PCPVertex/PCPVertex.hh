@@ -850,6 +850,13 @@ private:
                                                                     *this)
                     );
                 }
+                else if (term == "area_elasticity_heterotypic") {
+                    register_pressure(
+                        term,
+                        std::make_shared<AreaElasticityHeterotypic<PCPVertex>>(
+                            params, *this)
+                    );
+                }
                 else if (term == "cell_contractility") {
                     register_pressure(
                         term,
@@ -870,6 +877,13 @@ private:
                         std::make_shared<Linetension<PCPVertex>>(params, *this)
                     );
                 }
+                else if (term == "linetension_heterotypic") {
+                    register_tension(
+                        term,
+                        std::make_shared<LinetensionHeterotypic<PCPVertex>>(
+                            params, *this)
+                    );
+                }
                 else if (term == "shape_elasticity") {
                     register_pressure(
                         term,
@@ -883,9 +897,12 @@ private:
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
                         "area_elasticity\n"
+                        "area_elasticity_heterotypic\n"
                         "cell_contractility\n"
                         "edge_contractility\n"
                         "linetension\n"
+                        "linetension_heterotypic\n"
+                        "shape_elasticity\n"
                         "", term
                     ));
                 }
@@ -1633,10 +1650,14 @@ public:
     {
         double E = 0.;
         for (const auto& [name, functor] : _tensions) {
-            E += get_energy(functor);
+            for (const auto& edge : es) {
+                E += functor->compute_energy(edge);
+            }
         }
         for (const auto& [name, functor] : _pressures) {
-            E += get_energy(functor);
+            for (const auto& cell : cs) {
+                E += functor->compute_energy(cell);
+            }
         }
 
         return E;
@@ -1644,7 +1665,15 @@ public:
 
     /// Getter for energy all edges and cells
     double get_energy () const {
-        return get_energy(_am.edges(), _am.cells());
+        double E = 0.;
+        for (const auto& [name, functor] : _tensions) {
+            E += get_energy(functor);
+        }
+        for (const auto& [name, functor] : _pressures) {
+            E += get_energy(functor);
+        }
+
+        return E;
     }
 
 

@@ -3,11 +3,17 @@ PCPVertex:
   work_function_terms:
   - linetension:
       linetension: 0.1
+  - linetension_heterotypic:
+      linetension: [[0.1]]
+      boundary_type: 0
   - edge_contractility:
       contractility: 0.01
   - area_elasticity:
       elastic_modulus: 1
       preferential_area: 1
+  - area_elasticity_heterotypic:
+      elastic_modulus: [1]
+      preferential_area: [1]
   - cell_contractility:
       contractility: 1.
       preferential_perimeter: 3.72

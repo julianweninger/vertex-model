@@ -20,7 +20,8 @@ protected:
     const AgentManager& _am;
 
 public:
-    WorkFunctionEdgeTerm (const DataIO::Config& cfg, const Model& model)
+    WorkFunctionEdgeTerm ([[maybe_unused]] const DataIO::Config& cfg,
+                          const Model& model)
     :
         _am(model.get_am())
     { }
@@ -46,7 +47,8 @@ protected:
     const AgentManager& _am;
     
 public:
-    WorkFunctionCellTerm (const DataIO::Config& cfg, const Model& model)
+    WorkFunctionCellTerm ([[maybe_unused]] const DataIO::Config& cfg,
+                          const Model& model)
     :
         _am(model.get_am())
     { }
@@ -86,21 +88,119 @@ class Linetension : public WorkFunctionEdgeTerm<Model>
     using Edge = typename Base::Edge;
 
 private:
-    const double linetension;
+    const double _linetension;
 
 public:
     Linetension (const DataIO::Config& cfg, const Model& model)
     :
         Base(cfg, model),
-        linetension(get_as<double>("linetension", cfg))
+        _linetension(get_as<double>("linetension", cfg))
     { }
 
-    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return linetension;
+    double compute_tension([[maybe_unused]] const std::shared_ptr<Edge>& edge)
+    const final
+    {
+        return _linetension;
     }
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        return linetension * this->_am.length_of(edge);
+        return _linetension * this->_am.length_of(edge);
+    }
+};
+
+
+arma::mat setup_symmetric_matrix (
+    const std::vector<std::vector<double>>& values) 
+{
+    // If the mask is empty, just return the default cost
+    if (values.size() == 0){
+        throw std::runtime_error("Matrix cannot be empty!");
+    }
+
+    std::set<std::size_t> dim_values;
+    for (const auto& v : values){
+        dim_values.insert(v.size());
+    }
+    dim_values.insert(values.size());
+    if (dim_values.size() != 1){
+        throw std::runtime_error("The provided value-matrix does not have "
+                                 "quadratic shape!");
+    }
+
+    arma::mat mat(values.size(), values.size(), arma::fill::zeros);
+
+    for (std::size_t i = 0; i < values.size(); i++) {
+        for (std::size_t j = 0; j < values.size(); j++) {
+            mat(i, j) = values[i][j];
+            if (i > j and fabs(mat(i,j) - mat(j,i)) > 1.e-8) {
+                std::cout << mat;
+                throw std::runtime_error("Matrix is not symmetric!");
+            }
+        }
+    }
+
+    return mat;
+}
+
+/// @brief The linetension term
+/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+ * 
+ *  Parameters:
+ *      - `linetension`: the tension \f$ k \f$. A symmetric matrix. 
+ *              The i,j coordinates map to the type of cell on left and right
+ *              side. 
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+ */
+template <typename Model>
+class LinetensionHeterotypic : public WorkFunctionEdgeTerm<Model>
+{
+    using Base = WorkFunctionEdgeTerm<Model>;
+
+    using Edge = typename Base::Edge;
+
+private:
+    const arma::mat _linetension;
+
+    const std::size_t _boundary_type;
+
+    const double& get_linetension (const std::shared_ptr<Edge>& edge) const {
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        std::size_t type_a, type_b;
+        if (ca) { type_a = ca->state.type; }
+        else { type_a = _boundary_type; }
+        if (cb) { type_b = cb->state.type; }
+        else { type_b = _boundary_type; }
+
+        if (std::max(type_a, type_b) > _linetension.index_max())
+        {
+            std::cout << _linetension << std::endl;
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term LinetensionHeterotypic, no parameter registered "
+                "for cells of type {}. Parameters for {} types registered.",
+                std::max(type_a, type_b),
+                _linetension.index_max()
+            ));
+        }
+
+        return _linetension.at(type_a, type_b);
+    }
+
+public:
+    LinetensionHeterotypic (const DataIO::Config& cfg, const Model& model)
+    :
+        Base(cfg, model),
+        _linetension(setup_symmetric_matrix(
+            get_as<std::vector<std::vector<double>>>("linetension", cfg))),
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg))
+    { }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        return get_linetension(edge);
+    }
+
+    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
+        return get_linetension(edge) * this->_am.length_of(edge);
     }
 };
 
@@ -247,7 +347,7 @@ public:
  * 
  *  Parameters:
  *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_perimeter`: The target area \f$ A^{(0)} \f$ 
+ *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
  *              at which cell is pressure free.
  */
 template <typename Model>
@@ -277,14 +377,90 @@ public:
     }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = _elastic_modulus;
+        const double& A0 = _preferential_area;
         return _elastic_modulus * (this->_am.area_of(cell) / A0 - 1.) / A0;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = _elastic_modulus;
+        const double& A0 = _preferential_area;
         const double A = this->_am.area_of(cell);
         return 0.5 * _elastic_modulus * std::pow(A / A0 - 1, 2);
+    }
+};
+
+/// @brief The area elasticity of a cell
+/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
+ *  cell area  \f$ A_\alpha \f$..
+ * 
+ *  Parameters:
+ *      - `contractility`: the elastic modulus \f$ k \f$ as a vector, where
+ *          position maps to cell type. Needs to be of same length as A0
+ *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
+ *              at which cell is pressure free. Positions map to cell type.
+ *              Needs to be of same length as k.
+ */
+template <typename Model>
+class AreaElasticityHeterotypic : public WorkFunctionCellTerm<Model>
+{
+    using Base = WorkFunctionCellTerm<Model>;
+
+    using Cell = typename Base::Cell;
+
+private:
+    std::vector<double> _elastic_modulus;
+
+    std::vector<double> _preferential_area;
+
+    const auto get_parameters (const std::shared_ptr<Cell>& cell) const {
+        if (cell->state.type >= _elastic_modulus.size()) {
+            std::cout << _elastic_modulus.size();
+            throw std::runtime_error(fmt::format(
+                "In WF-term AreaElasticityHeterotypic, no parameter registered "
+                "for cells of type {}. Parameters for {} types registered.",
+                cell->state.type, _elastic_modulus.size()
+            ));
+        }
+        return std::make_pair(
+            _preferential_area.at(cell->state.type),
+            _elastic_modulus.at(cell->state.type)
+        );
+    }
+
+public:
+    AreaElasticityHeterotypic (const DataIO::Config& cfg, const Model& model)
+    :
+        Base(cfg, model),
+        _elastic_modulus(
+            get_as<std::vector<double>>("elastic_modulus", cfg)),
+        _preferential_area(
+            get_as<std::vector<double>>("preferential_area", cfg))
+    {
+        if (_elastic_modulus.size() != _preferential_area.size()) {
+            throw Utopia::KeyError("", cfg,
+                fmt::format("In AreaElasticityHeterotypic: "
+                    "Number of values provided in `_elastic_modulus` must be "
+                    "equal to that in `preferential_area`, but was {} != {}.",
+                    _elastic_modulus.size(),
+                    _preferential_area.size()
+                )
+            );
+        }
+    }
+
+    double compute_tension([[maybe_unused]] const std::shared_ptr<Cell>& cell)
+    const final 
+    {
+        return 0.;
+    }
+
+    double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
+        const auto [A0, k] = get_parameters(cell);
+        return k * (this->_am.area_of(cell) / A0 - 1.) / A0;
+    }
+
+    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
+        const auto [A0, k] = get_parameters(cell);
+        return 0.5 * k * std::pow(this->_am.area_of(cell) / A0 - 1, 2);
     }
 };
 
