@@ -14,7 +14,7 @@
 // model for energy minimization
 #include "../PCPVertex/PCPVertex.hh"
 #include "../PCPVertex/space.hh"
-#include "../PCPVertex/energy.hh"
+#include "../PCPVertex/work_function.hh"
 #include "../PCPVertex/algorithm.hh"
 #include "../PCPVertex/operations.hh"
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
@@ -65,9 +65,6 @@ public:
 
     /// The type of a cell
     using Cell = typename PCPVertex::Cell;
-
-    /// The types a cell can take (support, hair)
-    using CellType = typename PCPVertex::CellType;
 
     /// The type of a rule function acting on vertices of the agent manager
     using RuleFuncVertex = typename PCPVertex::RuleFuncVertex;
@@ -192,26 +189,13 @@ public:
             std::make_tuple(
                 // energy adaptors
                 DataIO::time_energy_adaptor, DataIO::energy_adaptor,
-                DataIO::areaelasticity_adaptor,
-                DataIO::linetension_adaptor,
-                DataIO::cell_contractility_adaptor,
-                DataIO::edge_contractility_adaptor,
-                DataIO::boundary_area_elasticity_adaptor,
-                DataIO::boundary_shape_elasticity_adaptor,
                 // transition adaptors
                 DataIO::transition_adaptor,
                 // statistics
-                DataIO::statistics_time_adaptor,
-                DataIO::cell_stats_adaptor<Cell>,
-                DataIO::hair_cell_stats_adaptor<Cell>,
-                DataIO::support_cell_stats_adaptor<Cell>,
-                DataIO::bulk_cell_stats_adaptor<Cell>,
-                DataIO::bulk_hair_cell_stats_adaptor<Cell>,
-                DataIO::bulk_support_cell_stats_adaptor<Cell>,
                 DataIO::interface_length_adaptor,
                 // position adaptors
                 DataIO::vertices_adaptor<SpaceVec>,
-                DataIO::cells_adaptor<SpaceVec, CellType>,
+                DataIO::cells_adaptor<SpaceVec>,
                 DataIO::edges_adaptor<SpaceVec>,
                 DataIO::cell_energies_adaptor,
                 DataIO::edge_energies_adaptor
@@ -268,128 +252,125 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Adding operation '{}' ...", name);
 
-                if (name == "bending_box_bc") {
-                    _operations.push_back(
-                        build_bending_box_bc(
-                            name, op_cfg, _minimization_params));
-                }
-                else if (name == "brownian_noise") {
-                    _operations.push_back(
-                        build_brownian_noise(name, op_cfg, _minimization_params,
-                                             _log, _monitor_mngr));
-                }
-                else if (name == "differentiate_Collier") {
-                    this->setup_collier(
-                            get_as<Config>("Collier", op_cfg, {}));
-                    _operations.push_back(
-                        build_differentiate_Collier(name, op_cfg,
-                            _minimization_params, _collier,
-                            _collier_prolog));
-                }
-                else if (name == "differentiate_domain") {
-                    _operations.push_back(
-                        build_differentiate_domain(name, op_cfg,
-                                                   _minimization_params));
-                }
-                else if (name == "differentiate_hair_cluster") {
-                    _operations.push_back(
-                        build_differentiate_hair_cluster(name, op_cfg,
-                                                         _minimization_params));
-                }
-                else if (name == "differentiate_NotchDelta") {
-                    this->setup_notch_delta(
-                            get_as<Config>("NotchDelta", op_cfg, {}));
-                    _operations.push_back(
-                        build_differentiate_NotchDelta(name, op_cfg,
-                            _minimization_params, _notch_delta,
-                            _notch_delta_prolog));
-                }
-                else if (name == "differentiate_random") {
-                    _operations.push_back(
-                        build_differentiate_random(name, op_cfg,
-                                                   _minimization_params));
-                }
-                else if (name == "enable_transitions") {
-                    _operations.push_back(
-                        build_enable_transitions(
-                            name, op_cfg, _minimization_params));
-                }
-                else if (name == "fix_boundary") {
-                    _operations.push_back(
-                        build_fix_boundary(name, op_cfg, _minimization_params));
-                }
-                else if (name == "increment_area") {
-                    _operations.push_back(
-                        build_increment_area(name, op_cfg,
-                                             _minimization_params));
-                }
-                else if (name == "increment_area_gradient") {
-                    _operations.push_back(
-                        build_increment_area_gradient(name, op_cfg,
-                                                      _minimization_params));
-                }
-                else if (name == "relax_SC_area") {
-                    _operations.push_back(
-                        build_relax_SC_area(name, op_cfg,
-                                                      _minimization_params));
-                }
-                else if (name == "increment_cell_contractility") {
-                    _operations.push_back(
-                        build_increment_cell_contractility(name, op_cfg,
-                            _minimization_params));
-                }
-                else if (name == "increment_edge_contractility") {
-                    _operations.push_back(
-                        build_increment_edge_contractility(name, op_cfg,
-                            _minimization_params));
-                }
-                else if (name == "increment_linetension") {
-                    _operations.push_back(
-                        build_increment_linetension(name, op_cfg,
-                                                    _minimization_params));
-                }
-                else if (name == "increment_shape_index") {
-                    _operations.push_back(
-                        build_increment_shape_index(name, op_cfg,
-                                                    _minimization_params));
-                }
-                else if (name == "initialise_stripe_boundary") {
-                    _operations.push_back(
-                        build_initialise_stripe_boundary(name, op_cfg,
-                            _minimization_params));
-                }
-                else if (name == "increment_stripe_width") {
-                    if (_vertex_model.get_space()->periodic) {
-                        throw std::runtime_error("Cannot build operation "
-                            "convergence and extension in periodic space!");
-                    }
-                    _operations.push_back(
-                        build_increment_stripe_width(name, op_cfg,
-                                                     _minimization_params,
-                                                     _log, _monitor_mngr));
-                }
-                else if (name == "increment_stripe_curvature") {
-                    _operations.push_back(
-                        build_increment_stripe_curvature(name, op_cfg,
-                            _minimization_params));
-                }
-                else if (name == "increment_domain") {
-                    _operations.push_back(
-                        build_increment_domain(name, op_cfg,
-                                               _minimization_params));
-                }
-                else if (name == "iterate_pcp") {
-                    this->setup_pcp(
-                            get_as<Config>("PlanarCellPolarity", op_cfg, {}));
-                    _operations.push_back(
-                        build_iterate_pcp(name, op_cfg, _minimization_params,
-                                _pcp, _pcp_prolog, _log,
-                                _monitor_mngr));
-                }
-                else if (name == "jiggle" or name == "void") {
-                    _operations.push_back(
-                        build_jiggle(name, op_cfg, _minimization_params));
-                }
+                if (false) { }
+                // else if (name == "bending_box_bc") {
+                //     _operations.push_back(
+                //         build_bending_box_bc(
+                //             name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "brownian_noise") {
+                //     _operations.push_back(
+                //         build_brownian_noise(name, op_cfg, _minimization_params,
+                //                              _log, _monitor_mngr));
+                // }
+                // else if (name == "differentiate_Collier") {
+                //     this->setup_collier(
+                //             get_as<Config>("Collier", op_cfg, {}));
+                //     _operations.push_back(
+                //         build_differentiate_Collier(name, op_cfg,
+                //             _minimization_params, _collier,
+                //             _collier_prolog));
+                // }
+                // else if (name == "differentiate_domain") {
+                //     _operations.push_back(
+                //         build_differentiate_domain(name, op_cfg,
+                //                                    _minimization_params));
+                // }
+                // else if (name == "differentiate_hair_cluster") {
+                //     _operations.push_back(
+                //         build_differentiate_hair_cluster(name, op_cfg,
+                //                                          _minimization_params));
+                // }
+                // else if (name == "differentiate_NotchDelta") {
+                //     this->setup_notch_delta(
+                //             get_as<Config>("NotchDelta", op_cfg, {}));
+                //     _operations.push_back(
+                //         build_differentiate_NotchDelta(name, op_cfg,
+                //             _minimization_params, _notch_delta,
+                //             _notch_delta_prolog));
+                // }
+                // else if (name == "differentiate_random") {
+                //     _operations.push_back(
+                //         build_differentiate_random(name, op_cfg,
+                //                                    _minimization_params));
+                // }
+                // else if (name == "enable_transitions") {
+                //     _operations.push_back(
+                //         build_enable_transitions(
+                //             name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "fix_boundary") {
+                //     _operations.push_back(
+                //         build_fix_boundary(name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "increment_area") {
+                //     _operations.push_back(
+                //         build_increment_area(name, op_cfg,
+                //                              _minimization_params));
+                // }
+                // else if (name == "increment_area_gradient") {
+                //     _operations.push_back(
+                //         build_increment_area_gradient(name, op_cfg,
+                //                                       _minimization_params));
+                // }
+                // else if (name == "relax_SC_area") {
+                //     _operations.push_back(
+                //         build_relax_SC_area(name, op_cfg,
+                //                                       _minimization_params));
+                // }
+                // else if (name == "increment_cell_contractility") {
+                //     _operations.push_back(
+                //         build_increment_cell_contractility(name, op_cfg,
+                //             _minimization_params));
+                // }
+                // else if (name == "increment_edge_contractility") {
+                //     _operations.push_back(
+                //         build_increment_edge_contractility(name, op_cfg,
+                //             _minimization_params));
+                // }
+                // else if (name == "increment_linetension") {
+                //     _operations.push_back(
+                //         build_increment_linetension(name, op_cfg,
+                //                                     _minimization_params));
+                // }
+                // else if (name == "increment_shape_index") {
+                //     _operations.push_back(
+                //         build_increment_shape_index(name, op_cfg,
+                //                                     _minimization_params));
+                // }
+                // else if (name == "initialise_stripe_boundary") {
+                //     _operations.push_back(
+                //         build_initialise_stripe_boundary(name, op_cfg,
+                //             _minimization_params));
+                // }
+                // else if (name == "increment_stripe_width") {
+                //     if (_vertex_model.get_space()->periodic) {
+                //         throw std::runtime_error("Cannot build operation "
+                //             "convergence and extension in periodic space!");
+                //     }
+                //     _operations.push_back(
+                //         build_increment_stripe_width(name, op_cfg,
+                //                                      _minimization_params,
+                //                                      _log, _monitor_mngr));
+                // }
+                // else if (name == "increment_stripe_curvature") {
+                //     _operations.push_back(
+                //         build_increment_stripe_curvature(name, op_cfg,
+                //             _minimization_params));
+                // }
+                // else if (name == "increment_domain") {
+                //     _operations.push_back(
+                //         build_increment_domain(name, op_cfg,
+                //                                _minimization_params));
+                // }
+                // else if (name == "iterate_pcp") {
+                //     this->setup_pcp(
+                //             get_as<Config>("PlanarCellPolarity", op_cfg, {}));
+                //     _operations.push_back(
+                //         build_iterate_pcp(name, op_cfg, _minimization_params,
+                //                 _pcp, _pcp_prolog, _log,
+                //                 _monitor_mngr));
+                // }
                 else if (name == "proliferate") {
                     _operations.push_back(
                         build_proliferate(name, op_cfg, _minimization_params,
@@ -401,68 +382,74 @@ private:
                                 _minimization_params,
                                 _log, _monitor_mngr));
                 }
-                else if (name == "pure_shear") {
+                // else if (name == "pure_shear") {
+                //     _operations.push_back(
+                //         build_pure_shear(name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "relax_area") {
+                //     _operations.push_back(
+                //         build_relax_area(name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "set_area") {
+                //     _operations.push_back(
+                //         build_set_area(name, op_cfg,
+                //                        _minimization_params));
+                // }
+                // else if (name == "update_boundary_parameter") {
+                //     _operations.push_back(
+                //         build_update_boundary_parameter(
+                //             name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "set_torque") {
+                //     _operations.push_back(
+                //         build_set_torque(
+                //             name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "simple_shear") {
+                //     _operations.push_back(
+                //         build_simple_shear(
+                //             name, op_cfg, _minimization_params));
+                // }
+                else if (name == "void") {
                     _operations.push_back(
-                        build_pure_shear(name, op_cfg, _minimization_params));
-                }
-                else if (name == "relax_area") {
-                    _operations.push_back(
-                        build_relax_area(name, op_cfg, _minimization_params));
-                }
-                else if (name == "set_area") {
-                    _operations.push_back(
-                        build_set_area(name, op_cfg,
-                                       _minimization_params));
-                }
-                else if (name == "update_boundary_parameter") {
-                    _operations.push_back(
-                        build_update_boundary_parameter(
-                            name, op_cfg, _minimization_params));
-                }
-                else if (name == "set_torque") {
-                    _operations.push_back(
-                        build_set_torque(
-                            name, op_cfg, _minimization_params));
-                }
-                else if (name == "simple_shear") {
-                    _operations.push_back(
-                        build_simple_shear(
-                            name, op_cfg, _minimization_params));
+                        build_void(name, op_cfg, _minimization_params));
                 }
                 else {
                     throw std::invalid_argument(fmt::format(
                         "No operation '{}' available to construct! "
-                        "Choose from: {}", name,
-                            "bending_box_bc, "
-                            "brownian_noise, "
-                            "differentiate_Collier, "
-                            "differentiate_domain, "
-                            "differentiate_hair_cluster, "
-                            "differentiate_NotchDelta, "
-                            "differentiate_random, "
-                            "enable_transitions, "
-                            "fix_boundary, "
-                            "increment_area, "
-                            "increment_area_gradient, "
-                            "increment_cell_contractility, "
-                            "increment_domain, "
-                            "increment_edge_contractility, "
-                            "increment_linetension, "
-                            "increment_shape_index, "
-                            "initialise_stripe_boundary, "
-                            "increment_stripe_width, "
-                            "increment_stripe_curvature, "
-                            "iterate_pcp, "
-                            "jiggle, "
-                            "proliferate, "
-                            "proliferate_generations, "
-                            "pure_shear, "
-                            "relax_area, "
-                            "set_area, "
-                            "update_boundary_parameter, "
-                            "set_torque, "
-                            "simple_shear, "
-                            "void."));
+                        "Choose from:\n"
+                        "{}",
+                        name,
+                        // "- bending_box_bc\n"
+                        // "- brownian_noise\n"
+                        // "- differentiate_Collier\n"
+                        // "- differentiate_domain\n"
+                        // "- differentiate_hair_cluster\n"
+                        // "- differentiate_NotchDelta\n"
+                        // "- differentiate_random\n"
+                        // "- enable_transitions\n"
+                        // "- fix_boundary\n"
+                        // "- increment_area\n"
+                        // "- increment_area_gradient\n"
+                        // "- increment_cell_contractility\n"
+                        // "- increment_domain\n"
+                        // "- increment_edge_contractility\n"
+                        // "- increment_linetension\n"
+                        // "- increment_shape_index\n"
+                        // "- initialise_stripe_boundary\n"
+                        // "- increment_stripe_width\n"
+                        // "- increment_stripe_curvature\n"
+                        // "- iterate_pcp\n"
+                        "- proliferate\n"
+                        "- proliferate_generations\n"
+                        // "- pure_shear\n"
+                        // "- relax_area\n"
+                        // "- set_area\n"
+                        // "- update_boundary_parameter\n"
+                        // "- set_torque\n"
+                        // "- simple_shear\n"
+                        "- void\n"
+                    ));
                 }
 
                 const auto& params = std::get<1>(_operations.back());
@@ -755,8 +742,8 @@ public:
             );
 
             jiggle_op = std::make_unique<OperationBundle>(
-                build_jiggle("Initial_jiggle",
-                             jiggle_cfg, _minimization_params));
+                build_void("Initial_minimisation",
+                           jiggle_cfg, _minimization_params));
             _estimate_minimizations += std::get<1>(*jiggle_op).get_num_minimizations(0);
         }
 
@@ -861,85 +848,39 @@ public:
     std::size_t get_continuous_time() const {
         return _vertex_model.get_time();
     }
-    /// Getter for the total energy
-    /** See PCPVertex::get_energy
-     */
-    double get_energy() const {
+
+    /// Get energy from a term implementation
+    template <typename WFTerm>
+    double get_energy (const std::shared_ptr<WFTerm>& functor) const {
+        return _vertex_model.get_energy(functor);
+    }
+    /// Getter for energy of a container of edges and cells, resp.
+    double get_energy (
+            const AgentContainer<Edge>& es,
+            const AgentContainer<Cell>& cs
+    ) const
+    {
+        return _vertex_model.get_energy(es, cs);
+    }
+
+    /// Getter for energy all edges and cells
+    double get_energy () const {
         return _vertex_model.get_energy();
     }
-    /// Getter for the linetension energy
-    /** See PCPVertex::get_energy_linetension
-     */
-    double get_energy_linetension() const {
-        return _vertex_model.get_energy_linetension();
-    }
-    /// Getter for the edge contractility energy
-    /** See PCPVertex::get_energy_edge_contractility
-     */
-    double get_energy_edge_contractility() const {
-        return _vertex_model.get_energy_edge_contractility();
-    }
-    /// Getter for the areaelasticity energy
-    /** See PCPVertex::get_energy_areaelasticity
-     */
-    double get_energy_areaelasticity () const {
-        return _vertex_model.get_energy_areaelasticity();
-    }
-    /// Getter for the areaelasticity energy
-    /** See PCPVertex::get_energy_cell_contractility
-     */
-    double get_energy_cell_contractility () const {
-        return _vertex_model.get_energy_cell_contractility();
+
+    const auto get_work_function_terms () const {
+        return _vertex_model.get_work_function_terms();
     }
 
-    /// Getter for the linetension energy on a set of entities
-    /** See PCPVertex::get_energy_linetension(const AgentContainer<Edge>& es) const
-     */
-    double get_energy_linetension(const AgentContainer<Edge>& es) const {
-        return _vertex_model.get_energy_linetension(es);
+
+    /// Getter for the relative energy change from previous to last step
+    double get_energy_change () const {
+        return _vertex_model.get_energy_change();
     }
 
-    /// Getter for the edge contractility energy on a set of entities
-    /** See PCPVertex::get_energy_edge_contractility(const AgentContainer<Edge>& es) const
-     */
-    double get_energy_edge_contractility(const AgentContainer<Edge>& es) const {
-        return _vertex_model.get_energy_edge_contractility(es);
-    }
-
-    /// Getter for the areaelasticity energy on a set of entities
-    /** See PCPVertex::get_energy_areaelasticity(const AgentContainer<Cell>& cs) const
-     */
-    double get_energy_areaelasticity (const AgentContainer<Cell>& cs) const {
-        return _vertex_model.get_energy_areaelasticity(cs);
-    }
-
-    /// Getter for the areaelasticity energy on a set of entities
-    /** See PCPVertex::get_energy_cell_contractility(const AgentContainer<Cell>& cs) const
-     */
-    double get_energy_cell_contractility (const AgentContainer<Cell>& cs) const
-    {
-        return _vertex_model.get_energy_cell_contractility(cs);
-    }
-
-    /// Getter for the boundary shape elasticity energy
-    /** See PCPVertex::get_energy_linetension
-     */
-    double get_boundary_shape_energy() const {
-        return _vertex_model.get_boundary_shape_energy();
-
-    }
-    /// Getter for the boundary area elasticity energy
-    /** See PCPVertex::get_energy_linetension
-     */
-    double get_boundary_area_energy () const {
-        return _vertex_model.get_boundary_area_energy();
-
-    }
-    /// Getter for the boundary energy
-    /** See PCPVertex::get_energy_linetension
-     */
-    double get_boundary_energy() const {
-        return _vertex_model.get_boundary_energy();
+    /// Whether the relative change in energy fulfills the equilibrium condition
+    bool equilibrium_condition() const {
+        return _vertex_model.equilibrium_condition();
     }
 
 
@@ -1013,8 +954,9 @@ public:
         return _vertex_model.get_am();
     }
 
-    std::unordered_map<std::shared_ptr<Cell>, std::size_t> get_cluster_ids () {
-        return _vertex_model.get_cluster_ids();
+    /// PCPVertex::get_cluster_ids
+    auto get_cluster_ids (const std::size_t& type) {
+        return _vertex_model.get_cluster_ids(type);
     }
     
     /// Add an operation
@@ -1025,19 +967,6 @@ public:
 
         _estimate_minimizations += params.get_num_minimizations(
                                                 this->_time_max);
-    }
-    
-    /// The area elasitcity parameter
-    double get_area_elasticity () const {
-        return _vertex_model.get_area_elasticity();
-    }
-    
-    double get_ppMLC_contractility (const std::shared_ptr<Edge>& edge) const {
-        return _vertex_model.get_ppMLC_contractility(edge);
-    }
-
-    double get_pMLC_contractility (const std::shared_ptr<Edge>& edge) const {
-        return _vertex_model.get_pMLC_contractility(edge);
     }
 
     /// Return polarity proteins of this edge

@@ -642,8 +642,7 @@ auto edge_energies_adaptor = std::make_tuple(
 
 
 /// Datamanager adaptor for the cluster of cells
-/** Here progenitor cells have label 0, hair cells impair and support cells 
- *  pair labels
+/** Cluster id labels of cells with type 1
  *  Attributes are:
  *      -# Lx: Domain size in x coordinate
  *      -# Ly: Domain size in y coordinate
@@ -660,7 +659,7 @@ auto cell_cluster_adaptor = std::make_tuple(
     // writer function
     [](auto& dataset, auto& model) {
         const auto& cells = model.get_am().cells();
-        auto clusters = model.get_cluster_ids();
+        auto clusters = model.get_cluster_ids(1);
         dataset->write(cells.begin(), cells.end(),
             [clusters](const auto& cell) {
                 return clusters.at(cell);
