@@ -55,11 +55,6 @@ struct MinimizationParams {
      */
     std::size_t num_steps;
 
-    /// The temperature for random brownian motion
-    /** With mean 0 and variance \f$ \sigma^2 = 2 T \f$.
-     */
-    std::normal_distribution<double> temperature;
-
     /// Linetension fluctuation parameter
     /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
      * 
@@ -74,31 +69,6 @@ struct MinimizationParams {
     std::pair<double, double> linetension_fluctuations;
 
     std::pair<double, double> polarity_fluctuations;
-
-    /// Area fluctuation parameter
-    /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
-     * 
-     *  \f$  \frac{dA_{i}}{dt} = - \frac{1}{\tau_A}
-     *      (A_{i}(t) - A_0)
-     *      + \Delta A * A_0 \sqrt{2 / \tau_A} \Theta_{i}(t)
-     *  \f$
-     * 
-     *  with the first value \f$ \tau \f$,
-     *  the second value the \f$ \Delta A \f$ relative fluctuations, 
-     *  and the third value the minimum area (using a lognormal distribution).
-     */
-    std::tuple<double, double, double> area_fluctuations;
-
-    /// How to evolve the activity of edge contractility
-    /** Defines the activation and deactivation rate of contractility on every
-     *  edge.
-     * 
-     * Global steady state density expected as
-     * \f$
-     *      \rho_c^\star = \frac{a}{a + b}
-     * \f$.
-     */
-    std::pair<double, double> contractility_activity;
 
     /// The number of jiggling the vertices
     /** \details The first jiggle is applied before the first minimization,
@@ -132,30 +102,10 @@ struct MinimizationParams {
         min_steps(get_as<std::size_t>("min_steps", cfg, 0)),
         max_steps(get_as<std::size_t>("max_steps", cfg)),
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
-        temperature(0., sqrt(2 * get_as<double>("temperature", cfg, 0.))),
         linetension_fluctuations(
             std::make_pair(
                 get_as<double>("linetension_fluctuation_tau", cfg, 1.),
                 get_as<double>("linetension_fluctuation", cfg, 0.)
-            )
-        ),
-        polarity_fluctuations(
-            std::make_pair(
-                get_as<double>("polarity_fluctuation_tau", cfg, 1.),
-                get_as<double>("polarity_fluctuation", cfg, 0.)
-            )
-        ),
-        area_fluctuations(
-            std::make_tuple(
-                get_as<double>("area_fluctuation_tau", cfg, 1.),
-                get_as<double>("area_fluctuation", cfg, 0.),
-                get_as<double>("area_fluctuation_A_min", cfg, 0.)
-            )
-        ),
-        contractility_activity(
-            std::make_pair(
-                get_as<double>("contractility_activation", cfg, 1.),
-                get_as<double>("contractility_deactivation", cfg, 0.)
             )
         ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
@@ -188,7 +138,6 @@ struct MinimizationParams {
         min_steps(get_as<std::size_t>("min_steps", cfg, defaults.min_steps)),
         max_steps(get_as<std::size_t>("max_steps", cfg, defaults.max_steps)),
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
-        temperature(0., 0.),
         linetension_fluctuations(
             std::make_pair(
                 get_as<double>("linetension_fluctuation_tau", cfg,
@@ -197,46 +146,12 @@ struct MinimizationParams {
                     std::get<1>(defaults.linetension_fluctuations))
             )
         ),
-        polarity_fluctuations(
-            std::make_pair(
-                get_as<double>("polarity_fluctuation_tau", cfg,
-                    std::get<0>(defaults.polarity_fluctuations)),
-                get_as<double>("polarity_fluctuation", cfg,
-                    std::get<1>(defaults.polarity_fluctuations))
-            )
-        ),
-        area_fluctuations(
-            std::make_tuple(
-                get_as<double>("area_fluctuation_tau", cfg,
-                    std::get<0>(defaults.area_fluctuations)),
-                get_as<double>("area_fluctuation", cfg,
-                    std::get<1>(defaults.area_fluctuations)),
-                get_as<double>("area_fluctuation_A_min", cfg,
-                    std::get<2>(defaults.area_fluctuations))
-            )
-        ),
-        contractility_activity(
-            std::make_pair(
-                get_as<double>("contractility_activation", cfg,
-                    std::get<0>(defaults.contractility_activity)),
-                get_as<double>("contractility_deactivation", cfg,
-                    std::get<1>(defaults.contractility_activity))
-            )
-        ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, defaults.num_repeat)),
         jiggle_tolerance(get_as<double>("jiggle_tolerance", cfg,
                                         defaults.jiggle_tolerance)),
         jiggle_intensity(get_as<double>("jiggle_intensity", cfg,
                                         defaults.jiggle_intensity))
-    {
-        if (cfg["temperature"]) {
-            temperature = std::normal_distribution<double>(0.,
-                get_as<double>("temperature", cfg));
-        }
-        else {
-            temperature = defaults.temperature;
-        }
-        
+    {        
         if (num_repeat == 0) {
             throw Utopia::KeyError("num_repeat", cfg, fmt::format(
                 "Value must be larger than 0, but was {}", num_repeat));
@@ -857,6 +772,13 @@ private:
                             params, *this)
                     );
                 }
+                else if (term == "area_elasticity_individual") {
+                    register_pressure(
+                        term,
+                        std::make_shared<AreaElasticityIndividual<PCPVertex>>(
+                            params, *this)
+                    );
+                }
                 else if (term == "cell_contractility") {
                     register_pressure(
                         term,
@@ -875,6 +797,13 @@ private:
                     register_tension(
                         term,
                         std::make_shared<Linetension<PCPVertex>>(params, *this)
+                    );
+                }
+                else if (term == "linetension_fluctuations") {
+                    register_tension(
+                        term,
+                        std::make_shared<LinetensionFluctuations<PCPVertex>>(
+                            params, *this)
                     );
                 }
                 else if (term == "linetension_heterotypic") {
@@ -896,13 +825,15 @@ private:
                         "No term `{}` known in PCPVertex namespace. "
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
-                        "area_elasticity\n"
-                        "area_elasticity_heterotypic\n"
-                        "cell_contractility\n"
-                        "edge_contractility\n"
-                        "linetension\n"
-                        "linetension_heterotypic\n"
-                        "shape_elasticity\n"
+                        " - area_elasticity\n"
+                        " - area_elasticity_heterotypic\n"
+                        " - area_elasticity_individual\n"
+                        " - cell_contractility\n"
+                        " - edge_contractility\n"
+                        " - linetension\n"
+                        " - linetension_fluctuations\n"
+                        " - linetension_heterotypic\n"
+                        " - shape_elasticity\n"
                         "", term
                     ));
                 }
@@ -1117,9 +1048,9 @@ private:
      *           energy terms.
      *  \note    When adding energy terms, remember to add their gradient here!
      */
-    void set_gradient () {
+    void compute_forces () {
 
-        update_tensions_and_pressures();
+        compute_tensions_and_pressures();
 
         for (const auto& vertex : _am.vertices()) {
             vertex->state.reset_force();
@@ -1199,6 +1130,32 @@ private:
             _am.vertices()
         );
     }
+    
+    void compute_tensions_and_pressures () {
+        for (const auto& edge : _am.edges()) {
+            double tension = 0.;
+            for (const auto& [name, functor] : _tensions) {
+                tension += functor->compute_tension(edge);
+            }
+            edge->state.tension = tension;
+        }
+
+        for (const auto& cell : _am.cells()) {
+            double tension = 0.;
+            for (const auto& [name, functor] : _pressures) {
+                tension += functor->compute_tension(cell);
+            }
+            for (const auto& [edge, f] : cell->custom_links().edges) {
+                edge->state.tension += tension;
+            }
+
+            double pressure = 0.;
+            for (const auto& [name, functor] : _pressures) {
+                pressure += functor->compute_pressure(cell);
+            }
+            cell->state.pressure = pressure;
+        }
+    }
 
     /** The update of position
      * 
@@ -1210,76 +1167,6 @@ private:
         _am.move_by(vertex, vertex->state.get_force() * this->_dt);
         return vertex->state;
     };
-
-    // const RuleFuncVertex update_brownian_motion = [this](const auto& vertex) {
-    //     SpaceVec temp = {_distr_temperature(*this->_rng),
-    //                      _distr_temperature(*this->_rng)};
-    //     _am.move_by(vertex, temp * this->_dt);
-        
-    //     return vertex->state;
-    // };
-
-    // /// Update linetension fluctuation in an Ornstein-Uhlenbeck process
-    // const RuleFuncEdge update_linetension_ornstein =
-    // [this](const auto& edge)
-    // {
-    //     double linetension = edge->state._linetension_fluctuation;
-
-    //     auto [tau, dL] = this->_linetension_fluctuations;
-        
-    //     double rand_l = dL * sqrt(2. * _dt / tau) * _normal_distr(*this->_rng);
-
-    //     linetension += rand_l - _dt / tau * linetension;
-
-    //     edge->state._linetension_fluctuation = linetension;
-        
-    //     return edge->state;
-    // };
-
-    // const RuleFuncEdge update_edge_contractility =
-    // [this](const auto& edge)
-    // {
-    //     auto state = edge->state;
-
-    //     const auto [act, deact] = this->_contractility_activity;
-
-    //     if (not state.contractility_on) {
-    //         state.contractility_on = (_prob_distr(*this->_rng) < act);
-    //     }
-    //     else {
-    //         state.contractility_on = (_prob_distr(*this->_rng) > deact);
-    //     }
-
-    //     return state;
-    // };
-
-    // /// Update area preferential fluctuation in an Ornstein-Uhlenbeck process
-    // /** \note A^(0) > 0 required. Hence using a lognormal distribution enforcing
-    //  *        A^(0) > A_min
-    //  */
-    // const RuleFuncCell update_area_preferential_ornstein =
-    // [this](const auto& cell)
-    // {
-    //     double A_fluc = cell->state._area_preferential_fluctuations;
-    //     double A_targ = cell->state._area_preferential;
-
-    //     // the timescale, relative fluctuation amplitude, and minimum area
-    //     auto [tau, dA, A_min] = this->_area_fluctuations;
-        
-    //     // shift lognormal distribution to account for A_min
-    //     double mean_distr = cell->state.area_preferential() - A_min;
-
-    //     auto distr = get_lognormal_distribution(mean_distr, dA * A_targ);
-    //     double rn = distr(*this->_rng) - mean_distr;
-    //     // NOTE the rns have mean 0, min A_min, and stddev dA * A_targ
-
-    //     // the Ornstein Uhlenbeck step for fluctuations
-    //     A_fluc += sqrt(2. * _dt / tau) * rn - _dt / tau * A_fluc;
-
-    //     cell->state._area_preferential_fluctuations = A_fluc;
-        
-    //     return cell->state;
-    // };
     
 
     // -- The algorithm    ----------------------------------------------------
@@ -1340,6 +1227,13 @@ public:
      */
     void perform_step () {
         perform_transitions(_enable_transitions);
+
+        for (const auto& [name, T] : _tensions) {
+            T->update(this->_dt);
+        }
+        for (const auto& [name, P] : _pressures) {
+            P->update(this->_dt);
+        }
 
         double E = perform_update_step();
 
@@ -1406,6 +1300,36 @@ public:
 
         _dt = params.dt;
 
+        if (std::get<1>(params.linetension_fluctuations) > 0.) {
+            auto [registered, active] = is_registered_term(
+                "linetension_fluctuations");
+            if (not registered) {
+                std::runtime_error("Cannot introduce `linetension_fluctuations`"
+                    " because no such term is registered! Register it at setup "
+                    "of vertex-model!");
+            }
+
+            Config cfg;
+            cfg["timescale"] = std::get<0>(params.linetension_fluctuations);
+            cfg["amplitude"] = std::get<1>(params.linetension_fluctuations);
+            if (not active) {
+                using T = WorkFunction::LinetensionFluctuations<PCPVertex>;
+
+                register_tension(
+                    "linetension_fluctuations",
+                    std::make_shared<T>(cfg, *this)
+                );
+            }
+            else {
+                _tensions["linetension_fluctuations"]->update_parameters(cfg);
+            }
+        }
+        else if (std::get<1>(is_registered_term("linetension_fluctuations"))) {
+            Config cfg;
+            cfg["amplitude"] = 0.;
+            _tensions["linetension_fluctuations"]->update_parameters(cfg);
+        }
+
         for (std::size_t i = 0; i < params.num_repeat; i++)
         {
             // jiggle vertices if required
@@ -1414,8 +1338,7 @@ public:
                 this->jiggle_vertices(params.jiggle_intensity);
                 this->increment_time();
                 this->_datamanager(*this);            
-                this->_log->debug("Incremented time after jiggling: "
-                                  "{:7d}",
+                this->_log->debug("Incremented time after jiggling: {:7d}",
                                   this->_time);
                 
                 // reset status
@@ -1574,6 +1497,29 @@ public:
 
         this->_log->info("Successfully registered pressure `{}`.", name);
     }
+    
+    /// Check work function term register
+    /**
+     *  Returns:
+     *      - bool: Whether term is registered
+     *      - bool: Whether term is actively registered
+     */
+    std::pair<bool, bool> is_registered_term (const std::string& name) const {
+        if (_tensions.find(name) != _tensions.end()) {
+            return std::make_pair(true, true);
+        }
+        if (_pressures.find(name) != _pressures.end()) {
+            return std::make_pair(true, true);
+        }
+
+        else if (   _work_function_terms_disabled.find(name)
+                 != _work_function_terms_disabled.end())
+        {
+            return std::make_pair(true, false);
+        }
+
+        return std::make_pair(false, false);
+    }
 
 
     /// Remove a term from the work function register
@@ -1596,32 +1542,6 @@ public:
         }
 
         return found;
-    }
-
-    void update_tensions_and_pressures () {
-        for (const auto& edge : _am.edges()) {
-            double tension = 0.;
-            for (const auto& [name, functor] : _tensions) {
-                tension += functor->compute_tension(edge);
-            }
-            edge->state.tension = tension;
-        }
-
-        for (const auto& cell : _am.cells()) {
-            double tension = 0.;
-            for (const auto& [name, functor] : _pressures) {
-                tension += functor->compute_tension(cell);
-            }
-            for (const auto& [edge, f] : cell->custom_links().edges) {
-                edge->state.tension += tension;
-            }
-
-            double pressure = 0.;
-            for (const auto& [name, functor] : _pressures) {
-                pressure += functor->compute_pressure(cell);
-            }
-            cell->state.pressure = pressure;
-        }
     }
 
     /// Get energy for an edge
@@ -1678,8 +1598,7 @@ public:
 
 
     /// Getter for the relative energy change from previous to last step
-    double get_energy_change () const
-    {
+    double get_energy_change () const {
         if (_energy_buffer.size() < 2) {
             return std::numeric_limits<double>::lowest();
         }

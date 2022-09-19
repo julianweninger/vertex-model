@@ -1,19 +1,4 @@
 # The model configuration for the PCPVertex model
-#
-# This file should ONLY contain model-specific configuration and needs to be
-# written such that it can be used by _every_ model instance, regardless
-# of the level within a model hierarchy.
-# 
-# To that end, it needs to specify the parameters at the level of the instance
-# of a Model class.
-# 
-# This file is usually handled by the frontend: usage of advanced yaml features
-# like anchors and tags is supported.
-# 
-# Note, however, that this file should hold the _default_ values for a single
-# instance. Therefore, parameter sweeps should not be specified here!
-# Furthermore, if including other models' parameters via the `!model` tag, make
-# sure that no circular includes occur.
 ---
 # --- Space
 # The physical space this model is embedded in
@@ -21,12 +6,13 @@ space:
   extent: [1., 1.]  # NOTE this is ignored in model
   periodic: true
 
+log_level: info
+
 # --- Initialization parameters
 work_function_terms:
-- linetension:
-    linetension: 0.1
-- edge_contractility:
-    contractility: 0.01
+- linetension_fluctuations:
+    amplitude: 0.02
+    timescale: 50
 - area_elasticity:
     elastic_modulus: 1
     preferential_area: 1
@@ -42,8 +28,8 @@ agent_manager:
     hexagonal:
       hexagon_size: !expr (2 / 3**1.5)**0.5
       hexagon_shape: pointy_top            # NOTE either pointy_top or flat_top
-      lattice_rows: 4
-      lattice_columns: 4
+      lattice_rows: 16
+      lattice_columns: 16
     column:
       size: 1.
       height: 1.
@@ -79,7 +65,7 @@ T1_probability: 1.
 T1_barrier: 0.02
 T2_threshold: 0.0075
 
-Energy_buffer_size: 10
+Energy_buffer_size: !expr 20 * 50
 
 # --- Data manager
 data_manager:
@@ -92,7 +78,7 @@ data_manager:
       type: interval
       args:
         intervals:
-          - [0, 1000000, 100]
+          - [0, 1000000, 25]
 
     write_at_last:
       type: once

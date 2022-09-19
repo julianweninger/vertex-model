@@ -90,6 +90,10 @@ public:
         return keys;
     }
 
+    bool has_parameter (const std::string& name) const {
+        return _parameters.find(name) != _parameters.end();
+    }
+
     const auto& get_parameter (const std::string& name) const {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
@@ -116,7 +120,7 @@ public:
 
     /// Update value of parameter
     void update_parameter (const std::string& name,
-                        const std::vector<double>& values) {
+                           const std::vector<double>& values) {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot find EdgeState parameter registered with name `{}`. "
@@ -177,6 +181,10 @@ public:
         return keys;
     }
 
+    bool has_parameter (const std::string& name) const {
+        return _parameters.find(name) != _parameters.end();
+    }
+
     const auto get_parameter (const std::string& name) const {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
@@ -203,7 +211,7 @@ public:
 
     /// Update value of parameter
     void update_parameter (const std::string& name,
-                        const std::vector<double>& values) {
+                           const std::vector<double>& values) {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot find EdgeState parameter registered with name `{}`. "

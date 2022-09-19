@@ -10,8 +10,6 @@ void PCPVertex::init_minimization ()
 {
     _energy_buffer.clear();
     _energy_buffer.push_back(get_energy());
-
-    set_gradient();
 };
 
 /// Single step in direction of steepest gradient
@@ -21,7 +19,7 @@ void PCPVertex::init_minimization ()
  */
 double PCPVertex::steepest_gradient_step ()
 {
-    set_gradient();
+    compute_forces();
 
     apply_rule<Update::sync>(update_position, _am.vertices());
 
