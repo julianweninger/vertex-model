@@ -1930,32 +1930,32 @@ OperationBundle build_proliferate (
         
         auto cell = current_generation[int_dist(*vertex_model.get_rng())];
 
-        // double area_preferential = cell->state.area_preferential();
-        // if (num_increases > 0) {
-        //     double dA = cell->state.area_preferential() / num_increases;
-        //     for (unsigned int i = 0; i < num_increases; i++) {            
-        //         vertex_model.increase_domain_size(dA);
-        //         cell->state._area_preferential += dA;
-        //         vertex_model.minimize_energy(minimization_after_increase);
-        //     }
+        if (num_increases > 0) {
+            const double A0 = cell->state.area_preferential;
+            double dA = A0 / num_increases;
+            for (std::size_t i = 1; i <= num_increases; i++) {            
+                vertex_model.increase_domain_size(dA);
+                cell->state.area_preferential += dA;
+                vertex_model.minimize_energy(minimization_after_increase);
+            }
 
-        //     if (am.area_of(cell) < threshold * cell->state.area_preferential())
-        //     {
-        //         throw std::runtime_error(fmt::format("Cell division failed! "
-        //             "Cell did not grow to area larger than threshold. "
-        //             "For division requested minimal area: {}. \n"
-        //             "For division preferred area: {}. \n"
-        //             "Area reached: {}.",
-        //             threshold * cell->state.area_preferential(),
-        //             cell->state.area_preferential(), am.area_of(cell)));
-        //     }
+            if (am.area_of(cell) < threshold * A0)
+            {
+                throw std::runtime_error(fmt::format("Cell division failed! "
+                    "Cell did not grow to area larger than threshold. "
+                    "For division requested minimal area: {}. \n"
+                    "For division preferred area: {}. \n"
+                    "Area reached: {}.",
+                    threshold * A0, A0, am.area_of(cell)
+                ));
+            }
 
-        //     cell->state._area_preferential = area_preferential;
-        // }
-        // else {
-        //     vertex_model.increase_domain_size(area_preferential);
-        // }
-        vertex_model.increase_domain_size(1.);
+            // reset parameters, but don't update
+            cell->state.area_preferential = A0;
+        }
+    else {
+        vertex_model.increase_domain_size(cell->state.area_preferential);
+    }
 
         double angle;
         if (normal_distr.stddev() > 1.e-11) {
@@ -1964,7 +1964,7 @@ OperationBundle build_proliferate (
         else {
             angle = uniform_distr(*vertex_model.get_rng());
         }
-        vertex_model.divide_cell(cell, angle);
+        auto [ca, cb] = vertex_model.divide_cell(cell, angle);
     };
     std::size_t add_minimizations = (  minimization_after_increase.num_repeat
                                      * num_increases);

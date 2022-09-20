@@ -31,10 +31,10 @@ parameter_space:
     operations:      
       # Minimize the energy using different numerical resolutions
       # NOTE Integrating to the same t_max = steps * dt
-      - jiggle:
+      - void:
           times: !listgen [10001]
           minimization:
-            linetension_fluctuation: 0.
+            linetension_fluctuations: 0.
             dt: !sweep
               default: 0.004
               values: [0.1, 0.05, 0.01]
@@ -67,7 +67,7 @@ parameter_space:
 
       # no noise in the system
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.
+      linetension_fluctuations: 0.
       area_fluctuation: 0.
 
     PCPVertex:

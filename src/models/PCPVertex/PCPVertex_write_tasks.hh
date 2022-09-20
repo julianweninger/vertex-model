@@ -13,18 +13,12 @@ using namespace Utopia::DataIO;
  *          - Terms
  *          - Time (the linkded time for all energy adaptors)
  *          - Transitions
+ *          - Interface_length
  *      - Vertices (time series groups)
  *      - Cells (time series groups)
  *      - Edges (time series groups)
- *      - Statistics
- *          - Statistics_time
- *          - Cell_stats
- *          - Hair_cell_stats
- *          - Support_cell_stats
- *          - Bulk_cell_stats
- *          - Bulk_hair_cell_stats
- *          - Bulk_support_cell_stats
- *          - Interface_length
+ *      - Cell_energies (time series groups)
+ *      - Edge_energies (time series groups)
  */
 namespace Utopia::Models::PCPVertex::DataIO{
 
@@ -254,6 +248,11 @@ auto cells_adaptor = std::make_tuple(
                            return static_cast<float>(am.area_of(c));
                         });
         dataset->write(areas);
+
+        dataset->write(cells.begin(), cells.end(),
+            [](const auto& c) { 
+                return static_cast<float>(c->state.area_preferential);
+            });
         
         std::vector<float> perimeters;
         perimeters.reserve(cells.size());
@@ -338,7 +337,7 @@ auto cells_adaptor = std::make_tuple(
     [](auto& group, auto& m) -> decltype(auto) {
         return group->open_dataset(
             std::to_string(m.get_time()), 
-            {14, m.get_am().cells().size()}
+            {15, m.get_am().cells().size()}
         );
     },
 
@@ -355,6 +354,7 @@ auto cells_adaptor = std::make_tuple(
                     "x",
                     "y",
                     "area",
+                    "area_preferential",
                     "perimeter",
                     "num_neighbors",
                     "q_x",
@@ -514,15 +514,15 @@ auto cell_energies_adaptor = std::make_tuple(
 
         for (const auto& [name, functor] : Ps) {
             dataset->write(cells.begin(), cells.end(), 
-                           [functor](const auto& cell) {
+                           [&functor=functor](const auto& cell) {
                                 return functor->compute_tension(cell);
                            });
             dataset->write(cells.begin(), cells.end(), 
-                           [functor](const auto& cell) {
+                           [&functor=functor](const auto& cell) {
                                 return functor->compute_pressure(cell);
                            });
             dataset->write(cells.begin(), cells.end(), 
-                           [functor](const auto& cell) {
+                           [&functor=functor](const auto& cell) {
                                 return functor->compute_energy(cell);
                            });
         }
@@ -587,14 +587,14 @@ auto edge_energies_adaptor = std::make_tuple(
         for (const auto& [name, functor] : Ts) {
             dataset->write(
                 edges.begin(), edges.end(),
-                [functor](const auto& e) { return functor->compute_tension(e); });
+                [&functor=functor](const auto& e) { return functor->compute_tension(e); });
             dataset->write(
                 edges.begin(), edges.end(),
-                [functor](const auto& e) { return functor->compute_energy(e); });
+                [&functor=functor](const auto& e) { return functor->compute_energy(e); });
         }
         for (const auto& [name, functor] : Ps) {
             std::function<double(const std::shared_ptr<Edge>&)> T_function = \
-            [functor]
+            [&functor=functor]
             (const std::shared_ptr<Edge>& edge)
             {
                 return functor->compute_tension(edge);

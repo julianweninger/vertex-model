@@ -24,7 +24,7 @@ parameter_space:
 
   PCPTopology:
     operations:
-      - jiggle: 
+      - void: 
           times: []
           iterations_prolog: 1
           minimization: &JiggleQuickDirty
@@ -64,7 +64,7 @@ parameter_space:
             mode: manual
       # END differentiation
 
-      - jiggle: 
+      - void: 
           times: [1]
           minimization:
             jiggle_intensity: 1.e-1

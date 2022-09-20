@@ -30,7 +30,7 @@ parameter_space:
         enabled: false
 
     operations:
-      - jiggle:
+      - void:
           times: []
           iterations_prolog: 1
 
@@ -51,7 +51,7 @@ parameter_space:
           minimization: ~
       # 32 cells
 
-      - jiggle:
+      - void:
           times: [2]
       # NOTE time 2: jiggle (see last operation)
 

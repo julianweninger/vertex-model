@@ -45,6 +45,15 @@ energy:
   - function: sns.lineplot
     data: !dag_result energy
 
+select.uni.transitions:
+  select:
+    transitions: 
+      path: data/PCPVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+          
 transitions:
   based_on:
     - universe

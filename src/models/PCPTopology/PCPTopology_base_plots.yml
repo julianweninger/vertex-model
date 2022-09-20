@@ -14,48 +14,21 @@ multiverse:
 
 select.uni.energy_terms:
   select:
-    total: 
-      path: data/PCPTopology/Energy/Total
-      transform: &transform_energy_to_dataframe
+    energy: 
+      path: data/PCPTopology/Energy/Terms
+      transform:
         - .rename: [!dag_prev , energy]
         - import_and_call:
-          args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    line_tension: 
-      path: data/PCPTopology/Energy/Linetension
-      transform: *transform_energy_to_dataframe
-    area_elasticity: 
-      path: data/PCPTopology/Energy/Areaelasticity
-      transform: *transform_energy_to_dataframe
-    cell_contractility: 
-      path: data/PCPTopology/Energy/Cell_contractility
-      transform: *transform_energy_to_dataframe
-    edge_contractility: 
-      path: data/PCPTopology/Energy/Edge_contractility
-      transform: *transform_energy_to_dataframe
-    boundary_area_elasticity: 
-      path: data/PCPTopology/Energy/Boundary_area_elasticity
-      transform: *transform_energy_to_dataframe
-    boundary_shape_elasticity: 
-      path: data/PCPTopology/Energy/Boundary_shape_elasticity
-      transform: *transform_energy_to_dataframe
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
 
 select.uni.continuous_energy_terms:
-  based_on: select.uni.energy_terms
   select:
-    total: 
-      path: data/PCPTopology/PCPVertex/Energy/Total
-    line_tension: 
-      path: data/PCPTopology/PCPVertex/Energy/Linetension
-    area_elasticity: 
-      path: data/PCPTopology/PCPVertex/Energy/Areaelasticity
-    cell_contractility: 
-      path: data/PCPTopology/PCPVertex/Energy/Cell_contractility
-    edge_contractility: 
-      path: data/PCPTopology/PCPVertex/Energy/Edge_contractility
-    boundary_area_elasticity: 
-      path: data/PCPTopology/PCPVertex/Energy/Boundary_area_elasticity
-    boundary_shape_elasticity: 
-      path: data/PCPTopology/PCPVertex/Energy/Boundary_shape_elasticity
+    energy: 
+      path: data/PCPTopology/PCPVertex/Energy/Terms
+      transform:
+        - .rename: [!dag_prev , energy]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
 
 
 _energy:
@@ -64,12 +37,12 @@ _energy:
 
   x: time
   y: energy
+  hue: term
 
   helpers:
     set_labels:
       x: time
       y: energy [a.u.]
-
 
 energy:
   based_on:
@@ -79,125 +52,53 @@ energy:
 
   to_plot:
   - function: sns.lineplot
-    data: !dag_result total
-    label: total
-  - function: sns.lineplot
-    data: !dag_result line_tension
-    label: line tension
-  - function: sns.lineplot
-    data: !dag_result area_elasticity
-    label: area elasticity
-  - function: sns.lineplot
-    data: !dag_result cell_contractility
-    label: cell contractility
-  - function: sns.lineplot
-    data: !dag_result edge_contractility
-    label: edge contractility
+    data: !dag_result energy
 
+select.uni.transitions:
+  select:
+    transitions: 
+      path: data/PCPTopology/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
 
-energy_boundary:
-  based_on:
-    - universe
-    - _energy
-    - select.uni.energy_terms
-
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result total
-      label: total
-    - function: sns.lineplot
-      data: !dag_result line_tension
-      label: line tension
-    - function: sns.lineplot
-      data: !dag_result area_elasticity
-      label: area elasticity
-    - function: sns.lineplot
-      data: !dag_result cell_contractility
-      label: cell contractility
-    - function: sns.lineplot
-      data: !dag_result edge_contractility
-      label: edge contractility
-    - function: sns.lineplot
-      data: !dag_result boundary_area_elasticity
-      label: boundary area elasticity
-    - function: sns.lineplot
-      data: !dag_result boundary_shape_elasticity
-      label: boundary shape elasticity
+select.uni.continuous_transitions:
+  select:
+    transitions_continous: 
+      path: data/PCPTopology/PCPVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
 
 transitions:
   based_on:
     - universe
-
-  model_name: PCPTopology
-  module: model_plots.PCPTopology
-  plot_func: transitions
-
-  cumsum_transitions: false
-  map_to_continuous_time: True
-
-transitions_continuous:
-  based_on: transitions
-  model_name: PCPTopology/PCPVertex
-  map_to_continuous_time: False
-  map_to_discrete_time: True
-
-select.uni.transitions:
-  select: &TRANSITIONS_FIELDS
-    _T1s:
-      path: data/PCPTopology/Energy/transitions
-      transform:
-        - .sel: [!dag_prev , {property: T1_frequency}]
-        - import_and_call:
-          args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
-                 {time: 3}]
-          kwargs: {center: True}
-        - .mean: [!dag_prev , time]
-        - .rename: [!dag_prev , T1_frequency]
-    _T1_attempts:
-      path: data/PCPTopology/Energy/transitions
-      transform:
-        - .sel: [!dag_prev , {property: T1_attempt_frequency}]
-        - import_and_call:
-          args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
-                 {time: 3}]
-          kwargs: {center: True}
-        - .mean: [!dag_prev , time]
-        - .rename: [!dag_prev , T1_frequency]
-
-select.mv.transitions:
-  select_and_combine:
-    fields: *TRANSITIONS_FIELDS
-
-transitions_multiplot:
-  based_on:
     - .plot.multiplot
-
-  transform:
-    - .to_dataframe: [!dag_tag _T1s]
-      tag: T1s
-    - .to_dataframe: [!dag_tag _T1_attempts]
-      tag: T1_attempts
-
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result T1s
-      ci: sd
-      color: grey
-      label: attempted T1s
-    - function: sns.lineplot
-      data: !dag_result T1s
-      ci: sd
-      color: black
-      label: T1s
+    - select.uni.energy_terms
+    - select.uni.transitions
 
   x: time
-  y: T1_frequency
+
+  to_plot:
+    [0, 0]:
+    - function: sns.lineplot
+      data: !dag_result energy
+      hue: term
+      y: energy
+
+    [1, 0]:
+    - function: sns.lineplot
+      data: !dag_result transitions
+      y: transitions
 
   helpers:
-    set_limits: 
-      y: [1.e-5, 1.e+1]
-    set_scales:
-      y: log
+    setup_figure:
+      ncols: 2
+      constrained_layout: True
+    set_labels:
+      x: time
 
 # the calculation of diffusion
 _diffusion:
@@ -309,35 +210,6 @@ displacement_mv:
   helpers:
     set_labels:
       y: mean displacement
-
-
-_cell_stats: &CELL_PROP
-  module: model_plots.PCPTopology
-  plot_func: errorbars
-
-  helpers:
-    set_labels:
-      x: time
-
-select_cell_stats:
-  select:
-    cells: data/PCPTopology/Statistics/Cell_stats
-    hair_cells: data/PCPTopology/Statistics/Hair_cell_stats
-    support_cells: data/PCPTopology/Statistics/Support_cell_stats
-    bulk_cells: data/PCPTopology/Statistics/Bulk_cell_stats
-    bulk_hair_cells: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-    bulk_support_cells: data/PCPTopology/Statistics/Bulk_support_cell_stats
-
-select_cell_stats_mv:
-  select_and_combine:
-    allow_missing_or_failing: True
-    fields:
-      cells: data/PCPTopology/Statistics/Cell_stats
-      hair_cells: data/PCPTopology/Statistics/Hair_cell_stats
-      support_cells: data/PCPTopology/Statistics/Support_cell_stats
-      bulk_cells: data/PCPTopology/Statistics/Bulk_cell_stats
-      bulk_hair_cells: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-      bulk_support_cells: data/PCPTopology/Statistics/Bulk_support_cell_stats
 
 select_cells_properties:
   select:
@@ -799,10 +671,10 @@ cellular_structure:
   plot_func: cellular_structure
   
   datapath: PCPTopology
-  cfgpath: PCPTopology/PCPVertex
+  cfgpath: PCPTopology
 
   plot_vertices: false
-  cell_marker_size: 60
+  cell_marker_size: 40
 
   helpers:
     save_figure: {bbox_inches: tight}

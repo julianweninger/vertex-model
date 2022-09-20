@@ -118,7 +118,7 @@ parameter_space:
           minimization:
             mode: manual
 
-      - jiggle:
+      - void:
           times: !listgen [3001]
           
 
@@ -132,7 +132,7 @@ parameter_space:
       num_repeat: 1
       num_steps: 100
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.001
+      linetension_fluctuations: 0.001
       jiggle_tolerance: 1.e-6
 
       area_fluctuation: 0.0

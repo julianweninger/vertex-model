@@ -151,6 +151,8 @@ public:
     /// The type of a cell
     std::size_t type;
 
+    double area_preferential;
+
     /// Whether this object is to be removed 
     bool remove;
 
@@ -185,7 +187,7 @@ public:
         return _parameters.find(name) != _parameters.end();
     }
 
-    const auto get_parameter (const std::string& name) const {
+    auto get_parameter (const std::string& name) const {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot find EdgeState parameter with name `{}`", name));
@@ -222,6 +224,7 @@ public:
 
     void inherit_from_state (const CellState& state) {
         this->type = state.type;
+        this->area_preferential = state.area_preferential;
         for (const auto& k : state.list_parameters()) {
             this->register_parameter(k, state.get_parameter(k));
         }

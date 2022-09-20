@@ -26,6 +26,8 @@ public:
         _am(model.get_am())
     { }
 
+    virtual ~WorkFunctionEdgeTerm() { }
+
     virtual double compute_tension(const std::shared_ptr<Edge>& edge) const = 0;
 
     virtual double compute_energy(const std::shared_ptr<Edge>& edge) const = 0;
@@ -56,6 +58,8 @@ public:
     :
         _am(model.get_am())
     { }
+
+    virtual ~WorkFunctionCellTerm() { }
 
     virtual double compute_tension(const std::shared_ptr<Cell>& cell) const=0;
 
@@ -241,6 +245,7 @@ public:
 template <typename Model>
 class LinetensionFluctuations : public WorkFunctionEdgeTerm<Model>
 {
+public:
     using Base = WorkFunctionEdgeTerm<Model>;
 
     using Edge = typename Base::Edge;
@@ -322,6 +327,7 @@ public:
 template <typename Model>
 class EdgeContractility : public WorkFunctionEdgeTerm<Model>
 {
+public:
     using Base = WorkFunctionEdgeTerm<Model>;
 
     using Edge = typename Base::Edge;
@@ -351,17 +357,18 @@ public:
 };
 
 /// @brief The cell contractility
-/** \f$ E_\alpha = k (P_\alpha / P^{(0)} - 1)\f$, an elastic penalty on 
- *  perimeter length \f$ P_\alpha \f$.
+/** \f$ E_\alpha = k (P_\alpha / (\sqrt{A_\alpha^{(0)}} P^{(0)}) - 1)^2\f$, 
+ *  an elastic penalty on perimeter length \f$ P_\alpha \f$.
  * 
  *  Parameters:
  *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_perimeter`: The target perimeter \f$ P^{(0)} \f$ 
+ *      - `preferential_shape`: The target perimeter \f$ P^{(0)} \f$ 
  *              at which cell is tension free.
  */
 template <typename Model>
 class CellContractility : public WorkFunctionCellTerm<Model>
 {
+public:
     using Base = WorkFunctionCellTerm<Model>;
 
     using Cell = typename Base::Cell;
@@ -370,19 +377,19 @@ class CellContractility : public WorkFunctionCellTerm<Model>
 private:
     double _contractility;
 
-    double _preferential_perimeter;
+    double _preferential_shape;
 
 public:
     CellContractility (const DataIO::Config& cfg, const Model& model)
     :
         Base(cfg, model),
         _contractility(get_as<double>("contractility", cfg)),
-        _preferential_perimeter(get_as<double>("preferential_perimeter", cfg))
+        _preferential_shape(get_as<double>("preferential_shape", cfg))
     { }
 
     double compute_tension(const std::shared_ptr<Cell>& cell) const final {
-        const double& P0 = _preferential_perimeter;
-        return _contractility * (this->_am.perimeter_of(cell) / P0 - 1) / P0;
+        double S0 = _preferential_shape * sqrt(cell->state.area_preferential);
+        return _contractility * (this->_am.perimeter_of(cell) / S0 - 1) / S0;
     }
 
     double compute_pressure([[maybe_unused]] const std::shared_ptr<Cell>& cell)
@@ -392,15 +399,15 @@ public:
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const double& P0 = _preferential_perimeter;
+        double S0 = _preferential_shape * sqrt(cell->state.area_preferential);
         const double P = this->_am.perimeter_of(cell);
-        return 0.5 * _contractility * std::pow(P / P0 - 1, 2);
+        return 0.5 * _contractility * std::pow(P / S0 - 1, 2);
     }
 
     void update_parameters (const DataIO::Config& cfg) {
         _contractility = get_as<double>("contractility", cfg, _contractility);
-        _preferential_perimeter = get_as<double>("preferential_perimeter", cfg,
-                                                 _preferential_perimeter);
+        _preferential_shape = get_as<double>("preferential_shape", cfg,
+                                             _preferential_shape);
     }
 };
 
@@ -412,12 +419,13 @@ public:
  * 
  *  Parameters:
  *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_perimeter`: The target perimeter \f$ P^{(0)} \f$ 
+ *      - `preferential_shape_index`: The target shape index \f$ s^{(0)} \f$ 
  *              at which cell is tension free.
  */
 template <typename Model>
 class ShapeElasticity : public WorkFunctionCellTerm<Model>
 {
+public:
     using Base = WorkFunctionCellTerm<Model>;
 
     using Cell = typename Base::Cell;
@@ -480,22 +488,26 @@ public:
 template <typename Model>
 class AreaElasticity : public WorkFunctionCellTerm<Model>
 {
+public:
     using Base = WorkFunctionCellTerm<Model>;
 
     using Cell = typename Base::Cell;
 
-private:
+protected:
     double _elastic_modulus;
-
-    double _preferential_area;
 
 public:
     AreaElasticity (const DataIO::Config& cfg, const Model& model)
     :
         Base(cfg, model),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
-        _preferential_area(get_as<double>("preferential_area", cfg))
-    { }
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg))
+    {
+        double A0 = get_as<double>("preferential_area", cfg);
+
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.area_preferential = A0;
+        }
+    }
 
     double compute_tension([[maybe_unused]] const std::shared_ptr<Cell>& cell)
     const final 
@@ -504,170 +516,27 @@ public:
     }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = _preferential_area;
+        const double& A0 = cell->state.area_preferential;
         return _elastic_modulus * (this->_am.area_of(cell) / A0 - 1.) / A0;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = _preferential_area;
+        const double& A0 = cell->state.area_preferential;
         const double A = this->_am.area_of(cell);
         return 0.5 * _elastic_modulus * std::pow(A / A0 - 1, 2);
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-        _preferential_area = get_as<double>("preferential_area", cfg, 
-                                            _preferential_area);
-    }
-};
+        
+        double A0 = get_as<double>("preferential_area", cfg);
 
-/// @brief The area elasticity of a cell
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)}_\alpha - 1)\f$, an elastic penalty on 
- *  cell area \f$ A_\alpha \f$ wrt target value \f$ A^{(0)}_\alpha \f$.
- * 
- *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free. Positions map to cell type.
- */
-template <typename Model>
-class AreaElasticityHeterotypic : public WorkFunctionCellTerm<Model>
-{
-    using Base = WorkFunctionCellTerm<Model>;
-
-    using Cell = typename Base::Cell;
-
-private:
-    double _elastic_modulus;
-
-    std::vector<double> _preferential_area;
-
-    const auto& get_preferential_area (const std::shared_ptr<Cell>& cell) const
-    {
-        if (cell->state.type >= _preferential_area.size()) {
-            std::cout << _preferential_area.size();
-            throw std::runtime_error(fmt::format(
-                "In WF-term AreaElasticityHeterotypic, no parameter registered "
-                "for cells of type {}. Parameters for {} types registered.",
-                cell->state.type, _preferential_area.size()
-            ));
-        }
-        return _preferential_area.at(cell->state.type);
-    }
-
-public:
-    AreaElasticityHeterotypic (const DataIO::Config& cfg, const Model& model)
-    :
-        Base(cfg, model),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
-        _preferential_area(
-            get_as<std::vector<double>>("preferential_area", cfg))
-    { }
-
-    double compute_tension([[maybe_unused]] const std::shared_ptr<Cell>& cell)
-    const final 
-    {
-        return 0.;
-    }
-
-    double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = get_preferential_area(cell);
-        return _elastic_modulus * (this->_am.area_of(cell) / A0 - 1.) / A0;
-    }
-
-    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const double& k = _elastic_modulus;
-        const double& A0 = get_preferential_area(cell);
-        return 0.5 * k * std::pow(this->_am.area_of(cell) / A0 - 1, 2);
-    }
-
-    void update_parameters (const DataIO::Config& cfg) {
-        _elastic_modulus = get_as<double>("elastic_modulus", cfg,
-                                          _elastic_modulus);
-        _preferential_area = get_as<std::vector<double>>("preferential_area",
-                                                         cfg,
-                                                         _preferential_area);
-    }
-};
-
-/// @brief The area elasticity of a cell
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)}_\alpha - 1)\f$, an elastic penalty on 
- *  cell area \f$ A_\alpha \f$ wrt target value \f$ A^{(0)}_\alpha \f$.
- * 
- *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free. Positions map to cell type.
- */
-template <typename Model>
-class AreaElasticityIndividual : public WorkFunctionCellTerm<Model>
-{
-    using Base = WorkFunctionCellTerm<Model>;
-
-    using Cell = typename Base::Cell;
-
-private:
-    const std::string _name;
-
-public:
-    AreaElasticityIndividual (const DataIO::Config& cfg, const Model& model)
-    :
-        Base(cfg, model),
-        _name(get_as<std::string>("name", cfg, "AreaElasticityIndividual"))
-    {
-        double A0 = get_as<double>("area_preferential", cfg);
-        double k = get_as<double>("elastic_modulus", cfg);
         for (const auto& cell : this->_am.cells()) {
-            cell->state.register_parameter(_name, {k, A0});
+            cell->state.area_preferential = A0;
         }
-    }
-
-    ~AreaElasticityIndividual() {
-        for (const auto& cell : this->_am.cells()) {
-            cell->state.unregister_parameter(_name);
-        }
-    }
-
-    double compute_tension([[maybe_unused]] const std::shared_ptr<Cell>& cell)
-    const final 
-    {
-        return 0.;
-    }
-
-    double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const auto& params = get_parameters(cell);
-        return params[0] * (this->_am.area_of(cell)/params[1] - 1.) / params[1];
-    }
-
-    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const auto& params = get_parameters(cell);
-        return 0.5*params[0]*std::pow(this->_am.area_of(cell)/params[1] - 1, 2);
-    }
-    
-    const auto& get_parameters (const std::shared_ptr<Cell>& cell) const
-    {
-        if (not cell->state.has_parameter(_name)) {
-            throw std::runtime_error(fmt::format("Cell {} has no parameter "
-                "`{}` registered. Required from work function term `{}` "
-                "(AreaElasticityIndividual)!",
-                cell->id(), _name, _name));
-        }
-        return cell->state.get_parameter(_name);
-    }
-
-    void update_parameters (const DataIO::Config& cfg) override {
-        return;
-    }
-
-    void set_parameters (const std::shared_ptr<Cell>& cell, 
-                         double k, double A0)
-    {
-        const auto& params = get_parameters(cell);
-        cell->state.update_parameter(_name, {k, A0});
     }
 };
-
 
 } // namespace WorkFunction
 } // namespace PCPVertex

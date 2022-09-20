@@ -1,5 +1,12 @@
 ---
 PCPVertex:
+  work_function_terms:
+  - area_elasticity:
+      elastic_modulus: 1
+      preferential_area: 1
+  - cell_contractility:
+      contractility: 1.
+      preferential_shape: 3.72
   log_level: debug
   T1_barrier: 1000.
   T1_probability: 1.
@@ -8,26 +15,22 @@ PCPVertex:
   T1_separation_factor: 3
   agent_manager:
     cell_manager:
-      agent_params: 
-        area_preferential: 1.0
-        shape_index_preferential: 3.6
-        contractility: 1.
-        cell_type: progenitor
-    edge_manager:
-      agent_params: {contractility: 0., linetension: 0.}
+      agent_params:
+        type: 0
+    edge_manager: ~
     setup_method: hexagonal
     setup_params:
       hexagonal: {hexagon_size: 0.6204032394013997, hexagon_shape: pointy, lattice_columns: 8, lattice_rows: 8}
       single: {size: 0.6204032394013997}
       column: {size: 1., height: 1., num_cells: 4, offset: 1.}
     vertex_manager: ~
-  area_elasticity: 1.0
   boundary_parameter:
     area_elasticity: 0.
     area_preferential: 1.
     contractility: 0.
     shape_index_preferential: 3.62
-  cell_shape_implementation: contractile
+  Energy_buffer_size: 20
+
   data_manager:
     deciders:
       write_always: {type: always}

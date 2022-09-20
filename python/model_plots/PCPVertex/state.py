@@ -201,6 +201,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     # Get the group that all datasets are in
     grp = uni['data/'+datapath]
+
     # Get the shape of the data
     uni_cfg = uni['cfg']
     vertex_cfg = uni_cfg

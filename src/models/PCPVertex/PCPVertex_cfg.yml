@@ -18,7 +18,7 @@ work_function_terms:
     preferential_area: 1
 - cell_contractility:
     contractility: 1.
-    preferential_perimeter: 3.72
+    preferential_shape: 3.72
 
 agent_manager:
   setup_method: hexagonal
@@ -28,8 +28,8 @@ agent_manager:
     hexagonal:
       hexagon_size: !expr (2 / 3**1.5)**0.5
       hexagon_shape: pointy_top            # NOTE either pointy_top or flat_top
-      lattice_rows: 16
-      lattice_columns: 16
+      lattice_rows: 8
+      lattice_columns: 8
     column:
       size: 1.
       height: 1.

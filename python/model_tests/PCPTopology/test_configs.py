@@ -141,7 +141,6 @@ def test_disabled_plots():
             "equilibrium_cellular_structure__cell_contractility",
             "equilibrium_cellular_structure__linetension",
             "equilibrium_cellular_structure__edge_contractility",
-            "equilibrium_cellular_structure__hexatic_order",
-            "equilibrium_cellular_structure__rotation"
+            # "equilibrium_cellular_structure__hexatic_order"
         ]
     )

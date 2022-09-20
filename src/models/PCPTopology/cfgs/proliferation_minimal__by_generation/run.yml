@@ -18,7 +18,7 @@ parameter_space:
 
   PCPTopology:
     operations:
-      - jiggle:
+      - void:
           times: []
           iterations_prolog: 1
 
@@ -37,7 +37,7 @@ parameter_space:
           minimization:
             mode: manual
       # 32 cells
-      - jiggle:
+      - void:
           times: [2]
 
       - proliferate_generations:

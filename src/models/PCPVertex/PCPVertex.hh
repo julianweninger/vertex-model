@@ -104,8 +104,8 @@ struct MinimizationParams {
         num_steps(get_as<std::size_t>("num_steps", cfg, 0)),
         linetension_fluctuations(
             std::make_pair(
-                get_as<double>("linetension_fluctuation_tau", cfg, 1.),
-                get_as<double>("linetension_fluctuation", cfg, 0.)
+                get_as<double>("linetension_fluctuations_tau", cfg, 1.),
+                get_as<double>("linetension_fluctuations", cfg, 0.)
             )
         ),
         num_repeat(get_as<std::size_t>("num_repeat", cfg, 1)),
@@ -140,9 +140,9 @@ struct MinimizationParams {
         num_steps(get_as<std::size_t>("num_steps", cfg, defaults.num_steps)),
         linetension_fluctuations(
             std::make_pair(
-                get_as<double>("linetension_fluctuation_tau", cfg,
+                get_as<double>("linetension_fluctuations_tau", cfg,
                     std::get<0>(defaults.linetension_fluctuations)),
-                get_as<double>("linetension_fluctuation", cfg,
+                get_as<double>("linetension_fluctuations", cfg,
                     std::get<1>(defaults.linetension_fluctuations))
             )
         ),
@@ -765,20 +765,6 @@ private:
                                                                     *this)
                     );
                 }
-                else if (term == "area_elasticity_heterotypic") {
-                    register_pressure(
-                        term,
-                        std::make_shared<AreaElasticityHeterotypic<PCPVertex>>(
-                            params, *this)
-                    );
-                }
-                else if (term == "area_elasticity_individual") {
-                    register_pressure(
-                        term,
-                        std::make_shared<AreaElasticityIndividual<PCPVertex>>(
-                            params, *this)
-                    );
-                }
                 else if (term == "cell_contractility") {
                     register_pressure(
                         term,
@@ -826,8 +812,6 @@ private:
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
                         " - area_elasticity\n"
-                        " - area_elasticity_heterotypic\n"
-                        " - area_elasticity_individual\n"
                         " - cell_contractility\n"
                         " - edge_contractility\n"
                         " - linetension\n"
@@ -843,168 +827,6 @@ private:
     }
 
     // .. Force setter functions ..............................................
-
-
-    // void set_grad_boundary_area_elasticity
-    //         (const OrderedEdgeContainer& boundary)
-    // {
-    //     if (   _space->periodic
-    //         or fabs(_boundary_param.area_elasticity) < 1.e-12)
-    //     {
-    //         return;
-    //     }
-
-    //     double area = _am.area_of(boundary);
-    //     double N = _am.cells().size();
-
-    //     const auto rel_area = area / _boundary_param.area_preferential(N);
-        
-    //     for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++) {
-    //         std::shared_ptr<Edge> e0; bool e0_flip;
-    //         if (edges_it > 0) { 
-    //             std::tie(e0, e0_flip) = boundary[edges_it - 1];
-    //         }
-    //         else {
-    //             std::tie(e0, e0_flip) = boundary.back();
-    //         }
-
-    //         const auto [e1, e1_flip] = boundary[edges_it];
-            
-    //         // vertices in ordering
-    //         auto v_center = e0->custom_links().b;
-    //         auto v_prior  = e0->custom_links().a;
-    //         if (e0_flip) {
-    //             std::swap(v_center, v_prior);
-    //         }
-
-    //         std::shared_ptr<Vertex> v_post;
-    //         if (not e1_flip) {
-    //             v_post = e1->custom_links().b;
-    //         }
-    //         else {
-    //             v_post = e1->custom_links().a;
-    //         }
-
-    //         // get positions relative to cell center
-    //         SpaceVec prior = _am.position_of(v_prior);
-    //         SpaceVec post  = _am.position_of(v_post);
-
-    //         SpaceVec displ = post - prior;
-
-    //         // derivative of A to x_i, i.e. the position of v_center 
-    //         SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
-
-    //         SpaceVec force = (  -1. * _boundary_param.area_elasticity
-    //                           * (rel_area - 1) * dA_dx
-    //                           / _boundary_param.area_preferential(N));
-
-    //         v_center->state.f += force;
-    //     }
-        
-    //     return;
-    // };
-
-    // void set_grad_boundary_shape_elasticity 
-    //         (const OrderedEdgeContainer& boundary)
-    // {
-    //     if (   _space->periodic
-    //         or fabs(_boundary_param.contractility) < 1.e-12)
-    //     {
-    //         return;
-    //     }
-
-    //     const double area = _am.area_of(boundary);
-    //     const double perimeter = this->_am.perimeter_of(boundary);
-    //     const double shape_index = perimeter / sqrt(area);
-        
-    //     for (unsigned int edges_it = 0; edges_it < boundary.size(); edges_it++)
-    //     {
-    //         std::shared_ptr<Edge> e0; bool e0_flip;
-    //         if (edges_it > 0) { 
-    //             std::tie(e0, e0_flip) = boundary[edges_it - 1];
-    //         }
-    //         else {
-    //             std::tie(e0, e0_flip) = boundary.back();
-    //         }
-
-    //         const auto [e1, e1_flip] = boundary[edges_it];
-            
-    //         // vertices in ordering
-    //         auto v_center = e0->custom_links().b;
-    //         auto v_prior  = e0->custom_links().a;
-    //         if (e0_flip) {
-    //             std::swap(v_center, v_prior);
-    //         }
-
-    //         std::shared_ptr<Vertex> v_post;
-    //         if (not e1_flip) {
-    //             v_post = e1->custom_links().b;
-    //         }
-    //         else {
-    //             v_post = e1->custom_links().a;
-    //         }
-
-    //         // get positions relative to cell center
-    //         SpaceVec center = _am.position_of(v_center);
-    //         SpaceVec prior  = _am.position_of(v_prior);
-    //         SpaceVec post   = _am.position_of(v_post);
-
-    //         // calculate dA / dx_i
-    //         SpaceVec displ = post - prior;
-    //         SpaceVec dA_dx({0.5 * displ[1], -0.5 * displ[0]});
-
-    //         // calculate dP / dx_i
-    //         SpaceVec displ_2 = this->_space->displacement(prior, center);
-    //         SpaceVec displ_3 = this->_space->displacement(center, post);
-    //         SpaceVec dP_dx = (  displ_2 / arma::norm(displ_2)
-    //                           - displ_3 / arma::norm(displ_3));
-
-    //         SpaceVec dE_dx = (  _boundary_param.contractility
-    //                           * (  shape_index
-    //                              - _boundary_param.shape_index_preferential)
-    //                           * (  dP_dx / sqrt(area)
-    //                              - 0.5 * dA_dx * shape_index / area));
-
-    //         v_center->state.f -= dE_dx;
-    //     }
-
-    //     return;
-    // };
-
-    // void set_grad_boundary_contractility
-    //         (const OrderedEdgeContainer& boundary)
-    // {
-    //     if (   _space->periodic
-    //         or fabs(_boundary_param.contractility) < 1.e-12)
-    //     {
-    //         return;
-    //     }
-
-    //     const double perimeter = this->_am.perimeter_of(boundary);
-    //     const auto N = _am.cells().size();
-        
-    //     for (auto [e, flip] : boundary) {
-    //         auto a = e->custom_links().a;
-    //         auto b = e->custom_links().b;
-    //         if (flip) { std::swap(a, b); }
-
-    //         SpaceVec displ = this->_am.displacement(a, b);
-    //         double length = arma::norm(displ);
-
-    //         SpaceVec force = (  _boundary_param.contractility
-    //                           * (    perimeter
-    //                                / sqrt(_boundary_param.area_preferential(N))
-    //                              - _boundary_param.shape_index_preferential)
-    //                           * displ / length
-    //                           / sqrt(_boundary_param.area_preferential(N))
-    //                          );
-
-    //         a->state.f += force;
-    //         b->state.f -= force;
-    //     }
-
-    //     return;
-    // };
 
     // /// Derivative of a quadratic boundary potential
     // void set_grad_boundary_stripe () {
@@ -1196,7 +1018,7 @@ public:
      *  \param cell         the cell that is to be divided
      *  \param division_angle   angle (in rad) at which the cell is divided
      */
-    void divide_cell(std::shared_ptr<Cell> cell, double division_angle) {
+    auto divide_cell(std::shared_ptr<Cell> cell, double division_angle) {
         return _am.divide_cell(cell, division_angle);
     }
 
@@ -1633,12 +1455,33 @@ public:
 
 
     // .. Public energy terms for subset of entities ..........................
-    const auto get_work_function_terms () const {
+    auto get_work_function_terms () const {
         return std::make_tuple(
             _tensions,
             _pressures,
             _work_function_terms_disabled
         );
+    }
+
+    std::shared_ptr<WFCellTerm> get_work_function_cell_term
+    (const std::string& name) const
+    {
+        const auto it = _pressures.find(name);
+
+        if (it != _pressures.end()) {
+            return std::get<1>(*it);
+        }
+        if (   _work_function_terms_disabled.find(name)
+            != _work_function_terms_disabled.end())
+        {
+            return nullptr;
+        }
+
+        throw std::runtime_error(fmt::format(
+            "Cannot find work-function term with name `{}`, because a "
+            "term with that name is already registered!",
+            name
+        ));
     }
         
     // .. Counter for transitions, etc.. ......................................

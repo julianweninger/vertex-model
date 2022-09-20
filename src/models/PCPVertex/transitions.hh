@@ -25,7 +25,9 @@ namespace Utopia::Models::PCPVertex {
  *  \warning Does not conserve the ordering of vertices
  */
 template <class Model>
-void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
+std::pair<std::shared_ptr<typename EntitiesManager<Model>::Cell>,
+          std::shared_ptr<typename EntitiesManager<Model>::Cell> >
+EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         double division_angle)
 {
     this->_log->debug("Dividing cell ...");
@@ -274,9 +276,9 @@ void EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
         }
     }
 
-    this->_log->trace("Successfully divided cell.");
+    this->_log->info("Successfully divided cell.");
 
-    return;
+    return std::make_pair(new_cell_0, new_cell_1);
 } // divide cell
 
 

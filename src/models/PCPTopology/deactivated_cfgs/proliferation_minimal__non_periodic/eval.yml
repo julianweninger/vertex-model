@@ -84,7 +84,7 @@ cell_properties/shape:
 equilibrium_cellular_structure:
   based_on: cellular_structure
 
-cellular_structure:
+continuous_cellular_structure:
   based_on: cellular_structure
   datapath: PCPTopology/PCPVertex
 

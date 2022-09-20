@@ -11,14 +11,6 @@ energy_continuous:
 transitions:
   based_on: transitions
 
-transitions_cumulated:
-  based_on: transitions
-  cumsum_transitions: true
-
-transitions_continuous:
-  based_on: transitions_continuous
-  cumsum_transitions: true
-
 
 
 cell_properties:
@@ -84,7 +76,7 @@ cell_properties/shape:
 equilibrium_cellular_structure:
   based_on: cellular_structure
 
-cellular_structure:
+continuous_cellular_structure:
   based_on: cellular_structure
   datapath: PCPTopology/PCPVertex
 
@@ -136,7 +128,7 @@ cell_neighbourhood: !pspace
     default: all
     values:
       - all
-      - hair
-      - support
-      - support_hair
-      - hair_hair
+      # - hair
+      # - support
+      # - support_hair
+      # - hair_hair

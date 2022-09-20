@@ -285,7 +285,6 @@ def plot_neighbourhood(*, num_neighbors, num_hair_neighbors,
               use_dag=True,
               required_dag_tags=(
                   'num_neighbors',
-                  'num_hair_neighbors',
                   'area',
                   'shape_index',
                   'cell_type'))
@@ -328,7 +327,10 @@ def cell_neighbourhood(*, data: dict, hlpr: PlotHelper,
     """
     # Get the group that all datasets are in
     num_neighbors = data['num_neighbors']
-    num_hair_neighbors = data['num_hair_neighbors']
+    if 'num_hair_neighbors' in data:
+        num_hair_neighbors = data['num_hair_neighbors']
+    else:
+        num_hair_neighbors = None
     area = data['area']
     shape_index = data['shape_index']
     cell_type = data['cell_type']
@@ -339,7 +341,9 @@ def cell_neighbourhood(*, data: dict, hlpr: PlotHelper,
                                  num_neighbors.dims)
         stack_dims.append('id')
         num_neighbors = num_neighbors.stack(ids=stack_dims).squeeze()
-        num_hair_neighbors = num_hair_neighbors.stack(ids=stack_dims).squeeze()
+        if num_hair_neighbors is not None:
+            num_hair_neighbors = num_hair_neighbors.stack(ids=stack_dims)\
+                                                   .squeeze()
         area = area.stack(ids=stack_dims).squeeze()
         shape_index = shape_index.stack(ids=stack_dims).squeeze()
         cell_type = cell_type.stack(ids=stack_dims).squeeze()
@@ -360,7 +364,8 @@ def cell_neighbourhood(*, data: dict, hlpr: PlotHelper,
         for time in num_neighbors.time:
             plot_neighbourhood(
                 num_neighbors=num_neighbors.sel(time=time),
-                num_hair_neighbors=num_hair_neighbors.sel(time=time),
+                num_hair_neighbors=num_hair_neighbors.sel(time=time) if \
+                    num_hair_neighbors is not None else None,
                 area=area.sel(time=time),
                 shape_index=shape_index.sel(time=time),
                 cell_type=cell_type.sel(time=time),

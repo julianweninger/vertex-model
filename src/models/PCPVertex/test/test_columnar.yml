@@ -10,7 +10,7 @@ PCPVertex:
       preferential_area: 1
   - cell_contractility:
       contractility: 1.
-      preferential_perimeter: 4.
+      preferential_shape: 4.
   T1_barrier: 0.02
   T1_probability: 1.0
   T1_separation_factor: 1.05

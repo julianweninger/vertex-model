@@ -87,7 +87,7 @@ parameter_space:
           support_support: 0.2
 
           minimization:
-            linetension_fluctuation: 0.04
+            linetension_fluctuations: 0.04
             num_repeat: 240
       # END differentiation
 
@@ -115,11 +115,11 @@ parameter_space:
           minimization:
             mode: manual
 
-      - jiggle:
+      - void:
           times: !listgen [1, 501]
           minimization:
-            linetension_fluctuation: 0.0001
-            linetension_fluctuation_tau: 24
+            linetension_fluctuations: 0.0001
+            linetension_fluctuations_tau: 24
             num_repeat: 24
 
     # --- Dynamics
@@ -129,8 +129,8 @@ parameter_space:
       dt: 0.05  # this was evaluated in the previous test to be a good dt
       num_steps: 20
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.02
-      linetension_fluctuation_tau: &tau_dL 24
+      linetension_fluctuations: 0.02
+      linetension_fluctuations_tau: &tau_dL 24
       num_repeat: *tau_dL
 
     NotchDelta:

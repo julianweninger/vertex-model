@@ -20,7 +20,7 @@ parameter_space:
       1_by_proliferation:
         num_generations: 1
         minimization:
-          linetension_fluctuation: 0.
+          linetension_fluctuations: 0.
 
     operations:
       - differentiate_Collier:

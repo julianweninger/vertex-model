@@ -34,42 +34,37 @@ parameter_space:
       tolerance: 1.e-6
       max_steps: 15000
       jiggle_tolerance: 1.e-5
-      dt: !coupled-sweep
-        target_name: update_scheme
-        name: dt
-        default: 0.05
-        values: [0.001, 0.01, 0.001]
+      dt: 0.01
       num_steps: 100
-      num_repeat: !coupled-sweep
-        target_name: update_scheme
-        default: 1
-        values: [5, 3, 5]
-      jiggle_intensity: !coupled-sweep
-        target_name: update_scheme
-        default: 0
-        values: [0.001, 0., 0.001]
 
-    periodic_BC: !sweep
-      default: True
-      values: [False, True]
-      name: periodic_BC
     space:
-      periodic: !coupled-sweep
-        target_name: periodic_BC
+      periodic: !sweep
+        default: True
+        values: [False, True]
+        name: periodic_BC
       extent: !coupled-sweep
         target_name: periodic_BC
         default: [1., 1.]
         values: [[40., 40.], [1., 1.]]
+        name: extent
 
     PCPVertex:
       log_level: trace
-      update_scheme: !sweep
-        default: steepest_gradient
-        values: [conjugate_gradient, steepest_gradient, steepest_gradient_adaptive]
-
-      cell_shape_implementation: !sweep
-        default: contractile
-        values: [contractile, shape_elastic]
+      
+      work_function_terms:
+      - linetension:
+          linetension: 0.02
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - edge_contractility:
+          contractility: 0.02
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
       
       space:
         periodic: !coupled-sweep
@@ -80,7 +75,7 @@ parameter_space:
           values: [[40., 40.], [1., 1.]]
     
     operations:
-      - jiggle:
+      - void:
           times: []
           iterations_prolog: 1
 
@@ -128,5 +123,5 @@ parameter_space:
           # minimization:
           #   mode: manual
 
-      - jiggle:
+      - void: 
           times: !listgen [2, 20]

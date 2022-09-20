@@ -104,7 +104,7 @@ parameter_space:
             mode: manual
       # END Differential junctional properties
 
-      - jiggle:
+      - void:
           times: !listgen [10001]
           
 
@@ -116,8 +116,8 @@ parameter_space:
       num_steps: 20
       num_repeat: 25
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.1
-      linetension_fluctuation_tau: 25
+      linetension_fluctuations: 0.1
+      linetension_fluctuations_tau: 25
 
     NotchDelta:
       cell_manager:

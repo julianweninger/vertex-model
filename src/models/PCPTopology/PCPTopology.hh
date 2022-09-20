@@ -868,7 +868,7 @@ public:
         return _vertex_model.get_energy();
     }
 
-    const auto get_work_function_terms () const {
+    auto get_work_function_terms () const {
         return _vertex_model.get_work_function_terms();
     }
 

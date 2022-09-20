@@ -74,7 +74,7 @@ parameter_space:
           times: [1]
           support_boundary: 0.8
 
-      - jiggle: 
+      - void: 
           times: !listgen [2, 101]
 
     data_manager:

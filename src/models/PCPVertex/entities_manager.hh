@@ -493,6 +493,11 @@ public:
         static_assert(Space::dim == 2, "Center of a cell is only implemented "
                       "for 2 dimensional space!");
 
+        if (boundary.size() < 3) {
+            throw std::runtime_error("Cannot calculate barycenter of an"
+                "edge collection with less than 3 edges!");
+        }
+
         // define a reference in space
         auto [e, flip] = boundary.front();
         std::shared_ptr<Vertex> reference;
@@ -508,7 +513,7 @@ public:
             auto _a = e->custom_links().a;
             auto _b = e->custom_links().b;
 
-            if (flip) { std::swap(_a, _b); }            
+            if (flip) { std::swap(_a, _b); }
 
             SpaceVec a = position_of(reference) + displacement(reference, _a);
             SpaceVec b = position_of(reference) + displacement(reference, _b);
@@ -517,6 +522,7 @@ public:
             area += da;
             center += (a + b) * da;
         }
+
         area /= 2;
         if (area < 1.e-12) { area += 1e-12; }
         center /= (6 * area);
@@ -751,7 +757,8 @@ public:
     }
 
     // see transitions.hh
-    void divide_cell(const std::shared_ptr<Cell> cell, double division_angle);
+    std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell> >
+    divide_cell(const std::shared_ptr<Cell> cell, double division_angle);
 
     // see transitions.hh
     bool remove_edge_T1 (const std::shared_ptr<Edge> edge,

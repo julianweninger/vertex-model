@@ -72,3 +72,11 @@ cell_properties/shape:
 cellular_structure:
   based_on:
     - cellular_structure
+
+    
+cellular_structure__area:
+  based_on:
+    - cellular_structure
+
+  property: {property: area}
+  property_label: cell area
