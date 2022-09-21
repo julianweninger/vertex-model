@@ -92,6 +92,8 @@ transitions:
     - function: sns.lineplot
       data: !dag_result transitions
       y: transitions
+      hue: type
+      hue_order: [num_T1s, num_T1s_attempted, num_T2s]
 
   helpers:
     setup_figure:

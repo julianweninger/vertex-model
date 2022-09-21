@@ -263,6 +263,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         for (const auto& [name, F] : Fs) {
             model.register_force(name, F);
+            SpaceVec displ({0.01, 0.01});
+
+            double _precision = precision;
+            if (name == "boundary_curved_stripe_potential") {
+                _precision = 2.e-3;
+            }
+
 
             for (const auto& vertex : am.vertices()) {
                 const SpaceVec v_pos0 = am.position_of(vertex);
@@ -271,7 +278,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 const double energy = F->compute_energy(vertex);
 
                 // change vertex position by something
-                am.move_by(vertex, SpaceVec({0.1, 0.1}));
+                am.move_by(vertex, displ);
 
                 double delta_E = F->compute_energy(vertex) - energy;
                 SpaceVec delta = am.get_space()->displacement(
@@ -280,14 +287,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 );
                 SpaceVec force_mean = 0.5 * (force + F->compute_force(vertex));
 
-                if (fabs(delta_E) < precision) {
-                    BOOST_CHECK_SMALL(arma::dot(force_mean, delta), precision);
+                if (fabs(delta_E) < _precision) {
+                    BOOST_CHECK_SMALL(arma::dot(force_mean, delta), _precision);
                 }
                 else {
                     BOOST_CHECK_CLOSE(
                         delta_E,
-                        arma::dot(force_mean, delta),
-                        precision
+                        - arma::dot(force_mean, delta),
+                        _precision
                     );
                 }
 

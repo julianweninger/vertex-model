@@ -53,16 +53,12 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         ValueError: On mismatch of data shapes
     """
     # Get the data
-    energy = uni['data'][model_name]['Energy']['Total']
-    linetension = uni['data'][model_name]['Energy']['Linetension']
-    cell_contractility = uni['data'][model_name]['Energy']['Cell_contractility']
-    edge_contractility = uni['data'][model_name]['Energy']['Edge_contractility']
-    areaelasticity = uni['data'][model_name]['Energy']['Areaelasticity']
+    energy = uni['data'][model_name]['Energy']['Terms']
     
-    transitions = uni['data'][model_name]['Energy/transitions']
-    num_T1s = transitions.sel(property="num_T1s")
-    num_T1s_attempted = transitions.sel(property="num_T1s_attempted")
-    num_T2s = transitions.sel(property="num_T2s")
+    transitions = uni['data'][model_name]['Energy/Transitions']
+    num_T1s = transitions.sel(type="num_T1s")
+    num_T1s_attempted = transitions.sel(type="num_T1s_attempted")
+    num_T2s = transitions.sel(type="num_T2s")
     if cumsum_transitions:
         num_T1s = num_T1s.cumsum()
         num_T1s_attempted = num_T1s_attempted.cumsum()
@@ -71,16 +67,12 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     # Create the line plot of energy
     ax1 = hlpr.ax
-    ax1.plot(energy.time, energy,
-             label='total', alpha=0.5)
-    ax1.plot(linetension.time, linetension,
-             label='linetension', alpha=0.5)
-    ax1.plot(cell_contractility.time, cell_contractility,
-             label='cell contractility', alpha=0.5)
-    ax1.plot(edge_contractility.time, edge_contractility,
-             label='edge contractility', alpha=0.5)
-    ax1.plot(areaelasticity.time, areaelasticity, 
-             label='areaelasticity', alpha=0.5)
+    ax1.plot(
+        energy.time,
+        energy,
+        hue='terms',
+        alpha=0.5,
+    )
 
     ax1.set_xlabel("Time [steps]")
     ax1.set_ylabel("Energy [a.u.]")

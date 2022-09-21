@@ -65,7 +65,7 @@ T1_probability: 1.
 T1_barrier: 0.02
 T2_threshold: 0.0075
 
-Energy_buffer_size: !expr 20 * 50
+Energy_buffer_size: !expr 20 * 50 * 5
 
 # --- Data manager
 data_manager:

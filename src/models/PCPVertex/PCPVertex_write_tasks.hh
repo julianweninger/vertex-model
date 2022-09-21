@@ -742,8 +742,8 @@ auto transition_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords_mode__time", "linked");
         hdfdataset->add_attribute("coords__time", "Time");
 
-        hdfdataset->add_attribute("dim_name__1", "property");
-        hdfdataset->add_attribute("coords__property", 
+        hdfdataset->add_attribute("dim_name__1", "type");
+        hdfdataset->add_attribute("coords__type", 
                 std::vector<std::string>({
                     "num_T1s",
                     "T1_frequency",

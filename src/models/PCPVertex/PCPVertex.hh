@@ -374,6 +374,14 @@ private:
                         )
                     );
                 }
+                else if (term == "boundary_curved_stripe_potential") {
+                    register_force(
+                        term,
+                        std::make_shared<BoundaryCurvedStripePotential<PCPVertex>>(
+                            params, *this
+                        )
+                    );
+                }
                 else if (term == "boundary_stripe_potential") {
                     register_force(
                         term,
@@ -434,6 +442,7 @@ private:
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
                         " - area_elasticity\n"
+                        " - boundary_curved_stripe_potential\n"
                         " - boundary_stripe_potential\n"
                         " - cell_contractility\n"
                         " - edge_contractility\n"
