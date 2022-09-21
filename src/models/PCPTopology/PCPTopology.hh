@@ -856,11 +856,12 @@ public:
     }
     /// Getter for energy of a container of edges and cells, resp.
     double get_energy (
+            const AgentContainer<Vertex>& vs,
             const AgentContainer<Edge>& es,
             const AgentContainer<Cell>& cs
     ) const
     {
-        return _vertex_model.get_energy(es, cs);
+        return _vertex_model.get_energy(vs, es, cs);
     }
 
     /// Getter for energy all edges and cells

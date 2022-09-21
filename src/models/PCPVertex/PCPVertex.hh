@@ -26,6 +26,7 @@
 
 #include "work_function.hh"
 #include "minimization.hh"
+#include "boundary.hh"
 
 namespace Utopia {
 namespace Models {
@@ -104,6 +105,8 @@ public:
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
 
+    using WFVertexTerm = WorkFunction::WorkFunctionVertexTerm<PCPVertex>;
+
     using WFEdgeTerm = WorkFunction::WorkFunctionEdgeTerm<PCPVertex>;
 
     using WFCellTerm = WorkFunction::WorkFunctionCellTerm<PCPVertex>;
@@ -131,282 +134,33 @@ private:
 
 
     // -- Mechanical parameters -----------------------------------------------
+    std::unordered_map<std::string,
+                       std::shared_ptr<WFVertexTerm>> _vertex_terms;
     std::unordered_map<std::string, std::shared_ptr<WFEdgeTerm>> _tensions;
     std::unordered_map<std::string, std::shared_ptr<WFCellTerm>> _pressures;
 
     std::set<std::string> _work_function_terms_disabled;
 
 
+    enum BoundaryType {
+        Periodic,
+        PeriodicSkewed,
+        PeriodicCurved,
+        Free,
+        Fixed,
+        FixedCurved,
+        Potential
+    } _boundary_type;
 
-    /// Mechanical parameters for boundary
-    /** The boundary of the domain is treated as one cell
-     */
-    struct BoundaryParam {
-        /// The boundary condition's periodicity
-        const bool periodic;
-
-        double area_elasticity;
-        double _area_preferential; /// Per cell averaged target area
-        double area_preferential(std::size_t N) const {
-            return _area_preferential * static_cast<double>(N);
-        };
-
-        double contractility;
-        double shape_index_preferential;
-
-        /// Whether to fix all vertices of the boundary in space
-        bool fix_boundary;
-
-        private:
-            /// A place to store curvature of the boundary
-            double virtual_curvature;
-
-
-        public:
-
-        BoundaryParam (bool periodic_bc, const Config& cfg)
-        :
-            periodic(periodic_bc),
-            area_elasticity(get_as<double>("area_elasticity", cfg)),
-            _area_preferential(get_as<double>("area_preferential", cfg)),
-            contractility(get_as<double>("contractility", cfg)),
-            shape_index_preferential(
-                get_as<double>("shape_index_preferential", cfg)),
-
-            fix_boundary(get_as<bool>("fix_boundary", cfg, false)),
-            virtual_curvature(0.)
-        {
-            if (fabs(get_as<double>("curvature", cfg, 0)) > 1.e-6) {
-                throw std::runtime_error("Cannot set curvature from "
-                    "configuration! Use the interface of the VertexModel");
-            }   
+    bool boundary_is_fixed () const {
+        if (_boundary_type == BoundaryType::Fixed) {
+            return true;
         }
-
-        void update (const Config& cfg) {
-            area_elasticity = get_as<double>(
-                "area_elasticity", cfg,
-                area_elasticity);
-            _area_preferential = get_as<double>(
-                "_area_preferential", cfg,
-                _area_preferential);
-            contractility = get_as<double>(
-                "contractility", cfg,
-                contractility);
-            shape_index_preferential = get_as<double>(
-                "shape_index_preferential", cfg,
-                shape_index_preferential);
-
-            fix_boundary = get_as<bool> (
-                "fix_boundary", cfg, fix_boundary);
-
-
-            if (fabs(get_as<double>("curvature", cfg, 0)) > 1.e-6) {
-                throw std::runtime_error("Cannot set curvature from "
-                    "configuration! Use the interface of the VertexModel");
-            }   
+        if (_boundary_type == BoundaryType::FixedCurved) {
+            return true;
         }
-
-        /// Update the virtual_curvature value
-        /** Stores information on a curved deformation of a collection of fixed
-         *  boundary vertices. 
-         *  WARNING the deformation is not applied here.
-         */
-        void set_curvature (double curvature) {
-            if (periodic) {
-                throw std::runtime_error("Cannot set curvature to boundary "
-                    "parameter in periodic space. Use boundary conditions "
-                    "in space object!");
-            }
-            if (fabs(curvature) > 1.e-9 and not fix_boundary) {
-                throw std::runtime_error("To set non-zero curvature fixed "
-                    "boundary `fix_boundary=True` required!");
-            }
-
-            virtual_curvature = curvature;
-        }
-
-        /// Get information of curved boundary 
-        /** Curved boundary in non-periodic bc are stored in deformation
-         *  of fixed boundary vertices.
-         */
-        double get_curvature () const {
-            if (periodic) {
-                throw std::runtime_error("Curvature in periodic boundary "
-                    "conditions are not stored in BoundaryParam object!");
-            }
-            if (fabs(virtual_curvature) < 1.e-9) {
-                return 0.;
-            }
-            if (not fix_boundary) {
-                throw std::runtime_error("Curved boundary conditions not "
-                    "allowed without fixed boundary conditions!");
-            }
-            return virtual_curvature;
-        }
-    } _boundary_param;
-
-
-    /// A quadratic potential in the shape of a stripe with curvature
-    struct StripeBoundaryParam {
-        /// The constant for the quadratic stripe potential
-        double potential_constant;
-
-        /// The width of the stripe
-        double width;
-
-        /// The curvature of the circle
-        double curvature;
-
-        /// the center of the circle stripe
-        /** originally the tissue center offsetted by 1. / curvature
-         *  NOTE it is fixed and updated with changes in curvature to
-         *       prevent macroscopic cell flows when always defining wrt 
-         *       cell center
-         */
-        SpaceVec origin;
-
-        /// Initialisation of StripeBoundaryParam
-        /**
-         *  cfg: The initialisation config
-         *      - `potential_constant` (double): Constant of quadratic potential
-         *      - `deform_plastic` (bool): Whether to perform solid 
-         *          like deformation of fit the stripe width and curvature.
-         *          If false, stripe Width is set to width of current tissue
-         *          and curvature = 0.
-         *          If true, requires the following entries:
-         *              - `width` (double): Width (y-axis) of the stripe
-         *              - `curvature` (double): Map the tissue horizontal axis
-         *                  to a circle of radius \f$ R = (curvature)^-1 \f$.
-         *                  Origin of circle is at barycenter of tissue shifted
-         *                  by R along y-axis.
-         *      - `recenter` (bool, default: False): Whether to shift the tissue
-         *             such that its barycenter falls on the origin (0,0).
-         *       
-         */
-        StripeBoundaryParam(const Config& cfg, AgentManager& am)
-        :
-            potential_constant(get_as<double>(
-                "potential_constant", cfg)),
-            width(std::numeric_limits<double>::max()),
-            curvature(0.),
-            origin()
-        {
-            if (am.get_space()->periodic) {
-                throw std::runtime_error("Cannot set up stripe boundary in "
-                    "periodic space!");
-            }
-
-            bool deform = get_as<bool>("deform_plastic", cfg);
-            if (deform) {
-                width = get_as<double>("width", cfg);
-                curvature = get_as<double>("curvature", cfg);
-
-                am.get_logger()->info("Deforming tissue as a solid to the "
-                    "shape of a stripe of width {} and {} curvature "
-                    "(radius {})..",
-                    width, curvature,
-                    curvature > 1.e-10 ? \
-                        std::to_string(1. / curvature) : "inf.");
-
-
-                // determine where to place the origin of the potential
-                // the extent of the populated domain
-                double x_min = std::numeric_limits<double>::max();
-                double x_max = std::numeric_limits<double>::lowest();
-                double y_min = std::numeric_limits<double>::max();
-                double y_max = std::numeric_limits<double>::lowest();
-                for (const auto &v : am.vertices()) {
-                    SpaceVec pos = am.position_of(v);
-                    x_min = std::min(x_min, pos[0]);
-                    x_max = std::max(x_max, pos[0]);
-                    y_min = std::min(y_min, pos[1]);
-                    y_max = std::max(y_max, pos[1]);
-                }
-
-                double L = x_max - x_min;
-                double H = y_max - y_min;
-
-                double scaling = std::min(1., width / H);
-                
-                const auto boundary = am.get_boundary_edges();
-                SpaceVec barycenter = am.barycenter_of(boundary);
-                auto recenter = get_as<bool>("recenter", cfg, false);
-                if (recenter) {
-                    am.get_logger()->info("Recentering tissue..");
-                    origin = SpaceVec({0., 0.});
-                }
-                else {
-                    origin = barycenter;
-                }
-
-                if (curvature > 1.e-10) {
-                    double R = 1. / curvature;
-                    if (L > 2 * M_PI * R) {
-                        throw std::runtime_error(fmt::format("Cannot map "
-                            "tissue to circle of radius {} (curvature {}) "
-                            "as it is longer than the circumference of the "
-                            "circle: {} > {}!",
-                            R, curvature, L, 2 * M_PI * R));
-                    }
-                    origin -= SpaceVec({0., R});
-                    
-                    for (auto& vertex : am.vertices()) {
-                        SpaceVec pos = am.position_of(vertex) - barycenter;
-                        pos = pos % SpaceVec({1., scaling});
-
-                        double theta = pos[0] / R;
-                        double r = R + pos[1];
-
-                        SpaceVec new_pos = SpaceVec({r * sin(theta),
-                                                     r * cos(theta)});
-
-                        am.move_to(vertex, new_pos + origin);
-                    }
-
-                    origin += SpaceVec({0., R});
-                }
-                else if (recenter or scaling < 1. - 1.e-10) {
-                    for (auto& vertex : am.vertices()) {
-                        SpaceVec pos = am.position_of(vertex) - barycenter;
-                        pos = pos % SpaceVec({1., scaling});
-
-                        am.move_to(vertex, pos + origin);                        
-                    }
-                }
-            }
-            else {
-                // determine where to place the origin of the potential
-                // the extent of the populated domain
-                double x_min = std::numeric_limits<double>::max();
-                double x_max = std::numeric_limits<double>::lowest();
-                double y_min = std::numeric_limits<double>::max();
-                double y_max = std::numeric_limits<double>::lowest();
-                for (const auto &v : am.vertices()) {
-                    SpaceVec pos = am.position_of(v);
-                    x_min = std::min(x_min, pos[0]);
-                    x_max = std::max(x_max, pos[0]);
-                    y_min = std::min(y_min, pos[1]);
-                    y_max = std::max(y_max, pos[1]);
-                }
-                double L = x_max - x_min;
-
-                // place origin relative to barycenter of cells
-                const auto boundary = am.get_boundary_edges();
-                SpaceVec barycenter = am.barycenter_of(boundary);
-
-                double rel = get_as<double>("curvature_center", cfg, 0.5);
-                origin = barycenter + SpaceVec({(rel - 0.5) * L, 0.});
-
-                width = std::max(2 * fabs(y_max - barycenter[1]),
-                                 2 * fabs(y_min - barycenter[1]));
-
-                am.get_logger()->info("Initialised stripe to fit current "
-                    "state of the tissue. It is {} wide (y-axis) and not "
-                    "curved.", width);
-            }
-        }
-    };
-    std::shared_ptr<StripeBoundaryParam> _stripe_boundary;
+        return false;
+    }
 
 
     // -- transition parameters -----------------------------------------------
@@ -527,13 +281,10 @@ public:
                                                     this->_cfg)),
         _dt(_default_minimization_params.dt),
         _minimization_tolerance(_default_minimization_params.tolerance),
+        _vertex_terms({}),
         _tensions({}),
         _pressures({}),
         _work_function_terms_disabled({}),
-
-        _boundary_param(_space->periodic, 
-                        get_as<Config>("boundary_parameter", this->_cfg)),
-        _stripe_boundary(nullptr),
         
         _enable_transitions(
             get_as<bool>("enable_transitions", this->_cfg, true)),
@@ -566,12 +317,6 @@ public:
             "work_function_terms",
             this->_cfg
         ));
-
-
-        if (not _space->periodic and this->_cfg["stripe_boundary"]) {
-            initialise_stripe_boundary(get_as<Config>("stripe_boundary",
-                                                      this->_cfg));
-        }
 
         double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
         if (initial_jiggle > 1.e-12) {
@@ -624,22 +369,33 @@ private:
                 if (term == "area_elasticity") {
                     register_pressure(
                         term,
-                        std::make_shared<AreaElasticity<PCPVertex>>(params,
-                                                                    *this)
+                        std::make_shared<AreaElasticity<PCPVertex>>(
+                            params, *this
+                        )
+                    );
+                }
+                else if (term == "boundary_stripe_potential") {
+                    register_force(
+                        term,
+                        std::make_shared<BoundaryStripePotential<PCPVertex>>(
+                            params, *this
+                        )
                     );
                 }
                 else if (term == "cell_contractility") {
                     register_pressure(
                         term,
-                        std::make_shared<CellContractility<PCPVertex>>(params,
-                                                                       *this)
+                        std::make_shared<CellContractility<PCPVertex>>(
+                            params, *this
+                        )
                     );
                 }
                 else if (term == "edge_contractility") {                  
                     register_tension(
                         term,
-                        std::make_shared<EdgeContractility<PCPVertex>>(params,
-                                                                       *this)
+                        std::make_shared<EdgeContractility<PCPVertex>>(
+                            params, *this
+                        )
                     );
                 }
                 else if (term == "linetension") {
@@ -652,21 +408,24 @@ private:
                     register_tension(
                         term,
                         std::make_shared<LinetensionFluctuations<PCPVertex>>(
-                            params, *this)
+                            params, *this
+                        )
                     );
                 }
                 else if (term == "linetension_heterotypic") {
                     register_tension(
                         term,
                         std::make_shared<LinetensionHeterotypic<PCPVertex>>(
-                            params, *this)
+                            params, *this
+                        )
                     );
                 }
                 else if (term == "shape_elasticity") {
                     register_pressure(
                         term,
-                        std::make_shared<ShapeElasticity<PCPVertex>>(params,
-                                                                     *this)
+                        std::make_shared<ShapeElasticity<PCPVertex>>(
+                            params, *this
+                        )
                     );
                 }
                 else {
@@ -675,6 +434,7 @@ private:
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
                         " - area_elasticity\n"
+                        " - boundary_stripe_potential\n"
                         " - cell_contractility\n"
                         " - edge_contractility\n"
                         " - linetension\n"
@@ -691,43 +451,6 @@ private:
 
     // .. Force setter functions ..............................................
 
-    // /// Derivative of a quadratic boundary potential
-    // void set_grad_boundary_stripe () {
-    //     if (   _space->periodic
-    //         or _stripe_boundary == nullptr)
-    //     {
-    //         return;
-    //     }
-
-    //     auto params = *_stripe_boundary;
-
-    //     double curvature = std::max(params.curvature, 1.e-10);
-    //     double R = 1. / curvature;
-
-    //     // the (fixed) center of the circle stripe
-    //     SpaceVec origin = params.origin - SpaceVec({0., R});
-
-    //     double inner_radius = (R - params.width / 2.);
-    //     double outer_radius = (R + params.width / 2.);
-        
-    //     // apply to all vertices outside the domain
-    //     for (const auto &v : _am.vertices()) {
-    //         // the position wrt origin
-    //         SpaceVec pos = _am.position_of(v) - origin;
-
-    //         double radius = arma::norm(pos);
-    //         if (radius < inner_radius) {
-    //             v->state.f += fabs(radius - inner_radius) * pos / radius;
-    //         }
-    //         else if (radius > outer_radius) {
-    //             v->state.f -= fabs(radius - outer_radius) * pos / radius;
-    //         }
-    //     }
-
-    //     return;
-    // };
-
-
     /// Set the gradient of energy within the vertices
     /** \details This function applies the forces arising from the different
      *           energy terms.
@@ -739,6 +462,12 @@ private:
 
         for (const auto& vertex : _am.vertices()) {
             vertex->state.reset_force();
+        }
+
+        for (const auto& [name, functor] : _vertex_terms) {
+            for (const auto& vertex : _am.vertices()) {
+                vertex->state.add_force(functor->compute_force(vertex));
+            }
         }
 
         // apply forces from tensions and pressures
@@ -773,7 +502,7 @@ private:
         }
 
         // fix the boundary
-        if (not _space->periodic and _boundary_param.fix_boundary) {
+        if (not _space->periodic and boundary_is_fixed()) {
             apply_rule<Update::sync>(
                 [this](const auto& vertex) {
                     auto state = vertex->state;
@@ -797,7 +526,7 @@ private:
             }
             return false;
         };
-        if (not _space->periodic and _boundary_param.fix_boundary) {
+        if (not _space->periodic and boundary_is_fixed()) {
             fix_vertex = [this, fix_vertex](const auto& vertex) {
                 return (fix_vertex(vertex) or this->_am.is_boundary(vertex));
             };
@@ -895,9 +624,7 @@ public:
         if (_space->periodic) {
             return _space->get_curvature();
         }
-        else {
-            return _boundary_param.get_curvature();
-        }
+        return 0.;
     }
 
 
@@ -913,11 +640,20 @@ public:
     void perform_step () {
         perform_transitions(_enable_transitions);
 
+        for (const auto& [name, F] : _vertex_terms) {
+            F->update(this->_dt);
+        }
         for (const auto& [name, T] : _tensions) {
             T->update(this->_dt);
         }
         for (const auto& [name, P] : _pressures) {
             P->update(this->_dt);
+        }
+
+        if (_space->get_curvature() > 1.e-8) {
+            throw std::runtime_error(fmt::format("Cannot perform step with "
+                "curved periodic boundary conditions. Curvature {} > 0",
+                _space->get_curvature()));
         }
 
         double E = perform_update_step();
@@ -1147,7 +883,8 @@ private:
         }
 
         if (   _tensions.find(name) != _tensions.end()
-            or _pressures.find(name) != _pressures.end())
+            or _pressures.find(name) != _pressures.end()
+            or _vertex_terms.find(name) != _vertex_terms.end())
         {
             throw std::runtime_error(fmt::format(
                 "Cannot register work-function term with name `{}`, because a "
@@ -1159,6 +896,18 @@ private:
 
 public:
     // .. Public energy terms .................................................
+    void register_force(
+        std::string name,
+        const std::shared_ptr<WFVertexTerm>& force
+    )
+    {
+        prepare_register_term(name);
+
+        _vertex_terms.emplace(name, force);
+
+        this->_log->info("Successfully registered force `{}`.", name);
+    }
+    
     void register_tension(
         std::string name,
         const std::shared_ptr<WFEdgeTerm>& tension
@@ -1190,6 +939,9 @@ public:
      *      - bool: Whether term is actively registered
      */
     std::pair<bool, bool> is_registered_term (const std::string& name) const {
+        if (_vertex_terms.find(name) != _vertex_terms.end()) {
+            return std::make_pair(true, true);
+        }
         if (_tensions.find(name) != _tensions.end()) {
             return std::make_pair(true, true);
         }
@@ -1211,7 +963,13 @@ public:
     /** Adds the term to the disabled terms (can be reused).
      */
     bool unregister_term(const std::string& name) {
-        bool found = _tensions.erase(name);
+        bool found = false;
+        if (not found) {
+            found = found or _vertex_terms.erase(name);
+        }
+        if (not found) {
+            found = found or _tensions.erase(name);
+        }
         if (not found) {
             found = found or _pressures.erase(name);
         }
@@ -1227,6 +985,15 @@ public:
         }
 
         return found;
+    }
+
+    /// Get energy for an edge
+    double get_energy (const std::shared_ptr<WFVertexTerm>& functor) const {
+        double E = 0.;
+        for (const auto& vertex : _am.vertices()) {
+            E += functor->compute_energy(vertex);
+        }
+        return E;
     }
 
     /// Get energy for an edge
@@ -1249,11 +1016,17 @@ public:
 
     /// Getter for energy of a container of edges and cells, resp.
     double get_energy (
+            const AgentContainer<Vertex>& vs,
             const AgentContainer<Edge>& es,
             const AgentContainer<Cell>& cs
     ) const
     {
         double E = 0.;
+        for (const auto& [name, functor] : _vertex_terms) {
+            for (const auto& vertex : vs) {
+                E += functor->compute_energy(vertex);
+            }
+        }
         for (const auto& [name, functor] : _tensions) {
             for (const auto& edge : es) {
                 E += functor->compute_energy(edge);
@@ -1271,6 +1044,9 @@ public:
     /// Getter for energy all edges and cells
     double get_energy () const {
         double E = 0.;
+        for (const auto& [name, functor] : _vertex_terms) {
+            E += get_energy(functor);
+        }
         for (const auto& [name, functor] : _tensions) {
             E += get_energy(functor);
         }
@@ -1320,6 +1096,7 @@ public:
     // .. Public energy terms for subset of entities ..........................
     auto get_work_function_terms () const {
         return std::make_tuple(
+            _vertex_terms,
             _tensions,
             _pressures,
             _work_function_terms_disabled
@@ -1477,32 +1254,6 @@ public:
 
 
     // .. Model properties ....................................................
-    
-    
-
-    /// Updater for boundary parameter
-    void update_boundary_parameter (const Config& cfg) {
-        _boundary_param.update(cfg);
-    }
-
-    /// Setter for fixed boundary
-    void fix_boundary (bool fix_boundary = true) {
-        _boundary_param.fix_boundary = fix_boundary;
-
-        apply_rule<Update::sync>(
-            [this](const auto& vertex) {
-                auto state = vertex->state;
-                if (this->_am.is_boundary(vertex)) {
-                    state.fix_in_space = true;
-                }
-                else {
-                    state.fix_in_space = false;
-                }
-                return state;
-            },
-            _am.vertices()
-        );
-    }
 
     /// Enable or disable transitions
     void enable_transitions (bool enable_T1_transitions = true,
@@ -1511,70 +1262,6 @@ public:
         _enable_T1_transitions = enable_T1_transitions;
         _enable_T2_transitions = enable_T2_transitions;
         _enable_transitions = (enable_T1_transitions or enable_T2_transitions);
-    }
-
-    double initialise_stripe_boundary(const Config& cfg) {
-        if (_stripe_boundary) {
-            return _stripe_boundary->width;
-        }
-        
-        _stripe_boundary = std::make_shared<StripeBoundaryParam>(
-            StripeBoundaryParam(cfg, _am)
-        );
-
-        return _stripe_boundary->width;
-    }
-
-    void update_stripe_boundary_potential(double potential) {
-        _stripe_boundary->potential_constant = potential;
-    }
-
-    double get_stripe_boundary_width() const {
-        if (not _stripe_boundary) {
-            return std::numeric_limits<double>::max();
-        }
-
-        return _stripe_boundary->width;
-    }
-
-    double increment_stripe_boundary_width(double d_width) {
-        if (not _stripe_boundary) {
-            throw std::runtime_error("Stripe boundary needs to be initialised "
-                "first!");
-        }
-
-        _stripe_boundary->width += d_width;
-
-        if (_stripe_boundary->width < 1.e-12) {
-            throw std::runtime_error("Cannote set zero-width stripe boundary!");
-        }
-
-        this->_log->debug("Setting stripe width to {}",
-                          _stripe_boundary->width);
-
-        return _stripe_boundary->width;
-    }
-
-    double get_stripe_boundary_curvature() const {
-        if (not _stripe_boundary) {
-            return 0.;
-        }
-
-        return _stripe_boundary->curvature;
-    }
-
-    double increment_stripe_boundary_curvature(double d_curvature) {
-        if (not _stripe_boundary) {
-            throw std::runtime_error("Stripe boundary needs to be initialised "
-                "first!");
-        }
-
-        _stripe_boundary->curvature += d_curvature;
-
-        this->_log->debug("Setting stripe curvature to {}",
-                          _stripe_boundary->curvature);
-
-        return _stripe_boundary->curvature;
     }
 }; // class PCPVertex
 

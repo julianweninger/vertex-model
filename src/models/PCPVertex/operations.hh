@@ -76,10 +76,6 @@ void PCPVertex::increase_domain_size(double area,
 
     const SpaceVec new_domain = this->_space->get_domain_size();
     if (deform_plastic) {
-        if (this->_space->get_curvature() > 1.e-12) {
-            throw std::runtime_error("Increase domain with curvature not "
-                "implemented");
-        }
         for (const auto& vertex : _am.vertices()) {
             _am.move_to(vertex, _am.position_of(vertex) / domain % new_domain);
         }
@@ -129,10 +125,6 @@ double PCPVertex::stretch_domain(SpaceVec stretch, bool compensate,
 
 
     if (deform_plastic) {
-        if (this->_space->get_curvature() > 1.e-12) {
-            throw std::runtime_error("Increase domain with curvature not "
-                "implemented");
-        }
         for (const auto& vertex : _am.vertices()) {
             SpaceVec pos = _am.position_of(vertex);
             _am.move_to(vertex, _am.position_of(vertex) / domain % new_domain);
@@ -225,34 +217,13 @@ PCPVertex::SpaceVec PCPVertex::skew_domain
 
     if (deform_plastic) {
         const SpaceVec domain = _space->get_domain_size();
-        if (fabs(_space->get_curvature()) > 1.e-12) {
-            throw std::runtime_error("not implemented skew.");
-            double curvature = _space->get_curvature();
-            for (const auto& vertex : _am.vertices()) {
-                SpaceVec pos = _am.position_of(vertex);
-                auto [rho, theta] = _space->transform_radial(pos);
-                double skew_theta = add_skew[0] * curvature;
-                double max_theta = (domain[0] / 2.) * curvature;
+        for (const auto& vertex : _am.vertices()) {
+            SpaceVec pos = _am.position_of(vertex);
+            SpaceVec box_pos = pos - skew % arma::shift(pos / domain, -1);
 
-                double r = (rho - 1. / curvature) / domain[1] + 0.5;
-                double r_theta = theta / (2 * max_theta);
-
-                theta += skew_theta * r;
-                rho += add_skew[1] * (r_theta + max_theta);
-
-                pos = _space->transform_cartesian(rho, theta);
-                _am.move_to(vertex, pos);
-            }
-        }
-        else{
-            for (const auto& vertex : _am.vertices()) {
-                SpaceVec pos = _am.position_of(vertex);
-                SpaceVec box_pos = pos - skew % arma::shift(pos / domain, -1);
-
-                SpaceVec new_pos = box_pos + new_skew % arma::shift(box_pos / domain, -1);
-                
-                _am.move_to(vertex, new_pos);
-            }
+            SpaceVec new_pos = box_pos + new_skew % arma::shift(box_pos / domain, -1);
+            
+            _am.move_to(vertex, new_pos);
         }
     }
     
@@ -276,9 +247,10 @@ void PCPVertex::curve_boundary
         _space->set_curvature(curvature);
     }
     else {
-        this->fix_boundary(true);
-        curvature = _boundary_param.get_curvature() + add_curvature;
-        _boundary_param.set_curvature(curvature);
+        throw std::runtime_error("Not implemented curve boundary in non-periodic domain!");
+        // this->fix_boundary(true);
+        // curvature = _boundary_param.get_curvature() + add_curvature;
+        // _boundary_param.set_curvature(curvature);
     }
 
     if (not this->_space->periodic or deform_plastic) {

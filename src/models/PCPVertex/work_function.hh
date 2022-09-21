@@ -11,6 +11,39 @@ namespace WorkFunction {
 /// @tparam Model   The model within which the AgentManager lives
 /** A tension is the derivative of the energy to the length of an junction */
 template <typename Model>
+class WorkFunctionVertexTerm {
+public:
+    using SpaceVec = typename Model::SpaceVec;
+    using AgentManager = typename Model::AgentManager;
+    using Vertex = typename Model::Vertex;
+
+protected:
+    const AgentManager& _am;
+
+public:
+    WorkFunctionVertexTerm ([[maybe_unused]] const DataIO::Config& cfg,
+                          const Model& model)
+    :
+        _am(model.get_am())
+    { }
+
+    virtual ~WorkFunctionVertexTerm() { }
+
+    virtual SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const=0;
+    
+    virtual double compute_energy
+    (const std::shared_ptr<Vertex>& vertex)
+    const = 0;
+
+    virtual void update ([[maybe_unused]] double dt) { return; }
+
+    virtual void update_parameters (const DataIO::Config& cfg) = 0;
+};
+
+/// @brief  The class of a tension term in the work function
+/// @tparam Model   The model within which the AgentManager lives
+/** A tension is the derivative of the energy to the length of an junction */
+template <typename Model>
 class WorkFunctionEdgeTerm {
 public:
     using AgentManager = typename Model::AgentManager;

@@ -300,7 +300,8 @@ EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
  */
 template <class Model>
 bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
-        std::function<double(const AgentContainer<Edge>&,
+        std::function<double(const AgentContainer<Vertex>&,
+                             const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number,
         std::size_t time)
@@ -485,7 +486,24 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     // the current energy
     AgentContainer<Edge> edges_tmp = edges;
     edges_tmp.push_back(edge);
-    double current_energy = get_energy(edges_tmp, cells);
+
+    std::set<std::shared_ptr<Vertex>> _vertices_tmp{};
+    for (const auto& c : cells) {
+        for (const auto& [edge, flip] : c->custom_links().edges) {
+            if (not flip) {
+                _vertices_tmp.insert(edge->custom_links().a);
+            }
+            else {
+                _vertices_tmp.insert(edge->custom_links().b);
+            }
+        }
+    }
+    AgentContainer<Vertex> vertices_tmp(
+        _vertices_tmp.begin(),
+        _vertices_tmp.end()
+    );
+
+    double current_energy = get_energy(vertices_tmp, edges_tmp, cells);
     // WARN agents are not yet removed at this point!
     //      Any component if get_energy that works globally on the agent
     //      container must be dealt with care!
@@ -614,7 +632,26 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
     edges_tmp = edges;
     edges_tmp.push_back(new_edge);
-    double new_energy = get_energy(edges_tmp, cells);
+
+    _vertices_tmp.clear();
+    for (const auto& c : cells) {
+        for (const auto& [edge, flip] : c->custom_links().edges) {
+            if (not flip) {
+                _vertices_tmp.insert(edge->custom_links().a);
+            }
+            else {
+                _vertices_tmp.insert(edge->custom_links().b);
+            }
+        }
+    }
+    vertices_tmp.clear();
+    vertices_tmp.insert(
+        vertices_tmp.end(),
+        _vertices_tmp.begin(),
+        _vertices_tmp.end()
+    );
+
+    double new_energy = get_energy(vertices_tmp, edges_tmp, cells);
     // WARN agents are not yet removed at this point!
     //      Any component if get_energy that works globally on the agent
     //      container must be dealt with care!
@@ -684,7 +721,8 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 template<class Model>
 bool EntitiesManager<Model>::remove_boundary_edge(
         const std::shared_ptr<Edge> edge,
-        std::function<double(const AgentContainer<Edge>&,
+        std::function<double(const AgentContainer<Vertex>&,
+                             const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double T1_barrier, double random_number)
 {
@@ -787,7 +825,23 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         adj_cells_es_copy.push_back(cell->custom_links().edges);
     }
 
-    double current_energy = get_energy(adj_edges, adj_cells);
+    std::set<std::shared_ptr<Vertex>> _vertices_tmp{};
+    for (const auto& c : adj_cells) {
+        for (const auto& [edge, flip] : c->custom_links().edges) {
+            if (not flip) {
+                _vertices_tmp.insert(edge->custom_links().a);
+            }
+            else {
+                _vertices_tmp.insert(edge->custom_links().b);
+            }
+        }
+    }
+    AgentContainer<Vertex> vertices_tmp(
+        _vertices_tmp.begin(),
+        _vertices_tmp.end()
+    );
+
+    double current_energy = get_energy(vertices_tmp, adj_edges, adj_cells);
     // WARN agents are not yet removed at this point!
     //      Any component if get_energy that works globally on the agent
     //      container must be dealt with care!
@@ -844,7 +898,25 @@ bool EntitiesManager<Model>::remove_boundary_edge(
         c->custom_links().vertices.push_back(new_v);
     }
 
-    double new_energy = get_energy(new_adjoint_edges, adj_cells);
+    _vertices_tmp.clear();
+    for (const auto& c : adj_cells) {
+        for (const auto& [edge, flip] : c->custom_links().edges) {
+            if (not flip) {
+                _vertices_tmp.insert(edge->custom_links().a);
+            }
+            else {
+                _vertices_tmp.insert(edge->custom_links().b);
+            }
+        }
+    }
+    vertices_tmp.clear();
+    vertices_tmp.insert(
+        vertices_tmp.end(),
+        _vertices_tmp.begin(),
+        _vertices_tmp.end()
+    );
+
+    double new_energy = get_energy(vertices_tmp, new_adjoint_edges, adj_cells);
     // WARN agents are not yet removed at this point!
     //      Any component if get_energy that works globally on the agent
     //      container must be dealt with care!

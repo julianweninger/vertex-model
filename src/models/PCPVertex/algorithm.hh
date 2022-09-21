@@ -101,10 +101,11 @@ bool PCPVertex::perform_transitions(bool enabled = true)
                                   "in step {}..", edge->id(), this->_time);
                 bool T1 = _am.remove_edge_T1(
                     edge,
-                    [this](const AgentContainer<Edge>& es,
+                    [this](const AgentContainer<Vertex>& vs,
+                           const AgentContainer<Edge>& es,
                            const AgentContainer<Cell>& cs)
                     {
-                        return this->get_energy(es, cs); 
+                        return this->get_energy(vs, es, cs); 
                     },
                     _T1_separation,
                     _T1_barrier,

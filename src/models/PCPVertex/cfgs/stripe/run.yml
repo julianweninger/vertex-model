@@ -1,0 +1,41 @@
+---
+paths:
+  model_note: default_stripe_boundary_condition
+
+parameter_space:
+  num_steps: 1000
+
+  PCPVertex:
+    space:
+      periodic: false
+
+    work_function_terms:
+      - linetension_heterotypic:
+          linetension: 
+          - [0., 0.05]
+          - [0.05, 0.]
+          boundary_type: 1
+      - boundary_stripe_potential:
+          elastic_constant: 1
+          height: 6.
+          width: !expr 64 / 6.
+          deform_plastic: true
+
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+          
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 50
+
+    agent_manager:
+      setup_method: hexagonal
+      setup_params:
+        hexagonal:
+          lattice_rows: 8
+          lattice_columns: 8
+  

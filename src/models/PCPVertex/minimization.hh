@@ -145,7 +145,6 @@ struct MinimizationParams {
 };
 
 
-
 } // namespace PCPVertex
 } // namespace Models
 } // namespace Utopia

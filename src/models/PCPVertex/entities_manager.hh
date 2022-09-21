@@ -762,7 +762,8 @@ public:
 
     // see transitions.hh
     bool remove_edge_T1 (const std::shared_ptr<Edge> edge,
-        std::function<double(const AgentContainer<Edge>&,
+        std::function<double(const AgentContainer<Vertex>&,
+                             const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number,
         std::size_t time);
@@ -1642,7 +1643,8 @@ private:
 
     // see transitions.hh
     bool remove_boundary_edge(const std::shared_ptr<Edge> edge,
-        std::function<double(const AgentContainer<Edge>&,
+        std::function<double(const AgentContainer<Vertex>&,
+                             const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double T1_barrier, double random_number);
 
