@@ -1,9 +1,11 @@
 ---
+perform_sweep: true
+
 paths:
   model_note: default_stripe_boundary_condition
 
 parameter_space:
-  num_steps: 1000
+  num_steps: 10000
 
   PCPVertex:
     space:
@@ -16,14 +18,6 @@ parameter_space:
           - [0., 0.01]
           - [0.01, 0.]
           boundary_type: 1
-      - boundary_curved_stripe_potential:
-          elastic_constant: 1
-          height: 6.
-          width: !expr 2 * 64 / 6.
-          curvature: 1.5e-1
-          origin: [-2, 0]
-          deform_plastic: true
-
       - area_elasticity:
           elastic_modulus: 1
           preferential_area: 1
@@ -32,8 +26,22 @@ parameter_space:
           preferential_shape_index: 3.72
           
       - linetension_fluctuations:
-          amplitude: 0.02
+          amplitude: 0.05
           timescale: 50
+
+      - boundary_stripe_potential:
+          elastic_constant: 10.
+          height: 6.
+          width: !expr 128 / 6.
+          curvature: !sweep
+            name: curvature
+            default: 0.
+            values:
+              - 0.
+              - 1.5e-1
+          origin: [0, 0]
+          deform_plastic: true
+          stretch: true
 
     agent_manager:
       setup_method: hexagonal
@@ -41,4 +49,13 @@ parameter_space:
         hexagonal:
           lattice_rows: 8
           lattice_columns: 16
+
+    data_manager:  
+      deciders:
+        write_interval: &interval
+          args:
+            intervals:
+              - [0, 1000000, 250]
+      triggers:
+        build_interval: *interval
   

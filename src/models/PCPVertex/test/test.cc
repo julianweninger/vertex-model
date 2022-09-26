@@ -263,13 +263,19 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         for (const auto& [name, F] : Fs) {
             model.register_force(name, F);
+
+            for (std::size_t i = 0; i < 10; i++) {
+                model.iterate();
+            }
+
+
             SpaceVec displ({0.01, 0.01});
 
             double _precision = precision;
             if (name == "boundary_curved_stripe_potential") {
                 _precision = 2.e-3;
+                displ = SpaceVec({0.001, 0.001});
             }
-
 
             for (const auto& vertex : am.vertices()) {
                 const SpaceVec v_pos0 = am.position_of(vertex);

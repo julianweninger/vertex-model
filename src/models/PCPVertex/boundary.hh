@@ -9,171 +9,17 @@ namespace Models {
 namespace PCPVertex {
 namespace WorkFunction {
 
-/// @brief Boundary quadratic potential in shape of a rectangle
+
+/// @brief Boundary quadratic potential in shape of a rectangle or ring
 /// @tparam Model  
 /** Use the WorkFunctionVertexTerm interface for a quadratic potential 
- *  penalising vertices on the outside of a rectangular box by their distance
- *  to the boundary.
+ *  penalising vertices on the outside of a rectangle or circular stripe of
+ *  given thickness, length, and curvature.
  * 
  *  Parameters:
  *      - `elastic_constant` (double): The elastic constant
- *      - `width` (double): The width (along x-axis) of the rectangle
- *      - `height` (double): The height (along y-axis) of the rectangle
- *      - `origin` (SpaceVec<2>, optional): The center of the rectangle.
- *              If not provided the rectangle is centred to the barycenter of 
- *              the tissue's boundary.
- *      - `deform_plastic` (bool, default: false): If true, the width and height
- *              of a rectangle enclosing all vertices is taken and vertex 
- *              positions rescaled to the new width and height in a plastic 
- *              deformation. Note, this parameter is not inherited in 
- *              `update_parameters`.
- */
-template <typename Model>
-class BoundaryStripePotential : public WorkFunctionVertexTerm<Model>
-{
-public:
-    using Base = WorkFunctionVertexTerm<Model>;
-
-    using SpaceVec = typename Base::SpaceVec;
-
-    using Vertex = typename Base::Vertex;
-
-private:
-    double _elastic_constant;
-
-    double _width;
-
-    double _height;
-
-    SpaceVec _origin;
-
-    SpaceVec get_lower_left () const {
-        return _origin - 0.5 * SpaceVec({_width, _height});
-    }
-
-    SpaceVec get_extent () const {
-        return SpaceVec({_width, _height});
-    }
-
-    /// The vector from a position to the closest boundary, if outside
-    SpaceVec get_displacement (const SpaceVec& pos) const {
-        const SpaceVec ll_corner = get_lower_left();
-        const SpaceVec ur_corner = ll_corner + get_extent();
-
-        SpaceVec displ({0., 0.});
-        for (std::size_t axis = 0; axis <= 1; axis++) {
-            if (pos[axis] < ll_corner[axis]) {
-                displ[axis] = ll_corner[axis] - pos[axis];
-            }
-            else if (pos[axis] > ur_corner[axis]) {
-                displ[axis] = ur_corner[axis] - pos[axis];
-            }
-        }
-
-        return displ;
-    }
-
-    void deform_plastic () {
-        double x_min = std::numeric_limits<double>::max();
-        double x_max = std::numeric_limits<double>::lowest();
-        double y_min = std::numeric_limits<double>::max();
-        double y_max = std::numeric_limits<double>::lowest();
-
-        for (const auto &v : this->_am.vertices()) {
-            SpaceVec pos = this->_am.position_of(v);
-            x_min = std::min(x_min, pos[0]);
-            x_max = std::max(x_max, pos[0]);
-            y_min = std::min(y_min, pos[1]);
-            y_max = std::max(y_max, pos[1]);
-        }
-
-        double L = x_max - x_min;
-        double H = y_max - y_min;
-
-        SpaceVec extent = get_extent();
-        if (_width > std::numeric_limits<double>::max() - 1) {
-            extent[0] = L;
-        }
-        if (_height > std::numeric_limits<double>::max() - 1) {
-            extent[1] = H;
-        }
-        SpaceVec scaling = extent / SpaceVec({L, H});
-
-        for (const auto& v : this->_am.vertices()) {
-            SpaceVec displ = this->_am.position_of(v) - _origin;
-            this->_am.move_by(v, displ % (scaling - SpaceVec({1., 1.})));
-        }
-    }
-
-public:
-    BoundaryStripePotential (const DataIO::Config& cfg, const Model& model)
-    :
-        Base(cfg, model),
-        _elastic_constant(get_as<double>("elastic_constant", cfg)),
-        _width(get_as<double>("width", cfg)),
-        _height(get_as<double>("height", cfg))
-    {
-        if (this->_am.get_space()->periodic) {
-            throw std::runtime_error("Cannot setup stripe boundary potential "
-                "in periodic space!");
-        }
-
-        if (cfg["origin"]) {
-            _origin = get_as_SpaceVec<2>("origin", cfg);
-        }
-        else {
-            _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
-        }
-
-        if (_height < 1.e-8) {
-            _height = std::numeric_limits<double>::max();
-        }
-        if (_width < 1.e-8) {
-            _width = std::numeric_limits<double>::max();
-        }
-
-        if (get_as<bool>("deform_plastic", cfg, false)) {
-            deform_plastic();
-        }
-    }
-
-    SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const final {
-        SpaceVec pos = this->_am.position_of(vertex);
-        return _elastic_constant * get_displacement(pos);
-    }
-
-    double compute_energy(const std::shared_ptr<Vertex>& vertex) const final {
-        SpaceVec pos = this->_am.position_of(vertex);
-        double distance = arma::norm(get_displacement(pos));
-        return 0.5 * _elastic_constant * std::pow(distance, 2);
-    }
-
-    void update_parameters (const DataIO::Config& cfg) final {
-        _elastic_constant = get_as<double>("elastic_constant", cfg,
-                                           _elastic_constant);
-        _width = get_as<double>("width", cfg, _width);
-        _height = get_as<double>("height", cfg, _height);
-        
-        if (cfg["origin"]) {
-            _origin = get_as_SpaceVec<2>("origin", cfg);
-        }
-
-        if (get_as<bool>("deform_plastic", cfg, false)) {
-            deform_plastic();
-        }
-    }
-};
-
-
-/// @brief Boundary quadratic potential in shape of a ring
-/// @tparam Model  
-/** Use the WorkFunctionVertexTerm interface for a quadratic potential 
- *  penalising vertices on the outside of a circular stripe of given thickness,
- *  length, and curvature.
- * 
- *  Parameters:
- *      - `elastic_constant` (double): The elastic constant
- *      - `curvature` (double): The curvature at the stripe's midline.
+ *      - `curvature` (double, default: 0): The curvature at the stripe's
+ *              midline.
  *      - `width` (double): The width (along azimuthal-axis) of the stripe
  *      - `height` (double): The height (along radial-axis) of the stripe
  *      - `origin` (SpaceVec<2>, optional): The center of the stripe.
@@ -184,9 +30,11 @@ public:
  *              positions rescaled to the new width, height, and curvature
  *              in a plastic deformation. Note, this parameter is not inherited 
  *              in `update_parameters`.
+ *      - `stretch` (bool): Whether to pull boundary vertices that are inside
+ *              the domain towards the closest boundary.
  */
 template <typename Model>
-class BoundaryCurvedStripePotential : public WorkFunctionVertexTerm<Model>
+class BoundaryStripePotential : public WorkFunctionVertexTerm<Model>
 {
 public:
     using Base = WorkFunctionVertexTerm<Model>;
@@ -206,19 +54,44 @@ private:
 
     SpaceVec _origin;
 
+    bool _stretch;
+
     /// The vector from a position to the closest boundary, if outside
-    SpaceVec get_displacement (SpaceVec pos) const {
+    SpaceVec get_displacement (const std::shared_ptr<Vertex>& vertex) const {
+        SpaceVec pos = this->_am.position_of(vertex);
         if (fabs(_curvature) < 1.e-8) {
             const SpaceVec ll_corner = _origin - SpaceVec({_width, _height})/2.;
             const SpaceVec ur_corner = ll_corner + SpaceVec({_width, _height});
 
             SpaceVec displ({0., 0.});
+            bool apply_stretch = this->_am.is_boundary(vertex);
             for (std::size_t axis = 0; axis <= 1; axis++) {
                 if (pos[axis] < ll_corner[axis]) {
                     displ[axis] = ll_corner[axis] - pos[axis];
+                    apply_stretch = false;
                 }
                 else if (pos[axis] > ur_corner[axis]) {
                     displ[axis] = ur_corner[axis] - pos[axis];
+                    apply_stretch = false;
+                }
+            }
+
+            // use only axis along which distance is shorter
+            if (_stretch and apply_stretch) {
+                for (std::size_t axis = 0; axis <= 1; axis++) {
+                    if (pos[axis] < _origin[axis]) {
+                        displ[axis] = ll_corner[axis] - pos[axis];
+                    }
+                    else {
+                        displ[axis] = ur_corner[axis] - pos[axis];
+                    }
+                }
+
+                if (fabs(displ[1]) > fabs(displ[0])) {
+                    displ[1] = 0.;
+                }
+                else {
+                    displ[0] = 0.;
                 }
             }
 
@@ -234,11 +107,14 @@ private:
             double r = arma::norm(coords);
 
             double boundary_r, boundary_theta;
-            if (r - R < -_height / 2.) {
+            bool apply_stretch = this->_am.is_boundary(vertex);
+            if (r < R - _height / 2.) {
                 boundary_r = R - _height / 2.;
+                apply_stretch = false;
             }
-            else if (r - R > _height / 2.) {
+            else if (r > R + _height / 2.) {
                 boundary_r = R + _height / 2.;
+                apply_stretch = false;
             }
             else {
                 boundary_r = r;
@@ -247,17 +123,46 @@ private:
             double theta_max = _width / 2. / R;
             if (theta > theta_max) {
                 boundary_theta = theta_max;
+                apply_stretch = false;
             }
             else if (theta < -theta_max) {
                 boundary_theta = -theta_max;
+                apply_stretch = false;
             }
             else {
                 boundary_theta = theta;
             }
+            
+            if (_stretch and apply_stretch) {
+                if (r < R) {
+                    boundary_r = R - _height / 2.;
+                }
+                else {
+                    boundary_r = R + _height / 2.;
+                }
+
+                if (theta < 0) {
+                    boundary_theta = -theta_max;
+                }
+                else {
+                    boundary_theta = theta_max;
+                }
+
+                // get closer boundary
+                double dr = fabs(r - boundary_r);
+                double ds = r * fabs(theta - boundary_theta);
+
+                if (dr > ds) {
+                    boundary_r = r;
+                }
+                else {
+                    boundary_theta = theta;
+                }
+            }
 
             SpaceVec boundary = boundary_r * SpaceVec({sin(boundary_theta),
                                                        cos(boundary_theta)});
-
+            
             return boundary - coords;
         }
     }
@@ -353,14 +258,15 @@ private:
     }
 
 public:
-    BoundaryCurvedStripePotential (const DataIO::Config& cfg,
-                                   const Model& model)
+    BoundaryStripePotential (const DataIO::Config& cfg, const Model& model)
     :
         Base(cfg, model),
         _elastic_constant(get_as<double>("elastic_constant", cfg)),
-        _curvature(get_as<double>("curvature", cfg)),
+        _curvature(get_as<double>("curvature", cfg, 0.)),
         _width(get_as<double>("width", cfg)),
-        _height(get_as<double>("height", cfg))
+        _height(get_as<double>("height", cfg)),
+        _origin(SpaceVec({0., 0.})),
+        _stretch(get_as<bool>("stretch", cfg))
     {
         if (this->_am.get_space()->periodic) {
             throw std::runtime_error("Cannot setup stripe boundary potential "
@@ -382,9 +288,9 @@ public:
         }
 
         if (get_as<bool>("deform_plastic", cfg, false)) {
-            model.get_logger()->warn(
-                "Deforming the tissue plastically to a stripe with radius {}",
-                1./_curvature
+            model.get_logger()->info(
+                "Deforming the tissue plastically to a stripe with curvature {}",
+                _curvature
             );
             
             deform_plastic();
@@ -392,13 +298,11 @@ public:
     }
 
     SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const final {
-        SpaceVec pos = this->_am.position_of(vertex);
-        return _elastic_constant * get_displacement(pos);
+        return _elastic_constant * get_displacement(vertex);
     }
 
     double compute_energy(const std::shared_ptr<Vertex>& vertex) const final {
-        SpaceVec pos = this->_am.position_of(vertex);
-        double distance = arma::norm(get_displacement(pos));
+        double distance = arma::norm(get_displacement(vertex));
         return 0.5 * _elastic_constant * std::pow(distance, 2);
     }
 

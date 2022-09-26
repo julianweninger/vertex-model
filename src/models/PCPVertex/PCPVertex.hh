@@ -355,36 +355,32 @@ private:
                 const std::string term = term_pair.first.as<std::string>();
                 const Config& params = term_pair.second;
 
+                const std::string name = get_as<std::string>(
+                    "name", params, term);
+
                 if (not get_as<bool>("enabled", params, true)) {
                     this->_log->debug("Pre-registering work-function term "
-                        "'{}', but disabling it.");
+                        "'{}' ('{}'), but disabling it.", term, name);
 
-                    _work_function_terms_disabled.insert(term);                    
+                    _work_function_terms_disabled.insert(name);
                 }
 
-                this->_log->debug("Registering work-function term '{}' ...",
-                                  term);
-                _work_function_terms_disabled.insert(term);                    
+                this->_log->debug("Registering work-function term '{}' ('{}') "
+                                  "...",
+                                  term, name);
+                _work_function_terms_disabled.insert(name);                    
 
                 if (term == "area_elasticity") {
                     register_pressure(
-                        term,
+                        name,
                         std::make_shared<AreaElasticity<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "boundary_curved_stripe_potential") {
-                    register_force(
-                        term,
-                        std::make_shared<BoundaryCurvedStripePotential<PCPVertex>>(
                             params, *this
                         )
                     );
                 }
                 else if (term == "boundary_stripe_potential") {
                     register_force(
-                        term,
+                        name,
                         std::make_shared<BoundaryStripePotential<PCPVertex>>(
                             params, *this
                         )
@@ -392,7 +388,7 @@ private:
                 }
                 else if (term == "cell_contractility") {
                     register_pressure(
-                        term,
+                        name,
                         std::make_shared<CellContractility<PCPVertex>>(
                             params, *this
                         )
@@ -400,7 +396,7 @@ private:
                 }
                 else if (term == "edge_contractility") {                  
                     register_tension(
-                        term,
+                        name,
                         std::make_shared<EdgeContractility<PCPVertex>>(
                             params, *this
                         )
@@ -408,13 +404,13 @@ private:
                 }
                 else if (term == "linetension") {
                     register_tension(
-                        term,
+                        name,
                         std::make_shared<Linetension<PCPVertex>>(params, *this)
                     );
                 }
                 else if (term == "linetension_fluctuations") {
                     register_tension(
-                        term,
+                        name,
                         std::make_shared<LinetensionFluctuations<PCPVertex>>(
                             params, *this
                         )
@@ -422,7 +418,7 @@ private:
                 }
                 else if (term == "linetension_heterotypic") {
                     register_tension(
-                        term,
+                        name,
                         std::make_shared<LinetensionHeterotypic<PCPVertex>>(
                             params, *this
                         )
@@ -430,7 +426,7 @@ private:
                 }
                 else if (term == "shape_elasticity") {
                     register_pressure(
-                        term,
+                        name,
                         std::make_shared<ShapeElasticity<PCPVertex>>(
                             params, *this
                         )
@@ -442,7 +438,6 @@ private:
                         "Use the `register_work_function_term` interface, or "
                         "choose one of the following available terms:\n"
                         " - area_elasticity\n"
-                        " - boundary_curved_stripe_potential\n"
                         " - boundary_stripe_potential\n"
                         " - cell_contractility\n"
                         " - edge_contractility\n"
