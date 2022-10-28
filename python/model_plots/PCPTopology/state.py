@@ -479,7 +479,7 @@ def histogram_plot(
     y_range: Tuple,
     color: str,
     color_split: str=None,
-    x_ticks_kwargs: dict=None
+    plot_means_kwargs: dict=None
     ):
     """A plot that creates violin plots on discrete data using histogram
     representation.
@@ -505,7 +505,8 @@ def histogram_plot(
             np.arange(*y_range)
         - color (str): The color used for the histogram
         - color_split(str, optional): Color used for split histogram (right)
-        - x_ticks_kwargs (optional): Forwarded to ax.set_xticklabels(**kwargs)
+        - plot_means_kwargs (dict, optional): If given, mean of histogram will
+            be indicated and kwargs forwarded to plt.hlines().
     """
 
     if data_tag is None:
@@ -523,62 +524,70 @@ def histogram_plot(
                             data_tag_split,
                             data.keys())
 
-    x_ticks = ['']
+    x_majorticks = []
     if x_order is not None:
         for _x in x_order:
-            x_ticks.append(_x)
-            x_ticks.append('')
+            x_majorticks.append(_x)
     else:
         for _x in data[data_tag][x].unique():
-            x_ticks.append(_x)
-            x_ticks.append('')
+            x_majorticks.append(_x)
 
     def x_to_locx(x):
-        return x_ticks.index(str(x))
+        return 2 * x_majorticks.index(str(x)) + 1
 
     y_ticks = np.arange(*y_range)
-    y_min = y_ticks[0]
+    y_min = y_range[0]
+    y_max = y_range[1]
 
-    hlpr.ax.set_xticks(np.arange(len(x_ticks)))
+    hlpr.provide_defaults(
+        'set_limits',
+        x=(0, 2*len(x_majorticks)),
+        y=(y_min, y_max-1)
+    )
+    hlpr.provide_defaults(
+        'set_ticks',
+        x=dict({
+            'major': {
+                'locs': list(np.arange(1, 2*len(x_majorticks)+1, 2)),
+                'labels': x_majorticks
+            },
+            'minor': {
+                'locs': list(np.arange(0, 2*len(x_majorticks)+1, 2)),
+            },
+        })
+    )
     
 
-    # x_ticklabels = [
-    #     '',
-    #     'Control\n (DMSO) 4hrs',
-    #     '',
-    #     'MLCK Inhibitor\n 4hrs',
-    #     '',
-    #     'Control\n (DMSO) 16 hrs',
-    #     '',
-    #     'MLCK Inhibitor\n washoff (4 + 12 hrs)',
-    #     '',
-    # ]
+    def __plot_histograms(data, *, 
+                         x_groupby: str, groupby_order: List=None,
+                         y_data_column: str,
+                         plot_left: bool, color: str,
+                         plot_means_kwargs: dict=None):
+        """Plot histograms
 
-    if x_ticklabels is not None:
-        hlpr.ax.set_xticklabels(x_ticklabels, **x_ticks_kwargs if x_ticks_kwargs is not None else {})
-    else:
-        hlpr.ax.set_xticklabels(x_ticks, **x_ticks_kwargs if x_ticks_kwargs is not None else {})
-    hlpr.ax.set_yticks(np.arange(len(y_ticks)))
-    hlpr.ax.set_yticklabels(y_ticks)
-    
-
-    def __plot_histogram(data, *, 
-                         groupby: str, groupby_order: List=None,
-                         data_column: str,
-                         plot_left: bool, color: str):
+        data: the raw data to create the histogram from
+        x_groupby: How to group the data. Every group will be one major x-tick.
+        groupby_order: Order of x-ticks
+        y_data_column: Column in data to plot -- the y coordinate.
         
-        norm = data.groupby(by=groupby)[data_column].count()
+        plot_left (bool): If true, plot histogram to the left of the x-tick. 
+            Else, plot to the right of x-tick.
+        plot_means_kwargs (dict, optional): Forwarded to ax hline with y-position
+            at data mean
+        """
 
-        hist = [data.loc[data[data_column] == i].groupby(by=groupby)[data_column].count()
+        norm = data.groupby(by=x_groupby)[y_data_column].count()
+
+        hist = [data.loc[data[y_data_column] == i].groupby(by=x_groupby)[y_data_column].count()
                 for i in y_ticks]
         hist = pd.concat(hist, axis=1, keys=y_ticks)
         hist = hist.divide(norm, axis=0)
 
         hist = hist.reset_index()
-        hist[groupby] = hist[groupby].astype("category")
+        hist[x_groupby] = hist[x_groupby].astype("category")
         if groupby_order is not None:
-            hist[groupby].cat.set_categories(groupby_order)
-            hist = hist.sort_values(by=groupby)
+            hist[x_groupby].cat.set_categories(groupby_order)
+            hist = hist.sort_values(by=x_groupby)
 
 
         sign = 1
@@ -586,54 +595,72 @@ def histogram_plot(
             sign=-1
 
         boxes = []
-        for grp in hist[groupby]:
-            d = hist.loc[hist[groupby] == grp]
+        for grp in hist[x_groupby]:
+            d = hist.loc[hist[x_groupby] == grp]
             for N in y_ticks:
                 boxes.append(
                     Rectangle(
-                        (x_to_locx(grp), N - y_min - 0.5),
+                        (x_to_locx(grp), N - 0.5),
                         width=sign*min(d[N].values[0], 0.975),
                         height=1,
                         ls='', lw=None
                     )
                 )
-
+                
         pc = PatchCollection(boxes, facecolor=color, edgecolor='None')
         hlpr.ax.add_collection(pc)
 
+        if plot_means_kwargs is not None:
+            for grp in hist[x_groupby]:
+                raw_data = data.loc[data[x_groupby] == grp]
+                hist_data = hist.loc[hist[x_groupby] == grp]
 
-    __plot_histogram(
+                mean = raw_data[y_data_column].mean()
+                count = sign*min(hist_data[np.round(mean)].values[0], 0.975)
+
+                hlpr.ax.hlines(
+                    y=mean,
+                    xmin=x_to_locx(grp),
+                    xmax=x_to_locx(grp) + count,
+                    **plot_means_kwargs
+                )
+
+
+
+    __plot_histograms(
         data[data_tag],
-        groupby=x,
+        x_groupby=x,
         groupby_order=x_order,
-        data_column=y,
+        y_data_column=y,
         plot_left=True,
-        color=color
+        color=color,
+        plot_means_kwargs=plot_means_kwargs
     )
 
     if data_tag_split is not None:
-        __plot_histogram(
+        __plot_histograms(
             data[data_tag_split],
-            groupby=x,
+            x_groupby=x,
             groupby_order=x_order,
-            data_column=y,
+            y_data_column=y,
             plot_left=False,
-            color=color_split
+            color=color_split,
+            plot_means_kwargs=plot_means_kwargs
         )
     else:
-        __plot_histogram(
+        __plot_histograms(
             data[data_tag],
-            groupby=x,
+            x_groupby=x,
             groupby_order=x_order,
-            data_column=y,
+            y_data_column=y,
             plot_left=False,
-            color=color
+            color=color,
+            plot_means_kwargs=plot_means_kwargs
         )
 
-    hlpr.invoke_helper('set_limits', y=(0, len(y_ticks)))
     if y_label is None:
         y_label = '{} (Frequency)'.format(y)
-    hlpr.invoke_helper('set_labels', y=y_label)
+    hlpr.provide_defaults('set_labels', y=y_label)
 
     if data_tag_split is not None:
         if label is None:
