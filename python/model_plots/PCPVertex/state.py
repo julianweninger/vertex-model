@@ -206,7 +206,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     vertex_cfg = uni_cfg
     for level in cfgpath.split('/'):
         vertex_cfg = vertex_cfg[level]
-    # model_cfg = uni_cfg[datapath]
 
 
     # Prepare the figure ......................................................
@@ -423,9 +422,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                         e_prop_data = e_data
 
                     e_prop_data = e_prop_data.sel(**edge_property).squeeze()
-                    e_prop_data = e_prop_data.assign_coords(
-                        {'x': (x + dx / 2.),
-                         'y': (y + dy / 2.)})
                     
                     if edge_property_split is None:
                         # append coloring
