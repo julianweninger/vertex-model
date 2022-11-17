@@ -671,15 +671,74 @@ cellular_structure:
 
   module: model_plots.PCPVertex
   plot_func: cellular_structure
-  
-  datapath: PCPTopology
-  cfgpath: PCPTopology
+
+  select:
+    Vertices:
+      path: data/PCPTopology/Vertices
+      transform:
+        - .sel: [!dag_prev , {property: [x, y]}]
+    Edges:
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_prev , {property: [vertex_a, vertex_b]}]
+    Cells:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: [x, y, cell_type]}]
+    # vector_property:
+    #   path: data/PCPTopology/Cells
+    #   transform:
+    #     - .sel: [!dag_prev , {property: polarity}]
+    #     - .sel: [!dag_node -2, {property: cell_type}]
+    #     - call_lambda:
+    #       - "lambda d, type: d.where(type==1)"
+    #       - !dag_node -2
+    #       - !dag_node -1
+    #     - .rename: [!dag_prev , Polarity]
+    # edge_property:
+    #   path: data/PCPTopology/Edges
+    #   transform:
+    #     - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
+    #     - .rename: [!dag_prev , Cell type]
+    #     - print: [!dag_prev ]
+
+    periodic: 
+      path: cfg/PCPTopology
+      transform:
+        - call_lambda:
+          - "lambda kv: kv['PCPVertex']['space']['periodic']"
+          - !dag_prev
+    Lx:
+      path: data/PCPTopology/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Lx'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    Ly:
+      path: data/PCPTopology/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Ly'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
 
   plot_vertices: false
-  cell_marker_size: 40
+  cell_center_marker_kwargs:
+    s: 0.5
+    colors: ['white', 'r', 'gray']
 
-  helpers:
-    save_figure: {bbox_inches: tight}
+  property_interpolation_kwargs:
+    method: nearest
+  property_interpolation_plot_kwargs: ~
+  
+  vector_property_is_nematic: False
+  vector_property_kwargs:
+    scale: 1
+    headlength: 2.5
+    # headwidth: 3
+    headaxislength: 2.5
+
+  quiver_kwargs:
+    cmap: Blues
 
   animation:
     enabled: true
@@ -695,6 +754,9 @@ cellular_structure:
           dpi: 300
 
     animation_update_kwargs: {}
+
+  helpers:
+    save_figure: {bbox_inches: tight}
 
   # Can use constrained layout, because axis labels don't change
   style:

@@ -364,96 +364,155 @@ equilibrium_cellular_structure__area:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: {property: area}
-  property_label: cell area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , Area]
 
 equilibrium_cellular_structure__elongation:
   based_on: equilibrium_cellular_structure
   enabled: false
+  select:
+    vector_property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: [q_x, q_y]}]
+        - .rename: [!dag_prev , Cell elongation]
 
   vector_property_is_nematic: True
 
-  vector_property:
-    x: {property: q_x}
-    y: {property: q_y}
   vector_property_kwargs:
     scale: 0.75
     headwidth: 1
     headlength: 1.
 
-equilibrium_cellular_structure__tension:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__tension:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  property: ~
-  property_path: ~
-  edge_property: {term: tension}
-  edge_property_path: Edge_energies
-  quiver_kwargs:
-    cmap: cool
-    width: 0.01
+#   select:
+#     edge_property:
+#       path: data/PCPTopology/Edge_energies
+#       transform:
+#         - .sel: [!dag_prev , {term: tension}]
+#         - .rename: [!dag_prev , Tension]
+#   quiver_kwargs:
+#     cmap: cool
+#     width: 0.01
 
-equilibrium_cellular_structure__pressure:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__pressure:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  property: {term: pressure}
-  property_path: Cell_energies
-  property_interpolation_plot_kwargs:
-    cmap: cool
-
+#   select:
+#     property:
+#       path: data/PCPTopology/Cell_energies
+#       transform:
+#         - .sel: [!dag_prev , {property: pressure}]
+#         - .rename: [!dag_prev , Pressure]
+#   property_interpolation_plot_kwargs:
+#     cmap: cool
 
 equilibrium_cellular_structure__area_elasticity:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: {term: area_elasticity}
-  property_path: Cell_energies
+  select:
+    property:
+      path: data/PCPTopology/Cell_energies
+      transform:
+        - .sel: [!dag_prev , {term: area_elasticity}]
+        - .rename: [!dag_prev , Area elasticity]
 
 equilibrium_cellular_structure__cell_contractility:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: {term: cell_contractility}
-  property_path: Cell_energies
+  select:
+    property:
+      path: data/PCPTopology/Cell_energies
+      transform:
+        - .sel: [!dag_prev , {term: cell_contractility}]
+        - .rename: [!dag_prev , Cell contractility]
 
 equilibrium_cellular_structure__linetension:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: ~
-  property_path: ~
-  edge_property: {term: linetension}
-  edge_property_path: Edge_energies
+  select:
+    edge_property:
+      path: data/PCPTopology/Edge_energies
+      transform:
+        - .sel: [!dag_prev , {term: linetension_fluctuations}]
+        - .rename: [!dag_prev , Line-tension fluct.]
 
-equilibrium_cellular_structure__edge_contractility:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__edge_contractility:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  edge_property: {term: edge_contractility}
-  edge_property_path: Edge_energies
+#   select:
+#     edge_property:
+#       path: data/PCPTopology/Edge_energies
+#       transform:
+#         - .sel: [!dag_prev , {term: edge_contractility}]
+#         - .rename: [!dag_prev , Edge contractility]
 
-equilibrium_cellular_structure__hexatic_order:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__hexatic_order:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  property: {property: hexatic_order}
-  property_path: ~
-  property_hair_cells_only: True
+#   select:
+#     property:
+#       path: data/PCPTopology/Cells
+#       transform:
+#         - .sel: [!dag_prev , {property: hexatic_order}]
+#         - .sel: [!dag_node -2, {property: cell_type}]
+#         - call_lambda:
+#           - "lambda d, type: d.where(type==1)"
+#           - !dag_node -2
+#           - !dag_node -1
+#         - .rename: [!dag_prev , Hexatic order]
 
-equilibrium_cellular_structure__segmentation:
-  based_on: equilibrium_cellular_structure
-  enabled: false
-  cell_marker_colors: ['w', 'cyan']
-  quiver_kwargs:
-    color: [1., 0., 1.]
 
 
 # --- Continuous cellular structures ------------------------------------------
 cellular_structure_continuous:
   based_on:
     - cellular_structure
-  datapath: PCPTopology/PCPVertex
+  select:
+    Vertices:
+      path: data/PCPTopology/PCPVertex/Vertices
+      transform:
+        - .sel: [!dag_prev , {property: [x, y]}]
+    Edges:
+      path: data/PCPTopology/PCPVertex/Edges
+      transform:
+        - .sel: [!dag_prev , {property: [vertex_a, vertex_b]}]
+    Cells:
+      path: data/PCPTopology/PCPVertex/Cells
+      transform:
+        - .sel: [!dag_prev , {property: [x, y, cell_type]}]
+
+    periodic: 
+      path: cfg/PCPTopology/PCPVertex
+      transform:
+        - call_lambda:
+          - "lambda kv: kv['PCPVertex']['space']['periodic']"
+          - !dag_prev
+    Lx:
+      path: data/PCPTopology/PCPVertex/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Lx'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    Ly:
+      path: data/PCPTopology/PCPVertex/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Ly'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
 
 
 # --- Cellular geometries -----------------------------------------------------

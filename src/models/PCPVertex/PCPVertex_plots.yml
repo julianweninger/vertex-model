@@ -77,6 +77,9 @@ cellular_structure:
 cellular_structure__area:
   based_on:
     - cellular_structure
-
-  property: {property: area}
-  property_label: cell area
+  select:
+    property:
+      path: data/PCPVertex/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , Area]
