@@ -544,37 +544,40 @@ def histogram_plot(
     y_ticks = np.arange(*y_range)
     y_min = y_ticks[0]
 
-    hlpr.ax.set_xticks(np.arange(len(x_ticks)))
+    hlpr.provide_defaults(
+        'set_limits',
+        x=(0, 2*len(x_majorticks)),
+        y=(y_min, y_max-1)
+    )
+    hlpr.provide_defaults(
+        'set_ticks',
+        x=dict({
+            'major': {
+                'locs': list(np.arange(1, 2*len(x_majorticks)+1, 2)),
+                'labels': x_majorticks if x_ticklabels is None else x_ticklabels
+            },
+            'minor': {
+                'locs': list(np.arange(0, 2*len(x_majorticks)+1, 2)),
+            },
+        })
+    )
+    
     
 
-    # x_ticklabels = [
-    #     '',
-    #     'Control\n (DMSO) 4hrs',
-    #     '',
-    #     'MLCK Inhibitor\n 4hrs',
-    #     '',
-    #     'Control\n (DMSO) 16 hrs',
-    #     '',
-    #     'MLCK Inhibitor\n washoff (4 + 12 hrs)',
-    #     '',
-    # ]
-
-    if x_ticklabels is not None:
-        hlpr.ax.set_xticklabels(x_ticklabels, **x_ticks_kwargs if x_ticks_kwargs is not None else {})
-    else:
-        hlpr.ax.set_xticklabels(x_ticks, **x_ticks_kwargs if x_ticks_kwargs is not None else {})
-    hlpr.ax.set_yticks(np.arange(len(y_ticks)))
-    hlpr.ax.set_yticklabels(y_ticks)
-    
-
-    def __plot_histogram(data, *, 
-                         groupby: str, groupby_order: List=None,
-                         data_column: str,
-                         plot_left: bool, color: str):
+        data: the raw data to create the histogram from
+        x_groupby: How to group the data. Every group will be one major x-tick.
+        groupby_order: Order of x-ticks
+        y_data_column: Column in data to plot -- the y coordinate.
         
-        norm = data.groupby(by=groupby)[data_column].count()
+        plot_left (bool): If true, plot histogram to the left of the x-tick. 
+            Else, plot to the right of x-tick.
+        plot_means_kwargs (dict, optional): Forwarded to ax hline with y-position
+            at data mean
+        """
 
-        hist = [data.loc[data[data_column] == i].groupby(by=groupby)[data_column].count()
+        norm = data.groupby(by=x_groupby)[y_data_column].count()
+
+        hist = [data.loc[np.round(data[y_data_column]) == i].groupby(by=x_groupby)[y_data_column].count()
                 for i in y_ticks]
         hist = pd.concat(hist, axis=1, keys=y_ticks)
         hist = hist.divide(norm, axis=0)
