@@ -34,14 +34,18 @@ namespace WorkFunction {
  *              the domain towards the closest boundary.
  */
 template <typename Model>
-class BoundaryStripePotential : public WorkFunctionVertexTerm<Model>
+class BoundaryStripePotential : public WorkFunctionTerm<Model>
 {
 public:
-    using Base = WorkFunctionVertexTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
 
     using SpaceVec = typename Base::SpaceVec;
 
     using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
 
 private:
     double _elastic_constant;
@@ -177,15 +181,14 @@ private:
             SpaceVec new_center = _origin - SpaceVec({0., 1.e8});
 
             for (const auto& vertex : this->_am.vertices()) {
-                SpaceVec pos = this->_am.position_of(vertex) + center;
+                SpaceVec pos = this->_am.position_of(vertex) - _origin;
 
-                double theta = atan2(pos[0], pos[1]);
-                // the new radius with a curvature of 1.e-8
-                double r = arma::norm(pos) - R + 1.e8;
+                double delta_r = arma::norm(pos + SpaceVec({0., R})) - R;
+                double theta = atan2(pos[0], pos[1] + R);
 
                 this->_am.move_to(
                     vertex,
-                    r * SpaceVec({sin(theta), cos(theta)}) - new_center
+                    SpaceVec({theta * R, delta_r}) + _origin
                 );
             }
         }
@@ -237,8 +240,6 @@ private:
                 R, _curvature, _width, 2 * M_PI * R));
         }
 
-        SpaceVec center = _origin - SpaceVec({0., R});
-
         for (const auto& vertex : this->_am.vertices()) {
             SpaceVec pos = this->_am.position_of(vertex) - _origin;
             // NOTE has no curvature here
@@ -250,17 +251,21 @@ private:
             // the angle with arc-length delta_x
             double theta = pos[0] / R;
 
-            SpaceVec new_pos = SpaceVec({r * sin(theta), r * cos(theta) - R});
-
             this->_am.move_to(
-                vertex, new_pos + _origin);
+                vertex, 
+                SpaceVec({r * sin(theta), r * cos(theta) - R}) + _origin
+            );
         }
     }
 
 public:
-    BoundaryStripePotential (const DataIO::Config& cfg, const Model& model)
+    BoundaryStripePotential (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _elastic_constant(get_as<double>("elastic_constant", cfg)),
         _curvature(get_as<double>("curvature", cfg, 0.)),
         _width(get_as<double>("width", cfg)),
@@ -289,11 +294,18 @@ public:
 
         if (get_as<bool>("deform_plastic", cfg, false)) {
             model.get_logger()->info(
-                "Deforming the tissue plastically to a stripe with curvature {}",
+                "Deforming the tissue plastically to a stripe "
+                "with curvature {}",
                 _curvature
             );
             
             deform_plastic();
+        }
+    }
+
+    void compute_and_set_forces () final {
+        for (const auto& vertex : this->_am.vertices()) {
+            vertex->state.add_force(compute_force(vertex));
         }
     }
 
@@ -306,6 +318,19 @@ public:
         return 0.5 * _elastic_constant * std::pow(distance, 2);
     }
 
+    double compute_energy (
+        const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& vertex : vertices) {
+            energy += compute_energy(vertex);
+        }
+        return energy;
+    }
+
     void update_parameters (const DataIO::Config& cfg) final {
         _elastic_constant = get_as<double>("elastic_constant", cfg,
                                            _elastic_constant);
@@ -316,10 +341,11 @@ public:
             _origin = get_as_SpaceVec<2>("origin", cfg);
         }
 
-        if (get_as<bool>("deform_plastic", cfg, false)) {
-            deform_plastic(_curvature);
-        }
+        double tmp_curvature = _curvature;
         _curvature = get_as<double>("curvature", cfg, _curvature);
+        if (get_as<bool>("deform_plastic", cfg, false)) {
+            deform_plastic(tmp_curvature);
+        }
     }
 };
 

@@ -149,7 +149,6 @@ cell_properties/elongation:
           - "lambda qx, qy: (qx**2 + qy**2)**0.5"
           - !dag_node -2
           - !dag_node -1
-        - print: [!dag_prev ]
         - .rename: [!dag_prev , elongation]
   y: elongation
   to_plot: 
@@ -328,7 +327,6 @@ tension:
       transform:
         - .sel: [!dag_prev , {term: linetension_fluctuations__tension}]
         - .rename: [!dag_prev , tension]
-        - print: [!dag_prev ]
     
   to_plot: 
     - function: sns.lineplot
@@ -484,35 +482,14 @@ cellular_structure_continuous:
   select:
     Vertices:
       path: data/PCPTopology/PCPVertex/Vertices
-      transform:
-        - .sel: [!dag_prev , {property: [x, y]}]
     Edges:
       path: data/PCPTopology/PCPVertex/Edges
-      transform:
-        - .sel: [!dag_prev , {property: [vertex_a, vertex_b]}]
     Cells:
       path: data/PCPTopology/PCPVertex/Cells
-      transform:
-        - .sel: [!dag_prev , {property: [x, y, cell_type]}]
-
-    periodic: 
-      path: cfg/PCPTopology/PCPVertex
-      transform:
-        - call_lambda:
-          - "lambda kv: kv['PCPVertex']['space']['periodic']"
-          - !dag_prev
     Lx:
       path: data/PCPTopology/PCPVertex/Vertices
-      transform:
-      - call_lambda:
-        - "lambda d: xr.DataArray([d[t].attrs['Lx'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
-        - !dag_prev
     Ly:
       path: data/PCPTopology/PCPVertex/Vertices
-      transform:
-      - call_lambda:
-        - "lambda d: xr.DataArray([d[t].attrs['Ly'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
-        - !dag_prev
 
 
 # --- Cellular geometries -----------------------------------------------------

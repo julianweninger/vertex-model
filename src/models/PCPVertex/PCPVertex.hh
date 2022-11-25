@@ -105,11 +105,7 @@ public:
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
 
-    using WFVertexTerm = WorkFunction::WorkFunctionVertexTerm<PCPVertex>;
-
-    using WFEdgeTerm = WorkFunction::WorkFunctionEdgeTerm<PCPVertex>;
-
-    using WFCellTerm = WorkFunction::WorkFunctionCellTerm<PCPVertex>;
+    using WFTerm = WorkFunction::WorkFunctionTerm<PCPVertex>;
 
 
 private:
@@ -135,11 +131,10 @@ private:
 
     // -- Mechanical parameters -----------------------------------------------
     std::unordered_map<std::string,
-                       std::shared_ptr<WFVertexTerm>> _vertex_terms;
-    std::unordered_map<std::string, std::shared_ptr<WFEdgeTerm>> _tensions;
-    std::unordered_map<std::string, std::shared_ptr<WFCellTerm>> _pressures;
+                       std::shared_ptr<WFTerm>> _work_function_terms;
 
-    std::set<std::string> _work_function_terms_disabled;
+    /// The length of the work_function terms
+    std::pair<bool, std::size_t> _fix_number_work_function_terms;
 
 
     enum BoundaryType {
@@ -281,10 +276,11 @@ public:
                                                     this->_cfg)),
         _dt(_default_minimization_params.dt),
         _minimization_tolerance(_default_minimization_params.tolerance),
-        _vertex_terms({}),
-        _tensions({}),
-        _pressures({}),
-        _work_function_terms_disabled({}),
+        _work_function_terms({}),
+        _fix_number_work_function_terms(std::make_pair(
+            false,
+            get_as<int>("fix_number_work_function_terms", this->_cfg, 0)
+        )),
         
         _enable_transitions(
             get_as<bool>("enable_transitions", this->_cfg, true)),
@@ -335,10 +331,10 @@ private:
         this->_log->info("Setting up work-function from {} configuration entr{}"
                          " ...", cfg.size(), cfg.size() != 1 ? "ies" : "y");
 
-        if (not cfg.size()) {
-            throw std::runtime_error("No term registered to work-function! "
-                "Note that also initially disabled terms must be registered!");
-        }
+        // if (not cfg.size()) {
+        //     throw std::runtime_error("No term registered to work-function! "
+        //         "Note that also initially disabled terms must be registered!");
+        // }
 
         // Otherwise, require a sequence
         if (not cfg.IsSequence()) {
@@ -358,97 +354,7 @@ private:
                 const std::string name = get_as<std::string>(
                     "name", params, term);
 
-                if (not get_as<bool>("enabled", params, true)) {
-                    this->_log->debug("Pre-registering work-function term "
-                        "'{}' ('{}'), but disabling it.", term, name);
-
-                    _work_function_terms_disabled.insert(name);
-                }
-
-                this->_log->debug("Registering work-function term '{}' ('{}') "
-                                  "...",
-                                  term, name);
-                _work_function_terms_disabled.insert(name);                    
-
-                if (term == "area_elasticity") {
-                    register_pressure(
-                        name,
-                        std::make_shared<AreaElasticity<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "boundary_stripe_potential") {
-                    register_force(
-                        name,
-                        std::make_shared<BoundaryStripePotential<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "cell_contractility") {
-                    register_pressure(
-                        name,
-                        std::make_shared<CellContractility<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "edge_contractility") {                  
-                    register_tension(
-                        name,
-                        std::make_shared<EdgeContractility<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "linetension") {
-                    register_tension(
-                        name,
-                        std::make_shared<Linetension<PCPVertex>>(params, *this)
-                    );
-                }
-                else if (term == "linetension_fluctuations") {
-                    register_tension(
-                        name,
-                        std::make_shared<LinetensionFluctuations<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "linetension_heterotypic") {
-                    register_tension(
-                        name,
-                        std::make_shared<LinetensionHeterotypic<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else if (term == "shape_elasticity") {
-                    register_pressure(
-                        name,
-                        std::make_shared<ShapeElasticity<PCPVertex>>(
-                            params, *this
-                        )
-                    );
-                }
-                else {
-                    throw std::runtime_error(fmt::format(
-                        "No term `{}` known in PCPVertex namespace. "
-                        "Use the `register_work_function_term` interface, or "
-                        "choose one of the following available terms:\n"
-                        " - area_elasticity\n"
-                        " - boundary_stripe_potential\n"
-                        " - cell_contractility\n"
-                        " - edge_contractility\n"
-                        " - linetension\n"
-                        " - linetension_fluctuations\n"
-                        " - linetension_heterotypic\n"
-                        " - shape_elasticity\n"
-                        "", term
-                    ));
-                }
-
+                register_work_function_term(term, name, params);
             }
         }
     }
@@ -460,49 +366,13 @@ private:
      *           energy terms.
      *  \note    When adding energy terms, remember to add their gradient here!
      */
-    void compute_forces () {
-
-        compute_tensions_and_pressures();
-
+    void compute_and_set_forces () {
         for (const auto& vertex : _am.vertices()) {
             vertex->state.reset_force();
         }
 
-        for (const auto& [name, functor] : _vertex_terms) {
-            for (const auto& vertex : _am.vertices()) {
-                vertex->state.add_force(functor->compute_force(vertex));
-            }
-        }
-
-        // apply forces from tensions and pressures
-        for (const auto& edge : _am.edges()) {
-            SpaceVec displ = _am.displacement(edge);
-            SpaceVec director = displ / arma::norm(displ);
-
-            const auto& a = edge->custom_links().a;
-            const auto& b = edge->custom_links().b;
-
-            const double& T = edge->state.tension;
-            a->state.add_force(+ T * director);
-            b->state.add_force(- T * director);
-
-
-            // left and right cell when facing along edge
-            const auto& [cl, cr] = _am.adjoints_of<true>(edge);
-
-            // get pressure difference between left and right cell
-            double delta_P = 0.;
-            if (cl != nullptr) {
-                delta_P += cl->state.pressure;
-            }
-            if (cr != nullptr) {
-                delta_P -= cr->state.pressure;
-            }
-
-            // force is normal to edge
-            double Fa = 0.5 * delta_P;
-            a->state.add_force(-1. * Fa * SpaceVec({displ[1], -displ[0]}));
-            b->state.add_force(-1. * Fa * SpaceVec({displ[1], -displ[0]}));
+        for (const auto& [name, functor] : _work_function_terms) {
+            functor->compute_and_set_forces();
         }
 
         // fix the boundary
@@ -547,32 +417,6 @@ private:
             },
             _am.vertices()
         );
-    }
-    
-    void compute_tensions_and_pressures () {
-        for (const auto& edge : _am.edges()) {
-            double tension = 0.;
-            for (const auto& [name, functor] : _tensions) {
-                tension += functor->compute_tension(edge);
-            }
-            edge->state.tension = tension;
-        }
-
-        for (const auto& cell : _am.cells()) {
-            double tension = 0.;
-            for (const auto& [name, functor] : _pressures) {
-                tension += functor->compute_tension(cell);
-            }
-            for (const auto& [edge, f] : cell->custom_links().edges) {
-                edge->state.tension += tension;
-            }
-
-            double pressure = 0.;
-            for (const auto& [name, functor] : _pressures) {
-                pressure += functor->compute_pressure(cell);
-            }
-            cell->state.pressure = pressure;
-        }
     }
 
     /** The update of position
@@ -639,20 +483,11 @@ public:
     /** \details Rules applied
      *      -# perform_transitions()
      *      -# perform_update_step()
+     *      -# update work function terms
      *      -# tracking of variables
      */
     void perform_step () {
         perform_transitions(_enable_transitions);
-
-        for (const auto& [name, F] : _vertex_terms) {
-            F->update(this->_dt);
-        }
-        for (const auto& [name, T] : _tensions) {
-            T->update(this->_dt);
-        }
-        for (const auto& [name, P] : _pressures) {
-            P->update(this->_dt);
-        }
 
         if (_space->get_curvature() > 1.e-8) {
             throw std::runtime_error(fmt::format("Cannot perform step with "
@@ -662,7 +497,16 @@ public:
 
         double E = perform_update_step();
 
+        for (const auto& [name, term] : _work_function_terms) {
+            term->update(this->_dt);
+        }
+
         this->_log->trace("Energy changed by {}", E - _energy_buffer.back());
+
+        if (not std::isfinite(E)) {
+            throw std::runtime_error("Non-finite energy. Aborting!");
+        }
+
         _energy_buffer.push_back(E);
     }
 
@@ -725,34 +569,16 @@ public:
 
         _dt = params.dt;
 
-        if (std::get<1>(params.linetension_fluctuations) > 0.) {
-            auto [registered, active] = is_registered_term(
-                "linetension_fluctuations");
-            if (not registered) {
-                std::runtime_error("Cannot introduce `linetension_fluctuations`"
-                    " because no such term is registered! Register it at setup "
-                    "of vertex-model!");
-            }
-
+        if (is_registered_term("linetension_fluctuations")) {
             Config cfg;
             cfg["timescale"] = std::get<0>(params.linetension_fluctuations);
             cfg["amplitude"] = std::get<1>(params.linetension_fluctuations);
-            if (not active) {
-                using T = WorkFunction::LinetensionFluctuations<PCPVertex>;
-
-                register_tension(
-                    "linetension_fluctuations",
-                    std::make_shared<T>(cfg, *this)
-                );
-            }
-            else {
-                _tensions["linetension_fluctuations"]->update_parameters(cfg);
-            }
+            _work_function_terms["linetension_fluctuations"]->update_parameters(cfg);
         }
-        else if (std::get<1>(is_registered_term("linetension_fluctuations"))) {
-            Config cfg;
-            cfg["amplitude"] = 0.;
-            _tensions["linetension_fluctuations"]->update_parameters(cfg);
+        else if (std::get<1>(params.linetension_fluctuations) > 0.) {
+            std::runtime_error("Cannot introduce `linetension_fluctuations`"
+                " because no such term is registered! Register it at setup "
+                "of vertex-model!");
         }
 
         for (std::size_t i = 0; i < params.num_repeat; i++)
@@ -869,26 +695,146 @@ public:
     // Getters and setters ....................................................
     // Add getters and setters here to interface with other model
 
-private:
-    /// Checks that a term with this name is disabled and can thus be registered
-    void prepare_register_term (const std::string& name) {
-        if (not _work_function_terms_disabled.erase(name)) {
-            this->_log->error("A list of pre-registered work-function terms "
-                "available for registration:");
-            for (const auto& n : _work_function_terms_disabled) {
-                this->_log->error("  {}", n);
-            }
+
+public:
+    // .. Public energy terms .................................................
+    void register_work_function_term(
+            std::string term,
+            std::string name,
+            const Config& params
+    ) {
+        using namespace WorkFunction;
+
+        this->_log->debug("Registering work-function term '{}' ('{}') from "
+                          "configuration ...",
+                          term, name);
+
+        if (term == "area_elasticity") {
+            register_work_function_term(
+                name,
+                std::make_shared<AreaElasticity<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "boundary_stripe_potential") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryStripePotential<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "cell_contractility") {
+            register_work_function_term(
+                name,
+                std::make_shared<CellContractility<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "edge_contractility") {                  
+            register_work_function_term(
+                name,
+                std::make_shared<EdgeContractility<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "edge_contractility_heterotypic") {                  
+            register_work_function_term(
+                name,
+                std::make_shared<EdgeContractilityHeterotypic<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "edge_contractility_axial") {                  
+            register_work_function_term(
+                name,
+                std::make_shared<EdgeContractilityAxial<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "linetension") {
+            register_work_function_term(
+                name,
+                std::make_shared<Linetension<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "linetension_fluctuations") {
+            register_work_function_term(
+                name,
+                std::make_shared<LinetensionFluctuations<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "linetension_heterotypic") {
+            register_work_function_term(
+                name,
+                std::make_shared<LinetensionHeterotypic<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "shape_elasticity") {
+            register_work_function_term(
+                name,
+                std::make_shared<ShapeElasticity<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else {
             throw std::runtime_error(fmt::format(
-                "Cannot register work-function term with name `{}`, because it "
-                "was not pre-registered! See above for available "
-                "pre-registered terms.",
-                name
+                "No term `{}` known in PCPVertex namespace. "
+                "Use the `register_work_function_term` interface, or "
+                "choose one of the following available terms:\n"
+                " - area_elasticity\n"
+                " - boundary_stripe_potential\n"
+                " - cell_contractility\n"
+                " - edge_contractility\n"
+                " - edge_contractility_heterotypic\n"
+                " - edge_contractility_axial\n"
+                " - linetension\n"
+                " - linetension_fluctuations\n"
+                " - linetension_heterotypic\n"
+                " - shape_elasticity\n"
+                "", term
             ));
         }
 
-        if (   _tensions.find(name) != _tensions.end()
-            or _pressures.find(name) != _pressures.end()
-            or _vertex_terms.find(name) != _vertex_terms.end())
+    }
+
+    void register_work_function_term(
+        std::string name,
+        const std::shared_ptr<WFTerm>& term
+    )
+    {
+        this->_log->debug("Registering term `{}` ...", name);
+
+        if (std::get<bool>(_fix_number_work_function_terms))
+        {
+            auto N = std::get<1>(_fix_number_work_function_terms);
+            if (_work_function_terms.size() >= N) {
+                this->_log->error("Registered work-function terms:");
+                for (const auto& [name, term] : _work_function_terms) {
+                    this->_log->error(" - {}", name);
+                }
+                throw std::runtime_error(fmt::format(
+                    "Cannot register work-function term {}, because maximum "
+                    "length reached ({}). Increase "
+                    "'fix_number_work_function_terms' to add more terms.",
+                    name, N
+                ));
+            }
+        }
+
+        if (_work_function_terms.find(name) != _work_function_terms.end())
         {
             throw std::runtime_error(fmt::format(
                 "Cannot register work-function term with name `{}`, because a "
@@ -896,44 +842,28 @@ private:
                 name
             ));
         }
+        if (term == nullptr) {
+            throw std::runtime_error("Cannot register nullptr as work-function "
+                "term!" );
+        }
+
+        _work_function_terms.emplace(name, term);
+
+        this->_log->info("Successfully registered term `{}`.", name);
     }
 
-public:
-    // .. Public energy terms .................................................
-    void register_force(
-        std::string name,
-        const std::shared_ptr<WFVertexTerm>& force
-    )
-    {
-        prepare_register_term(name);
-
-        _vertex_terms.emplace(name, force);
-
-        this->_log->info("Successfully registered force `{}`.", name);
-    }
-    
-    void register_tension(
-        std::string name,
-        const std::shared_ptr<WFEdgeTerm>& tension
-    )
-    {
-        prepare_register_term(name);
-
-        _tensions.emplace(name, tension);
-
-        this->_log->info("Successfully registered tension `{}`.", name);
-    }
-
-    void register_pressure(
-        std::string name,
-        const std::shared_ptr<WFCellTerm>& pressure
-    )
-    {
-        prepare_register_term(name);
-
-        _pressures[name] = pressure;
-
-        this->_log->info("Successfully registered pressure `{}`.", name);
+    auto erase_work_function_term(std::string name) {
+        this->_log->debug("Erasing work function term '{}' ...", name);
+        auto result = _work_function_terms.erase(name);
+        if (result) {
+            this->_log->info("Erased work function term '{}'.", name);
+        }
+        else {
+            this->_log->info("Could not erase work function term '{}' "
+                             "as requested. It is not registered!",
+                             name);
+        }
+        return result;
     }
     
     /// Check work function term register
@@ -942,80 +872,26 @@ public:
      *      - bool: Whether term is registered
      *      - bool: Whether term is actively registered
      */
-    std::pair<bool, bool> is_registered_term (const std::string& name) const {
-        if (_vertex_terms.find(name) != _vertex_terms.end()) {
-            return std::make_pair(true, true);
-        }
-        if (_tensions.find(name) != _tensions.end()) {
-            return std::make_pair(true, true);
-        }
-        if (_pressures.find(name) != _pressures.end()) {
-            return std::make_pair(true, true);
-        }
-
-        else if (   _work_function_terms_disabled.find(name)
-                 != _work_function_terms_disabled.end())
-        {
-            return std::make_pair(true, false);
-        }
-
-        return std::make_pair(false, false);
+    bool is_registered_term (const std::string& name) const {
+        return _work_function_terms.find(name) != _work_function_terms.end();
     }
 
-
-    /// Remove a term from the work function register
-    /** Adds the term to the disabled terms (can be reused).
-     */
-    bool unregister_term(const std::string& name) {
-        bool found = false;
-        if (not found) {
-            found = found or _vertex_terms.erase(name);
-        }
-        if (not found) {
-            found = found or _tensions.erase(name);
-        }
-        if (not found) {
-            found = found or _pressures.erase(name);
+    double compute_tension(const std::shared_ptr<Edge>& edge) const {
+        double tension = 0.;
+        for (const auto& [name, term] : _work_function_terms) {
+            tension += term->compute_tension(edge);
         }
 
-        if (found) {
-            _work_function_terms_disabled.insert(name);
-
-            this->_log->info("Removed `{}` term from work function.", name);
-        }
-        else {
-            this->_log->debug("Unable t remove `{}` term from work function. "
-                              "It is not registered. ", name);
-        }
-
-        return found;
+        return tension;
     }
 
-    /// Get energy for an edge
-    double get_energy (const std::shared_ptr<WFVertexTerm>& functor) const {
-        double E = 0.;
-        for (const auto& vertex : _am.vertices()) {
-            E += functor->compute_energy(vertex);
+    double compute_pressure(const std::shared_ptr<Cell>& cell) const {
+        double pressure = 0.;
+        for (const auto& [name, term] : _work_function_terms) {
+            pressure += term->compute_pressure(cell);
         }
-        return E;
-    }
 
-    /// Get energy for an edge
-    double get_energy (const std::shared_ptr<WFEdgeTerm>& functor) const {
-        double E = 0.;
-        for (const auto& edge : _am.edges()) {
-            E += functor->compute_energy(edge);
-        }
-        return E;
-    }
-
-    /// Get energy for a cell
-    double get_energy (const std::shared_ptr<WFCellTerm>& functor) const {
-        double E = 0.;
-        for (const auto& cell : _am.cells()) {
-            E += functor->compute_energy(cell);
-        }
-        return E;
+        return pressure;
     }
 
     /// Getter for energy of a container of edges and cells, resp.
@@ -1026,20 +902,8 @@ public:
     ) const
     {
         double E = 0.;
-        for (const auto& [name, functor] : _vertex_terms) {
-            for (const auto& vertex : vs) {
-                E += functor->compute_energy(vertex);
-            }
-        }
-        for (const auto& [name, functor] : _tensions) {
-            for (const auto& edge : es) {
-                E += functor->compute_energy(edge);
-            }
-        }
-        for (const auto& [name, functor] : _pressures) {
-            for (const auto& cell : cs) {
-                E += functor->compute_energy(cell);
-            }
+        for (const auto& [name, term] : _work_function_terms) {
+            E += term->compute_energy(vs, es, cs);
         }
 
         return E;
@@ -1047,18 +911,11 @@ public:
 
     /// Getter for energy all edges and cells
     double get_energy () const {
-        double E = 0.;
-        for (const auto& [name, functor] : _vertex_terms) {
-            E += get_energy(functor);
-        }
-        for (const auto& [name, functor] : _tensions) {
-            E += get_energy(functor);
-        }
-        for (const auto& [name, functor] : _pressures) {
-            E += get_energy(functor);
-        }
-
-        return E;
+        return get_energy(
+            this->_am.vertices(),
+            this->_am.edges(),
+            this->_am.cells()
+        );
     }
 
 
@@ -1098,34 +955,40 @@ public:
 
 
     // .. Public energy terms for subset of entities ..........................
-    auto get_work_function_terms () const {
-        return std::make_tuple(
-            _vertex_terms,
-            _tensions,
-            _pressures,
-            _work_function_terms_disabled
-        );
+    const auto& get_work_function_term(std::string name) const {
+        if (_work_function_terms.find(name) == _work_function_terms.end()) {
+            this->_log->error("No work-function with name {} registered!",
+                                name);
+            this->_log->error("Registered terms are:");
+            for (const auto& [name, Funct] : _work_function_terms) {
+                this->_log->error("   {}", name);
+                
+            }
+            throw std::runtime_error(fmt::format(
+                "No work-function with name {} registered! "
+                "See list of registered terms above.",
+                name
+            ));
+        }
+        return _work_function_terms.at(name);
     }
 
-    std::shared_ptr<WFCellTerm> get_work_function_cell_term
-    (const std::string& name) const
-    {
-        const auto it = _pressures.find(name);
+    /// Getter for the (active) work function terms
+    const auto& get_work_function_terms () const {
+        return _work_function_terms;
+    }
 
-        if (it != _pressures.end()) {
-            return std::get<1>(*it);
-        }
-        if (   _work_function_terms_disabled.find(name)
-            != _work_function_terms_disabled.end())
-        {
-            return nullptr;
-        }
-
-        throw std::runtime_error(fmt::format(
-            "Cannot find work-function term with name `{}`, because a "
-            "term with that name is already registered!",
-            name
-        ));
+    /// Update the parameters of a WF-term
+    /** \param name     The name of the term to update
+     *  \param params   Parameters that are forwarded to update_parameters()
+     *                  of the WF-term
+    */
+    void update_work_function_term(
+        std::string name,
+        const Config& params
+    ) {
+        const auto& term = this->get_work_function_term(name);
+        term->update_parameters(params);
     }
         
     // .. Counter for transitions, etc.. ......................................
@@ -1266,6 +1129,17 @@ public:
         _enable_T1_transitions = enable_T1_transitions;
         _enable_T2_transitions = enable_T2_transitions;
         _enable_transitions = (enable_T1_transitions or enable_T2_transitions);
+    }
+
+    auto fix_number_work_function_terms () {
+        if (not std::get<bool>(_fix_number_work_function_terms)) {
+            auto N = std::get<1>(_fix_number_work_function_terms);
+            _fix_number_work_function_terms = std::make_pair(
+                true,
+                std::max(N, _work_function_terms.size())
+            );
+        }
+        return std::get<1>(_fix_number_work_function_terms);
     }
 }; // class PCPVertex
 

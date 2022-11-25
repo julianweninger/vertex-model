@@ -262,15 +262,13 @@ def cellular_structure(
         if select_times is not None:
             data['Vertices'] = data['Vertices'].sel(time=select_times)
 
-        for time in data['Vertices'].time:
-            time = time.data            
-
+        for time in np.unique(data['Vertices'].coords['time']):
             hlpr.ax.clear()
 
             if cbar is not None: 
                 cbar.remove()
             hlpr.ax.set_aspect('auto')
-            
+
             v_data = data['Vertices'].sel(time=time)
             e_data = data['Edges'].sel(time=time)
             c_data = data['Cells'].sel(time=time)
@@ -338,6 +336,18 @@ def cellular_structure(
             # the ids of the vertices a and b of the edges
             vertex_a = e_data.sel(property="vertex_a").dropna(dim='id').astype(int)
             vertex_b = e_data.sel(property="vertex_b").dropna(dim='id').astype(int)
+
+            # for id in vertex_a.squeeze().data:
+            #     if not id in v_data.id:
+            #         e_data = e_data.where(e_data!=id, drop=True)
+            # for id in vertex_b.squeeze().data:
+            #     if not id in v_data.id:
+            #         e_data = e_data.where(e_data!=id, drop=True)
+            #     # print(v_data.sel(id=vertex_a))
+            # e_data = e_data.dropna(dim='id')
+
+            # vertex_a = e_data.sel(property="vertex_a").dropna(dim='id').astype(int)
+            # vertex_b = e_data.sel(property="vertex_b").dropna(dim='id').astype(int)
 
             # the coordinates of vertices a and b in the set of edges
             ax = v_data.sel(id=vertex_a, property='x')
@@ -571,8 +581,8 @@ def cellular_structure(
 
             ### plot cells
             cell_type = c_data.sel(property="cell_type").dropna(dim='id').astype(int)
-            x = c_data.sel(property="x")
-            y = c_data.sel(property="y")
+            x = c_data.sel(property="x").dropna(dim='id')
+            y = c_data.sel(property="y").dropna(dim='id')
             hlpr.ax.scatter(
                 x, y,
                 c=[cell_marker_colors[d.data] for d in cell_type],

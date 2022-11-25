@@ -11,111 +11,148 @@ namespace WorkFunction {
 /// @tparam Model   The model within which the AgentManager lives
 /** A tension is the derivative of the energy to the length of an junction */
 template <typename Model>
-class WorkFunctionVertexTerm {
+class WorkFunctionTerm {
 public:
     using SpaceVec = typename Model::SpaceVec;
+
     using AgentManager = typename Model::AgentManager;
+
     using Vertex = typename Model::Vertex;
 
+    using Edge = typename Model::Edge;
+
+    using Cell = typename Model::Cell;
+
 protected:
+    const std::string _name;
+
     const AgentManager& _am;
 
 public:
-    WorkFunctionVertexTerm ([[maybe_unused]] const DataIO::Config& cfg,
-                          const Model& model)
+    WorkFunctionTerm (std::string name,
+                      [[maybe_unused]] const DataIO::Config& cfg,
+                      const Model& model)
     :
+        _name(name),
         _am(model.get_am())
     { }
 
-    virtual ~WorkFunctionVertexTerm() { }
+    virtual ~WorkFunctionTerm() { }
 
-    virtual SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const=0;
+
+    virtual void compute_and_set_forces () = 0;
+
+
+    virtual SpaceVec compute_force
+    ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const
+    {
+        return SpaceVec({0., 0.});
+    }
+
+    virtual double compute_tension
+    ([[maybe_unused]] const std::shared_ptr<Edge>& edge) const
+    {
+        return 0.;
+    }
+
+    virtual double compute_pressure
+    ([[maybe_unused]] const std::shared_ptr<Cell>& cell) const
+    {
+        return 0.;
+    }
+    
+
+    virtual double compute_energy
+    ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const 
+    {
+        return 0.;
+    }
     
     virtual double compute_energy
-    (const std::shared_ptr<Vertex>& vertex)
-    const = 0;
-
-    virtual void update ([[maybe_unused]] double dt) { return; }
-
-    virtual void update_parameters (const DataIO::Config& cfg) = 0;
-};
-
-/// @brief  The class of a tension term in the work function
-/// @tparam Model   The model within which the AgentManager lives
-/** A tension is the derivative of the energy to the length of an junction */
-template <typename Model>
-class WorkFunctionEdgeTerm {
-public:
-    using AgentManager = typename Model::AgentManager;
-    using Edge = typename Model::Edge;
-
-protected:
-    const AgentManager& _am;
-
-public:
-    WorkFunctionEdgeTerm ([[maybe_unused]] const DataIO::Config& cfg,
-                          const Model& model)
-    :
-        _am(model.get_am())
-    { }
-
-    virtual ~WorkFunctionEdgeTerm() { }
-
-    virtual double compute_tension(const std::shared_ptr<Edge>& edge) const = 0;
-
-    virtual double compute_energy(const std::shared_ptr<Edge>& edge) const = 0;
-
-    virtual void update ([[maybe_unused]] double dt) { return; }
-
-    virtual void update_parameters (const DataIO::Config& cfg) = 0;
-};
-
-/// @brief The class of a pressure term in the work function
-/// @tparam Model   The model within which the AgentManager lives
-/** A pressure is the derivative of the energy to the area of a cell. 
- */
-template <typename Model>
-class WorkFunctionCellTerm {
-public:
-    using AgentManager = typename Model::AgentManager;
-    using Cell = typename Model::Cell;
-    using Edge = typename Model::Edge;
-
-
-protected:
-    const AgentManager& _am;
+    ([[maybe_unused]] const std::shared_ptr<Edge>& edge) const 
+    {
+        return 0.;
+    }
     
-public:
-    WorkFunctionCellTerm ([[maybe_unused]] const DataIO::Config& cfg,
-                          const Model& model)
-    :
-        _am(model.get_am())
-    { }
+    virtual double compute_energy
+    ([[maybe_unused]] const std::shared_ptr<Cell>& cell) const 
+    {
+        return 0.;
+    }
 
-    virtual ~WorkFunctionCellTerm() { }
+    virtual double compute_energy (
+        const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const = 0;
 
-    virtual double compute_tension(const std::shared_ptr<Cell>& cell) const=0;
+    double compute_energy () const {
+        return compute_energy(
+            this->_am.vertices(),
+            this->_am.edges(),
+            this->_am.cells()
+        );
+    }
 
-    double compute_tension(const std::shared_ptr<Edge>& edge) const {
-        const auto& [cl, cr] = this->_am.template adjoints_of<true>(edge);
-
-        double T = 0.;
-        if (cl) {
-            T += compute_tension(cl);
-        }
-        if (cr) {
-            T += compute_tension(cr);
-        }
-        return T;
-    };
-
-    virtual double compute_pressure(const std::shared_ptr<Cell>& cell) const=0;
-
-    virtual double compute_energy(const std::shared_ptr<Cell>& cell) const = 0;
 
     virtual void update ([[maybe_unused]] double dt) { return; }
 
     virtual void update_parameters (const DataIO::Config& cfg) = 0;
+
+
+    const std::string& get_name () const {
+        return _name;
+    }
+
+
+    virtual std::vector<std::string> write_task_vertex_properties_names () const {
+        return std::vector<std::string>({});
+    }
+
+    virtual std::vector<std::vector<double>> write_vertex_properties () const {
+        return std::vector<std::vector<double>>({});
+    }
+
+    virtual std::vector<std::string> write_task_edge_properties_names () const {
+        return std::vector<std::string>({});
+    }
+
+    virtual std::vector<std::vector<double>> write_edge_properties () const {
+        return std::vector<std::vector<double>>({});
+    }
+
+    virtual std::vector<std::string> write_task_cell_properties_names () const {
+        return std::vector<std::string>({});
+    }
+
+    virtual std::vector<std::vector<double>> write_cell_properties () const {
+        return std::vector<std::vector<double>>({});
+    }
+
+
+    virtual std::vector<std::string> write_task_vertex_energies_names () const {
+        return std::vector<std::string>({});
+    }
+
+    virtual std::vector<std::vector<double>> write_vertex_energies () const {
+        return std::vector<std::vector<double>>({});
+    }
+
+    virtual std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({});
+    }
+
+    virtual std::vector<std::vector<double>> write_edge_energies () const {
+        return std::vector<std::vector<double>>({});
+    }
+
+    virtual std::vector<std::string> write_task_cell_energies_names () const {
+        return std::vector<std::string>({});
+    }
+
+    virtual std::vector<std::vector<double>> write_cell_energies () const {
+        return std::vector<std::vector<double>>({});
+    }
 };
 
 
@@ -126,21 +163,60 @@ public:
  *      - `linetension`: the tension \f$ k \f$
  */
 template <typename Model>
-class Linetension : public WorkFunctionEdgeTerm<Model>
+class Linetension : public WorkFunctionTerm<Model>
 {
-    using Base = WorkFunctionEdgeTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
 
     using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
 
 private:
     double _linetension;
 
 public:
-    Linetension (const DataIO::Config& cfg, const Model& model)
+    Linetension (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _linetension(get_as<double>("linetension", cfg))
     { }
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            SpaceVec displ = this->_am.displacement(edge);
+            SpaceVec director = displ / arma::norm(displ);
+
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            a->state.add_force(+ _linetension * director);
+            b->state.add_force(- _linetension * director);
+        }
+    }
+
+    SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const final {
+        SpaceVec force({0., 0.});
+        for (const auto& edge : this->_am.adjoint_edges_of(vertex)) {
+            SpaceVec displ = this->_am.displacement(edge);
+            SpaceVec director = displ / arma::norm(displ);
+
+            if (edge->custom_links().a == vertex) {
+                force += _linetension * director;
+            }
+            else {
+                force -= _linetension * director;
+            }
+        }
+        return force;
+    }
 
     double compute_tension([[maybe_unused]] const std::shared_ptr<Edge>& edge)
     const final
@@ -152,8 +228,45 @@ public:
         return _linetension * this->_am.length_of(edge);
     }
 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
+    }
+
     void update_parameters (const DataIO::Config& cfg) final {
         _linetension  = get_as<double>("linetension", cfg, _linetension);
+    }
+
+
+
+    std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
     }
 };
 
@@ -191,7 +304,7 @@ arma::mat setup_symmetric_matrix (
     return mat;
 }
 
-/// @brief The linetension term
+/// @brief The linetension term with heterotypic values
 /** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
  * 
  *  Parameters:
@@ -201,11 +314,17 @@ arma::mat setup_symmetric_matrix (
  *      - `boundary_type`: To which value a boundary cell is mapped.
  */
 template <typename Model>
-class LinetensionHeterotypic : public WorkFunctionEdgeTerm<Model>
+class LinetensionHeterotypic : public WorkFunctionTerm<Model>
 {
-    using Base = WorkFunctionEdgeTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
 
     using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
 
     typedef std::vector< std::vector<double> > stdmat;
 
@@ -222,7 +341,7 @@ private:
         if (cb) { type_b = cb->state.type; }
         else { type_b = _boundary_type; }
 
-        if (std::max(type_a, type_b) > _linetension.index_max())
+        if (std::max(type_a, type_b) > _linetension.n_rows)
         {
             std::cout << _linetension << std::endl;
 
@@ -230,7 +349,7 @@ private:
                 "In WF-term LinetensionHeterotypic, no parameter registered "
                 "for cells of type {}. Parameters for {} types registered.",
                 std::max(type_a, type_b),
-                _linetension.index_max()
+                _linetension.n_rows
             ));
         }
 
@@ -238,13 +357,30 @@ private:
     }
 
 public:
-    LinetensionHeterotypic (const DataIO::Config& cfg, const Model& model)
+    LinetensionHeterotypic (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _linetension(setup_symmetric_matrix(
             get_as<stdmat>("linetension", cfg))),
         _boundary_type(get_as<std::size_t>("boundary_type", cfg))
     { }
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            SpaceVec displ = this->_am.displacement(edge);
+            SpaceVec director = displ / arma::norm(displ);
+
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            a->state.add_force(+ get_linetension(edge) * director);
+            b->state.add_force(- get_linetension(edge) * director);
+        }
+    }
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
         return get_linetension(edge);
@@ -252,6 +388,19 @@ public:
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
         return get_linetension(edge) * this->_am.length_of(edge);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
@@ -262,11 +411,47 @@ public:
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
     }
+
+
+
+    std::vector<std::string> write_task_edge_properties_names () const {
+        return std::vector<std::string>({
+            "linetension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const {
+        std::vector<double> tensions({});
+        for (const auto& edge : this->_am.edges()) {
+            tensions.push_back(get_linetension(edge));
+        }
+        return std::vector<std::vector<double>>({tensions});
+    }
+
+    std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
+    }
 };
 
-
-
-/// @brief The linetension term
+/// @brief The linetension term with Ornstein-Uhlenbeck fluctuations
 /** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
  * 
  *  Parameters:
@@ -276,12 +461,18 @@ public:
  *      - `boundary_type`: To which value a boundary cell is mapped.
  */
 template <typename Model>
-class LinetensionFluctuations : public WorkFunctionEdgeTerm<Model>
+class LinetensionFluctuations : public WorkFunctionTerm<Model>
 {
 public:
-    using Base = WorkFunctionEdgeTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
 
     using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
 
     using RNG = typename Model::Base::RNG;
 
@@ -297,17 +488,21 @@ private:
 
     double _amplitude;
 
-    const double& get_linetension (const std::shared_ptr<Edge>& edge) const {
+    double get_linetension (const std::shared_ptr<Edge>& edge) const {
         if (not edge->state.has_parameter(_name)) {
-            edge->state.register_parameter(_name, {0.});
+            edge->state.register_parameter(_name, 0.);
         }
-        return edge->state.get_parameter(_name)[0];
+        return edge->state.get_parameter(_name);
     }
 
 public:
-    LinetensionFluctuations (const DataIO::Config& cfg, const Model& model)
+    LinetensionFluctuations (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _name(get_as<std::string>("name", cfg,
                                   "PCPVertex_Linetension_fluctuation")),
         _rng(model.get_rng()),
@@ -316,7 +511,7 @@ public:
         _amplitude(get_as<double>("amplitude", cfg))
     {
         for (const auto& edge : this->_am.edges()) {
-            edge->state.register_parameter(_name, {0.});
+            edge->state.register_parameter(_name, 0.);
         }
     }
 
@@ -326,12 +521,38 @@ public:
         }
     }
 
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            SpaceVec displ = this->_am.displacement(edge);
+            SpaceVec director = displ / arma::norm(displ);
+
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            a->state.add_force(+ get_linetension(edge) * director);
+            b->state.add_force(- get_linetension(edge) * director);
+        }
+    }
+
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
         return get_linetension(edge);
     }
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
         return get_linetension(edge) * this->_am.length_of(edge);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
     }
 
     void update (double dt) final {
@@ -349,31 +570,91 @@ public:
         _tau = get_as<double>("timescale", cfg, _tau);
         _amplitude = get_as<double>("amplitude", cfg, _amplitude);
     }
+
+
+    std::vector<std::string> write_task_edge_properties_names () const {
+        return std::vector<std::string>({
+            "linetension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const {
+        std::vector<double> tensions({});
+        for (const auto& edge : this->_am.edges()) {
+            tensions.push_back(get_linetension(edge));
+        }
+        return std::vector<std::vector<double>>({tensions});
+    }
+
+    std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
+    }
 };
 
-/// @brief The linetension term
+
+/// @brief The edge contractility term
 /** \f$ E_{i,j} = k l_{i,j}^2\f$, a term quadratic in edge length \f$ l \f$.
  * 
  *  Parameters:
  *      - `contractility`: the contractility \f$ k \f$
  */
 template <typename Model>
-class EdgeContractility : public WorkFunctionEdgeTerm<Model>
+class EdgeContractility : public WorkFunctionTerm<Model>
 {
 public:
-    using Base = WorkFunctionEdgeTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
 
     using Edge = typename Base::Edge;
 
+    using Cell = typename Base::Cell;
 private:
     double _contractility;
 
 public:
-    EdgeContractility (const DataIO::Config& cfg, const Model& model)
+    EdgeContractility (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _contractility(get_as<double>("contractility", cfg))
     { }
+
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            SpaceVec displ = this->_am.displacement(edge);
+
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            a->state.add_force(+ _contractility * displ);
+            b->state.add_force(- _contractility * displ);
+        }
+    }
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
         return _contractility * this->_am.length_of(edge);
@@ -383,9 +664,412 @@ public:
         return 0.5 * _contractility * std::pow(this->_am.length_of(edge), 2);
     }
 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
+    }
+
     void update_parameters (const DataIO::Config& cfg) {
         _contractility = get_as<double>("contractility", cfg, _contractility);
 
+    }
+
+
+    std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
+    }
+};
+
+/// @brief The edge contractility term with heterotypic values
+/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+ * 
+ *  Parameters:
+ *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
+ *              The i,j coordinates map to the type of cell on left and right
+ *              side. 
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+ */
+template <typename Model>
+class EdgeContractilityHeterotypic : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+private:
+    arma::mat _contractility;
+
+    std::size_t _boundary_type;
+
+    const double& get_contractility (const std::shared_ptr<Edge>& edge) const {
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        std::size_t type_a, type_b;
+        if (ca) { type_a = ca->state.type; }
+        else { type_a = _boundary_type; }
+        if (cb) { type_b = cb->state.type; }
+        else { type_b = _boundary_type; }
+
+        if (std::max(type_a, type_b) > _contractility.n_rows)
+        {
+            std::cout << _contractility << std::endl;
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityHeterotypic, no parameter registered "
+                "for cells of type {}. Parameters for {} types registered.",
+                std::max(type_a, type_b),
+                _contractility.n_rows
+            ));
+        }
+
+        return _contractility.at(type_a, type_b);
+    }
+
+public:
+    EdgeContractilityHeterotypic (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_symmetric_matrix(
+            get_as<stdmat>("contractility", cfg))),
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg))
+    { }
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            SpaceVec displ = this->_am.displacement(edge);
+
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            a->state.add_force(+ get_contractility(edge) * displ);
+            b->state.add_force(- get_contractility(edge) * displ);
+        }
+    }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        return get_contractility(edge) * this->_am.length_of(edge);
+    }
+
+    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
+        return (
+            0.5
+            * get_contractility(edge)
+            * std::pow(this->_am.length_of(edge), 2)
+        );
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final {
+        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
+        _contractility = setup_symmetric_matrix(get_as<stdmat>(
+            "contractility", cfg, tension
+        ));
+        _boundary_type = get_as<std::size_t>(
+            "boundary_type", cfg, _boundary_type);
+    }
+
+
+
+
+    std::vector<std::string> write_task_edge_properties_names () const {
+        return std::vector<std::string>({
+            "contractility"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const {
+        std::vector<double> contractilities({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(get_contractility(edge));
+        }
+        return std::vector<std::vector<double>>({contractilities});
+    }
+
+    std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
+    }
+};
+
+/// @brief The edge contractility term with heterotypic values
+/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+ * 
+ *  Parameters:
+ *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
+ *              The i,j coordinates map to the type of cell on left and right
+ *              side. 
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+ */
+template <typename Model>
+class EdgeContractilityAxial : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+private:
+    arma::mat _contractility;
+
+    std::size_t _boundary_type;
+
+    double _angle;
+
+    SpaceVec _axis;
+
+    double _curvature;
+
+    SpaceVec _origin;
+
+    double get_contractility (const std::shared_ptr<Edge>& edge) const {
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        std::size_t type_a, type_b;
+        if (ca) { type_a = ca->state.type; }
+        else { type_a = _boundary_type; }
+        if (cb) { type_b = cb->state.type; }
+        else { type_b = _boundary_type; }
+
+        if (std::max(type_a, type_b) > _contractility.n_rows)
+        {
+            std::cout << _contractility << std::endl;
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityModulated, no parameter registered "
+                "for cells of type {}. Parameters for {} types registered.",
+                std::max(type_a, type_b),
+                _contractility.n_rows
+            ));
+        }
+
+        return _contractility.at(type_a, type_b);
+    }
+
+
+public:
+    EdgeContractilityAxial (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_symmetric_matrix(
+            get_as<stdmat>("contractility", cfg))),
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg)),
+        _axis({
+            cos(get_as<double>("angle", cfg)),
+            sin(get_as<double>("angle", cfg))
+        }),
+        _curvature(get_as<double>("curvature", cfg, 0.)),
+        _origin(SpaceVec({0., 0.}))
+    {
+        if (cfg["origin"]) {
+            _origin = get_as_SpaceVec<2>("origin", cfg);
+        }
+        else {
+            _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
+        }
+    }
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+            
+            SpaceVec axis = _axis;
+            SpaceVec displ = this->_am.displacement(edge);
+            
+            // rotate axis angle wrt tangential of circle
+            if (fabs(_curvature) > 1.e-10) {
+                SpaceVec pos = (  this->_am.position_of(edge->custom_links().a)
+                                + 0.5 * displ);
+
+                SpaceVec origin = _origin - SpaceVec({0., -1. / _curvature});
+
+                SpaceVec displ = pos - origin;
+                double theta = std::atan2(displ[0], displ[1]);
+
+                axis = SpaceVec({
+                    axis[0]*cos(-theta) - axis[1]*sin(-theta),
+                    axis[0]*sin(-theta) + axis[1]*cos(-theta)
+                });
+            }
+
+            double k = get_contractility(edge);
+            SpaceVec dE_dx = k * arma::dot(displ, axis) * axis;
+
+            a->state.add_force(- dE_dx);
+            b->state.add_force(+ dE_dx);
+        }
+    }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        return get_contractility(edge) * this->_am.length_of(edge);
+    }
+
+    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
+        const auto& a = edge->custom_links().a;
+        const auto& b = edge->custom_links().b;
+
+        SpaceVec axis = _axis;
+        SpaceVec displ = this->_am.displacement(a, b);
+        
+        // rotate ppMLC_axis so that points along curved tissue axis
+        if (fabs(_curvature) > 1.e-10) {
+            SpaceVec pos = (  this->_am.position_of(edge->custom_links().a)
+                            + 0.5 * displ);
+
+            SpaceVec origin = _origin - SpaceVec({0., -1. / _curvature});
+
+            SpaceVec displ = pos - origin;
+            double theta = std::atan2(displ[0], displ[1]);
+
+            axis = SpaceVec({
+                axis[0]*cos(-theta) - axis[1]*sin(-theta),
+                axis[0]*sin(-theta) + axis[1]*cos(-theta)
+            });
+        }
+
+        // Gamma -> Gamma * cos^2 (theta), where theta angle with p-d axis
+        return 0.5 * get_contractility(edge) * pow(arma::dot(displ, axis), 2);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final {
+        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
+        _contractility = setup_symmetric_matrix(get_as<stdmat>(
+            "contractility", cfg, tension
+        ));
+        _boundary_type = get_as<std::size_t>(
+            "boundary_type", cfg, _boundary_type);
+        double angle = atan2(_axis[1], _axis[0]);
+        _axis = SpaceVec({
+            cos(get_as<double>("angle", cfg, angle)),
+            sin(get_as<double>("angle", cfg, angle))
+        });
+        _curvature = get_as<double>("curvature", cfg, _curvature);
+    }
+
+
+    std::vector<std::string> write_task_edge_properties_names () const {
+        return std::vector<std::string>({
+            "contractility"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const {
+        std::vector<double> contractilities({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(get_contractility(edge));
+        }
+        return std::vector<std::vector<double>>({contractilities});
+    }
+
+    std::vector<std::string> write_task_edge_energies_names () const {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
     }
 };
 
@@ -399,13 +1083,18 @@ public:
  *              at which cell is tension free.
  */
 template <typename Model>
-class CellContractility : public WorkFunctionCellTerm<Model>
+class CellContractility : public WorkFunctionTerm<Model>
 {
 public:
-    using Base = WorkFunctionCellTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
-    using Edge = typename Base::Edge;
+
+    using SpaceVec = typename Base::SpaceVec;
 
 private:
     double _contractility;
@@ -413,22 +1102,50 @@ private:
     double _preferential_shape;
 
 public:
-    CellContractility (const DataIO::Config& cfg, const Model& model)
+    CellContractility (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _contractility(get_as<double>("contractility", cfg)),
         _preferential_shape(get_as<double>("preferential_shape", cfg))
     { }
 
-    double compute_tension(const std::shared_ptr<Cell>& cell) const final {
-        double S0 = _preferential_shape * sqrt(cell->state.area_preferential);
-        return _contractility * (this->_am.perimeter_of(cell) / S0 - 1) / S0;
+    void compute_and_set_forces () final {
+        for (const auto& cell : this->_am.cells()) {
+            double S0 = _preferential_shape*sqrt(cell->state.area_preferential);
+            double tension = (
+                  _contractility
+                * (this->_am.perimeter_of(cell) / S0 - 1)
+                / S0
+            );
+
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                SpaceVec director = this->_am.displacement(edge);
+                director /= arma::norm(director);
+
+                edge->custom_links().a->state.add_force(+ tension * director);
+                edge->custom_links().b->state.add_force(- tension * director);
+            }
+        }
     }
 
-    double compute_pressure([[maybe_unused]] const std::shared_ptr<Cell>& cell)
-    const final
-    {
-        return 0.;
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        const auto& [c1, c2] = this->_am.adjoints_of(edge);
+
+        double T = 0.;
+        if (c1) {
+            double S0 = _preferential_shape*sqrt(c1->state.area_preferential);
+            T += _contractility * (this->_am.perimeter_of(c1) / S0 - 1) / S0;
+        }
+        if (c2) {
+            double S0 = _preferential_shape*sqrt(c2->state.area_preferential);
+            T += _contractility * (this->_am.perimeter_of(c2) / S0 - 1) / S0;
+        }
+
+        return T;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
@@ -437,10 +1154,60 @@ public:
         return 0.5 * _contractility * std::pow(P / S0 - 1, 2);
     }
 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& cell : cells) {
+            energy += compute_energy(cell);
+        }
+        return energy;
+    }
+
     void update_parameters (const DataIO::Config& cfg) {
         _contractility = get_as<double>("contractility", cfg, _contractility);
         _preferential_shape = get_as<double>("preferential_shape", cfg,
                                              _preferential_shape);
+    }
+
+
+    std::vector<std::string> write_task_edge_energies_names () const final {
+        return std::vector<std::string>({
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const final {
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            tensions
+        });
+    }
+
+    std::vector<std::string> write_task_cell_energies_names () const final {
+        return std::vector<std::string>({
+            "energy"
+        });
+    }
+
+    std::vector<std::vector<double>> write_cell_energies () const final {
+        std::vector<double> energies({});
+        
+        for (const auto& cell : this->_am.cells()) {
+            energies.push_back(compute_energy(cell));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies
+        });
     }
 };
 
@@ -456,10 +1223,16 @@ public:
  *              at which cell is tension free.
  */
 template <typename Model>
-class ShapeElasticity : public WorkFunctionCellTerm<Model>
+class ShapeElasticity : public WorkFunctionTerm<Model>
 {
 public:
-    using Base = WorkFunctionCellTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
 
@@ -469,20 +1242,69 @@ private:
     double _preferential_shape_index;
 
 public:
-    ShapeElasticity (const DataIO::Config& cfg, const Model& model)
+    ShapeElasticity (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _preferential_shape_index(
             get_as<double>("preferential_shape_index", cfg))
     { }
 
-    double compute_tension(const std::shared_ptr<Cell>& cell) const final {
-        const double& s0 = _preferential_shape_index;
-        const double area = this->_am.area_of(cell);
-        const double perimeter = this->_am.perimeter_of(cell);
-        const double s = perimeter / sqrt(area);
-        return _elastic_modulus * (s - s0) / sqrt(area);
+    void compute_and_set_forces () final {
+        for (const auto& cell : this->_am.cells()) {
+            const double& s0 = _preferential_shape_index;
+            const double area = this->_am.area_of(cell);
+            const double perimeter = this->_am.perimeter_of(cell);
+            const double s = perimeter / sqrt(area);
+            double tension = _elastic_modulus * (s - s0) / sqrt(area);
+            double pressure = (
+                  _elastic_modulus * (s - s0) * perimeter
+                * (-0.5 * std::pow(area, -1.5))
+            );
+            pressure /= 2.;
+
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                SpaceVec displ = this->_am.displacement(edge);
+                SpaceVec director = displ / arma::norm(displ);
+                
+                SpaceVec normal({displ[1], -displ[0]});
+                if (flip) {
+                    normal *= -1;
+                }
+
+                edge->custom_links().a->state.add_force(+ tension * director);
+                edge->custom_links().b->state.add_force(- tension * director);
+                
+                edge->custom_links().a->state.add_force(- pressure * normal);
+                edge->custom_links().b->state.add_force(- pressure * normal);
+            }
+        }
+    }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        const auto& [c1, c2] = this->_am.adjoints_of(edge);
+
+        double T = 0.;
+        if (c1) {
+            const double& s0 = _preferential_shape_index;
+            double area = this->_am.area_of(c1);
+            double perimeter = this->_am.perimeter_of(c1);
+            double s = perimeter / sqrt(area);
+            T += _elastic_modulus * (s - s0) / sqrt(area);
+        }
+        if (c2) {
+            const double& s0 = _preferential_shape_index;
+            double area = this->_am.area_of(c2);
+            double perimeter = this->_am.perimeter_of(c2);
+            double s = perimeter / sqrt(area);
+            T += _elastic_modulus * (s - s0) / sqrt(area);
+        }
+
+        return T;
     }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
@@ -501,11 +1323,65 @@ public:
         return 0.5 * _elastic_modulus * std::pow(s - s0, 2);
     }
 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& cell : cells) {
+            energy += compute_energy(cell);
+        }
+        return energy;
+    }
+
     void update_parameters (const DataIO::Config& cfg) {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg,
                                           _elastic_modulus);
         _preferential_shape_index = get_as<double>(
             "preferential_shape_index", cfg, _preferential_shape_index);
+    }
+
+
+    std::vector<std::string> write_task_edge_energies_names () const final {
+        return std::vector<std::string>({
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const final {
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            tensions
+        });
+    }
+
+    std::vector<std::string> write_task_cell_energies_names () const final {
+        return std::vector<std::string>({
+            "energy",
+            "pressure"
+        });
+    }
+
+    std::vector<std::vector<double>> write_cell_energies () const final {
+        std::vector<double> energies({});
+        std::vector<double> pressures({});
+        
+        for (const auto& cell : this->_am.cells()) {
+            energies.push_back(compute_energy(cell));
+            pressures.push_back(compute_pressure(cell));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            pressures
+        });
     }
 };
 
@@ -519,20 +1395,29 @@ public:
  *              at which cell is pressure free.
  */
 template <typename Model>
-class AreaElasticity : public WorkFunctionCellTerm<Model>
+class AreaElasticity : public WorkFunctionTerm<Model>
 {
 public:
-    using Base = WorkFunctionCellTerm<Model>;
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
-
 protected:
     double _elastic_modulus;
 
 public:
-    AreaElasticity (const DataIO::Config& cfg, const Model& model)
+    AreaElasticity (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
     :
-        Base(cfg, model),
+        Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg))
     {
         double A0 = get_as<double>("preferential_area", cfg);
@@ -542,10 +1427,22 @@ public:
         }
     }
 
-    double compute_tension([[maybe_unused]] const std::shared_ptr<Cell>& cell)
-    const final 
-    {
-        return 0.;
+    void compute_and_set_forces () final {
+        for (const auto& cell : this->_am.cells()) {
+            double pressure = compute_pressure(cell) / 2.;
+
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                SpaceVec displ = this->_am.displacement(edge);
+                
+                SpaceVec normal({displ[1], -displ[0]});
+                if (flip) {
+                    normal *= -1;
+                }
+                
+                edge->custom_links().a->state.add_force(- pressure * normal);
+                edge->custom_links().b->state.add_force(- pressure * normal);
+            }
+        }
     }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
@@ -559,6 +1456,19 @@ public:
         return 0.5 * _elastic_modulus * std::pow(A / A0 - 1, 2);
     }
 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& cell : cells) {
+            energy += compute_energy(cell);
+        }
+        return energy;
+    }
+
     void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
@@ -568,6 +1478,29 @@ public:
         for (const auto& cell : this->_am.cells()) {
             cell->state.area_preferential = A0;
         }
+    }
+    
+
+    std::vector<std::string> write_task_cell_energies_names () const final {
+        return std::vector<std::string>({
+            "energy",
+            "pressure"
+        });
+    }
+
+    std::vector<std::vector<double>> write_cell_energies () const final {
+        std::vector<double> energies({});
+        std::vector<double> pressures({});
+        
+        for (const auto& cell : this->_am.cells()) {
+            energies.push_back(compute_energy(cell));
+            pressures.push_back(compute_pressure(cell));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            pressures
+        });
     }
 };
 

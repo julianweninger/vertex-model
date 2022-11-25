@@ -56,11 +56,9 @@ public:
  */
 class EdgeState {
 private:
-    std::map<std::string, std::vector<double>> _parameters;
+    std::map<std::string, double> _parameters;
 
 public:
-    double tension;
-
     /// The time T1 transition was last attempted
     /** 0 if never attempted */
     std::size_t last_T1_attempt;
@@ -75,7 +73,6 @@ public:
     EdgeState ()
     :
         _parameters({}),
-        tension(0.),
         last_T1_attempt(0),
         remove(false)
     { }
@@ -94,7 +91,7 @@ public:
         return _parameters.find(name) != _parameters.end();
     }
 
-    const auto& get_parameter (const std::string& name) const {
+    auto get_parameter (const std::string& name) const {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot find EdgeState parameter with name `{}`", name));
@@ -104,13 +101,13 @@ public:
 
     /// Register parameter
     void register_parameter (const std::string& name,
-                             const std::vector<double>& values) {
+                             const double& value) {
         if (_parameters.find(name) != _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot register EdgeState parameter with name `{}`! "
                 "A parameter with such a name is already registered.", name));
         }
-        _parameters[name] = values;
+        _parameters[name] = value;
     }
 
     /// Remove parameter from register
@@ -120,13 +117,13 @@ public:
 
     /// Update value of parameter
     void update_parameter (const std::string& name,
-                           const std::vector<double>& values) {
+                           const double& value) {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot find EdgeState parameter registered with name `{}`. "
                 "Please register the parameter first.", name));
         }
-        _parameters[name] = values;
+        _parameters[name] = value;
     }
 
     void inherit_from_state (const EdgeState& state) {
@@ -143,11 +140,9 @@ public:
     using SpaceVec = Utopia::SpaceVecType<2>;
 
 private:
-    std::map<std::string, std::vector<double>> _parameters;
+    std::map<std::string, double> _parameters;
 
 public:
-    double pressure;
-
     /// The type of a cell
     std::size_t type;
 
@@ -168,7 +163,6 @@ public:
     CellState (const Config& cfg)
     :
         _parameters({}),
-        pressure(0.),
         type(get_as<std::size_t>("type", cfg, 0)),
         remove(false)
     { }
@@ -197,13 +191,13 @@ public:
 
     /// Register parameter
     void register_parameter (const std::string& name,
-                             const std::vector<double>& values) {
+                             const double& value) {
         if (_parameters.find(name) != _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot register EdgeState parameter with name `{}`! "
                 "A parameter with such a name is already registered.", name));
         }
-        _parameters[name] = values;
+        _parameters[name] = value;
     }
 
     /// Remove parameter from register
@@ -213,13 +207,13 @@ public:
 
     /// Update value of parameter
     void update_parameter (const std::string& name,
-                           const std::vector<double>& values) {
+                           const double& value) {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
                 "Cannot find EdgeState parameter registered with name `{}`. "
                 "Please register the parameter first.", name));
         }
-        _parameters[name] = values;
+        _parameters[name] = value;
     }
 
     void inherit_from_state (const CellState& state) {

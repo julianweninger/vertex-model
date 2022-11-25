@@ -11,6 +11,7 @@
 #include "utils.hh"
 
 #include <utopia/core/apply.hh>
+#include <utopia/core/testtools.hh>
 
 #include "../PCPVertex.hh"
 #include "../algorithm.hh"
@@ -28,7 +29,6 @@ using SpaceVec = typename PCPVertex::SpaceVec;
 enum Cases {
     periodic,
     non_periodic,
-    shape_elastic, // non-periodic with shape elasticity term
     columnar_periodic,
     columnar      // Columnar initialisation  
 };
@@ -59,11 +59,6 @@ struct Fixture {
         }
         else if constexpr (C == non_periodic) {
             Utopia::PseudoParent pp("test.yml");
-            return PCPVertex("PCPVertex", pp, {},
-                            std::make_tuple(time_energy_adaptor));
-        }
-        else if constexpr (C == shape_elastic) {
-            Utopia::PseudoParent pp("test_shape_elastic.yml");
             return PCPVertex("PCPVertex", pp, {},
                             std::make_tuple(time_energy_adaptor));
         }
@@ -188,7 +183,6 @@ public:
 
 typedef boost::mpl::vector< Fixture<Cases::periodic>,
                             Fixture<Cases::non_periodic>,
-                            Fixture<Cases::shape_elastic>,
                             Fixture<Cases::columnar_periodic>,
                             Fixture<Cases::columnar>
                           > Fixtures;
@@ -224,184 +218,120 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         BOOST_TEST(model.get_energy_change() < minimization.tolerance);
 
 
-        // std::cout << std::endl << "Beginning test of minimization in "
-        //                           "steepest gradient noisy scheme .. \n\n";
+        std::cout << std::endl << "Beginning test of minimization in "
+                                  "steepest gradient noisy scheme .. \n\n";
 
-        // minimization_cfg["num_steps"] = 100;
-        // minimization_cfg["temperature"] = 0.0001;
-        // minimization_cfg["linetension_fluctuation"] = 0.0001;
-        // minimization_cfg["area_fluctuation"] = 0.0001;
+        minimization_cfg["num_steps"] = 100;
+        minimization_cfg["temperature"] = 0.0001;
+        minimization_cfg["linetension_fluctuation"] = 0.0001;
+        minimization_cfg["area_fluctuation"] = 0.0001;
 
-        // auto time_start = model.get_time();
-        // minimization = MinimizationParams(minimization_cfg);
-        // model.minimize_energy(minimization);
+        auto time_start = model.get_time();
+        minimization = MinimizationParams(minimization_cfg);
+        model.minimize_energy(minimization);
 
-        // BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
+        BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
     }
 
     BOOST_AUTO_TEST_CASE_TEMPLATE (test_WF_terms, Fixture, Fixtures)
     {
-        const double precision = 1.e-6;
+        const double precision = 1.e-3;
 
-        Fixture fixture;
-        auto& model = fixture.vertex_model;
-        model.prolog();
-        
-        const auto [Fs, Ts, Ps, Ds] = model.get_work_function_terms();
-        for (const auto& [name, F] : Fs) {
-            model.unregister_term(name);
-        }
-        for (const auto& [name, T] : Ts) {
-            model.unregister_term(name);
-        }
-        for (const auto& [name, P] : Ps) {
-            model.unregister_term(name);
-        }
+        std::size_t test_term_index = 0;
+        while (true) {
+            Fixture fixture;
+            auto& model = fixture.vertex_model;
 
-        const auto& am = model.get_am();
-
-
-        for (const auto& [name, F] : Fs) {
-            model.register_force(name, F);
-
-            for (std::size_t i = 0; i < 10; i++) {
-                model.iterate();
-            }
-
-
-            SpaceVec displ({0.01, 0.01});
-
-            double _precision = precision;
-            if (name == "boundary_curved_stripe_potential") {
-                _precision = 2.e-3;
-                displ = SpaceVec({0.001, 0.001});
-            }
-
-            for (const auto& vertex : am.vertices()) {
-                const SpaceVec v_pos0 = am.position_of(vertex);
-
-                const SpaceVec force = F->compute_force(vertex);
-                const double energy = F->compute_energy(vertex);
-
-                // change vertex position by something
-                am.move_by(vertex, displ);
-
-                double delta_E = F->compute_energy(vertex) - energy;
-                SpaceVec delta = am.get_space()->displacement(
-                    v_pos0,
-                    am.position_of(vertex)
-                );
-                SpaceVec force_mean = 0.5 * (force + F->compute_force(vertex));
-
-                if (fabs(delta_E) < _precision) {
-                    BOOST_CHECK_SMALL(arma::dot(force_mean, delta), _precision);
-                }
-                else {
-                    BOOST_CHECK_CLOSE(
-                        delta_E,
-                        - arma::dot(force_mean, delta),
-                        _precision
-                    );
-                }
-
-                am.move_to(vertex, v_pos0);
-            }
-
-            model.unregister_term(name);
-        }
-
-        for (const auto& [name, T] : Ts) {
-            model.register_tension(name, T);
+            Config work_function_terms = get_as<Config>(
+                "test_work_function_terms", 
+                model.get_cfg()
+            );
             
-            for (const auto& edge : am.edges()) {
-                const SpaceVec pos0 = am.position_of(edge->custom_links().a);
+            if (test_term_index >= work_function_terms.size()) {
+                BOOST_TEST_MESSAGE("Done.");
+                break;
+            }
 
-                const double tension = T->compute_tension(edge);
-                const double energy = T->compute_energy(edge);
+            // this iterates below the level of defined work functions
+            for (const auto& term_pair : work_function_terms[test_term_index++]) {
+                auto name = term_pair.first.as<std::string>();
+                auto params = term_pair.second;
 
-                SpaceVec displ = am.displacement(edge);
-                double length = arma::norm(displ);
+                BOOST_TEST_MESSAGE("Work function term: " << name);
 
-                // change length by something
-                am.move_by(edge->custom_links().a, 0.05 * displ);
 
-                double delta_E = T->compute_energy(edge) - energy;
-                double delta_length = am.length_of(edge) - length;
-                double tension_mean = 0.5 * (tension + T->compute_tension(edge));
+                model.prolog();
 
-                if (fabs(delta_E) < precision) {
-                    BOOST_CHECK_SMALL(tension_mean * delta_length, precision);
+                for (std::size_t i = 0; i < 50; i++) {
+                    model.iterate();
                 }
-                else {
-                    BOOST_CHECK_CLOSE(
-                        delta_E,
-                        tension_mean * delta_length,
-                        precision
-                    );
+                
+                // erase all work function terms
+                while (model.get_work_function_terms().size() > 0) {
+                    auto [name, term] = *model.get_work_function_terms().begin();
+                    model.erase_work_function_term(name);
                 }
 
-                am.move_to(edge->custom_links().a, pos0);
-            }   
+                const auto& am = model.get_am();
 
-            model.unregister_term(name);
-        }
+                model.register_work_function_term(
+                    name,
+                    get_as<std::string>("name", params, name),
+                    params
+                );
+                const auto& term = model.get_work_function_term(name);
 
-        for (const auto& [name, P] : Ps) {
-            model.register_pressure(name, P);
+                std::uniform_real_distribution<double> uniform_distr(0, 2 * M_PI);
+                double random_angle = uniform_distr(*model.get_rng());
+                SpaceVec displ = 0.01 * SpaceVec({cos(random_angle),
+                                                  sin(random_angle)});
+                std::size_t steps = 200;
 
-            for (const auto& cell : am.cells()) {
-                const double pressure = P->compute_pressure(cell);
-                const double tension = P->compute_tension(cell);
-                const double energy = P->compute_energy(cell);
+                double _precision = precision;
 
-                const double area = am.area_of(cell);
-                const double perimeter = am.perimeter_of(cell);
-                const SpaceVec center = am.barycenter_of(cell);
-                std::map<std::shared_ptr<PCPVertex::Vertex>, SpaceVec> vertex_pos0;
-                for (const auto& [edge, flip] : cell->custom_links().edges) {
-                    std::shared_ptr<PCPVertex::Vertex> vertex;
-                    if (not flip) {
-                        vertex = edge->custom_links().a;
+                for (const auto& vertex : am.vertices()) {
+                    const SpaceVec v_pos0 = am.position_of(vertex);
+
+                    vertex->state.reset_force();
+                    term->compute_and_set_forces();
+                    const double energy = term->compute_energy();
+
+                    double integral = 0.;
+                    for (std::size_t i = 0; i < steps; i++) {
+                        SpaceVec force = vertex->state.get_force();
+
+                        // change vertex position by something
+                        SpaceVec tmp = am.position_of(vertex);
+                        am.move_by(vertex, displ / double(steps));
+
+                        SpaceVec delta = am.get_space()->displacement(
+                            tmp,
+                            am.position_of(vertex)
+                        );
+                        vertex->state.reset_force();
+                        term->compute_and_set_forces();
+                        SpaceVec mean_force = 0.5 *(force + vertex->state.get_force());
+
+                        integral -= arma::dot(mean_force, delta);
+                    }
+                    
+                    if (name == "boundary_curved_stripe_potential") {
+                        std::cout << vertex->state.get_force().t();
+                    }
+
+
+                    double delta_E = term->compute_energy() - energy;
+                    if (fabs(delta_E) < 1.e-12) {
+                        BOOST_CHECK_SMALL(integral, 1.e-12);
                     }
                     else {
-                        vertex = edge->custom_links().b;
+                        BOOST_CHECK_CLOSE(delta_E, integral, _precision);
                     }
-                    SpaceVec pos = am.position_of(vertex);
-                    vertex_pos0[vertex] = pos;
 
-                    SpaceVec displ = model.get_space()->displacement(pos, center);
-
-                    am.move_by(vertex, 0.01 * displ);
-                }
-
-                double delta_A = am.area_of(cell) - area;
-                double delta_P = am.perimeter_of(cell) - perimeter;
-                double delta_E = P->compute_energy(cell) - energy;
-                double pressure_mean = 0.5 * (pressure + P->compute_pressure(cell));
-                double tension_mean = 0.5 * (tension + P->compute_tension(cell));
-
-                if (fabs(delta_E) < precision) {
-                    BOOST_CHECK_SMALL(
-                        pressure_mean * delta_A + tension_mean * delta_P,
-                        precision
-                    );
-                }
-                else {
-                    BOOST_CHECK_CLOSE(
-                        delta_E,
-                        pressure_mean * delta_A + tension_mean * delta_P,
-                        precision
-                    );
-                }
-
-                for (const auto& kv_pair : vertex_pos0) {
-                    am.move_to(kv_pair.first, kv_pair.second);
+                    am.move_to(vertex, v_pos0);
                 }
             }
-
-            model.unregister_term(name);
         }
-
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_periodic)
@@ -420,24 +350,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         test_model.prolog();
 
         test_model.perform_test();
-
-
-        // std::cout << std::endl << "Adding heterogeneities .. \n\n";
-
-        // test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), false);
-        // test_model.set_pMLC_contractility(0.2, 1.);
-
-        // test_model.perform_test();
-
-
-        // std::cout << std::endl << "Adding curvature .. \n\n";
-
-        // test_model.curve_boundary(0.005, true);
-        // test_model.set_ppMLC_contractility(0.1, SpaceVec({1., 0.}), true);
-
-        // test_model.perform_test();
-
-        std::cout << std::endl << "Done. \n\n";
 
         test_model.epilog();
     }

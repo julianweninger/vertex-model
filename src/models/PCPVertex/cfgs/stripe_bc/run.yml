@@ -38,7 +38,7 @@ parameter_space:
             default: 0.
             values:
               - 0.
-              - 1.5e-1
+              - 4.5e-2
           origin: [0, 0]
           deform_plastic: true
           stretch: true

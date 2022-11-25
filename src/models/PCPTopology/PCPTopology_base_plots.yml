@@ -676,15 +676,48 @@ cellular_structure:
     Vertices:
       path: data/PCPTopology/Vertices
       transform:
-        - .sel: [!dag_prev , {property: [x, y]}]
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['x', 'y']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+        - import_and_call:
+          - model_plots.PCPTopology.data_ops
+          - stack
+          - !dag_prev 
+          - {ids: [id, time]}
     Edges:
       path: data/PCPTopology/Edges
       transform:
-        - .sel: [!dag_prev , {property: [vertex_a, vertex_b]}]
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['vertex_a', 'vertex_b']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+        - import_and_call:
+          - model_plots.PCPTopology.data_ops
+          - stack
+          - !dag_prev 
+          - {ids: [id, time]}
     Cells:
       path: data/PCPTopology/Cells
       transform:
-        - .sel: [!dag_prev , {property: [x, y, cell_type]}]
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['x', 'y', 'cell_type']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+        - import_and_call:
+          - model_plots.PCPTopology.data_ops
+          - stack
+          - !dag_prev 
+          - {ids: [id, time]}
     # vector_property:
     #   path: data/PCPTopology/Cells
     #   transform:

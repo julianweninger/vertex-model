@@ -20,6 +20,9 @@
 #include "../PCPVertex/PCPVertex_write_tasks.hh"
 
 #include "PCPTopology_write_tasks.hh"
+
+#include "work_function.hh"
+
 #include "operations.hh"
 
 // coupled models
@@ -31,6 +34,7 @@
 
 #include "../PlanarCellPolarity/PlanarCellPolarity.hh"
 #include "../PlanarCellPolarity/PlanarCellPolarity_write_tasks.hh"
+
 
 
 namespace Utopia {
@@ -410,9 +414,24 @@ private:
                 //         build_simple_shear(
                 //             name, op_cfg, _minimization_params));
                 // }
+                else if (name == "update_work_function_term") {
+                    _operations.push_back(
+                        build_update_work_function_term(
+                            name, op_cfg, _minimization_params
+                        )
+                    );
+                }
+                else if (name == "register_work_function_term") {
+                    _operations.push_back(
+                        build_register_work_function_term(
+                            name, op_cfg, _minimization_params
+                        )
+                    );
+                }
                 else if (name == "void") {
                     _operations.push_back(
-                        build_void(name, op_cfg, _minimization_params));
+                        build_void(name, op_cfg, _minimization_params)
+                    );
                 }
                 else {
                     throw std::invalid_argument(fmt::format(
@@ -448,6 +467,8 @@ private:
                         // "- update_boundary_parameter\n"
                         // "- set_torque\n"
                         // "- simple_shear\n"
+                        "- update_work_function_term\n"
+                        "- register_work_function_term\n"
                         "- void\n"
                     ));
                 }
@@ -600,7 +621,7 @@ private:
             this->_log->info("Applying operation '{}' with {} iterates ...",
                              params.name, iterates);
         }
-        else {
+        else { 
             this->_log->debug("Applying operation '{}' with {} iterates ...",
                               params.name, iterates);
             emit_interval = iterates + 1;
@@ -1001,6 +1022,10 @@ public:
 
     double get_curvature_boundary() const {
         return _vertex_model.get_curvature_boundary();
+    }
+
+    auto fix_number_work_function_terms() {
+        return _vertex_model.fix_number_work_function_terms();
     }
 };
 

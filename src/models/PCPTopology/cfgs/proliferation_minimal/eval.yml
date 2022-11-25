@@ -78,7 +78,18 @@ equilibrium_cellular_structure:
 
 continuous_cellular_structure:
   based_on: cellular_structure
-  datapath: PCPTopology/PCPVertex
+  select:
+    Vertices:
+      path: data/PCPTopology/PCPVertex/Vertices
+    Edges:
+      path: data/PCPTopology/PCPVertex/Edges
+    Cells:
+      path: data/PCPTopology/PCPVertex/Cells
+    Lx:
+      path: data/PCPTopology/PCPVertex/Vertices
+    Ly:
+      path: data/PCPTopology/PCPVertex/Vertices
+
 
 
 cell_neighbourhood: !pspace

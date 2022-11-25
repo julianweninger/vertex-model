@@ -2497,6 +2497,61 @@ OperationBundle build_void (
 //     return std::make_pair(operation, params);
 // }
 
+/// Update the paramters of a registered work function
+/** Takes configs:
+ *      - `name' (str): The name of the WF-term to update
+ *      - `parameters' (Config): Parameters forwarded to
+ *              update_work_function_term
+ */
+OperationBundle build_update_work_function_term (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    auto wf_name = get_as<std::string>("name", cfg);
+    auto update_params = get_as<Config>("parameters", cfg);
+
+    Operation operation = [wf_name, update_params] (PCPVertex& vertex_model)
+    {
+        auto registered = vertex_model.is_registered_term(wf_name);
+        if (registered) {
+            vertex_model.update_work_function_term(wf_name, update_params);
+        }
+        else {
+            vertex_model.get_logger()->warn("Cannot update unregistered "
+                "work-function term {}!", wf_name);
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// Update the paramters of a registered work function
+/** Takes configs:
+ *      - `term' (str): The reference to a work-function term
+ *      - `name' (str, optional): The name given to this WF-term
+ *      - `parameters' (Config): Parameters forwarded to the constructor
+ *              of the selected term
+ */
+OperationBundle build_register_work_function_term (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    auto term = get_as<std::string>("term", cfg);
+    auto wf_name = get_as<std::string>("name", cfg, term);
+    auto wf_params = get_as<Config>("parameters", cfg);
+
+    Operation operation = [term, wf_name, wf_params] (PCPVertex& vertex_model)
+    {
+        vertex_model.register_work_function_term(term, wf_name, wf_params);
+    };
+
+    return std::make_pair(operation, params);
+}
+
 // /// Set a torque to cells
 // /** The configuration is passed on to the constructor of RotationCellState
 //  *  The config following the keys to the respective cell type:

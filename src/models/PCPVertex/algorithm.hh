@@ -19,7 +19,7 @@ void PCPVertex::init_minimization ()
  */
 double PCPVertex::steepest_gradient_step ()
 {
-    compute_forces();
+    compute_and_set_forces();
 
     apply_rule<Update::sync>(update_position, _am.vertices());
 

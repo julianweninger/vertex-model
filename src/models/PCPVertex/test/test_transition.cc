@@ -569,7 +569,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         // set arbitrary values and check inheritance
         cell->state.type = 1;
-        cell->state.register_parameter("some_cell_value", {1.});
+        cell->state.register_parameter("some_cell_value", 1.);
         model.divide_cell(cell, 0.);
 
 
@@ -588,8 +588,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                        ==  cell->state.list_parameters().size());
             BOOST_TEST(new_cell->state.type
                        ==  cell->state.type);
-            BOOST_TEST(new_cell->state.get_parameter("some_cell_value")[0]
-                       ==  cell->state.get_parameter("some_cell_value")[0]);
+            BOOST_TEST(new_cell->state.get_parameter("some_cell_value")
+                       ==  cell->state.get_parameter("some_cell_value"));
 
             new_cell->state.type = 0;
             new_cell->state.unregister_parameter("some_cell_value");
