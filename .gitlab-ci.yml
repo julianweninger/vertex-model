@@ -249,7 +249,7 @@ test:model_defaults:
 
     - utopia run ActiveSLS --debug
     - utopia run BendSplay --debug
-    - utopia run Collier --debug
+    - utopia run Collier --debug --num-steps 500
     - utopia run NotchDelta --debug
     - utopia run PCPVertex --debug
     - utopia run PCPTopology --debug --num-steps 5
