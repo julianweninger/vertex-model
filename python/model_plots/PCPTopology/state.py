@@ -613,7 +613,7 @@ def histogram_plot(
                         ls='', lw=None
                     )
                 )
-                
+        
         pc = PatchCollection(boxes, facecolor=color, edgecolor='None')
         hlpr.ax.add_collection(pc)
 
