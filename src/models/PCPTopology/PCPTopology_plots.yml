@@ -193,71 +193,70 @@ cell_properties/neighbors_vs_area:
   x: area
   y: num_neighbors
 
-cell_properties/HH_contacts_vs_area:
-  based_on: cell_properties_x_vs_y
+# cell_properties/HH_contacts_vs_area:
+#   based_on: cell_properties_x_vs_y
+#   enabled: False
 
-  enabled: False
+#   select:
+#     x:
+#       transform:
+#         - .sel: [!dag_prev , {property: area}]
+#         - .rename: [!dag_prev , area]
+#     y:
+#       transform:
+#         - .sel: [!dag_prev , {property: num_hair_neighbors}]
+#         - .rename: [!dag_prev , num_hair_neighbors]
 
-  select:
-    x:
-      transform:
-        - .sel: [!dag_prev , {property: area}]
-        - .rename: [!dag_prev , area]
-    y:
-      transform:
-        - .sel: [!dag_prev , {property: num_hair_neighbors}]
-        - .rename: [!dag_prev , num_hair_neighbors]
+#   to_plot:
+#     - function: sns.scatterplot
+#       data: !dag_result hair_cells
 
-  to_plot:
-    - function: sns.scatterplot
-      data: !dag_result hair_cells
-
-  x: area
-  y: num_hair_neighbors
-  hue: time
+#   x: area
+#   y: num_hair_neighbors
+#   hue: time
       
-energy_vs_SCHC_contacts:
-  based_on: universe
-  enabled: False
+# energy_vs_SCHC_contacts:
+#   based_on: universe
+#   enabled: False
 
-  module: model_plots.PCPTopology
-  plot_func: scatter_xy_data
+#   module: model_plots.PCPTopology
+#   plot_func: scatter_xy_data
 
-  plot_time_color_gradient: True
-  cmap: plasma
+#   plot_time_color_gradient: True
+#   cmap: plasma
 
-  select:
-    # the data containing all cells
-    _cells: data/PCPTopology/Cells
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: num_hair_neighbors
-    y: 
-      path: data/PCPTopology/Energy/Edge_contractility
+#   select:
+#     # the data containing all cells
+#     _cells: data/PCPTopology/Cells
+#     property:
+#       path: data/PCPTopology/Cells
+#       transform:
+#       - .sel:
+#         args: [!dag_tag _cells]
+#         kwargs:
+#           property: num_hair_neighbors
+#     y: 
+#       path: data/PCPTopology/Energy/Edge_contractility
     
-  transform:
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-    - create_mask:
-      args: [!dag_prev , ==, 2]
-    - .where:
-      args: [!dag_tag property, !dag_prev ]
-    - .mean:
-      args: [!dag_prev  ,id]
-      kwargs:
-        skipna: True
-      tag: x
+#   transform:
+#     - .sel:
+#       args: [!dag_tag _cells]
+#       kwargs:
+#         property: cell_type
+#     - create_mask:
+#       args: [!dag_prev , ==, 2]
+#     - .where:
+#       args: [!dag_tag property, !dag_prev ]
+#     - .mean:
+#       args: [!dag_prev  ,id]
+#       kwargs:
+#         skipna: True
+#       tag: x
 
-  helpers:
-    set_labels:
-      x: average HC neighbors for SCs
-      y: edge contractility energy
+#   helpers:
+#     set_labels:
+#       x: average HC neighbors for SCs
+#       y: edge contractility energy
 
 energy_vs_HCHC_contacts:
   based_on: energy_vs_SCHC_contacts
@@ -502,25 +501,14 @@ cell_neighbourhood: !pspace
     area:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: area
-        - .rename: [!dag_prev , area]
+        - .sel: [!dag_prev , {property: area}]
     cell_type:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: cell_type
-        - .rename: [!dag_prev , cell_type]
+        - .sel: [!dag_prev , {property: cell_type}]
     shape_index:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
         - .sel: [!dag_prev , {property: perimeter}]
         - .sel: [!dag_node -2, {property: area_preferential}]
         - pow: [!dag_node -1 , 0.5]
@@ -529,19 +517,18 @@ cell_neighbourhood: !pspace
     num_neighbors:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_neighbors
-        - .rename: [!dag_prev , num_neighbors]
+        - .sel: [!dag_prev , {property: num_neighbors}]
     # num_hair_neighbors:
     #   path: data/PCPTopology/Cells
     #   transform:
-    #     - .sel:
-    #       args: [!dag_prev ]
-    #       kwargs:
-    #         property: num_hair_neighbors
-    #     - .rename: [!dag_prev , num_hair_neighbors]
+    #     - .sel: [!dag_node -1, {property: cell_type}]
+    #     - .sel: [!dag_node -2, {property: num_neighbors}]
+    #     - .sel: [!dag_node -3, {property: num_neighbors__self}]
+    #     - call_lambda:
+    #       - "lambda type, nbs, _nbs: xr.where(type==0, _nbs, nbs - _nbs)"
+    #       - !dag_node -3
+    #       - !dag_node -2
+    #       - !dag_node -1
 
   only_type: !sweep
     default: all

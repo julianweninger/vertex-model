@@ -253,6 +253,22 @@ auto cells_adaptor = std::make_tuple(
                             return static_cast<float>(
                                    am.neighbors_of(cell).size());
                        });
+        // dataset->write(cells.begin(), cells.end(),
+        //                [am](const auto& cell) {
+        //                     auto nbs = am.neighbors_of(cell);
+        //                     std::size_t N = std::accumulate(
+        //                         nbs.begin(), nbs.end(), 0,
+        //                         [cell](std::size_t N, const auto& nb) {
+        //                             if (nb->state.type == cell->state.type) {
+        //                                 return N + 1;
+        //                             }
+        //                             else {
+        //                                 return N;
+        //                             }
+        //                         }
+        //                     );
+        //                     return static_cast<float>(N);
+        //                });
 
 
         // std::vector<float> hex_order;
@@ -350,6 +366,7 @@ auto cells_adaptor = std::make_tuple(
             "area_preferential",
             "perimeter",
             "num_neighbors",
+            // "num_neighbors__self",
             "q_x",
             "q_y",
             "is_boundary"

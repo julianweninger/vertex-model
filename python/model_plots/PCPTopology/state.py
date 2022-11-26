@@ -285,12 +285,10 @@ def plot_neighbourhood(*, num_neighbors, num_hair_neighbors,
               use_dag=True,
               required_dag_tags=(
                   'num_neighbors',
-                  'num_hair_neighbors',
                   'area',
                   'shape_index',
                   'cell_type'),
                 compute_only_required_dag_tags=False
-
 )
 def cell_neighbourhood(*, data: dict, hlpr: PlotHelper,
                        stack_dims: list=None,

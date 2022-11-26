@@ -101,17 +101,11 @@ cell_neighbourhood: !pspace
     area:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: area
+        - .sel: [!dag_prev , {property: area}]
     cell_type:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: cell_type
+        - .sel: [!dag_prev , {property: cell_type}]
     shape_index:
       path: data/PCPTopology/Cells
       transform:
@@ -123,17 +117,18 @@ cell_neighbourhood: !pspace
     num_neighbors:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_neighbors
-    num_hair_neighbors:
-      path: data/PCPTopology/Cells
-      transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_hair_neighbors
+        - .sel: [!dag_prev , {property: num_neighbors}]
+    # num_hair_neighbors:
+    #   path: data/PCPTopology/Cells
+    #   transform:
+    #     - .sel: [!dag_node -1, {property: cell_type}]
+    #     - .sel: [!dag_node -2, {property: num_neighbors}]
+    #     - .sel: [!dag_node -3, {property: num_neighbors__self}]
+    #     - call_lambda:
+    #       - "lambda type, nbs, _nbs: xr.where(type==0, _nbs, nbs - _nbs)"
+    #       - !dag_node -3
+    #       - !dag_node -2
+    #       - !dag_node -1
 
   only_type: !sweep
     default: all

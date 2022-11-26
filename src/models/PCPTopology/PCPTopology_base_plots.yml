@@ -904,14 +904,14 @@ cell_neighbourhood_mv__map_time:
             kwargs:
               property: num_neighbors
           - .rename: [!dag_prev , num_neighbors]
-      _num_hair_neighbors:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel:
-            args: [!dag_prev ]
-            kwargs:
-              property: num_hair_neighbors
-          - .rename: [!dag_prev , num_hair_neighbors]
+      # _num_hair_neighbors:
+      #   path: data/PCPTopology/Cells
+      #   transform:
+      #     - .sel:
+      #       args: [!dag_prev ]
+      #       kwargs:
+      #         property: num_hair_neighbors
+      #     - .rename: [!dag_prev , num_hair_neighbors]
 
   transform:
     - import_and_call:
@@ -940,9 +940,9 @@ cell_neighbourhood_mv__map_time:
     - import_and_call: *map_directional_time
     - .squeeze: [!dag_prev ]
       tag: num_neighbors
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _num_hair_neighbors,
-             {ids: [seed, id]}]
-    - import_and_call: *map_directional_time
-    - .squeeze: [!dag_prev ]
-      tag: num_hair_neighbors
+    # - import_and_call:
+    #   args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _num_hair_neighbors,
+    #          {ids: [seed, id]}]
+    # - import_and_call: *map_directional_time
+    # - .squeeze: [!dag_prev ]
+    #   tag: num_hair_neighbors
