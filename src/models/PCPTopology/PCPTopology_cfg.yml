@@ -90,119 +90,10 @@ operations:
 
       emit_interval: 4
 
-# -- The Collier model used in differentiation (optional)
-Collier:
-  space: {periodic: false}
-  cell_manager:
-    grid:
-      structure: square
-      resolution: 23
-    neighborhood:
-      mode: empty # is synchronised with vertex model
-      compute_and_store: false
-
-    # Cell initialization parameters
-    cell_params:
-      notch: 1.
-      notch_sigma: 0.2
-      delta: 1.
-      delta_sigma: 0.2
-      nicd: 0.1
-      nicd_sigma: 0.02
-
-  # -- Dynamics
-  time_resolution: 1000
-
-  degradation_delta: 1.
-  degradation_notch: 0.1
-
-  production_notch: 1.
-  production_delta: 200.
-  production_nicd: 200.
-
-  interaction_strength_trans: 1.
-  interaction_strength_cis: 10.
-
-  cooperativity_delta: 1.
-  cooperativity_nicd: 1.
-
-  notch_threshold_factor: 0.1
-  # -- Data manager configuration
-  data_manager:
-    deciders: {write_always: {type: always}}
-    triggers: {build_once: {type: once}}
-    tasks:
-      Density_progenitor: &density_C
-        active: true
-        trigger: build_once
-        decider: write_always
-      Density_hair: *density_C
-      Density_support: *density_C
-      Density_rosettes: *density_C
-      Density_notch: *density_C
-      Density_delta: *density_C
-      Density_nicd: *density_C
-      Density_time: *density_C
-
-# -- The NotchDelta model used in differentiation (optional)
-NotchDelta:
-  log_level: info
-  
-  space: {periodic: false}
-  cell_manager:
-    grid:
-      structure: square
-      resolution: 23
-    neighborhood:
-      mode: empty # is synchronised with vertex model
-    cell_params: ~
-
-  # -- Dynamics
-  rate_ph:
-    rate_0: 0.6e-2 # the rate above threshold
-    # the rates below threshold
-    #   if more than one entry given, linear mapping.
-    #   latter rates correspond to lower concentrations of atoh1
-    rate_1: 0.
-
-  rate_ps: 1.e-2
-
-  atoh1_suppression:
-    # in every step the atoh1 level in neighboring cells is divided by this value 
-    rate_0: 1. # for 0 HC neighbors
-    # for one or more HC neighbors
-    #   if more than one entry given, each entry for one more neighbor
-    #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
-    #   last entry for n or more HC neighbors 
-    rate_1: 1.02
-  
-  # HC differentiate if atoh1 accumulated above threshold
-  atoh1_threshold: 1.
-  
-  # Swap state with a neighbor with this probability if HC-HC contact
-  rate_swap: 0.2
-
-  # for the accumulation of atoh1
-  lambda: 40
-
-  # -- Data manager
-  data_manager:
-    deciders: {write_always: {type: always}}
-    triggers: {build_once: {type: once}}
-    tasks:
-      Density_progenitor: &density_ND
-        active: true
-        trigger: build_once
-        decider: write_always
-      Density_hair: *density_ND
-      Density_support: *density_ND
-      Density_rosettes: *density_ND
-      Density_time: *density_ND
-
 
 # --- Dynamics
 # Minimization parameter
-minimization:
+minimization: &Minimization
   update_scheme: steepest_gradient
   dt: 0.05
   num_steps: 20
@@ -238,12 +129,6 @@ PCPVertex:
   - cell_contractility:
       contractility: 1.
       preferential_shape: 3.72
-      
-  boundary_parameter:
-    area_elasticity: 1.
-    area_preferential: 1. # per cell
-    contractility: 100.
-    shape_index_preferential: 3.54491 # 2 sqrt(pi)
 
   # --- Initialization parameters
   agent_manager:
@@ -272,21 +157,7 @@ PCPVertex:
         type: 0
 
   # --- Dynamics
-  minimization:
-    update_scheme: steepest_gradient
-    dt: 0.05
-    num_steps: 20
-
-    linetension_fluctuations: 0.1
-    linetension_fluctuations_tau: 24
-
-    tolerance: 1.e-8
-    jiggle_tolerance: 1.e-6
-    jiggle_intensity: 0.
-    
-    max_steps: 15000
-
-    num_repeat: 1
+  minimization: *Minimization
 
   T1_threshold: 0.03
   T1_separation_factor: 1.05

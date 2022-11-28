@@ -257,6 +257,140 @@ private:
                 this->_log->trace("  Adding operation '{}' ...", name);
 
                 if (false) { }
+                else if (name == "differentiate_Collier") {
+                    this->setup_collier(
+                            get_as<Config>("Collier", op_cfg, {}));
+                    _operations.push_back(
+                        build_differentiate_Collier(name, op_cfg,
+                            _minimization_params, _collier,
+                            _collier_prolog));
+                }
+                else if (name == "differentiate_domain") {
+                    _operations.push_back(
+                        build_differentiate_domain(name, op_cfg,
+                                                   _minimization_params));
+                }
+                else if (name == "differentiate_cluster") {
+                    _operations.push_back(
+                        build_differentiate_cluster(name, op_cfg,
+                                                         _minimization_params));
+                }
+                else if (name == "differentiate_NotchDelta") {
+                    this->setup_notch_delta(
+                            get_as<Config>("NotchDelta", op_cfg, {}));
+                    _operations.push_back(
+                        build_differentiate_NotchDelta(name, op_cfg,
+                            _minimization_params, _notch_delta,
+                            _notch_delta_prolog));
+                }
+                else if (name == "differentiate_random") {
+                    _operations.push_back(
+                        build_differentiate_random(name, op_cfg,
+                                                   _minimization_params));
+                }
+                else if (name == "minimize_cell_contacts") {
+                    _operations.push_back(
+                        build_minimize_cell_contacts(name, op_cfg, 
+                                                _minimization_params));
+                }
+                else if (name == "proliferate") {
+                    _operations.push_back(
+                        build_proliferate(name, op_cfg, _minimization_params,
+                                _log, _monitor_mngr));
+                }
+                else if (name == "proliferate_generations") {
+                    _operations.push_back(
+                        build_proliferate_generations(name, op_cfg,
+                                _minimization_params,
+                                _log, _monitor_mngr));
+                }
+                else if (name == "update_work_function_term") {
+                    _operations.push_back(
+                        build_update_work_function_term(
+                            name, op_cfg, _minimization_params
+                        )
+                    );
+                }
+                else if (name == "register_work_function_term") {
+                    _operations.push_back(
+                        build_register_work_function_term(
+                            name, op_cfg, _minimization_params
+                        )
+                    );
+                }
+                else if (name == "void") {
+                    _operations.push_back(
+                        build_void(name, op_cfg, _minimization_params)
+                    );
+                }
+                else {
+                    throw std::invalid_argument(fmt::format(
+                        "No operation '{}' available to construct! "
+                        "Choose from:\n"
+                        "{}",
+                        name,
+                        "- differentiate_Collier\n"
+                        "- differentiate_domain\n"
+                        "- differentiate_hair_cluster\n"
+                        "- differentiate_NotchDelta\n"
+                        "- differentiate_random\n"
+                        "- minimize_cell_contacts\n"
+                        "- proliferate\n"
+                        "- proliferate_generations\n"
+                        "- update_work_function_term\n"
+                        "- register_work_function_term\n"
+                        "- void\n"
+                        // "- bending_box_bc\n"
+                        // "- brownian_noise\n"
+                        // "- enable_transitions\n"
+                        // "- fix_boundary\n"
+                        // "- increment_area\n"
+                        // "- increment_area_gradient\n"
+                        // "- increment_cell_contractility\n"
+                        // "- increment_domain\n"
+                        // "- increment_edge_contractility\n"
+                        // "- increment_linetension\n"
+                        // "- increment_shape_index\n"
+                        // "- initialise_stripe_boundary\n"
+                        // "- increment_stripe_width\n"
+                        // "- increment_stripe_curvature\n"
+                        // "- iterate_pcp\n"
+                        // "- pure_shear\n"
+                        // "- relax_area\n"
+                        // "- set_area\n"
+                        // "- update_boundary_parameter\n"
+                        // "- set_torque\n"
+                        // "- simple_shear\n"
+                    ));
+                }
+                // else if (name == "pure_shear") {
+                //     _operations.push_back(
+                //         build_pure_shear(name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "relax_area") {
+                //     _operations.push_back(
+                //         build_relax_area(name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "set_area") {
+                //     _operations.push_back(
+                //         build_set_area(name, op_cfg,
+                //                        _minimization_params));
+                // }
+                // else if (name == "update_boundary_parameter") {
+                //     _operations.push_back(
+                //         build_update_boundary_parameter(
+                //             name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "set_torque") {
+                //     _operations.push_back(
+                //         build_set_torque(
+                //             name, op_cfg, _minimization_params));
+                // }
+                // else if (name == "simple_shear") {
+                //     _operations.push_back(
+                //         build_simple_shear(
+                //             name, op_cfg, _minimization_params));
+                // }
                 // else if (name == "bending_box_bc") {
                 //     _operations.push_back(
                 //         build_bending_box_bc(
@@ -266,37 +400,6 @@ private:
                 //     _operations.push_back(
                 //         build_brownian_noise(name, op_cfg, _minimization_params,
                 //                              _log, _monitor_mngr));
-                // }
-                // else if (name == "differentiate_Collier") {
-                //     this->setup_collier(
-                //             get_as<Config>("Collier", op_cfg, {}));
-                //     _operations.push_back(
-                //         build_differentiate_Collier(name, op_cfg,
-                //             _minimization_params, _collier,
-                //             _collier_prolog));
-                // }
-                // else if (name == "differentiate_domain") {
-                //     _operations.push_back(
-                //         build_differentiate_domain(name, op_cfg,
-                //                                    _minimization_params));
-                // }
-                // else if (name == "differentiate_hair_cluster") {
-                //     _operations.push_back(
-                //         build_differentiate_hair_cluster(name, op_cfg,
-                //                                          _minimization_params));
-                // }
-                // else if (name == "differentiate_NotchDelta") {
-                //     this->setup_notch_delta(
-                //             get_as<Config>("NotchDelta", op_cfg, {}));
-                //     _operations.push_back(
-                //         build_differentiate_NotchDelta(name, op_cfg,
-                //             _minimization_params, _notch_delta,
-                //             _notch_delta_prolog));
-                // }
-                // else if (name == "differentiate_random") {
-                //     _operations.push_back(
-                //         build_differentiate_random(name, op_cfg,
-                //                                    _minimization_params));
                 // }
                 // else if (name == "enable_transitions") {
                 //     _operations.push_back(
@@ -375,103 +478,6 @@ private:
                 //                 _pcp, _pcp_prolog, _log,
                 //                 _monitor_mngr));
                 // }
-                else if (name == "proliferate") {
-                    _operations.push_back(
-                        build_proliferate(name, op_cfg, _minimization_params,
-                                _log, _monitor_mngr));
-                }
-                else if (name == "proliferate_generations") {
-                    _operations.push_back(
-                        build_proliferate_generations(name, op_cfg,
-                                _minimization_params,
-                                _log, _monitor_mngr));
-                }
-                // else if (name == "pure_shear") {
-                //     _operations.push_back(
-                //         build_pure_shear(name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "relax_area") {
-                //     _operations.push_back(
-                //         build_relax_area(name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "set_area") {
-                //     _operations.push_back(
-                //         build_set_area(name, op_cfg,
-                //                        _minimization_params));
-                // }
-                // else if (name == "update_boundary_parameter") {
-                //     _operations.push_back(
-                //         build_update_boundary_parameter(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "set_torque") {
-                //     _operations.push_back(
-                //         build_set_torque(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "simple_shear") {
-                //     _operations.push_back(
-                //         build_simple_shear(
-                //             name, op_cfg, _minimization_params));
-                // }
-                else if (name == "update_work_function_term") {
-                    _operations.push_back(
-                        build_update_work_function_term(
-                            name, op_cfg, _minimization_params
-                        )
-                    );
-                }
-                else if (name == "register_work_function_term") {
-                    _operations.push_back(
-                        build_register_work_function_term(
-                            name, op_cfg, _minimization_params
-                        )
-                    );
-                }
-                else if (name == "void") {
-                    _operations.push_back(
-                        build_void(name, op_cfg, _minimization_params)
-                    );
-                }
-                else {
-                    throw std::invalid_argument(fmt::format(
-                        "No operation '{}' available to construct! "
-                        "Choose from:\n"
-                        "{}",
-                        name,
-                        // "- bending_box_bc\n"
-                        // "- brownian_noise\n"
-                        // "- differentiate_Collier\n"
-                        // "- differentiate_domain\n"
-                        // "- differentiate_hair_cluster\n"
-                        // "- differentiate_NotchDelta\n"
-                        // "- differentiate_random\n"
-                        // "- enable_transitions\n"
-                        // "- fix_boundary\n"
-                        // "- increment_area\n"
-                        // "- increment_area_gradient\n"
-                        // "- increment_cell_contractility\n"
-                        // "- increment_domain\n"
-                        // "- increment_edge_contractility\n"
-                        // "- increment_linetension\n"
-                        // "- increment_shape_index\n"
-                        // "- initialise_stripe_boundary\n"
-                        // "- increment_stripe_width\n"
-                        // "- increment_stripe_curvature\n"
-                        // "- iterate_pcp\n"
-                        "- proliferate\n"
-                        "- proliferate_generations\n"
-                        // "- pure_shear\n"
-                        // "- relax_area\n"
-                        // "- set_area\n"
-                        // "- update_boundary_parameter\n"
-                        // "- set_torque\n"
-                        // "- simple_shear\n"
-                        "- update_work_function_term\n"
-                        "- register_work_function_term\n"
-                        "- void\n"
-                    ));
-                }
 
                 const auto& params = std::get<1>(_operations.back());
                 auto estimate = params.get_num_minimizations(this->_time_max);
@@ -890,8 +896,12 @@ public:
         return _vertex_model.get_energy();
     }
 
-    auto get_work_function_terms () const {
+    const auto& get_work_function_terms () const {
         return _vertex_model.get_work_function_terms();
+    }
+
+    const auto& get_work_function_term_register () const {
+        return _vertex_model.get_work_function_term_register();
     }
 
 
