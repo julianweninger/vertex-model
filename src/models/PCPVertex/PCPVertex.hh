@@ -132,6 +132,9 @@ private:
     // -- Mechanical parameters -----------------------------------------------
     std::unordered_map<std::string,
                        std::shared_ptr<WFTerm>> _work_function_terms;
+    std::unordered_set<std::string> _work_function_term_register;
+    bool _freeze_work_function_term_register;
+
 
     /// The length of the work_function terms
     std::pair<bool, std::size_t> _fix_number_work_function_terms;
@@ -277,6 +280,8 @@ public:
         _dt(_default_minimization_params.dt),
         _minimization_tolerance(_default_minimization_params.tolerance),
         _work_function_terms({}),
+        _work_function_term_register({}),
+        _freeze_work_function_term_register(false),
         _fix_number_work_function_terms(std::make_pair(
             false,
             get_as<int>("fix_number_work_function_terms", this->_cfg, 0)
@@ -709,7 +714,10 @@ public:
                           "configuration ...",
                           term, name);
 
-        if (term == "area_elasticity") {
+        if (not get_as<bool>("register", params, true)) {
+            register_work_function_term(name, nullptr);
+        }
+        else if (term == "area_elasticity") {
             register_work_function_term(
                 name,
                 std::make_shared<AreaElasticity<PCPVertex>>(
@@ -807,7 +815,6 @@ public:
                 "", term
             ));
         }
-
     }
 
     void register_work_function_term(
@@ -817,21 +824,27 @@ public:
     {
         this->_log->debug("Registering term `{}` ...", name);
 
-        if (std::get<bool>(_fix_number_work_function_terms))
+        if (_freeze_work_function_term_register)
         {
-            auto N = std::get<1>(_fix_number_work_function_terms);
-            if (_work_function_terms.size() >= N) {
+            auto registered = (
+                   _work_function_term_register.find(name) 
+                != _work_function_term_register.end()
+            );
+            if (not registered) {
                 this->_log->error("Registered work-function terms:");
                 for (const auto& [name, term] : _work_function_terms) {
                     this->_log->error(" - {}", name);
                 }
                 throw std::runtime_error(fmt::format(
-                    "Cannot register work-function term {}, because maximum "
-                    "length reached ({}). Increase "
-                    "'fix_number_work_function_terms' to add more terms.",
-                    name, N
+                    "Cannot register work-function term {}, because it is not "
+                    "in register and registration phase closed. See above for "
+                    "names in register",
+                    name
                 ));
             }
+        }
+        else{
+            _work_function_term_register.insert(name);
         }
 
         if (_work_function_terms.find(name) != _work_function_terms.end())
@@ -843,13 +856,17 @@ public:
             ));
         }
         if (term == nullptr) {
-            throw std::runtime_error("Cannot register nullptr as work-function "
-                "term!" );
+            _work_function_term_register.insert(name);
+
+            this->_log->info("Successfully PRE-registered term `{}`.", name);
+            return;
         }
+        else {
+            _work_function_terms.emplace(name, term);
 
-        _work_function_terms.emplace(name, term);
-
-        this->_log->info("Successfully registered term `{}`.", name);
+            this->_log->info("Successfully registered term `{}`.", name);
+            return;
+        }
     }
 
     auto erase_work_function_term(std::string name) {
@@ -976,6 +993,11 @@ public:
     /// Getter for the (active) work function terms
     const auto& get_work_function_terms () const {
         return _work_function_terms;
+    }
+
+    /// Getter for the (active) work function terms
+    const auto& get_work_function_term_register () const {
+        return _work_function_term_register;
     }
 
     /// Update the parameters of a WF-term
@@ -1132,14 +1154,8 @@ public:
     }
 
     auto fix_number_work_function_terms () {
-        if (not std::get<bool>(_fix_number_work_function_terms)) {
-            auto N = std::get<1>(_fix_number_work_function_terms);
-            _fix_number_work_function_terms = std::make_pair(
-                true,
-                std::max(N, _work_function_terms.size())
-            );
-        }
-        return std::get<1>(_fix_number_work_function_terms);
+        _freeze_work_function_term_register = true;
+        return _work_function_term_register.size();
     }
 }; // class PCPVertex
 

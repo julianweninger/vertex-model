@@ -260,9 +260,11 @@ def cellular_structure(
                 data['Vertices'].sel(property="y").max())
 
         if select_times is not None:
-            data['Vertices'] = data['Vertices'].sel(time=select_times)
+            times = select_times
+        else:
+            times = np.unique(data['Vertices'].coords['time'])
 
-        for time in np.unique(data['Vertices'].coords['time']):
+        for time in times:
             hlpr.ax.clear()
 
             if cbar is not None: 

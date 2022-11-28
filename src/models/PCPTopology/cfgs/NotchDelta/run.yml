@@ -1,0 +1,84 @@
+# A minimal configuration to differentiate cells using the NotchDelta model
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_NotchDelta
+
+parameter_space:
+  num_steps: 10
+
+  PCPTopology:
+    initialisation:
+      1_by_proliferation:
+        num_generations: 2
+        
+    operations:
+      - differentiate_NotchDelta:
+          times: !listgen [11]
+          steps: 40
+
+          minimization:
+            mode: manual
+
+            
+    # -- The NotchDelta model used in differentiation (optional)
+    NotchDelta:
+      log_level: info
+      
+      space: {periodic: false}
+      cell_manager:
+        grid:
+          structure: square
+          resolution: 23
+        neighborhood:
+          mode: empty # is synchronised with vertex model
+        cell_params: ~
+
+      # -- Dynamics
+      rate_ph:
+        rate_0: 0.6e-2 # the rate above threshold
+        # the rates below threshold
+        #   if more than one entry given, linear mapping.
+        #   latter rates correspond to lower concentrations of atoh1
+        rate_1: 0.
+
+      rate_ps: 1.e-2
+
+      atoh1_suppression:
+        # in every step the atoh1 level in neighboring cells is divided by this value 
+        rate_0: 1. # for 0 HC neighbors
+        # for one or more HC neighbors
+        #   if more than one entry given, each entry for one more neighbor
+        #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
+        #   last entry for n or more HC neighbors 
+        rate_1: 1.02
+      
+      # HC differentiate if atoh1 accumulated above threshold
+      atoh1_threshold: 1.
+      
+      # Swap state with a neighbor with this probability if HC-HC contact
+      rate_swap: 0.2
+
+      # for the accumulation of atoh1
+      lambda: 40
+
+      # -- Data manager
+      data_manager:
+        deciders: {write_always: {type: always}}
+        triggers: {build_once: {type: once}}
+        tasks:
+          Density_progenitor: &density_ND
+            active: true
+            trigger: build_once
+            decider: write_always
+          Density_hair: *density_ND
+          Density_support: *density_ND
+          Density_rosettes: *density_ND
+          Density_time: *density_ND

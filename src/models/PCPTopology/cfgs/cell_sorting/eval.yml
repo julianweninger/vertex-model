@@ -10,12 +10,9 @@
 definitions: 
   enabled: false
 
-  num_cells: &NUM_CELLS 128
-
   # limits in over time plots
   time_min: &TIME_MIN ~
   time_max: &TIME_MAX ~
-  time_end: &TIME_END 3
 
   # first sweep dimension
   bif_name: &BIF_NAME case
@@ -31,13 +28,17 @@ definitions:
       values: [control, DITH, HIT]
     differentiation: !sweep
       default: random
-      values: [random, domain]
+      values: 
+        - random
+        - domain
 
   # slice to keep one sweep dimension
   subspace_slice_hue: &subspace_slice_hue
     differentiation: !sweep
       default: random
-      values: [random, domain]
+      values: 
+        - random
+        - domain
 
   # slice to keep two sweep dimensions
   subspace_slice_bif: &subspace_slice_bif ~
@@ -65,17 +66,6 @@ definitions:
 # modify style parameter
 my_style:
   enabled: false
-  # style:
-  #   font.size: 16
-  #   lines.markersize: 10
-
-  #   legend.fontsize: small
-  #   legend.markerscale: 0.8
-
-  #   axes.grid: true
-  #   grid.linewidth: .4
-  #   grid.alpha: .5
-
     
 universe:
   enabled: false
@@ -96,31 +86,8 @@ multiverse:
 # universe examples
 energy:
   based_on: energy
-  enabled: False
   universes:
     <<: *subspace
-
-energy_edge_contractility:
-  based_on: energy
-
-  to_plot:
-  - function: sns.lineplot
-    data: !dag_result edge_contractility
-    label: edge contractility
-
-transitions:
-  based_on: transitions
-  enabled: False
-  universes:
-    <<: *subspace
-    
-
-# --- fluidity ----------------------------------------------------------------
-transitions_multiplot: !pspace
-  based_on:
-    - transitions_multiplot
-    - multiverse
-    - select.mv.transitions
 
 
 # Cell properties from cell data ----------------------------------------------
@@ -197,22 +164,6 @@ cell_properties/shape: !pspace
     set_limits:
       y: [3.72, 4.3]
 
-cell_properties/HC_neighbors: !pspace
-  based_on: cell_properties
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
-          - .rename: [!dag_prev , num_hair_neighbors]
-  y: num_hair_neighbors
-  helpers:
-    set_labels:
-      y: average hair neighbors
-    set_limits:
-      y: [0., 3.2]
-
 cell_properties/neighbors: !pspace
   based_on: cell_properties
   select_and_combine:
@@ -242,27 +193,16 @@ cell_segmentation__linetension:
   based_on:
     - cell_segmentation
 
-  edge_property: {energy_term: linetension}
-  edge_property_path: Edge_energies
+  select:
+    edge_property:
+      path: data/PCPTopology/Edge_energies
+      transform:
+        - .sel: [!dag_prev , {term: linetension_heterotypic__energy}]
+        - .rename: [!dag_prev , Linetension]
 
   quiver_kwargs:
     cmap: Blues
 
-  cell_marker_size: 10
-
-# --- Cell neighborhood histogram --------------------------------------------
-cell_neighborhood: !pspace
-  based_on: cell_neighbourhood_mv__map_time
-  enabled: false
-
-  only_type: !sweep
-    default: all
-    values: *neighborhood_only_type_values
-
-  plot_hist: True
-  plot_area: false
-  plot_shape_index: false
-
-  select_and_combine:
-    subspace: *subspace_slice
+  cell_center_marker_kwargs:
+    s: 10
 

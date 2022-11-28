@@ -38,6 +38,9 @@ auto energy_adaptor = std::make_tuple(
         double E_total = 0.;
         std::map<std::string, double> values({});
         const auto& terms = model.get_work_function_terms();
+        for (const auto& name : model.get_work_function_term_register()) {
+            values[name] = 0.;
+        }
         for (const auto& [name, term] : terms) {
             values[name] = term->compute_energy();
             E_total += values[name];
@@ -55,7 +58,7 @@ auto energy_adaptor = std::make_tuple(
     // builder function
     [](auto& group, [[maybe_unused]] auto& model) -> decltype(auto) {
         std::size_t N = model.fix_number_work_function_terms();
-        return group->open_dataset("Terms", {H5S_UNLIMITED, N + 1});
+        return group->open_dataset("Terms", {H5S_UNLIMITED, N+1});
     },
     
     // attribute writer for basegroup
@@ -68,7 +71,7 @@ auto energy_adaptor = std::make_tuple(
         hdfdataset->add_attribute("coords__time", "Time");
         
         std::set<std::string> names({});
-        for (const auto& [name, term] : model.get_work_function_terms()) {
+        for (const auto& name : model.get_work_function_term_register()) {
             names.insert(name);
         }
         names.insert("total");
@@ -253,22 +256,17 @@ auto cells_adaptor = std::make_tuple(
                             return static_cast<float>(
                                    am.neighbors_of(cell).size());
                        });
-        // dataset->write(cells.begin(), cells.end(),
-        //                [am](const auto& cell) {
-        //                     auto nbs = am.neighbors_of(cell);
-        //                     std::size_t N = std::accumulate(
-        //                         nbs.begin(), nbs.end(), 0,
-        //                         [cell](std::size_t N, const auto& nb) {
-        //                             if (nb->state.type == cell->state.type) {
-        //                                 return N + 1;
-        //                             }
-        //                             else {
-        //                                 return N;
-        //                             }
-        //                         }
-        //                     );
-        //                     return static_cast<float>(N);
-        //                });
+        dataset->write(cells.begin(), cells.end(),
+                       [am](const auto& cell) {
+                            auto nbs = am.neighbors_of(cell);
+                            std::size_t N = std::count_if(
+                                nbs.begin(), nbs.end(),
+                                [cell](const auto& nb) {
+                                    return nb->state.type == cell->state.type;
+                                }
+                            );
+                            return static_cast<float>(N);
+                       });
 
 
         // std::vector<float> hex_order;
@@ -343,7 +341,7 @@ auto cells_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        std::size_t cnt = 10;
+        std::size_t cnt = 11;
         for (const auto& [name, term] : m.get_work_function_terms()) {
             cnt += term->write_task_cell_properties_names().size();
         }
@@ -366,7 +364,7 @@ auto cells_adaptor = std::make_tuple(
             "area_preferential",
             "perimeter",
             "num_neighbors",
-            // "num_neighbors__self",
+            "num_neighbors__self",
             "q_x",
             "q_y",
             "is_boundary"
