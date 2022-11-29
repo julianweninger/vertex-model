@@ -725,6 +725,14 @@ public:
                 )
             );
         }
+        else if (term == "area_elasticity_heterotypic") {
+            register_work_function_term(
+                name,
+                std::make_shared<AreaElasticityHeterotypic<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "boundary_stripe_potential") {
             register_work_function_term(
                 name,
@@ -803,6 +811,7 @@ public:
                 "Use the `register_work_function_term` interface, or "
                 "choose one of the following available terms:\n"
                 " - area_elasticity\n"
+                " - area_elasticity_heterotypic\n"
                 " - boundary_stripe_potential\n"
                 " - cell_contractility\n"
                 " - edge_contractility\n"

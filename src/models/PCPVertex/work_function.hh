@@ -404,7 +404,12 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension = arma::conv_to<stdmat>::from(_linetension);
+        stdmat tension(_linetension.n_rows);
+        for (size_t i = 0; i < _linetension.n_rows; ++i) {
+            tension[i] = arma::conv_to< std::vector<double> >::from(
+                _linetension.row(i)
+            );
+        };
         _linetension = setup_symmetric_matrix(get_as<stdmat>(
             "linetension", cfg, tension
         ));
@@ -809,7 +814,12 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
+        stdmat tension(_contractility.n_rows);
+        for (size_t i = 0; i < _contractility.n_rows; ++i) {
+            tension[i] = arma::conv_to< std::vector<double> >::from(
+                _contractility.row(i)
+            );
+        };
         _contractility = setup_symmetric_matrix(get_as<stdmat>(
             "contractility", cfg, tension
         ));
@@ -1407,6 +1417,7 @@ public:
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
+
 protected:
     double _elastic_modulus;
 
@@ -1472,11 +1483,13 @@ public:
     void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-        
-        double A0 = get_as<double>("preferential_area", cfg);
 
-        for (const auto& cell : this->_am.cells()) {
-            cell->state.area_preferential = A0;
+        if (cfg["preferential_area"]) {                
+            double A0 = get_as<double>("preferential_area", cfg);
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0;
+            }
         }
     }
     
@@ -1501,6 +1514,129 @@ public:
             energies,
             pressures
         });
+    }
+};
+
+
+template <typename Model>
+class AreaElasticityHeterotypic : public AreaElasticity<Model> 
+{
+public:
+    using Base = AreaElasticity<Model>;
+
+    using Cell = typename Base::Cell;
+
+public:
+    AreaElasticityHeterotypic (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model)
+    {
+        this->setup_preferential_area(cfg);
+    }
+
+
+private:
+    void setup_preferential_area(const Config& cfg) {
+        const auto method = get_as<std::string>("method", cfg);
+        if (false) { }
+
+        else if (method == "increment_heterotypic") {
+            auto _increments = get_as<std::vector<double>>("increments", cfg);
+            auto restrain = get_as<std::vector<std::size_t>>("restrain_types",
+                                                             cfg);
+
+            auto increments(_increments);
+            if (restrain.size() > 0) {
+                std::size_t types = 0;
+                std::size_t cnt_restrain = 0;
+                double area_change = 0.;
+                for (const auto& cell : this->_am.cells()) {
+                    types = std::max(types, cell->state.type);
+                    area_change += increments[cell->state.type];
+                    auto find_it = std::find(restrain.begin(),
+                                            restrain.end(),
+                                            cell->state.type);
+                    if (find_it != restrain.end())
+                    {
+                        cnt_restrain++;
+                    }
+                }
+
+                if (cnt_restrain == 0 and fabs(area_change) > 1.e-8) {
+                    throw std::runtime_error(fmt::format("Heterotypic increment of "
+                        "preferential area with restrain on types failed, "
+                        "because no cells with that type!"));
+                }
+
+                area_change /= cnt_restrain;
+                for (const auto& type : restrain) {
+                    increments[type] -= area_change;
+                }
+            }
+
+            for (const auto& cell : this->_am.cells()) {
+                if (cell->state.type >= increments.size()) {
+                    throw std::runtime_error(fmt::format("In update of WF "
+                        "AreaElasticityHeterogeneous, no incremental area "
+                        "value defined for cell of type {}.",
+                        cell->state.type));
+                }
+                cell->state.area_preferential += increments[cell->state.type];
+            }
+        }
+
+        else if (method == "set_heterotypic") {
+            auto A0 = get_as<std::vector<double>>("preferential_areas", cfg);
+            std::size_t types = 0;
+            for (const auto& cell : this->_am.cells()) {
+                types = std::max(types, cell->state.type);
+            }
+
+            if (A0.size() <= types) {
+                throw std::runtime_error(fmt::format("For heterotypic "
+                    "preferential area, one value for every type must be "
+                    "provided, but got {} values for {} types!",
+                    A0.size(), types+1));
+            }
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0[cell->state.type];
+            }
+        }
+
+        else if (method == "set_uniform") {
+            double A0 = get_as<double>("preferential_area", cfg);
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0;
+            }
+        }
+
+        else {
+            throw std::runtime_error(fmt::format("Unknown method '{}' to "
+                "set preferential area in AreaElasticity! Choose one of the "
+                "following", method,
+                "- increment_heterotypic\n"
+                "- set_heterotypic\n"
+                "- set_uniform\n"
+            ));
+        }
+    }
+
+
+public:
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["area_elasticity"]) {
+            DataIO::Config _cfg{};
+            _cfg["area_elasticit"] = cfg["area_elasticity"];
+            Base::update_parameters(_cfg);
+        }
+        
+        setup_preferential_area(cfg);
     }
 };
 

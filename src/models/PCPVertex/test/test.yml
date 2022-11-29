@@ -8,44 +8,6 @@ PCPVertex:
       contractility: 1.
       preferential_shape: 3.72
 
-  test_work_function_terms:
-  - area_elasticity:
-      elastic_modulus: 1
-      preferential_area: 1
-  - cell_contractility:
-      contractility: 1.
-      preferential_shape: 3.72
-  - shape_elasticity:
-      elastic_modulus: 1.
-      preferential_shape_index: 3.72
-  - linetension:
-      linetension: 0.1
-  - linetension_heterotypic:
-      linetension: 
-        - [0.1, 0.2]
-        - [0.2, 0.]
-      boundary_type: 1
-  - edge_contractility:
-      contractility: 0.01
-
-  # Boundary terms
-  - boundary_stripe_potential:
-      elastic_constant: 1
-      height: 7.
-      width: 9.
-      origin: [0, 0]
-      deform_plastic: true
-      stretch: true
-  # - boundary_stripe_potential:
-  #     name: boundary_curved_stripe_potential
-  #     elastic_constant: 0.1
-  #     curvature: 1.e-2
-  #     height: 7.
-  #     width: 9.
-  #     origin: [0, 0]
-  #     deform_plastic: true
-  #     stretch: true
-
   log_level: trace
   T1_barrier: 0.02
   T1_probability: 1.0
@@ -89,7 +51,7 @@ log_levels: {core: debug, data_io: debug, data_mngr: debug, model: debug}
 monitor_emit_interval: 2.0
 num_steps: 0
 output_path: test_data.h5
-seed: 42
+seed: 41
 write_every: 1
 write_start: 0
 

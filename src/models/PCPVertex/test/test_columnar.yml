@@ -8,26 +8,6 @@ PCPVertex:
       contractility: 1.
       preferential_shape: 4.
       
-  test_work_function_terms:
-  - area_elasticity:
-      elastic_modulus: 1
-      preferential_area: 1
-  - cell_contractility:
-      contractility: 1.
-      preferential_shape: 4.
-  - shape_elasticity:
-      elastic_modulus: 1.
-      preferential_shape_index: 3.72
-  - linetension:
-      linetension: 0.1
-  - linetension_heterotypic:
-      linetension: 
-        - [0.1, 0.2]
-        - [0.2, 0.]
-      boundary_type: 1
-  - edge_contractility:
-      contractility: 0.01
-      
   T1_barrier: 0.02
   T1_probability: 1.0
   T1_separation_factor: 1.05

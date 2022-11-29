@@ -8,15 +8,16 @@ _definitions:
   enabled: false
   hue: &HUE Gamma
   subspace_slice: &subspace_slice
+    direction: forward
     Gamma: !sweep
       default: 0.
-      values: [0., 0.4, 0.8]
-    HC_sep: !sweep
-      default: false
-      values: 
-        # - true
-        - false
-      order: -1
+      values: [0., 0.1, 0.2]
+    # HC_sep: !sweep
+    #   default: false
+    #   values: 
+    #     # - true
+    #     - false
+    #   order: -1
 
     rho: !sweep
       default: 0.2
@@ -30,10 +31,11 @@ _definitions:
 
   hue_2: &HUE_2 rho
   subspace_slice_2: &subspace_slice_2
-    HC_sep: !sweep
-      default: false
-      values: [true, false]
-      order: -1
+    direction: forward
+    # HC_sep: !sweep
+    #   default: false
+    #   values: [true, false]
+    #   order: -1
 
     rho: !sweep
       default: 0.2
@@ -692,7 +694,14 @@ area_mapped/hair_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
           - .rename: [!dag_prev , num_hair_neighbors]
 
   to_plot:
@@ -718,70 +727,70 @@ area_mapped/hair_neighbors: !pspace
     set_limits:
       y: [0., 5]
 
-area_mapped/hexatic_order: !pspace
-  based_on: area_mapped/neighbors
+# area_mapped/hexatic_order: !pspace
+#   based_on: area_mapped/neighbors
 
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: hexatic_order}]
-          - .rename: [!dag_prev , hexatic_order]
+#   select_and_combine:
+#     fields:
+#       _property:
+#         path: data/PCPTopology/Cells
+#         transform:
+#           - .sel: [!dag_prev , {property: hexatic_order}]
+#           - .rename: [!dag_prev , hexatic_order]
 
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      label: hair cells
-      ci: sd
+#   to_plot:
+#     - function: sns.lineplot
+#       data: !dag_result hair_cells
+#       label: hair cells
+#       ci: sd
 
-  x: area
-  y: hexatic_order
+#   x: area
+#   y: hexatic_order
 
-  helpers:
-    set_labels:
-      y: hexatic order
-    set_limits:
-      y: [0., 1]
-    set_hv_lines:
-      vlines: []
+#   helpers:
+#     set_labels:
+#       y: hexatic order
+#     set_limits:
+#       y: [0., 1]
+#     set_hv_lines:
+#       vlines: []
 
-area_mapped/hexatic_order_w_data: !pspace
-  based_on: area_mapped/neighbors_w_data
-  enabled: False
+# area_mapped/hexatic_order_w_data: !pspace
+#   based_on: area_mapped/neighbors_w_data
+#   enabled: False
 
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_prev , {property: hexatic_order}]
-          - .rename: [!dag_prev , hexatic_order]
+#   select_and_combine:
+#     fields:
+#       _property:
+#         path: data/PCPTopology/Cells
+#         transform:
+#           - .sel: [!dag_prev , {property: hexatic_order}]
+#           - .rename: [!dag_prev , hexatic_order]
 
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      label: hair cells
-      ci: sd
-    - function: sns.scatterplot
-      data: !dag_result data_experiment
-      label: basilar papilla
-      hue: stage
-      style: position
-      palette: copper
-      x: normalized_area_cells
-      y: hexatic_order
+#   to_plot:
+#     - function: sns.lineplot
+#       data: !dag_result hair_cells
+#       label: hair cells
+#       ci: sd
+#     - function: sns.scatterplot
+#       data: !dag_result data_experiment
+#       label: basilar papilla
+#       hue: stage
+#       style: position
+#       palette: copper
+#       x: normalized_area_cells
+#       y: hexatic_order
 
-  x: area
-  y: hexatic_order
+#   x: area
+#   y: hexatic_order
 
-  helpers:
-    set_labels:
-      y: hexatic order
-    set_limits:
-      y: [0., 1]
-    set_hv_lines:
-      vlines: []
+#   helpers:
+#     set_labels:
+#       y: hexatic order
+#     set_limits:
+#       y: [0., 1]
+#     set_hv_lines:
+#       vlines: []
 
 
 stage_mapped/coordination: !pspace
@@ -1064,7 +1073,14 @@ cell_properties/HH_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
           - .rename: [!dag_prev , num_hair_neighbors]
   y: num_hair_neighbors
   to_plot: 

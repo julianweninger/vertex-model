@@ -1,0 +1,79 @@
+---
+test_work_function_terms:
+- area_elasticity:
+    elastic_modulus: 1
+    preferential_area: 1
+- area_elasticity_heterotypic:
+    name: area_elasticity_heterotypic__increment_once
+    elastic_modulus: 1
+    preferential_area: 1
+    method: increment_heterotypic
+    increments: [1.e-4]
+    restrain_types: []
+    mode: once
+- area_elasticity_heterotypic:
+    name: area_elasticity_heterotypic__set_heterotypic
+    elastic_modulus: 1
+    preferential_area: 1
+    method: set_heterotypic
+    preferential_areas: [1.0001]
+- area_elasticity_heterotypic:
+    name: area_elasticity_heterotypic__set_uniform
+    elastic_modulus: 1
+    preferential_area: 1
+    method: set_uniform
+    preferential_area: 1.0001
+- cell_contractility:
+    contractility: 1.
+    preferential_shape: 3.72
+- shape_elasticity:
+    elastic_modulus: 1.
+    preferential_shape_index: 3.72
+- linetension:
+    linetension: 0.1
+- linetension_heterotypic:
+    linetension: 
+      - [0.1, 0.2]
+      - [0.2, 0.]
+    boundary_type: 1
+- edge_contractility:
+    contractility: 0.01
+
+test_work_function_boundary_terms: []
+  # - boundary_stripe_potential:
+  #     elastic_constant: 1
+  #     height: 7.
+  #     width: 9.
+  #     origin: [0, 0]
+  #     deform_plastic: true
+  #     stretch: true
+  # - boundary_stripe_potential:
+  #     name: boundary_curved_stripe_potential
+  #     elastic_constant: 0.1
+  #     curvature: 1.e-2
+  #     height: 7.
+  #     width: 9.
+  #     origin: [0, 0]
+  #     deform_plastic: true
+  #     stretch: true
+
+test_update_area_elasticity_heterotypic:
+  area_elasticity_heterotypic:
+    term: area_elasticity_heterotypic
+    elastic_modulus: 1
+    preferential_area: 1
+    method: set_uniform
+  area_elasticity_heterotypic__set_heterotypic:
+    method: set_heterotypic
+    preferential_areas: [1.1, 0.9]
+  area_elasticity_heterotypic__incr_heterotypic:
+    method: increment_heterotypic
+    increments: [0.1, -0.1]
+    restrain_types: []
+  area_elasticity_heterotypic__incr_heterotypic__restrain:
+    method: increment_heterotypic
+    increments: [0., -0.1]
+    restrain_types: [0]
+
+
+  
