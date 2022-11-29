@@ -45,25 +45,24 @@ parameter_space:
             jiggle_intensity: 0.1
       # END of quick-proliferate
 
+      # Differentiate hair and support cells
       - differentiate_random:
           times: []
           iterations_prolog: 1
-          fraction: 0.26
+          method: fraction
+          distribution: [0.74, 0.26]
           minimization:
             mode: manual
-      - differentiate_NotchDelta:
+
+      # disperse them as much as possible
+      - minimize_cell_contacts:
           times: []
           iterations_prolog: 1
-          discard_initialisation: True
-          # NOTE: Notch model skipped because random differentiation terminal
-          #       Swap removes HC-HC contacts partially
-          
-          steps: 2000
-
-          minimization:
-            mode: manual
+          num_steps: 6000
+          type: 1
+          neutral_probability: 0.2
       # END differentiation
-
+      
       - void: 
           times: [1]
           minimization:
@@ -74,19 +73,20 @@ parameter_space:
     PCPVertex:
       log_level: warning
 
-      # --- Initialization parameters
-      agent_manager:
-        setup_method: hexagonal
-        setup_params:
-          hexagonal:
-            lattice_rows: 4
-            lattice_columns: 4
-        cell_manager:
-          agent_params:
-            shape_index_preferential: !sweep
-              default: 3.77
-              values: [3.62, 3.72, 3.77, 3.805]
-              name: p0
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: !sweep
+            name: p0
+            default: 3.72
+            values: [3.62, 3.72, 3.77, 3.805]
+            order: 1
 
       data_manager:
         deciders:
