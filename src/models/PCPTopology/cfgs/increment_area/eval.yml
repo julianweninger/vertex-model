@@ -727,70 +727,70 @@ area_mapped/hair_neighbors: !pspace
     set_limits:
       y: [0., 5]
 
-# area_mapped/hexatic_order: !pspace
-#   based_on: area_mapped/neighbors
+area_mapped/hexatic_order: !pspace
+  based_on: area_mapped/neighbors
 
-#   select_and_combine:
-#     fields:
-#       _property:
-#         path: data/PCPTopology/Cells
-#         transform:
-#           - .sel: [!dag_prev , {property: hexatic_order}]
-#           - .rename: [!dag_prev , hexatic_order]
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: hexatic_order__corr}]
+          - .rename: [!dag_prev , hexatic_order]
 
-#   to_plot:
-#     - function: sns.lineplot
-#       data: !dag_result hair_cells
-#       label: hair cells
-#       ci: sd
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      ci: sd
 
-#   x: area
-#   y: hexatic_order
+  x: area
+  y: hexatic_order
 
-#   helpers:
-#     set_labels:
-#       y: hexatic order
-#     set_limits:
-#       y: [0., 1]
-#     set_hv_lines:
-#       vlines: []
+  helpers:
+    set_labels:
+      y: hexatic order
+    set_limits:
+      y: [0., 1]
+    set_hv_lines:
+      vlines: []
 
-# area_mapped/hexatic_order_w_data: !pspace
-#   based_on: area_mapped/neighbors_w_data
-#   enabled: False
+area_mapped/hexatic_order_w_data: !pspace
+  based_on: area_mapped/neighbors_w_data
+  enabled: False
 
-#   select_and_combine:
-#     fields:
-#       _property:
-#         path: data/PCPTopology/Cells
-#         transform:
-#           - .sel: [!dag_prev , {property: hexatic_order}]
-#           - .rename: [!dag_prev , hexatic_order]
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: hexatic_order__corr}]
+          - .rename: [!dag_prev , hexatic_order]
 
-#   to_plot:
-#     - function: sns.lineplot
-#       data: !dag_result hair_cells
-#       label: hair cells
-#       ci: sd
-#     - function: sns.scatterplot
-#       data: !dag_result data_experiment
-#       label: basilar papilla
-#       hue: stage
-#       style: position
-#       palette: copper
-#       x: normalized_area_cells
-#       y: hexatic_order
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+      ci: sd
+    - function: sns.scatterplot
+      data: !dag_result data_experiment
+      label: basilar papilla
+      hue: stage
+      style: position
+      palette: copper
+      x: normalized_area_cells
+      y: hexatic_order
 
-#   x: area
-#   y: hexatic_order
+  x: area
+  y: hexatic_order
 
-#   helpers:
-#     set_labels:
-#       y: hexatic order
-#     set_limits:
-#       y: [0., 1]
-#     set_hv_lines:
-#       vlines: []
+  helpers:
+    set_labels:
+      y: hexatic order
+    set_limits:
+      y: [0., 1]
+    set_hv_lines:
+      vlines: []
 
 
 stage_mapped/coordination: !pspace

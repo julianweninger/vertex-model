@@ -126,7 +126,7 @@ cell_properties/hexatic_order:
   select:
     property:
       transform:
-        - .sel: [!dag_prev , {property: hexatic_order}]
+        - .sel: [!dag_prev , {property: hexatic_order__corr}]
         - .rename: [!dag_prev , hexatic_order]
   y: hexatic_order
   to_plot: 
@@ -464,7 +464,7 @@ equilibrium_cellular_structure__linetension:
 #     property:
 #       path: data/PCPTopology/Cells
 #       transform:
-#         - .sel: [!dag_prev , {property: hexatic_order}]
+#         - .sel: [!dag_prev , {property: hexatic_order__corr}]
 #         - .sel: [!dag_node -2, {property: cell_type}]
 #         - call_lambda:
 #           - "lambda d, type: d.where(type==1)"
