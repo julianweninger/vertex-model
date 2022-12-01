@@ -1,5 +1,6 @@
 ---
 test_work_function_terms:
+# Area elasticity
 - area_elasticity:
     elastic_modulus: 1
     preferential_area: 1
@@ -8,7 +9,7 @@ test_work_function_terms:
     elastic_modulus: 1
     preferential_area: 1
     method: increment_heterotypic
-    increments: [1.e-4]
+    increments: [1.e-4, -1.e-4]
     restrain_types: []
     mode: once
 - area_elasticity_heterotypic:
@@ -16,28 +17,62 @@ test_work_function_terms:
     elastic_modulus: 1
     preferential_area: 1
     method: set_heterotypic
-    preferential_areas: [1.0001]
+    preferential_areas: [1.0001, 0.9999]
 - area_elasticity_heterotypic:
     name: area_elasticity_heterotypic__set_uniform
     elastic_modulus: 1
     preferential_area: 1
-    method: set_uniform
+    method: set_uniform 
     preferential_area: 1.0001
+
+# Cell shape
 - cell_contractility:
     contractility: 1.
     preferential_shape: 3.72
 - shape_elasticity:
     elastic_modulus: 1.
     preferential_shape_index: 3.72
+
+# Linetension
 - linetension:
     linetension: 0.1
 - linetension_heterotypic:
     linetension: 
-      - [0.1, 0.2]
-      - [0.2, 0.]
-    boundary_type: 1
+      - [ 0.1, -0.1, 0.05]
+      - [-0.1,  0.2, 0.05]
+      - [0.05, 0.05, 0.]
+    boundary_type: 2
+
+# Line contractility
 - edge_contractility:
     contractility: 0.01
+- edge_contractility_heterotypic:
+    contractility: 
+      - [0.05, 0.10, 0.01]
+      - [0.10, 0.20, 0.01]
+      - [0.01, 0.01, 0]
+    boundary_type: 2
+
+# Axial modulation of line contractility
+- edge_contractility_axial:
+    contractility: 
+      - [0.01, 0.01, 0.]
+      - [0.01, 0.01, 0.]
+      - [0.0 , 0., 0.]
+    boundary_type: 2
+    angle: 0
+- edge_contractility_axial:
+    name: edge_contractility_axial_curved
+    test_cases:
+      - non-periodic
+    contractility: 
+      - [0.01, 0.01, 0.]
+      - [0.01, 0.01, 0.]
+      - [0.0 , 0., 0.]
+    boundary_type: 2
+    angle: 0
+    curvature: 0.01
+    origin: [-2, -2]
 
 test_work_function_boundary_terms: []
   # - boundary_stripe_potential:

@@ -12,27 +12,27 @@ _definitions:
   enabled: false
 
   # slice to single sweep parameter
-  subspace_slice: &subspace_slice
-    curvature: !sweep
-      default: 0.
-      values:
-        - 0.
+  subspace_slice: &subspace_slice ~
+    # curvature: !sweep
+    #   default: 0.
+    #   values:
+    #     - 0.
         # - 5.e-3
         # - 1.e-2
-        - 6.e-2
-    ppMLC: !sweep
-      default: 0.4
-      values: [0.4, 0.]
+        # - 6.e-2
+    # ppMLC: !sweep
+    #   default: 0.4
+    #   values: [0.4, 0.]
 
   # first sweep dimension
-  hue: &HUE curvature
+  hue: &HUE ~ # curvature
   hue_name: &HUE_NAME ~
 
   # slice to single sweep parameter
-  subspace_slice_hue: &subspace_slice_hue
-    ppMLC: !sweep
-      default: 0.4
-      values: [0.4, 0.]
+  subspace_slice_hue: &subspace_slice_hue ~
+    # ppMLC: !sweep
+    #   default: 0.4
+    #   values: [0.4, 0.]
 
   # second sweep dimension
   bif_name: &BIF_NAME ~
@@ -87,15 +87,6 @@ energy:
   based_on: 
     - single_universe
     - energy
-  enabled: False
-
-energy_edge_contractility:
-  based_on: energy
-
-  to_plot:
-  - function: sns.lineplot
-    data: !dag_result edge_contractility
-    label: edge contractility
 
 polarity_histplot: !pspace
   based_on:
@@ -160,58 +151,6 @@ polarity_histplot: !pspace
     setup_figure:
       subplot_kw:
         projection: polar
-    
-
-# --- fluidity ----------------------------------------------------------------
-transitions_multiplot_over_time: !pspace
-  based_on:
-    - .plot.multiplot
-    - multiverse
-
-  select_and_combine:
-    allow_missing_or_failing: True
-    fields:
-      _T1s:
-        path: data/PCPTopology/Energy/transitions
-        transform:
-          - .sel: [!dag_prev ]
-            kwargs:
-              property: num_T1s
-          - .rename: [!dag_prev , num_T1s]
-    subspace: *subspace_slice_hue
-
-  transform:
-    - define: [!dag_tag _T1s]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
-             {time: 3}]
-      kwargs: {center: True}
-    - .mean: [!dag_prev , time]
-    - .squeeze: [!dag_prev ]
-    # - div: [!dag_prev , *NUM_CELLS]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: T1s
-
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result T1s
-      ci: sd
-
-  x: time
-  y: num_T1s
-  hue: *BIF_NAME
-
-  helpers:
-    set_labels:
-      x: time
-      y: average transitions
-    set_scales:
-      y: log
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [1.e-5, 1.e-1]
 
 
 # Cell properties from cell data ----------------------------------------------
@@ -254,6 +193,7 @@ cell_properties/area: !pspace
              {ids: [seed, id]}]
     - .squeeze: [!dag_prev ]
       tag: property
+    - print: [!dag_prev ]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
@@ -486,14 +426,15 @@ cell_segmentation:
     - single_universe
     - cellular_structure
 
-  edge_property: {energy_term: edge_contractility}
-  edge_property_path: Edge_energies
+  
+cell_segmentation__contractility:
+  based_on:
+    - single_universe
+    - cellular_structure
 
-  quiver_kwargs:
-    cmap: Blues
-    label: Contractility
-
-  vector_property: {property: polarity}
-  vector_property_hair_cells_only: True
-
-  cell_marker_size: 10
+  select:
+    edge_property:
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_axial__contractility}]
+        - .rename: [!dag_prev , axial_contractility]

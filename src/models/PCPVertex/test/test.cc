@@ -26,21 +26,24 @@ using namespace Utopia::Models::PCPVertex;
 
 using SpaceVec = typename PCPVertex::SpaceVec;
 
-enum Cases {
+enum Case {
     periodic,
     non_periodic,
     columnar_periodic,
     columnar      // Columnar initialisation  
 };
 
-template<Cases C>
+template<Case C>
 struct Fixture {    
+    const Case test_case;
+
     Models::PCPVertex::PCPVertex vertex_model;
     
     const Config wf_terms;
 
     Fixture ()
     :
+        test_case(C),
         vertex_model(model_factory()),
         wf_terms(YAML::LoadFile("test_wf_terms.yml"))
     { }
@@ -78,42 +81,6 @@ struct Fixture {
         else {
             throw std::runtime_error(fmt::format("Testcase {} not implemented",
                                                  C));
-        }
-    }
-};
-
-
-template<bool periodic>
-struct FixtureColumnar {    
-    Models::PCPVertex::PCPVertex vertex_model;
-
-    const Config wf_terms;
-
-    FixtureColumnar ()
-    :
-        vertex_model(model_factory()),
-        wf_terms(YAML::LoadFile("test_wf_terms.yml"))
-    { }
-
-    ~FixtureColumnar()
-    {
-        vertex_model.get_logger()->info("Tearing down ...");
-        std::remove("test_data.h5");
-        spdlog::drop_all();
-    }
-    
-    PCPVertex model_factory() {
-        using Utopia::Models::PCPVertex::DataIO::time_energy_adaptor;
-
-        if constexpr (periodic) {
-            Utopia::PseudoParent pp("test_column_periodic.yml");
-            return PCPVertex("PCPVertex", pp, {},
-                            std::make_tuple(time_energy_adaptor));
-        }
-        else {
-            Utopia::PseudoParent pp("test_column.yml");
-            return PCPVertex("PCPVertex", pp, {},
-                            std::make_tuple(time_energy_adaptor));
         }
     }
 };
@@ -187,10 +154,10 @@ public:
     }
 };
 
-typedef boost::mpl::vector< Fixture<Cases::periodic>,
-                            Fixture<Cases::non_periodic>,
-                            Fixture<Cases::columnar_periodic>,
-                            Fixture<Cases::columnar>
+typedef boost::mpl::vector< Fixture<Case::periodic>,
+                            Fixture<Case::non_periodic>,
+                            Fixture<Case::columnar_periodic>,
+                            Fixture<Case::columnar>
                           > Fixtures;
 
 BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
@@ -239,13 +206,13 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         BOOST_TEST(model.get_time() - time_start == 2 * (100 + 1) + 1);
     }
 
-    BOOST_AUTO_TEST_CASE_TEMPLATE (test_WF_terms, Fixture, Fixtures)
+    BOOST_AUTO_TEST_CASE_TEMPLATE (test_WF_terms, F, Fixtures)
     {
         const double precision = 1.e-3;
 
         std::size_t test_term_index = 0;
         while (true) {
-            Fixture fixture;
+            F fixture;
             auto& model = fixture.vertex_model;
 
             Config work_function_terms = get_as<Config>(
@@ -263,10 +230,61 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 auto term_name = term_pair.first.as<std::string>();
                 auto params = term_pair.second;
 
+                if (params["test_cases"]) {
+                    auto _test_cases = get_as<std::vector<std::string>>(
+                        "test_cases", params
+                    );
+                    std::set<std::string> test_cases(_test_cases.begin(),
+                                                     _test_cases.end());
+                    if (    fixture.test_case == Case::periodic
+                        and test_cases.find("periodic") == test_cases.end())
+                    {
+                        std::cout << "Skipping wf term " << term_name
+                                  << " on case " << "periodic";
+                        continue;
+                    }
+                    if (    fixture.test_case == Case::non_periodic
+                        and test_cases.find("non-periodic") == test_cases.end())
+                    {
+                        std::cout << "Skipping wf term " << term_name
+                                  << " on case " << "non-periodic";
+                        continue;
+                    }
+                    if (    fixture.test_case == Case::columnar_periodic
+                        and test_cases.find("columnar-periodic") == test_cases.end())
+                    {
+                        std::cout << "Skipping wf term " << term_name
+                                  << " on case " << "columnar-periodic";
+                        continue;
+                    }
+                    if (    fixture.test_case == Case::columnar_periodic
+                        and test_cases.find("columnar-non-periodic") == test_cases.end())
+                    {
+                        std::cout << "Skipping wf term " << term_name
+                                  << " on case " << "columnar-non-periodic";
+                        continue;
+                    }
+                }
+
                 const auto& am = model.get_am();
+                const auto& cells = am.cells();
 
                 // minimize the default work function terms
                 model.prolog();
+
+
+                // Differentiate 50 % type 1
+                std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
+                std::size_t cnt_1 = 0;
+                while(cnt_1 != cells.size() / 2) {
+                    auto c_id = distr(*model.get_rng());
+                    if (cells[c_id]->state.type == 0) {
+                        cells[c_id]->state.type = 1;
+                        cnt_1++;
+                    }
+                }
+                BOOST_TEST(cnt_1 == cells.size() / 2);
+                
                 for (std::size_t i = 0; i < 50; i++) {
                     model.iterate();
                 }
@@ -337,7 +355,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     {
         const double precision = 1.e-3;
 
-        Fixture<Cases::periodic> fixture;
+        Fixture<Case::periodic> fixture;
         auto& model = fixture.vertex_model;
         model.prolog();
 

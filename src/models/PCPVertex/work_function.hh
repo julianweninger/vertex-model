@@ -927,6 +927,33 @@ private:
         return _contractility.at(type_a, type_b);
     }
 
+    /// @brief The local axis to an edge
+    /** @param edge     The edge considered
+     *  @return     Determines the local axis at the center of an edge.
+     *              If no curvature, axis is same everywhere.
+     *              Else, the axis is measured as an angle to the tangent
+     *              of the arc.
+     */
+    SpaceVec local_axis (std::shared_ptr<Edge> edge) const {
+        if (fabs(_curvature) < 1.e-10) {
+            return _axis;
+        }
+        else if (this->_am.get_space()->periodic) {
+            throw std::runtime_error("No curvature in periodic BC implemented");
+        }
+
+        SpaceVec pos = 0.5 * (  this->_am.position_of(edge->custom_links().a)
+                              + this->_am.position_of(edge->custom_links().b));
+
+        SpaceVec origin = _origin - SpaceVec({0., 1. / _curvature});
+
+        SpaceVec rpos = pos - origin;
+        double theta = std::atan2(rpos[0], rpos[1]);
+        double alpha = std::atan2(_axis[1], _axis[0] + 1.e-8);
+
+        return SpaceVec({cos(alpha - theta), sin(alpha - theta)});
+    }
+
 
 public:
     EdgeContractilityAxial (
@@ -949,8 +976,11 @@ public:
         if (cfg["origin"]) {
             _origin = get_as_SpaceVec<2>("origin", cfg);
         }
-        else {
+        else if (not model.get_space()->periodic) {
             _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
+        }
+        else {
+            _origin = model.get_space()->get_domain_size() / 2.;
         }
     }
 
@@ -959,30 +989,52 @@ public:
             const auto& a = edge->custom_links().a;
             const auto& b = edge->custom_links().b;
             
-            SpaceVec axis = _axis;
+            SpaceVec axis = local_axis(edge);
             SpaceVec displ = this->_am.displacement(edge);
-            
-            // rotate axis angle wrt tangential of circle
-            if (fabs(_curvature) > 1.e-10) {
-                SpaceVec pos = (  this->_am.position_of(edge->custom_links().a)
-                                + 0.5 * displ);
-
-                SpaceVec origin = _origin - SpaceVec({0., -1. / _curvature});
-
-                SpaceVec displ = pos - origin;
-                double theta = std::atan2(displ[0], displ[1]);
-
-                axis = SpaceVec({
-                    axis[0]*cos(-theta) - axis[1]*sin(-theta),
-                    axis[0]*sin(-theta) + axis[1]*cos(-theta)
-                });
-            }
 
             double k = get_contractility(edge);
-            SpaceVec dE_dx = k * arma::dot(displ, axis) * axis;
+            SpaceVec dE_dx;
+            if (fabs(_curvature) < 1.e-10) {
+                dE_dx = - 1. * k * arma::dot(displ, axis) * axis;
 
-            a->state.add_force(- dE_dx);
-            b->state.add_force(+ dE_dx);
+                a->state.add_force(- dE_dx);
+                b->state.add_force(+ dE_dx);
+            }
+            else if (this->_am.get_space()->periodic) {
+                throw std::runtime_error("No curvature in periodic BC implemented");
+            }
+            else {
+                // derivative of axis to displacement of vertex
+                SpaceVec _a = this->_am.position_of(edge->custom_links().a);
+                SpaceVec _b = this->_am.position_of(edge->custom_links().b);
+
+                SpaceVec origin = _origin - SpaceVec({0., 1. / _curvature});
+                _a -= origin;
+                _b -= origin;
+
+                double sum_x = _a[0] + _b[0];
+                double sum_y = _a[1] + _b[1];
+                double arg = sum_x / sum_y;
+
+                double tmp_0 = sum_y * (pow(arg, 2) + 1);
+                double tmp_1 = pow(sum_y, 2) * (pow(arg, 2) + 1);
+
+                double dpx_dx =  axis[1] / tmp_0;
+                double dpy_dx = -axis[0] / tmp_0;
+
+                double dpx_dy = -(sum_x * axis[1]) / tmp_1;
+                double dpy_dy =  (sum_x * axis[0]) / tmp_1;
+
+                SpaceVec tmp({
+                    displ[0] * dpx_dx + displ[1] * dpy_dx,
+                    displ[0] * dpx_dy + displ[1] * dpy_dy,
+                });
+
+                double _dE_dx = k * arma::dot(displ, axis);
+
+                a->state.add_force(- _dE_dx * (tmp - axis));
+                b->state.add_force(- _dE_dx * (tmp + axis));
+            }
         }
     }
 
@@ -994,24 +1046,8 @@ public:
         const auto& a = edge->custom_links().a;
         const auto& b = edge->custom_links().b;
 
-        SpaceVec axis = _axis;
+        SpaceVec axis = local_axis(edge);
         SpaceVec displ = this->_am.displacement(a, b);
-        
-        // rotate ppMLC_axis so that points along curved tissue axis
-        if (fabs(_curvature) > 1.e-10) {
-            SpaceVec pos = (  this->_am.position_of(edge->custom_links().a)
-                            + 0.5 * displ);
-
-            SpaceVec origin = _origin - SpaceVec({0., -1. / _curvature});
-
-            SpaceVec displ = pos - origin;
-            double theta = std::atan2(displ[0], displ[1]);
-
-            axis = SpaceVec({
-                axis[0]*cos(-theta) - axis[1]*sin(-theta),
-                axis[0]*sin(-theta) + axis[1]*cos(-theta)
-            });
-        }
 
         // Gamma -> Gamma * cos^2 (theta), where theta angle with p-d axis
         return 0.5 * get_contractility(edge) * pow(arma::dot(displ, axis), 2);
@@ -1055,7 +1091,13 @@ public:
     std::vector<std::vector<double>> write_edge_properties () const {
         std::vector<double> contractilities({});
         for (const auto& edge : this->_am.edges()) {
-            contractilities.push_back(get_contractility(edge));
+            double k = get_contractility(edge);
+            SpaceVec axis = local_axis(edge);
+            SpaceVec displ = this->_am.displacement(edge);
+
+            double modulation = pow(
+                arma::dot(displ, axis) / arma::norm(displ),2);
+            contractilities.push_back(k * modulation);
         }
         return std::vector<std::vector<double>>({contractilities});
     }

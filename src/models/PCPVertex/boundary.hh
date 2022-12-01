@@ -281,8 +281,11 @@ public:
         if (cfg["origin"]) {
             _origin = get_as_SpaceVec<2>("origin", cfg);
         }
-        else {
+        else if (not model.get_space()->periodic) {
             _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
+        }
+        else {
+            _origin = model.get_space()->get_domain_size() / 2.;
         }
 
         if (_height < 1.e-8) {
