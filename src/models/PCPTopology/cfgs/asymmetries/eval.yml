@@ -93,6 +93,8 @@ polarity_histplot: !pspace
     - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
+
+  enabled: false
   
   select_and_combine:
     fields:
@@ -267,6 +269,7 @@ cell_properties/shape: !pspace
 # cell polarity as nematic quantity. Global average vector length
 cell_properties/nematic_alignment: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -307,6 +310,7 @@ cell_properties/nematic_alignment: !pspace
 # cell polarity as nematic quantity. Global average vector direction
 cell_properties/nematic_direction: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -345,6 +349,7 @@ cell_properties/nematic_direction: !pspace
 # cell polarity. Global average vector length
 cell_properties/polar_alignment: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -384,6 +389,7 @@ cell_properties/polar_alignment: !pspace
 # cell polarity. Global average vector direction
 cell_properties/polar_direction: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:

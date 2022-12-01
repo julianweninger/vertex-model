@@ -52,6 +52,8 @@ parameter_space:
       num_repeat: *tau_dL
 
     initialisation:
+      0_add_noise:
+        enabled: true
       1_by_proliferation:
         enabled: false
         num_generations: 3
@@ -65,13 +67,15 @@ parameter_space:
       #     times: []
       #     iterations_prolog: 1
 
-      #     num_cells: !expr 128 - 98
-      #     num_increases: 3
+      #     num_cells: !expr 98 - 72
+      #     num_increases: 0
       #     area_threshold: 0
 
-      #     minimize_after_division: true
+      #     minimize_after_division: false
       #     minimization_after_increase: ~
       #     minimization_after_division: ~
+      #     minimize:
+      #       mode: manual
 
       # - update_work_function_term:
       #     times: []
@@ -79,12 +83,12 @@ parameter_space:
       #     name: boundary_stripe_potential
       #     parameters:
       #       stretch: true
-      - void:
-          times: []
-          iterations_prolog: 50
+      # - void:
+      #     times: []
+      #     iterations_prolog: 20
 
           
-      # # Put some markers into the tissue
+      # Put some markers into the tissue
       - differentiate_random:
           times: []
           iterations_prolog: 1
@@ -118,6 +122,8 @@ parameter_space:
           num_steps: 6000
           type: 1
           neutral_probability: 0.2
+          minimization:
+            mode: manual
 
       - register_work_function_term:
           times: []
@@ -144,7 +150,7 @@ parameter_space:
               target_name: curvature
               name: curvature_mechanics
             contractility:
-              - [0.1, 0.0, 0.0]
+              - [0.05, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
             boundary_type: 2
@@ -156,6 +162,7 @@ parameter_space:
           times: !listgen [1, 501]
           minimization:
             linetension_fluctuations: 0.03
+
 
     PCPVertex:
       log_level: warning
@@ -187,22 +194,18 @@ parameter_space:
             name: curvature
             default: 0
             values: 
-              - 0
-              - 0.02
-              - 0.04
-              - 0.06
-              - 0.12
-          width: 28 # !expr sqrt(128*2)
-          height: 7 # !expr sqrt(128/2)
-          # origin: [!expr sqrt(64*2) / 2, !expr sqrt(64/2) / 2]
+              - 0.
+              - 5.e-2
+          width: !expr (72*2)**0.5
+          height: !expr (72/2)**0.5
           stretch: true
-          deform_plastic: True
+          deform_plastic: true
 
       agent_manager:
         setup_params:
           hexagonal:
-            lattice_columns: 28
-            lattice_rows: 7
+            lattice_columns: 12
+            lattice_rows: 6
       
       # continuous data manager
       data_manager:

@@ -63,8 +63,10 @@ test_work_function_terms:
     angle: 0
 - edge_contractility_axial:
     name: edge_contractility_axial_curved
-    test_cases:
-      - non-periodic
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
     contractility: 
       - [0.01, 0.01, 0.]
       - [0.01, 0.01, 0.]
@@ -74,23 +76,108 @@ test_work_function_terms:
     curvature: 0.01
     origin: [-2, -2]
 
-test_work_function_boundary_terms: []
-  # - boundary_stripe_potential:
-  #     elastic_constant: 1
-  #     height: 7.
-  #     width: 9.
-  #     origin: [0, 0]
-  #     deform_plastic: true
-  #     stretch: true
-  # - boundary_stripe_potential:
-  #     name: boundary_curved_stripe_potential
-  #     elastic_constant: 0.1
-  #     curvature: 1.e-2
-  #     height: 7.
-  #     width: 9.
-  #     origin: [0, 0]
-  #     deform_plastic: true
-  #     stretch: true
+- boundary_stripe_potential:
+    name: boundary_stripe_potential__compressed_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    height: 7.
+    width: 7.
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_stripe_potential__compressed_1
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 1
+    height: 8
+    width: 8
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+- boundary_stripe_potential:
+    name: boundary_stripe_potential__stretched_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    height: 9.
+    width: 9.
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_stripe_potential__stretched_1
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 1
+    height: 8
+    width: 8
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+- boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__compressed_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    curvature: 2.e-2
+    height: 5.
+    width: 10.8
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__compressed_1
+    test_precision: 10.  # TODO, consider derivatives of directors along arc
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.1
+    curvature: 2.e-2
+    height: 5.657
+    width: 11.314
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+- boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__stretched_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    curvature: 2.e-2
+    height: 6.
+    width: 11.6
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__stretched_1
+    test_precision: 10.  # TODO, consider derivatives of directors along arc
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.1
+    curvature: 2.e-2
+    height: 5.657
+    width: 11.314
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
 
 test_update_area_elasticity_heterotypic:
   area_elasticity_heterotypic:

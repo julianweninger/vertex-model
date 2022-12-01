@@ -5,19 +5,16 @@ paths:
   model_note: default_stripe_boundary_condition
 
 parameter_space:
-  num_steps: 10000
+  num_steps: 20000
 
   PCPVertex:
     space:
       periodic: false
     log_level: warning
+    
+    initial_jiggle: 1.e-4
 
     work_function_terms:
-      - linetension_heterotypic:
-          linetension: 
-          - [0., 0.01]
-          - [0.01, 0.]
-          boundary_type: 1
       - area_elasticity:
           elastic_modulus: 1
           preferential_area: 1
@@ -28,34 +25,60 @@ parameter_space:
       - linetension_fluctuations:
           amplitude: 0.05
           timescale: 50
-
       - boundary_stripe_potential:
-          elastic_constant: 10.
-          height: 6.
-          width: !expr 128 / 6.
+          name: boundary_stripe_potential__setup
+          skip_test_cases:
+            - periodic
+            - columnar-periodic
+            - columnar
+          elastic_constant: 0.
           curvature: !sweep
             name: curvature
-            default: 0.
-            values:
-              - 0.
-              - 4.5e-2
+            default: 0
+            values: [0., 2.e-2]
+          case: !sweep
+            name: case
+            default: compress
+            values: [compressed, stretched]
+          height: !coupled-sweep
+            target_name: case
+            name: height
+            default: 5.
+            values: [5., 6.]
+          width: !coupled-sweep
+            target_name: case
+            name: width
+            default: 5.
+            values: [10.8, 11.9]
           origin: [0, 0]
-          deform_plastic: true
           stretch: true
+          deform_plastic: true
+      - boundary_stripe_potential:
+          elastic_constant: 0.01
+          curvature: !coupled-sweep
+            target_name: curvature
+          height: 5.657
+          width: 11.314
+          origin: [0, 0]
+          stretch: true
+          deform_plastic: false
 
     agent_manager:
       setup_method: hexagonal
       setup_params:
         hexagonal:
           lattice_rows: 8
-          lattice_columns: 16
+          lattice_columns: 8
 
     data_manager:  
       deciders:
         write_interval: &interval
           args:
             intervals:
-              - [0, 1000000, 250]
+              - [    0,    200,   20]
+              - [  200,   1000,  100]
+              - [ 1000,  10000, 1000]
+              - [10000, 100001, 5000]
       triggers:
         build_interval: *interval
   

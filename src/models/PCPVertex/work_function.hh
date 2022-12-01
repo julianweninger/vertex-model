@@ -867,14 +867,23 @@ public:
     }
 };
 
-/// @brief The edge contractility term with heterotypic values
-/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+/// @brief The edge contractility term with axial-asymmetric values
+/** \f$ E_{i,j} = k l_{i,j}^2 (t \cdot \tau)^2\f$, a term linear in 
+ *  edge length \f$ l \f$, modulated with the angle between the junctions' 
+ *  tangent \f$ t \f$ and the tissue axis. The tissue axis runs parallel 
+ *  to the arc if curvature non-zero.
  * 
  *  Parameters:
  *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
  *              The i,j coordinates map to the type of cell on left and right
  *              side. 
  *      - `boundary_type`: To which value a boundary cell is mapped.
+ *      - `angle` (double): Angle of the axis to the tissue axis
+ *      - `curvature` (double): The curvature of the tissue axis
+ *      - `origin` (SpaceVec, optional): The center of the tissue. 
+ *          The tangent of tissue axis is pointing along 
+ *          x axis at origin. If not provided, the center of the tissue is used
+ *          as origin.
  */
 template <typename Model>
 class EdgeContractilityAxial : public WorkFunctionTerm<Model>
@@ -982,6 +991,13 @@ public:
         else {
             _origin = model.get_space()->get_domain_size() / 2.;
         }
+    }
+
+    SpaceVec compute_force
+    ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const final
+    {
+        throw std::runtime_error("Compute force on single vertex not "
+            "implemented in EgdeContractilityAxial!");
     }
 
     void compute_and_set_forces () final {

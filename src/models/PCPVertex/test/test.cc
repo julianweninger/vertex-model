@@ -208,8 +208,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
     BOOST_AUTO_TEST_CASE_TEMPLATE (test_WF_terms, F, Fixtures)
     {
-        const double precision = 1.e-3;
-
         std::size_t test_term_index = 0;
         while (true) {
             F fixture;
@@ -230,41 +228,43 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 auto term_name = term_pair.first.as<std::string>();
                 auto params = term_pair.second;
 
-                if (params["test_cases"]) {
-                    auto _test_cases = get_as<std::vector<std::string>>(
-                        "test_cases", params
-                    );
-                    std::set<std::string> test_cases(_test_cases.begin(),
-                                                     _test_cases.end());
-                    if (    fixture.test_case == Case::periodic
-                        and test_cases.find("periodic") == test_cases.end())
-                    {
-                        std::cout << "Skipping wf term " << term_name
-                                  << " on case " << "periodic";
-                        continue;
-                    }
-                    if (    fixture.test_case == Case::non_periodic
-                        and test_cases.find("non-periodic") == test_cases.end())
-                    {
-                        std::cout << "Skipping wf term " << term_name
-                                  << " on case " << "non-periodic";
-                        continue;
-                    }
-                    if (    fixture.test_case == Case::columnar_periodic
-                        and test_cases.find("columnar-periodic") == test_cases.end())
-                    {
-                        std::cout << "Skipping wf term " << term_name
-                                  << " on case " << "columnar-periodic";
-                        continue;
-                    }
-                    if (    fixture.test_case == Case::columnar_periodic
-                        and test_cases.find("columnar-non-periodic") == test_cases.end())
-                    {
-                        std::cout << "Skipping wf term " << term_name
-                                  << " on case " << "columnar-non-periodic";
-                        continue;
-                    }
+                auto _test_cases = get_as<std::vector<std::string>>(
+                    "skip_test_cases", params, {}
+                );
+                std::set<std::string> test_cases(_test_cases.begin(),
+                                                 _test_cases.end());
+                if (    fixture.test_case == Case::periodic
+                    and test_cases.find("periodic") != test_cases.end())
+                {
+                    std::cout << "Skipping wf term " << term_name
+                              << " on case " << "periodic";
+                    continue;
                 }
+                if (    fixture.test_case == Case::non_periodic
+                    and test_cases.find("non-periodic") != test_cases.end())
+                {
+                    std::cout << "Skipping wf term " << term_name
+                              << " on case " << "non-periodic";
+                    continue;
+                }
+                if (    fixture.test_case == Case::columnar_periodic
+                    and test_cases.find("columnar-periodic") != test_cases.end())
+                {
+                    std::cout << "Skipping wf term " << term_name
+                              << " on case " << "columnar-periodic";
+                    continue;
+                }
+                if (    fixture.test_case == Case::columnar
+                    and test_cases.find("columnar") != test_cases.end())
+                {
+                    std::cout << "Skipping wf term " << term_name
+                              << " on case " << "columnar-non-periodic";
+                    continue;
+                }
+
+                double precision = get_as<double>(
+                    "test_precision", params, 1.e-3
+                );
 
                 const auto& am = model.get_am();
                 const auto& cells = am.cells();
