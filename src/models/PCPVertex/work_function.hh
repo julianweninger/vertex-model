@@ -247,14 +247,14 @@ public:
 
 
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -419,13 +419,13 @@ public:
 
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "linetension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> tensions({});
         for (const auto& edge : this->_am.edges()) {
             tensions.push_back(get_linetension(edge));
@@ -433,14 +433,14 @@ public:
         return std::vector<std::vector<double>>({tensions});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -571,19 +571,19 @@ public:
         }
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) final {
         _tau = get_as<double>("timescale", cfg, _tau);
         _amplitude = get_as<double>("amplitude", cfg, _amplitude);
     }
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "linetension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> tensions({});
         for (const auto& edge : this->_am.edges()) {
             tensions.push_back(get_linetension(edge));
@@ -591,14 +591,14 @@ public:
         return std::vector<std::vector<double>>({tensions});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -682,20 +682,20 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) final {
         _contractility = get_as<double>("contractility", cfg, _contractility);
 
     }
 
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -830,13 +830,13 @@ public:
 
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "contractility"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> contractilities({});
         for (const auto& edge : this->_am.edges()) {
             contractilities.push_back(get_contractility(edge));
@@ -844,14 +844,14 @@ public:
         return std::vector<std::vector<double>>({contractilities});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -1055,7 +1055,16 @@ public:
     }
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return get_contractility(edge) * this->_am.length_of(edge);
+        const auto& a = edge->custom_links().a;
+        const auto& b = edge->custom_links().b;
+
+        SpaceVec axis = local_axis(edge);
+        SpaceVec displ = this->_am.displacement(a, b);
+
+        double modulation = pow(arma::dot(displ/arma::norm(displ), axis), 2);
+        double length = arma::norm(displ);
+
+        return get_contractility(edge) * modulation * length;
     }
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
@@ -1098,13 +1107,13 @@ public:
     }
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "contractility"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> contractilities({});
         for (const auto& edge : this->_am.edges()) {
             double k = get_contractility(edge);
@@ -1118,14 +1127,14 @@ public:
         return std::vector<std::vector<double>>({contractilities});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -1235,7 +1244,8 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+
+    void update_parameters (const DataIO::Config& cfg) final {
         _contractility = get_as<double>("contractility", cfg, _contractility);
         _preferential_shape = get_as<double>("preferential_shape", cfg,
                                              _preferential_shape);
@@ -1404,7 +1414,7 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) final {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg,
                                           _elastic_modulus);
         _preferential_shape_index = get_as<double>(
