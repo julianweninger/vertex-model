@@ -556,7 +556,7 @@ def histogram_plot(
         x=dict({
             'major': {
                 'locs': list(np.arange(1, 2*len(x_majorticks)+1, 2)),
-                'labels': x_majorticks
+                'labels': x_ticklabels if x_ticklabels is not None else x_majorticks
             },
             'minor': {
                 'locs': list(np.arange(0, 2*len(x_majorticks)+1, 2)),
@@ -585,7 +585,7 @@ def histogram_plot(
 
         norm = data.groupby(by=x_groupby)[y_data_column].count()
 
-        hist = [data.loc[data[y_data_column] == i].groupby(by=x_groupby)[y_data_column].count()
+        hist = [data.loc[np.round(data[y_data_column]) == i].groupby(by=x_groupby)[y_data_column].count()
                 for i in y_ticks]
         hist = pd.concat(hist, axis=1, keys=y_ticks)
         hist = hist.divide(norm, axis=0)
