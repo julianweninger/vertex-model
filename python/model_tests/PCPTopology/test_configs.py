@@ -43,6 +43,21 @@ def test_run_and_eval_cfgs():
         }
     })
     debug_params=dict({
+        'asymmetries': {
+            'num_steps': 1,
+            'PCPTopology': {
+                'PCPVertex': {
+                    'agent_manager': {
+                        'setup_params': {
+                            'hexagonal': {
+                                'lattice_rows': 10,
+                                'lattice_columns': 20
+                            }
+                        }
+                    }
+                }
+            }
+        },
         'evaluate_shear_thinning': {
             'num_steps': 1
         },

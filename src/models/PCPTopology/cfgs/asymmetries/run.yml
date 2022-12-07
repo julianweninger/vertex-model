@@ -63,23 +63,23 @@ parameter_space:
 
     # The sequence of operations
     operations:
-      - proliferate:
-          times: []
-          iterations_prolog: 1
+      # - proliferate:
+      #     times: []
+      #     iterations_prolog: 1
 
-          num_cells: !expr 576 - 288
-          num_increases: 0
-          area_threshold: 0
+      #     num_cells: !expr 576 - 288
+      #     num_increases: 0
+      #     area_threshold: 0
 
-          minimize_after_division: false
-          minimization_after_increase: ~
-          minimization_after_division: ~
-          minimization:
-            mode: manual
+      #     minimize_after_division: false
+      #     minimization_after_increase: ~
+      #     minimization_after_division: ~
+      #     minimization:
+      #       mode: manual
 
-      - void:
-          times: []
-          iterations_prolog: 50
+      # - void:
+      #     times: []
+      #     iterations_prolog: 50
 
           
       # Put some markers into the tissue
@@ -151,11 +151,11 @@ parameter_space:
           
           minimization:
             mode: manual
-      - void:
-          times: []
-          iterations_prolog: 50
-          minimization:
-            linetension_fluctuations: 0.04
+      # - void:
+      #     times: []
+      #     iterations_prolog: 50
+      #     minimization:
+      #       linetension_fluctuations: 0.04
 
       - register_work_function_term:
           times: []
@@ -224,8 +224,9 @@ parameter_space:
             values: 
               - 0.
               - 5.e-2
-          width: !expr (576*2)**0.5
-          height: !expr (576/2)**0.5
+          width: !expr (288*2)**0.5
+          height: !expr (288/2)**0.5
+          # NOTE adapt this to fit all cells constrainlessly
           stretch: true
           deform_plastic: true
 
