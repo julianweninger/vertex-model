@@ -492,27 +492,34 @@ public:
      *      -# tracking of variables
      */
     void perform_step () {
-        perform_transitions(_enable_transitions);
-
-        if (_space->get_curvature() > 1.e-8) {
-            throw std::runtime_error(fmt::format("Cannot perform step with "
-                "curved periodic boundary conditions. Curvature {} > 0",
-                _space->get_curvature()));
-        }
-
-        double E = perform_update_step();
-
         for (const auto& [name, term] : _work_function_terms) {
             term->update(this->_dt);
         }
+        
+        if (_dt > 1.e-10) {
+            perform_transitions(_enable_transitions);
 
-        this->_log->trace("Energy changed by {}", E - _energy_buffer.back());
+            if (_space->get_curvature() > 1.e-8) {
+                throw std::runtime_error(fmt::format("Cannot perform step with "
+                    "curved periodic boundary conditions. Curvature {} > 0",
+                    _space->get_curvature()));
+            }
 
-        if (not std::isfinite(E)) {
-            throw std::runtime_error("Non-finite energy. Aborting!");
+            double E = perform_update_step();
+            this->_log->trace("Energy changed by {}", E -_energy_buffer.back());
+
+            if (not std::isfinite(E)) {
+                throw std::runtime_error("Non-finite energy. Aborting!");
+            }
+
+            _energy_buffer.push_back(E);
         }
-
-        _energy_buffer.push_back(E);
+        else {
+            this->_log->debug(
+                "Skipping update on vertex positions with dt = {} < 0.",
+                _dt
+            );
+        }
     }
 
     void prolog () {
@@ -773,6 +780,14 @@ public:
                 )
             );
         }
+        else if (term == "edge_contractility_polar") {                  
+            register_work_function_term(
+                name,
+                std::make_shared<EdgeContractilityPolar<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "linetension") {
             register_work_function_term(
                 name,
@@ -817,6 +832,7 @@ public:
                 " - edge_contractility\n"
                 " - edge_contractility_heterotypic\n"
                 " - edge_contractility_axial\n"
+                " - edge_contractility_polar\n"
                 " - linetension\n"
                 " - linetension_fluctuations\n"
                 " - linetension_heterotypic\n"

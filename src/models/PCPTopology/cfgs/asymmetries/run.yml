@@ -29,11 +29,11 @@ worker_manager:
   #         seconds: 0.1 # !expr 60*40  
 
 parameter_space:
-  num_steps: 200
+  num_steps: 500
 
   seed: !sweep
     default: 42
-    range: [1]
+    range: [6]
     order: !expr -np.inf
 
   PCPTopology:
@@ -63,29 +63,23 @@ parameter_space:
 
     # The sequence of operations
     operations:
-      # - proliferate:
-      #     times: []
-      #     iterations_prolog: 1
+      - proliferate:
+          times: []
+          iterations_prolog: 1
 
-      #     num_cells: !expr 98 - 72
-      #     num_increases: 0
-      #     area_threshold: 0
+          num_cells: !expr 576 - 288
+          num_increases: 0
+          area_threshold: 0
 
-      #     minimize_after_division: false
-      #     minimization_after_increase: ~
-      #     minimization_after_division: ~
-      #     minimize:
-      #       mode: manual
+          minimize_after_division: false
+          minimization_after_increase: ~
+          minimization_after_division: ~
+          minimization:
+            mode: manual
 
-      # - update_work_function_term:
-      #     times: []
-      #     iterations_prolog: 1
-      #     name: boundary_stripe_potential
-      #     parameters:
-      #       stretch: true
-      # - void:
-      #     times: []
-      #     iterations_prolog: 20
+      - void:
+          times: []
+          iterations_prolog: 50
 
           
       # Put some markers into the tissue
@@ -132,7 +126,7 @@ parameter_space:
           parameters:
             boundary_type: 2
             contractility:
-              - [0.1, 0.0, 0.0]
+              - [0.2, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
           minimization:
@@ -150,10 +144,42 @@ parameter_space:
               target_name: curvature
               name: curvature_mechanics
             contractility:
-              - [0.05, 0.0, 0.0]
+              - [0.1, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
             boundary_type: 2
+          
+          minimization:
+            mode: manual
+      - void:
+          times: []
+          iterations_prolog: 50
+          minimization:
+            linetension_fluctuations: 0.04
+
+      - register_work_function_term:
+          times: []
+          iterations_prolog: 1
+          term: edge_contractility_polar
+          parameters:
+            axis: 0.
+            curvature: !coupled-sweep
+              target_name: curvature
+              name: curvature_mechanics_
+            contractility:
+              - [0.00, -0.05, 0.00]
+              - [-0.05, -0.05, -0.05]
+              - [0.00, -0.05, 0.00]
+            boundary_type: 2
+            
+            exclude_cell_types: [0]
+            setup: uniform
+            # setup: gaussian
+            # orientation_mean: 0.
+            # orientation_std: !expr 30 / 180 * 3.1415
+
+            gamma: 20
+            num_steps: 100
           
           minimization:
             mode: manual
@@ -161,7 +187,7 @@ parameter_space:
       - void:
           times: !listgen [1, 501]
           minimization:
-            linetension_fluctuations: 0.03
+            linetension_fluctuations: 0.02
 
 
     PCPVertex:
@@ -186,6 +212,8 @@ parameter_space:
       # asymmetries
       - edge_contractility_axial:
           register: False
+      - edge_contractility_polar:
+          register: False
 
       # BC
       - boundary_stripe_potential:
@@ -196,16 +224,16 @@ parameter_space:
             values: 
               - 0.
               - 5.e-2
-          width: !expr (72*2)**0.5
-          height: !expr (72/2)**0.5
+          width: !expr (576*2)**0.5
+          height: !expr (576/2)**0.5
           stretch: true
           deform_plastic: true
 
       agent_manager:
         setup_params:
           hexagonal:
-            lattice_columns: 12
-            lattice_rows: 6
+            lattice_columns: 24
+            lattice_rows: 12
       
       # continuous data manager
       data_manager:

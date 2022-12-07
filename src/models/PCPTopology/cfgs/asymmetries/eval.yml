@@ -12,14 +12,12 @@ _definitions:
   enabled: false
 
   # slice to single sweep parameter
-  subspace_slice: &subspace_slice ~
-    # curvature: !sweep
-    #   default: 0.
-    #   values:
-    #     - 0.
-        # - 5.e-3
-        # - 1.e-2
-        # - 6.e-2
+  subspace_slice: &subspace_slice
+    curvature: !sweep
+      default: 0.
+      values:
+        - 0.
+        - 5.e-2
     # ppMLC: !sweep
     #   default: 0.4
     #   values: [0.4, 0.]
@@ -94,14 +92,13 @@ polarity_histplot: !pspace
     - multiverse
     - select_cells_properties_mv
 
-  enabled: false
-  
   select_and_combine:
     fields:
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: polarity}]
+          - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
+          - .isel: [!dag_prev , {time: -1}]
           - .rename: [!dag_prev , polarity]
     subspace: *subspace_slice
   
@@ -148,7 +145,8 @@ polarity_histplot: !pspace
     - function: sns.histplot
       data: !dag_result hair_cells_bulk
       x: polarity
-      bins: 40
+      bins: 16
+      binrange: [-3.1416, 3.1416]
   helpers:
     setup_figure:
       subplot_kw:
@@ -431,12 +429,55 @@ cell_segmentation:
   based_on:
     - single_universe
     - cellular_structure
+  enabled: false
 
-  
-cell_segmentation__contractility:
+cell_segmentation__polarity:
   based_on:
     - single_universe
     - cellular_structure
+
+  universes:
+    seed: 0
+
+  select:
+    edge_property:
+      # path: data/PCPTopology/Edge_energies
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_polar__contractility}]
+        - .rename: [!dag_prev , polar_contractility]
+    vector_property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
+        - .sel: [!dag_node -2, {property: cell_type}]
+        - create_mask: [!dag_prev , ==, 1]
+        - .where: [!dag_node -3, !dag_node -1]
+        - .rename: [!dag_prev , polarity]
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
+        - .sel: [!dag_node -2, {property: cell_type}]
+        - call_lambda:
+          - "lambda d, type: d.where(type==1)"
+          - !dag_node -2
+          - !dag_node -1
+        - .sel: [!dag_node -4, {property: is_boundary}]
+        - call_lambda:
+          - "lambda d, boundary: d.where(boundary==0)"
+          - !dag_node -2
+          - !dag_node -1
+        - .rename: [!dag_prev , Polarity]
+
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: -3.1415
+    vmax: 3.1416
+    cmap: brg
+  
+cell_segmentation__axial_contractility:
+  based_on: cell_segmentation__polarity
 
   select:
     edge_property:
