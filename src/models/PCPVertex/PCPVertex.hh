@@ -438,8 +438,7 @@ private:
 
     // -- The algorithm    ----------------------------------------------------
     // see algorithm.hh
-    double steepest_gradient_step ();
-    double perform_update_step();
+    void steepest_gradient_step ();
     bool perform_transitions(bool enabled);
 
 
@@ -495,24 +494,17 @@ public:
         for (const auto& [name, term] : _work_function_terms) {
             term->update(this->_dt);
         }
-        
-        if (_dt > 1.e-10) {
-            perform_transitions(_enable_transitions);
 
+        if (_dt > 1.e-10) {
             if (_space->get_curvature() > 1.e-8) {
                 throw std::runtime_error(fmt::format("Cannot perform step with "
                     "curved periodic boundary conditions. Curvature {} > 0",
                     _space->get_curvature()));
             }
+            
+            perform_transitions(_enable_transitions);
 
-            double E = perform_update_step();
-            this->_log->trace("Energy changed by {}", E -_energy_buffer.back());
-
-            if (not std::isfinite(E)) {
-                throw std::runtime_error("Non-finite energy. Aborting!");
-            }
-
-            _energy_buffer.push_back(E);
+            steepest_gradient_step();
         }
         else {
             this->_log->debug(
@@ -520,6 +512,15 @@ public:
                 _dt
             );
         }
+
+        double E = get_energy();
+        this->_log->trace("Energy changed by {}", E -_energy_buffer.back());
+
+        if (not std::isfinite(E)) {
+            throw std::runtime_error("Non-finite energy. Aborting!");
+        }
+
+        _energy_buffer.push_back(E);
     }
 
     void prolog () {
