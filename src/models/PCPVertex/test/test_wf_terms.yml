@@ -234,5 +234,16 @@ test_update_area_elasticity_heterotypic:
     increments: [0., -0.1]
     restrain_types: [0]
 
-
+test_update_edge_contractility_polar:
+  edge_contractility_polar:
+    contractility: 
+      - [0.0, 1.0, 0.0]
+      - [1.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0]
+    boundary_type: 2
+    axis: 0
+    gamma: 0.1
+    num_steps: 1
+    setup: uniform
+    exclude_cell_types: [0]
   

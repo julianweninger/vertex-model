@@ -1525,7 +1525,7 @@ public:
         }
     }
 
-    void update(double dt) {
+    void update([[maybe_unused]] double dt) {
         for (std::size_t i = 0; i < _num_steps; i++) {
             perform_step();
         }

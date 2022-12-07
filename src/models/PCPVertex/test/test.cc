@@ -424,6 +424,59 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         term_fct->update_parameters(update_cfg);
         test_cell_areas(std::vector<double>({1.1, 0.9}), precision);
     }
+    
+    BOOST_AUTO_TEST_CASE (test_update_edge_contractility_polar)
+    {
+        const double precision = 1.e-5;
+
+        Fixture<Case::non_periodic> fixture;
+        auto& model = fixture.vertex_model;
+        model.prolog();
+
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+
+        std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
+        std::size_t cnt_1 = 0;
+        while(cnt_1 != cells.size() / 2) {
+            auto c_id = distr(*model.get_rng());
+            if (cells[c_id]->state.type == 0) {
+                cells[c_id]->state.type = 1;
+                cnt_1++;
+            }
+        }
+        BOOST_TEST(cnt_1 == cells.size() / 2);
+
+        Config cfg = get_as<Config>(
+            "test_update_edge_contractility_polar", 
+            fixture.wf_terms
+        );
+
+        std::string name = "edge_contractility_polar";
+        Config wft_cfg = get_as<Config>(
+            name, 
+            cfg
+        );
+        std::string term_name = get_as<std::string>("term", wft_cfg, name);
+
+        model.register_work_function_term(term_name, name, wft_cfg);
+
+        auto term_fct = model.get_work_function_term(name);
+
+        double energy = model.get_energy();
+        double dE = 0.;
+        for (std::size_t i = 0; i < 100; i++) {
+            double E = model.get_energy();
+            
+            term_fct->update(0.);
+
+            dE += model.get_energy() - E;
+            BOOST_TEST(model.get_energy() - E < -1.e-12);
+        }
+
+        BOOST_TEST(model.get_energy() - energy < -1.e-12);
+        BOOST_CHECK_CLOSE(model.get_energy() - energy, dE, 1.e-4);
+    }
 
     BOOST_AUTO_TEST_CASE(test_energy_periodic)
     {
