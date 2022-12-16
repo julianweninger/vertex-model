@@ -427,7 +427,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     
     BOOST_AUTO_TEST_CASE (test_update_edge_contractility_polar)
     {
-        const double precision = 1.e-5;
+        const double precision = 1.e-4;
 
         Fixture<Case::non_periodic> fixture;
         auto& model = fixture.vertex_model;
@@ -475,7 +475,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         }
 
         BOOST_TEST(model.get_energy() - energy < -1.e-12);
-        BOOST_CHECK_CLOSE(model.get_energy() - energy, dE, 1.e-4);
+        BOOST_CHECK_CLOSE(model.get_energy() - energy, dE, precision);
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_periodic)
