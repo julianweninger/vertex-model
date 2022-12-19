@@ -1,7 +1,7 @@
-# The evaluation of default_proliferation_minimal___non_periodic
+# The evaluation of default_proliferation_minimal
 ---
 energy:
-  based_on: energy_boundary
+  based_on: energy
 
 energy_continuous:
   based_on: 
@@ -10,14 +10,6 @@ energy_continuous:
 
 transitions:
   based_on: transitions
-
-transitions_cumulated:
-  based_on: transitions
-  cumsum_transitions: true
-
-transitions_continuous:
-  based_on: transitions_continuous
-  cumsum_transitions: true
 
 
 
@@ -86,7 +78,18 @@ equilibrium_cellular_structure:
 
 continuous_cellular_structure:
   based_on: cellular_structure
-  datapath: PCPTopology/PCPVertex
+  select:
+    Vertices:
+      path: data/PCPTopology/PCPVertex/Vertices
+    Edges:
+      path: data/PCPTopology/PCPVertex/Edges
+    Cells:
+      path: data/PCPTopology/PCPVertex/Cells
+    Lx:
+      path: data/PCPTopology/PCPVertex/Vertices
+    Ly:
+      path: data/PCPTopology/PCPVertex/Vertices
+
 
 
 cell_neighbourhood: !pspace
@@ -98,17 +101,11 @@ cell_neighbourhood: !pspace
     area:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: area
+        - .sel: [!dag_prev , {property: area}]
     cell_type:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: cell_type
+        - .sel: [!dag_prev , {property: cell_type}]
     shape_index:
       path: data/PCPTopology/Cells
       transform:
@@ -120,23 +117,9 @@ cell_neighbourhood: !pspace
     num_neighbors:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_neighbors
-    num_hair_neighbors:
-      path: data/PCPTopology/Cells
-      transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_hair_neighbors
+        - .sel: [!dag_prev , {property: num_neighbors}]
 
   only_type: !sweep
     default: all
     values:
       - all
-      - hair
-      - support
-      - support_hair
-      - hair_hair

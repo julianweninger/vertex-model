@@ -8,26 +8,7 @@ PCPVertex:
       contractility: 1.
       preferential_shape: 3.72
 
-  test_work_function_terms:
-  - area_elasticity:
-      elastic_modulus: 1
-      preferential_area: 1
-  - cell_contractility:
-      contractility: 1.
-      preferential_shape: 3.72
-  - shape_elasticity:
-      elastic_modulus: 1.
-      preferential_shape_index: 3.72
-  - linetension:
-      linetension: 0.1
-  - linetension_heterotypic:
-      linetension: 
-        - [0.1, 0.2]
-        - [0.2, 0.]
-      boundary_type: 1
-  - edge_contractility:
-      contractility: 0.01
-      
+  log_level: trace
   T1_barrier: 0.02
   T1_probability: 1.0
   T1_separation_factor: 1.05
@@ -41,7 +22,7 @@ PCPVertex:
       agent_params: {}
     setup_method: hexagonal
     setup_params:
-      hexagonal: {hexagon_size: 0.6204032394013997, hexagon_shape: pointy, lattice_columns: 4, lattice_rows: 4}
+      hexagonal: {hexagon_size: 0.6204032394013997, hexagon_shape: pointy, lattice_columns: 6, lattice_rows: 6}
       single: {size: 0.6204032394013997}
       column: {size: 1., height: 1., num_cells: 4, offset: 1.}
     vertex_manager: ~

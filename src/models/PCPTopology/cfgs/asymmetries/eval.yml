@@ -17,22 +17,20 @@ _definitions:
       default: 0.
       values:
         - 0.
-        # - 5.e-3
-        # - 1.e-2
-        - 6.e-2
-    ppMLC: !sweep
-      default: 0.4
-      values: [0.4, 0.]
+        - 5.e-2
+    # ppMLC: !sweep
+    #   default: 0.4
+    #   values: [0.4, 0.]
 
   # first sweep dimension
-  hue: &HUE curvature
+  hue: &HUE ~ # curvature
   hue_name: &HUE_NAME ~
 
   # slice to single sweep parameter
-  subspace_slice_hue: &subspace_slice_hue
-    ppMLC: !sweep
-      default: 0.4
-      values: [0.4, 0.]
+  subspace_slice_hue: &subspace_slice_hue ~
+    # ppMLC: !sweep
+    #   default: 0.4
+    #   values: [0.4, 0.]
 
   # second sweep dimension
   bif_name: &BIF_NAME ~
@@ -87,28 +85,20 @@ energy:
   based_on: 
     - single_universe
     - energy
-  enabled: False
-
-energy_edge_contractility:
-  based_on: energy
-
-  to_plot:
-  - function: sns.lineplot
-    data: !dag_result edge_contractility
-    label: edge contractility
 
 polarity_histplot: !pspace
   based_on:
     - .plot.multiplot
     - multiverse
     - select_cells_properties_mv
-  
+
   select_and_combine:
     fields:
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: polarity}]
+          - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
+          - .isel: [!dag_prev , {time: -1}]
           - .rename: [!dag_prev , polarity]
     subspace: *subspace_slice
   
@@ -155,63 +145,12 @@ polarity_histplot: !pspace
     - function: sns.histplot
       data: !dag_result hair_cells_bulk
       x: polarity
-      bins: 40
+      bins: 16
+      binrange: [-3.1416, 3.1416]
   helpers:
     setup_figure:
       subplot_kw:
         projection: polar
-    
-
-# --- fluidity ----------------------------------------------------------------
-transitions_multiplot_over_time: !pspace
-  based_on:
-    - .plot.multiplot
-    - multiverse
-
-  select_and_combine:
-    allow_missing_or_failing: True
-    fields:
-      _T1s:
-        path: data/PCPTopology/Energy/transitions
-        transform:
-          - .sel: [!dag_prev ]
-            kwargs:
-              property: num_T1s
-          - .rename: [!dag_prev , num_T1s]
-    subspace: *subspace_slice_hue
-
-  transform:
-    - define: [!dag_tag _T1s]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, rolling, !dag_prev ,
-             {time: 3}]
-      kwargs: {center: True}
-    - .mean: [!dag_prev , time]
-    - .squeeze: [!dag_prev ]
-    # - div: [!dag_prev , *NUM_CELLS]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
-    - callattr: [!dag_prev , reset_index]
-      tag: T1s
-
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result T1s
-      ci: sd
-
-  x: time
-  y: num_T1s
-  hue: *BIF_NAME
-
-  helpers:
-    set_labels:
-      x: time
-      y: average transitions
-    set_scales:
-      y: log
-    set_limits:
-      x: [*TIME_MIN, *TIME_MAX]
-      y: [1.e-5, 1.e-1]
 
 
 # Cell properties from cell data ----------------------------------------------
@@ -254,6 +193,7 @@ cell_properties/area: !pspace
              {ids: [seed, id]}]
     - .squeeze: [!dag_prev ]
       tag: property
+    - print: [!dag_prev ]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
@@ -327,6 +267,7 @@ cell_properties/shape: !pspace
 # cell polarity as nematic quantity. Global average vector length
 cell_properties/nematic_alignment: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -367,6 +308,7 @@ cell_properties/nematic_alignment: !pspace
 # cell polarity as nematic quantity. Global average vector direction
 cell_properties/nematic_direction: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -405,6 +347,7 @@ cell_properties/nematic_direction: !pspace
 # cell polarity. Global average vector length
 cell_properties/polar_alignment: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -444,6 +387,7 @@ cell_properties/polar_alignment: !pspace
 # cell polarity. Global average vector direction
 cell_properties/polar_direction: !pspace
   based_on: cell_properties/area
+  enabled: false
   select_and_combine:
     fields:
       _property:
@@ -483,17 +427,83 @@ cell_properties/polar_direction: !pspace
 # --- Cell segmentation ------------------------------------------------------
 cell_segmentation:
   based_on:
-    - single_universe
     - cellular_structure
+    - single_universe
+    - my_style
+  enabled: false
 
-  edge_property: {energy_term: edge_contractility}
-  edge_property_path: Edge_energies
+cell_segmentation__polarity:
+  based_on:
+    - cellular_structure
+    - single_universe
+    - my_style
 
-  quiver_kwargs:
-    cmap: Blues
-    label: Contractility
+  select:
+    edge_property:
+      # path: data/PCPTopology/Edge_energies
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_polar__contractility}]
+        - .rename: [!dag_prev , polar_contractility]
+    vector_property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_polar__polarity}]
+        - .sel: [!dag_node -2, {property: cell_type}]
+        - create_mask: [!dag_prev , ==, 1]
+        - .where: [!dag_node -3, !dag_node -1]
+        - .rename: [!dag_prev , polarity]
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
+        - add: [!dag_prev , 3.1416]
+        - call_lambda:
+          - "lambda data: (data <= 1 / 4 * math.pi) | (data > 7 / 4 * math.pi)"
+          - !dag_node -1
+          # right
+        - call_lambda:
+          - "lambda data: (data > 1 / 4 * math.pi) & (data <= 3 / 4 * math.pi)"
+          - !dag_node -2
+          # up
+        - call_lambda:
+          - "lambda data: (data > 3 / 4 * math.pi) & (data <= 5 / 4 * math.pi)"
+          - !dag_node -3
+          # left
+        - call_lambda:
+          - "lambda data: (data > 5 / 4 * math.pi) & (data <= 7 / 4 * math.pi)"
+          - !dag_node -4
+          # down
+        - call_lambda: 
+          - "lambda qr, qu, ql, qd: xr.where(qr, -0.5, xr.where(ql, -1, xr.where(qu, 0.5, 1)))"
+          - !dag_node -4
+          - !dag_node -3
+          - !dag_node -2
+          - !dag_node -1
+        - .sel: [!dag_node -8, {property: cell_type}]
+        - call_lambda:
+          - "lambda d, type: d.where(type==1)"
+          - !dag_node -2
+          - !dag_node -1
+        - .sel: [!dag_node -10, {property: is_boundary}]
+        - call_lambda:
+          - "lambda d, boundary: d.where(boundary==0)"
+          - !dag_node -2
+          - !dag_node -1
+        - .rename: [!dag_prev , Polarity]
+  
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: -1
+    vmax: 1
+    cmap: brg
+  
+cell_segmentation__axial_contractility:
+  based_on: cell_segmentation__polarity
 
-  vector_property: {property: polarity}
-  vector_property_hair_cells_only: True
-
-  cell_marker_size: 10
+  select:
+    edge_property:
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_prev , {property: edge_contractility_axial__contractility}]
+        - .rename: [!dag_prev , axial_contractility]

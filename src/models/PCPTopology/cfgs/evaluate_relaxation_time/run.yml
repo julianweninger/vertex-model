@@ -74,36 +74,30 @@ parameter_space:
       log_level: warning
       initial_jiggle: 1.e-2
       
-      agent_manager:
-        cell_manager:
-          agent_params:
-            shape_index_preferential: !sweep
-              name: s0
-              default: 3.72
-              values: [3.64, 3.72, 3.76, 3.8, 3.85]
-              order: 1
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: !sweep
+            name: s0
+            default: 3.72
+            values: [3.64, 3.72, 3.76, 3.8, 3.85]
+            order: 1
 
       # continuous data manager
       data_manager:
         deciders:
-          write_energy:
+          write_always:
             type: interval
             args: 
               intervals:
                 - [0, 1000000000, 5 ]
         tasks:
-          Energy_total: &energy_continuous
-            decider: write_always
-            active: true
-          Energy_linetension: *energy_continuous
-          Energy_areaelasticity: *energy_continuous
-          Energy_cell_contractility: *energy_continuous
-          Energy_edge_contractility: *energy_continuous
-          Energy_boundary_area_elasticity: {active: false}
-          Energy_boundary_shape_elasticity: {active: false}
-          Energy_time: *energy_continuous
-          transitions: *energy_continuous
-
           Vertices: &position {active: false}
           Cells: *position
           Edges: *position
@@ -125,6 +119,3 @@ parameter_space:
               - [20, 301, 10]
       triggers:
         build_interval: *interval
-      tasks:
-        Energy_boundary_area_elasticity: {enabled: false}
-        Energy_boundary_shape_elasticity: {enabled: false}

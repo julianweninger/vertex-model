@@ -17,20 +17,11 @@ void PCPVertex::init_minimization ()
  *                          is performed. Else, update with fixed stepsize.
  *  \return the energy after upate
  */
-double PCPVertex::steepest_gradient_step ()
+void PCPVertex::steepest_gradient_step ()
 {
     compute_and_set_forces();
 
     apply_rule<Update::sync>(update_position, _am.vertices());
-
-    return get_energy();
-};
-
-/// Select the chosen update scheme
-/** \return the energy after update
- */
-double PCPVertex::perform_update_step() {    
-    return steepest_gradient_step();
 };
 
 

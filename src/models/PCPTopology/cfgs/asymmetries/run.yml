@@ -1,0 +1,263 @@
+# A minimal configuration to introduce heterogeneous edge contractility
+# In quick and dirty during proliferation the energy is not minimized.
+# This results in a significant (~ factor 100) speed up with similar results.
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<case>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<case>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+perform_sweep: true
+paths:
+  model_note: default__asymmetries
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+  # num_workers: 6
+# run_kwargs:
+#   timeout: !expr 60*60*18
+  # stop_conditions:
+  #   - !stop-condition
+  #     name: single simulation timeout
+  #     description: terminates a simulation if it ran for too long
+  #     enabled: true               # (optional, true by default)
+  #     to_check:                   # A sequence of AND-connected conditions
+  #       - func: timeout_wall      # Looked up in utopya.stopcond_funcs
+  #         seconds: 0.1 # !expr 60*40  
+
+parameter_space:
+  num_steps: 100
+
+  seed: !sweep
+    default: 42
+    range: [18]
+    order: !expr -np.inf
+
+  PCPTopology:
+    space: &space
+      periodic: false
+
+    # --- Dynamics
+    # Minimization parameter
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.05  # this was evaluated in the previous test to be a good dt
+      num_steps: 20
+      jiggle_intensity: 0.
+      linetension_fluctuations: 0.02
+      linetension_fluctuations_tau: &tau_dL 24
+      num_repeat: *tau_dL
+
+    initialisation:
+      0_add_noise:
+        enabled: true
+      1_by_proliferation:
+        enabled: false
+
+    # The sequence of operations
+    operations:          
+      # - proliferate:
+      #     times: []
+      #     iterations_prolog: 1
+
+      #     num_cells: !expr 2*576 - 648
+      #     num_increases: 0
+      #     area_threshold: 0
+
+      #     minimize_after_division: false
+      #     minimization_after_increase: ~
+      #     minimization_after_division: ~
+      #     minimization:
+      #       mode: manual
+
+      # - void:
+      #     times: []
+      #     iterations_prolog: 48
+
+          
+      # Put some markers into the tissue
+      - differentiate_random:
+          times: []
+          iterations_prolog: 1
+          rho: !sweep
+            name: rho
+            default: 0.06
+            values:
+              - &RHO_1 0.2
+              # - &RHO_2 0.26
+              # - &RHO_3 0.1
+              # - &RHO_4 0.05
+              # - &RHO_5 0.0
+          method: fraction
+          distribution: !coupled-sweep
+            target_name: rho
+            name: distribution
+            default: [0.8, 0.2]
+            values:
+              - [0.80, *RHO_1]
+              # - [0.74, *RHO_2]
+              # - [0.90, *RHO_3]
+              # - [0.95, *RHO_4]
+              # - [1.00, *RHO_5]
+          minimization:
+            mode: manual
+
+      # disperse them as much as possible
+      - minimize_cell_contacts:
+          times: []
+          iterations_prolog: 1
+          num_steps: 6000
+          type: 1
+          neutral_probability: 0.2
+          minimization:
+            mode: manual
+
+      - register_work_function_term:
+          times: []
+          iterations_prolog: 1
+          term: edge_contractility_heterotypic
+          parameters:
+            boundary_type: 2
+            contractility:
+              - [0.2, 0.0, 0.0]
+              - [0.0, 0.0, 0.0]
+              - [0.0, 0.0, 0.0]
+          minimization:
+            mode: manual
+      # END differentiation
+
+      # Introduce asymmetries along axis
+      - register_work_function_term:
+          times: []
+          iterations_prolog: 1
+          term: edge_contractility_axial
+          parameters:
+            angle: 0
+            curvature: !coupled-sweep
+              target_name: curvature
+              name: curvature_mechanics
+            contractility:
+              - [0.4, 0.0, 0.0]
+              - [0.0, 0.0, 0.0]
+              - [0.0, 0.0, 0.0]
+            boundary_type: 2
+          
+          minimization:
+            mode: manual
+      # - void:
+      #     times: []
+      #     iterations_prolog: 24
+      #     minimization:
+      #       linetension_fluctuations: 0.04
+
+      - register_work_function_term:
+          times: []
+          iterations_prolog: 1
+          term: edge_contractility_polar
+          parameters:
+            axis: 0.
+            curvature: !coupled-sweep
+              target_name: curvature
+              name: curvature_mechanics_
+            contractility:
+              - [0.00, -0.05, 0.0]
+              - [-0.05, 0.00, 0.0]
+              - [0.00,  0.00, 0.0]
+            boundary_type: 2
+            
+            exclude_cell_types: [0]
+            setup: uniform
+            # setup: gaussian
+            # orientation_mean: 0.
+            # orientation_std: !expr 30 / 180 * 3.1415
+
+            gamma: 20
+            num_steps: 100
+          
+          minimization:
+            mode: manual
+
+      - void:
+          times: !listgen [1, 501]
+          minimization:
+            linetension_fluctuations: 0.0001
+
+
+    PCPVertex:
+      log_level: warning
+
+      space: *space
+
+      work_function_terms:
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      # fluctuations
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      # heterogeneity
+      - edge_contractility_heterotypic:
+          register: False
+      # asymmetries
+      - edge_contractility_axial:
+          register: False
+      - edge_contractility_polar:
+          register: False
+
+      # BC
+      - boundary_stripe_potential:
+          elastic_constant: 10.
+          curvature: !sweep
+            name: curvature
+            default: 0
+            values: 
+              - 0.
+              - 5.e-2
+          width: !expr (72*2)**0.5
+          height: !expr (72/2)**0.5
+          # NOTE adapt this to fit all cells constrainlessly
+          stretch: true
+          deform_plastic: true
+
+      agent_manager:
+        setup_params:
+          hexagonal:
+            lattice_columns: 12
+            lattice_rows: 6
+      
+      # continuous data manager
+      data_manager:
+        deciders:
+          write_energy:
+            type: interval
+            args: 
+              intervals:
+                - [0, 1000000000, 50]
+        tasks:
+          Vertices: &position {active: false}
+          Cells: *position
+          Edges: *position
+
+    # equilibrium data manager
+    data_manager:
+      deciders:
+        write_always:
+          type: always
+
+        write_interval: &interval
+          type: interval
+          args:
+            intervals:
+              - [  0,    10,  1]
+              - [ 10,    50,  5]
+              - [ 50,   100, 10]
+              - [100,  1001, 50]
+      triggers:
+        build_interval: *interval

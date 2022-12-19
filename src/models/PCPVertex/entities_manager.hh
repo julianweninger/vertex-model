@@ -695,9 +695,12 @@ public:
      */
     std::pair<double, double> hexatic_order_of (
         const std::shared_ptr<Cell>& cell,
-        const AgentContainer<Cell>& neighbors
+            const std::size_t& type,
+            const std::size_t& distance=1
     ) const 
     {
+        const auto neighbors = neighbors_of_type(cell, type, distance);
+        
         if (neighbors.size() < 3) {
             return std::make_pair(0., 0.);
         }

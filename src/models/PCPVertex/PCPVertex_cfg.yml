@@ -53,12 +53,6 @@ minimization:
   temperature: 0.001
 # can be steepest_gradient, steepest_gradient_adaptive, conjugate_gradient
 
-boundary_parameter:
-  area_elasticity: 0.
-  area_preferential: 1.
-  contractility: 0.
-  shape_index_preferential: 3.76
-
 T1_threshold: 0.03
 T1_separation_factor: 1.05
 T1_probability: 1.

@@ -13,8 +13,7 @@ _definitions:
   subspace_slice: &subspace_slice
     Gamma: !sweep
       default: 0
-      # linspace: [0, 1, 6]
-      linspace: [0, 0.8, 3]
+      values: [0, 0.1, 0.2]
       order: 1
     rho: !sweep
       default: 0.2
@@ -48,7 +47,7 @@ _definitions:
       order: 0
     Gamma: !sweep
       default: 0
-      linspace: [0, 0.8, 3]
+      values: [0, 0.1, 0.2]
       order: 1
 
 
@@ -289,7 +288,14 @@ cell_properties/HH_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
           - .rename: [!dag_prev , num_hair_neighbors]
   y: num_hair_neighbors
   to_plot: 
@@ -383,7 +389,15 @@ HH_contacts_vs_dL: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , num_hair_neighbors]
 
           - .coords: [!dag_prev , time]
           - create_mask: [!dag_prev , '>=', *T_eq]

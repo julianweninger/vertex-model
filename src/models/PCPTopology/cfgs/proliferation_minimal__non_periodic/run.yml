@@ -1,0 +1,90 @@
+    # A minimal configuration to do cell proliferation
+# In quick and dirty during proliferation the energy is not minimized.
+# This results in a significant (~ factor 100) speed up with similar results.
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_proliferation_non_periodic
+
+parameter_space:
+  num_steps: 16
+
+  PCPTopology:
+    space: &SPACE
+      periodic: false
+      extent: [30, 30]
+
+    initialisation:
+      1_by_proliferation:
+        enabled: false
+
+    minimization:
+      dt: 0.05
+      num_steps: 20
+
+    operations:
+      - proliferate:
+          times: !listgen [101]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 0
+
+          num_increases: 4
+          area_threshold: 1.75
+
+          minimization_after_increase:
+            num_repeat: 8
+
+          minimization: ~     # use default
+
+    PCPVertex:
+      log_level: info
+
+      space: *SPACE
+
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      - linetension_heterotypic:
+          boundary_type: 1
+          linetension:
+            - [0., 0.01]
+            - [0.01, 0.1]
+
+      data_manager:
+        deciders:
+          write_interval: &interval_continuous
+            type: interval
+            args:
+              intervals:
+                - [100, 800, 100]
+        triggers:
+          build_interval: *interval_continuous
+
+    data_manager:
+      deciders:
+        write_interval: &interval
+          type: interval
+          args:
+            intervals:
+              - [0, 5, 1]
+              - [5, 25, 5]
+              - [25, 51, 25]
+              - [64, 65, 1]
+              - [75, 101, 25]
+      triggers:
+        build_interval: *interval

@@ -234,6 +234,8 @@ def cellular_structure(
     def update():
         global cbar
         cbar = None
+        global edges_cbar
+        edges_cbar = None
 
         # the domain extent for non periodic boundaries (centered on (0., 0.))
         domain_size_min_x = 0.
@@ -269,6 +271,9 @@ def cellular_structure(
 
             if cbar is not None: 
                 cbar.remove()
+
+            if edges_cbar is not None: 
+                edges_cbar.remove()
             hlpr.ax.set_aspect('auto')
 
             v_data = data['Vertices'].sel(time=time)
@@ -410,7 +415,7 @@ def cellular_structure(
             dx, dy = displacement(ax, ay, bx, by)
 
             def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
-                global cbar
+                global edges_cbar
 
                 if data['periodic']:
                     # only plot within box + excess length
@@ -442,12 +447,12 @@ def cellular_structure(
                         quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
                         if colorbar:
-                            cbar = hlpr.fig.colorbar(
+                            edges_cbar = hlpr.fig.colorbar(
                                 quiver, ax=hlpr.ax, extend='both',
                                 fraction=0.046, pad=0.04
                             )
-                            cbar.set_label(e_prop_data.name)
-                            cbar.minorticks_on()
+                            edges_cbar.set_label(e_prop_data.name)
+                            edges_cbar.minorticks_on()
 
                     elif len(e_prop_dims) == 1:
                         e_prop_dim=e_prop_dims[0]
@@ -481,10 +486,10 @@ def cellular_structure(
                                 **__quiver_kwargs)
                         
                         if colorbar:
-                            cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
+                            edges_cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
                                                      extend='both')
-                            cbar.set_label(e_prop_data.name)
-                            cbar.minorticks_on()
+                            edges_cbar.set_label(e_prop_data.name)
+                            edges_cbar.minorticks_on()
                     else:
                         raise
 

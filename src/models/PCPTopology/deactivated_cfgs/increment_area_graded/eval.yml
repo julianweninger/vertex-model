@@ -436,7 +436,7 @@ cells_spatial/hexatic_order: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: hexatic_order}]
+          - .sel: [!dag_prev , {property: hexatic_order__corr}]
           - *TIME_SPATIAL
           - .rename: [!dag_prev , hexatic_order]
 

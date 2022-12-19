@@ -247,14 +247,14 @@ public:
 
 
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -404,7 +404,12 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension = arma::conv_to<stdmat>::from(_linetension);
+        stdmat tension(_linetension.n_rows);
+        for (size_t i = 0; i < _linetension.n_rows; ++i) {
+            tension[i] = arma::conv_to< std::vector<double> >::from(
+                _linetension.row(i)
+            );
+        };
         _linetension = setup_symmetric_matrix(get_as<stdmat>(
             "linetension", cfg, tension
         ));
@@ -414,13 +419,13 @@ public:
 
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "linetension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> tensions({});
         for (const auto& edge : this->_am.edges()) {
             tensions.push_back(get_linetension(edge));
@@ -428,14 +433,14 @@ public:
         return std::vector<std::vector<double>>({tensions});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -566,19 +571,19 @@ public:
         }
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) final {
         _tau = get_as<double>("timescale", cfg, _tau);
         _amplitude = get_as<double>("amplitude", cfg, _amplitude);
     }
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "linetension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> tensions({});
         for (const auto& edge : this->_am.edges()) {
             tensions.push_back(get_linetension(edge));
@@ -586,14 +591,14 @@ public:
         return std::vector<std::vector<double>>({tensions});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -677,20 +682,20 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) final {
         _contractility = get_as<double>("contractility", cfg, _contractility);
 
     }
 
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -809,7 +814,12 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
+        stdmat tension(_contractility.n_rows);
+        for (size_t i = 0; i < _contractility.n_rows; ++i) {
+            tension[i] = arma::conv_to< std::vector<double> >::from(
+                _contractility.row(i)
+            );
+        };
         _contractility = setup_symmetric_matrix(get_as<stdmat>(
             "contractility", cfg, tension
         ));
@@ -820,13 +830,13 @@ public:
 
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "contractility"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> contractilities({});
         for (const auto& edge : this->_am.edges()) {
             contractilities.push_back(get_contractility(edge));
@@ -834,14 +844,14 @@ public:
         return std::vector<std::vector<double>>({contractilities});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -857,14 +867,23 @@ public:
     }
 };
 
-/// @brief The edge contractility term with heterotypic values
-/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+/// @brief The edge contractility term with axial-asymmetric values
+/** \f$ E_{i,j} = k l_{i,j}^2 (t \cdot \tau)^2\f$, a term linear in 
+ *  edge length \f$ l \f$, modulated with the angle between the junctions' 
+ *  tangent \f$ t \f$ and the tissue axis. The tissue axis runs parallel 
+ *  to the arc if curvature non-zero.
  * 
  *  Parameters:
  *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
  *              The i,j coordinates map to the type of cell on left and right
  *              side. 
  *      - `boundary_type`: To which value a boundary cell is mapped.
+ *      - `angle` (double): Angle of the axis to the tissue axis
+ *      - `curvature` (double): The curvature of the tissue axis
+ *      - `origin` (SpaceVec, optional): The center of the tissue. 
+ *          The tangent of tissue axis is pointing along 
+ *          x axis at origin. If not provided, the center of the tissue is used
+ *          as origin.
  */
 template <typename Model>
 class EdgeContractilityAxial : public WorkFunctionTerm<Model>
@@ -882,16 +901,26 @@ class EdgeContractilityAxial : public WorkFunctionTerm<Model>
     typedef std::vector< std::vector<double> > stdmat;
 
 private:
+    /// The matrix of contractilities for different junction types
     arma::mat _contractility;
 
+    /// The type of a boundary cell
+    /** The contractility matrix needs to include this type if non-periodic BC*/
     std::size_t _boundary_type;
 
-    double _angle;
-
+    /// The axis relative to which a cell's polarity is defined
     SpaceVec _axis;
 
+    /// The curvature of the axis.
+    /** The orientation of a junction is measured with respect to an axis. This
+     *  axis is running at an angle to the tangent of the arc defined by the 
+     *  curvature.
+     */
     double _curvature;
 
+    /// The origin of the tissue
+    /** Specifically, the position at which the tangent of the arc is horizontal
+     */
     SpaceVec _origin;
 
     double get_contractility (const std::shared_ptr<Edge>& edge) const {
@@ -917,6 +946,33 @@ private:
         return _contractility.at(type_a, type_b);
     }
 
+    /// @brief The local axis to an edge
+    /** @param edge     The edge considered
+     *  @return     Determines the local axis at the center of an edge.
+     *              If no curvature, axis is same everywhere.
+     *              Else, the axis is measured as an angle to the tangent
+     *              of the arc.
+     */
+    SpaceVec local_axis (std::shared_ptr<Edge> edge) const {
+        if (fabs(_curvature) < 1.e-10) {
+            return _axis;
+        }
+        else if (this->_am.get_space()->periodic) {
+            throw std::runtime_error("No curvature in periodic BC implemented");
+        }
+
+        SpaceVec pos = 0.5 * (  this->_am.position_of(edge->custom_links().a)
+                              + this->_am.position_of(edge->custom_links().b));
+
+        SpaceVec origin = _origin - SpaceVec({0., 1. / _curvature});
+
+        SpaceVec rpos = pos - origin;
+        double theta = std::atan2(rpos[0], rpos[1]);
+        double alpha = std::atan2(_axis[1], _axis[0] + 1.e-8);
+
+        return SpaceVec({cos(alpha - theta), sin(alpha - theta)});
+    }
+
 
 public:
     EdgeContractilityAxial (
@@ -939,9 +995,19 @@ public:
         if (cfg["origin"]) {
             _origin = get_as_SpaceVec<2>("origin", cfg);
         }
-        else {
+        else if (not model.get_space()->periodic) {
             _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
         }
+        else {
+            _origin = model.get_space()->get_domain_size() / 2.;
+        }
+    }
+
+    SpaceVec compute_force
+    ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const final
+    {
+        throw std::runtime_error("Compute force on single vertex not "
+            "implemented in EgdeContractilityAxial!");
     }
 
     void compute_and_set_forces () final {
@@ -949,59 +1015,74 @@ public:
             const auto& a = edge->custom_links().a;
             const auto& b = edge->custom_links().b;
             
-            SpaceVec axis = _axis;
+            SpaceVec axis = local_axis(edge);
             SpaceVec displ = this->_am.displacement(edge);
-            
-            // rotate axis angle wrt tangential of circle
-            if (fabs(_curvature) > 1.e-10) {
-                SpaceVec pos = (  this->_am.position_of(edge->custom_links().a)
-                                + 0.5 * displ);
-
-                SpaceVec origin = _origin - SpaceVec({0., -1. / _curvature});
-
-                SpaceVec displ = pos - origin;
-                double theta = std::atan2(displ[0], displ[1]);
-
-                axis = SpaceVec({
-                    axis[0]*cos(-theta) - axis[1]*sin(-theta),
-                    axis[0]*sin(-theta) + axis[1]*cos(-theta)
-                });
-            }
 
             double k = get_contractility(edge);
-            SpaceVec dE_dx = k * arma::dot(displ, axis) * axis;
+            SpaceVec dE_dx;
+            if (fabs(_curvature) < 1.e-10) {
+                dE_dx = - 1. * k * arma::dot(displ, axis) * axis;
 
-            a->state.add_force(- dE_dx);
-            b->state.add_force(+ dE_dx);
+                a->state.add_force(- dE_dx);
+                b->state.add_force(+ dE_dx);
+            }
+            else if (this->_am.get_space()->periodic) {
+                throw std::runtime_error("No curvature in periodic BC implemented");
+            }
+            else {
+                // derivative of axis to displacement of vertex
+                SpaceVec _a = this->_am.position_of(edge->custom_links().a);
+                SpaceVec _b = this->_am.position_of(edge->custom_links().b);
+
+                SpaceVec origin = _origin - SpaceVec({0., 1. / _curvature});
+                _a -= origin;
+                _b -= origin;
+
+                double sum_x = _a[0] + _b[0];
+                double sum_y = _a[1] + _b[1];
+                double arg = sum_x / sum_y;
+
+                double tmp_0 = sum_y * (pow(arg, 2) + 1);
+                double tmp_1 = pow(sum_y, 2) * (pow(arg, 2) + 1);
+
+                double dpx_dx =  axis[1] / tmp_0;
+                double dpy_dx = -axis[0] / tmp_0;
+
+                double dpx_dy = -(sum_x * axis[1]) / tmp_1;
+                double dpy_dy =  (sum_x * axis[0]) / tmp_1;
+
+                SpaceVec tmp({
+                    displ[0] * dpx_dx + displ[1] * dpy_dx,
+                    displ[0] * dpx_dy + displ[1] * dpy_dy,
+                });
+
+                double _dE_dx = k * arma::dot(displ, axis);
+
+                a->state.add_force(- _dE_dx * (tmp - axis));
+                b->state.add_force(- _dE_dx * (tmp + axis));
+            }
         }
     }
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return get_contractility(edge) * this->_am.length_of(edge);
+        const auto& a = edge->custom_links().a;
+        const auto& b = edge->custom_links().b;
+
+        SpaceVec axis = local_axis(edge);
+        SpaceVec displ = this->_am.displacement(a, b);
+
+        double modulation = pow(arma::dot(displ/arma::norm(displ), axis), 2);
+        double length = arma::norm(displ);
+
+        return get_contractility(edge) * modulation * length;
     }
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
         const auto& a = edge->custom_links().a;
         const auto& b = edge->custom_links().b;
 
-        SpaceVec axis = _axis;
+        SpaceVec axis = local_axis(edge);
         SpaceVec displ = this->_am.displacement(a, b);
-        
-        // rotate ppMLC_axis so that points along curved tissue axis
-        if (fabs(_curvature) > 1.e-10) {
-            SpaceVec pos = (  this->_am.position_of(edge->custom_links().a)
-                            + 0.5 * displ);
-
-            SpaceVec origin = _origin - SpaceVec({0., -1. / _curvature});
-
-            SpaceVec displ = pos - origin;
-            double theta = std::atan2(displ[0], displ[1]);
-
-            axis = SpaceVec({
-                axis[0]*cos(-theta) - axis[1]*sin(-theta),
-                axis[0]*sin(-theta) + axis[1]*cos(-theta)
-            });
-        }
 
         // Gamma -> Gamma * cos^2 (theta), where theta angle with p-d axis
         return 0.5 * get_contractility(edge) * pow(arma::dot(displ, axis), 2);
@@ -1036,28 +1117,34 @@ public:
     }
 
 
-    std::vector<std::string> write_task_edge_properties_names () const {
+    std::vector<std::string> write_task_edge_properties_names () const final {
         return std::vector<std::string>({
             "contractility"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const {
+    std::vector<std::vector<double>> write_edge_properties () const final {
         std::vector<double> contractilities({});
         for (const auto& edge : this->_am.edges()) {
-            contractilities.push_back(get_contractility(edge));
+            double k = get_contractility(edge);
+            SpaceVec axis = local_axis(edge);
+            SpaceVec displ = this->_am.displacement(edge);
+
+            double modulation = pow(
+                arma::dot(displ, axis) / arma::norm(displ),2);
+            contractilities.push_back(k * modulation);
         }
         return std::vector<std::vector<double>>({contractilities});
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const {
+    std::vector<std::string> write_task_edge_energies_names () const final {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const {
+    std::vector<std::vector<double>> write_edge_energies () const final {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -1069,6 +1156,448 @@ public:
         return std::vector<std::vector<double>>({
             energies,
             tensions
+        });
+    }
+};
+
+/// @brief The edge contractility term with polar-asymmetric values
+/** \f$ E_{i,j} = k l_{i,j}^2 ((x_{i+1} - x_i)/2. \cdot p)^2\f$, a term linear in 
+ *  edge length \f$ l \f$, modulated with the angle between the cell's polarity
+ *  vector and the vector connecting the cell center to the midpoint of an edge
+ * 
+ *  Parameters:
+ *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
+ *              The i,j coordinates map to the type of cell on left and right
+ *              side. 
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+ *      - `axis` (double, optional, default: 0): Angle of the tissue axis to 
+ *              the tangential of an arc.
+ *      - `curvature` (double): The curvature of the tissue axis
+ *      - `origin` (SpaceVec, optional): The center of the tissue. 
+ *          The tangent of tissue axis is pointing along 
+ *          x axis at origin. If not provided, the center of the tissue is used
+ *          as origin.
+ *      - `setup` (str): How to setup cellular polarity.
+ *          - 'uniform': uniform real distribution [0, 2 * M_PI).
+ */
+template <typename Model>
+class EdgeContractilityPolar : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+private:
+    /// The matrix of contractilities for different junction types
+    arma::mat _contractility;
+
+    /// The type of a boundary cell
+    /** The contractility matrix needs to include this type if non-periodic BC*/
+    std::size_t _boundary_type;
+
+    /// The axis relative to which a cell's polarity is defined
+    /** The axis is a global axis, also with curvature */
+    double _axis;
+
+    /// The curvature used to calculate the polarity_to_axis
+    /** Only used in data writing */
+    double _curvature;
+
+    /// The origin of the tissue
+    /** Specifically, the position at which the tangent of the arc is horizontal
+     */
+    SpaceVec _origin;
+
+    /// Cell types to exclude from calculation
+    /** Modulation is applied to each side of a junction addively. */
+    std::set<std::size_t> _exclude_types;
+
+    /// The damping factor for energy minimization
+    double _gamma;
+
+    /// How many iterations to perform per update step
+    std::size_t _num_steps;
+
+    /// @brief The local axis to a position
+    /** @return     Determines the local axis at the center of an edge.
+     *              If no curvature, axis is same everywhere.
+     *              Else, the axis is measured as an angle to the tangent
+     *              of the arc.
+     */
+    double local_axis (SpaceVec pos) const {
+        if (fabs(_curvature) < 1.e-10) {
+            return _axis;
+        }
+        else if (this->_am.get_space()->periodic) {
+            throw std::runtime_error("No curvature in periodic BC implemented");
+        }
+
+        SpaceVec origin = _origin - SpaceVec({0., 1. / _curvature});
+
+        SpaceVec rpos = pos - origin;
+        double theta = std::atan2(rpos[0], rpos[1]);
+
+        return _axis - theta;
+    }
+
+    /// Getter for cell polarity
+    double get_polarity (const std::shared_ptr<Cell>& cell) const {
+        return cell->state.get_parameter(this->_name+"__polarity");
+    }
+
+    /// Setter for cell polarity
+    void update_polarity (const std::shared_ptr<Cell>& cell, double value) {
+        return cell->state.update_parameter(
+            this->_name + "__polarity",
+            constrain_angle(value)
+        );
+    }
+
+    /// Initializer for cell polarity
+    void register_polarity (const std::shared_ptr<Cell>& cell, double value) {
+        return cell->state.register_parameter(
+            this->_name + "__polarity",
+            constrain_angle(value)
+        );
+    }
+
+    /// Getter for heterotypic junctional contractility
+    double get_contractility (const std::shared_ptr<Edge>& edge) const {
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        std::size_t type_a, type_b;
+        if (ca) { type_a = ca->state.type; }
+        else { type_a = _boundary_type; }
+        if (cb) { type_b = cb->state.type; }
+        else { type_b = _boundary_type; }
+
+        if (std::max(type_a, type_b) > _contractility.n_rows)
+        {
+            std::cout << _contractility << std::endl;
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityModulated, no parameter registered "
+                "for cells of type {}. Parameters for {} types registered.",
+                std::max(type_a, type_b),
+                _contractility.n_rows
+            ));
+        }
+
+        return _contractility.at(type_a, type_b);
+    }
+
+    /// Getter for modulated junctional contractility
+    double get_modulated_contractility (const std::shared_ptr<Edge>& edge) const
+    {
+        double k = get_contractility(edge);
+
+        if (fabs(k) < 1.e-10) {
+            return 0.;
+        }
+
+        double modulation = 0.;
+        const auto [adj_a, adj_b] = this->_am.adjoints_of(edge);
+        for (const auto& cell : {adj_a, adj_b}) {
+            if (cell == nullptr) {
+                continue;
+            }
+
+            if (_exclude_types.find(cell->state.type) != _exclude_types.end()) {
+                continue;
+            }
+
+            // find orientation of edge within cell
+            auto e_pair = *std::find_if(
+                cell->custom_links().edges.begin(),
+                cell->custom_links().edges.end(),
+                [edge](const auto& ep) {
+                    return std::get<0>(ep) == edge;
+                });
+
+            // displ in anti-clockwise within cell
+            SpaceVec displ = this->_am.displacement(edge, std::get<bool>(e_pair));
+            double length = arma::norm(displ);
+
+            double polarity = get_polarity(cell);
+
+            // The vector to align to is 90 deg rotated to polarity of cell
+            SpaceVec align_to({-sin(polarity), cos(polarity)});
+
+            // the modulation factor
+            modulation += (arma::dot(displ/length, align_to) + 1.) / 2.;
+        }
+
+        return k * modulation;
+    }
+
+
+public:
+    EdgeContractilityPolar (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_symmetric_matrix(
+            get_as<stdmat>("contractility", cfg))),
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg)),
+        _axis(get_as<double>("axis", cfg)),
+        _curvature(get_as<double>("curvature", cfg, 0.)),
+        _origin(SpaceVec({0., 0.})),
+        _exclude_types(setup_cell_exclusion(
+            get_as<std::vector<std::size_t>>("exclude_cell_types", cfg)
+        )),
+        _gamma(get_as<double>("gamma", cfg)),
+        _num_steps(get_as<std::size_t>("num_steps", cfg))
+    {
+        if (cfg["origin"]) {
+            _origin = get_as_SpaceVec<2>("origin", cfg);
+        }
+        else if (not model.get_space()->periodic) {
+            _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
+        }
+        else {
+            _origin = model.get_space()->get_domain_size() / 2.;
+        }
+
+        auto setup = get_as<std::string>("setup", cfg);
+
+        if (false) {}
+        else if (setup == "gaussian") {
+            std::uniform_real_distribution distr(
+                get_as<double>("orientation_mean", cfg),
+                get_as<double>("orientation_std", cfg)
+            );
+            for (const auto& cell : this->_am.cells()) {
+                register_polarity(cell, distr(*model.get_rng()));
+            }
+        }
+        else if (setup == "uniform") {
+            std::uniform_real_distribution distr(0., 2 * M_PI);
+            for (const auto& cell : this->_am.cells()) {
+                register_polarity(cell, distr(*model.get_rng()));
+            }
+        }
+        else if (setup == "value") {
+            double value = get_as<double>("orientation", cfg);
+            for (const auto& cell : this->_am.cells()) {
+                register_polarity(cell, value);
+            }
+        }
+        else {
+            throw std::runtime_error(fmt::format(
+                "Initialization of EdgeContractilityPolar WF-term `{}` with "
+                "chosen `setup`: {} not implemented. Choose one of the "
+                "following: {}.",
+                name,
+                setup,
+                "- gaussian\n"
+                "- uniform\n"
+                "- value\n"
+            ));
+        }
+    }
+
+    ~EdgeContractilityPolar () {
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.unregister_parameter(this->_name + "__polarity");
+        }
+    }
+
+private:
+    auto setup_cell_exclusion (std::vector<std::size_t> exclude) const {
+        std::set<std::size_t> _exclude{};
+        _exclude.insert(exclude.begin(), exclude.end());
+        return _exclude;
+    }
+
+public:
+
+    SpaceVec compute_force
+    ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const final
+    {
+        throw std::runtime_error("Compute force on single vertex not "
+            "implemented in EgdeContractilityPolar!");
+    }
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+
+            const auto [adj_a, adj_b] = this->_am.adjoints_of(edge);
+            for (const auto& cell : {adj_a, adj_b}) {
+                if (cell == nullptr) {
+                    continue;
+                }
+
+                if (_exclude_types.find(cell->state.type)!=_exclude_types.end())
+                {
+                    continue;
+                }
+
+                // find orientation of edge within cell
+                auto e_pair = *std::find_if(
+                    cell->custom_links().edges.begin(),
+                    cell->custom_links().edges.end(),
+                    [edge](const auto& ep) {
+                        return std::get<0>(ep) == edge;
+                    });
+                bool flip = std::get<bool>(e_pair);
+                
+                auto a = edge->custom_links().a;
+                auto b = edge->custom_links().b;
+                if (flip) {
+                    std::swap(a, b);
+                }
+                SpaceVec displ = this->_am.displacement(a, b);
+                double length = arma::norm(displ);
+
+                double polarity = get_polarity(cell);
+
+                SpaceVec align_to({-sin(polarity), cos(polarity)});
+
+                SpaceVec T1 = -(arma::dot(displ/length, align_to) + 1)/2.*displ;
+                SpaceVec T2 = -0.25 * length * align_to;
+                SpaceVec T3 = +0.25 * arma::dot(displ/length, align_to) * displ;
+
+                SpaceVec dE_dx = get_contractility(edge) * (T1 + T2 + T3);
+
+                a->state.add_force(- dE_dx);
+                b->state.add_force(+ dE_dx);
+            }
+        }
+    }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        double length = this->_am.length_of(edge);
+        return get_modulated_contractility(edge) * length;
+    }
+
+    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
+        double length = this->_am.length_of(edge);
+        return 0.5 * get_modulated_contractility(edge) * pow(length, 2);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
+    }
+
+    /// The update step, i.e. one minimization step
+    void perform_step () {
+        for (const auto& cell : this->_am.cells()) {
+            if (_exclude_types.find(cell->state.type) != _exclude_types.end()) {
+                continue;
+            }
+
+            double polarity = get_polarity(cell);
+
+            double dE_dp = 0.;
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto a = edge->custom_links().a;
+                auto b = edge->custom_links().b;
+                if (flip) { std::swap(a, b); }
+
+                SpaceVec displ = this->_am.displacement(a, b);
+                double length = arma::norm(displ);
+
+                double k = get_contractility(edge);
+                dE_dp -= 0.25 * k * length * (  displ[0] * cos(polarity)
+                                              + displ[1] * sin(polarity));
+            }
+            
+            update_polarity(cell, polarity - dE_dp * _gamma);
+        }
+    }
+
+    void update([[maybe_unused]] double dt) {
+        for (std::size_t i = 0; i < _num_steps; i++) {
+            perform_step();
+        }
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final {
+        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
+        _contractility = setup_symmetric_matrix(get_as<stdmat>(
+            "contractility", cfg, tension
+        ));
+        _boundary_type = get_as<std::size_t>(
+            "boundary_type", cfg, _boundary_type);
+        _axis = get_as<double>("axis", cfg, _axis);
+        _curvature = get_as<double>("curvature", cfg, _curvature);
+    }
+
+
+    std::vector<std::string> write_task_edge_properties_names () const final {
+        return std::vector<std::string>({
+            "contractility"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const final {
+        std::vector<double> contractilities({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(get_modulated_contractility(edge));
+        }
+        return std::vector<std::vector<double>>({contractilities});
+    }
+
+    std::vector<std::string> write_task_edge_energies_names () const final {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const final {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
+    }
+
+    std::vector<std::string> write_task_cell_properties_names () const final {
+        return std::vector<std::string>({"polarity", "polarity_to_axis"});
+    }
+
+    std::vector<std::vector<double>> write_cell_properties () const final {
+        std::vector<double> polarities({});
+        std::vector<double> polarities_to_axis({});
+
+        for (const auto& cell : this->_am.cells()) {
+            double polarity = get_polarity(cell);
+
+            SpaceVec center = this->_am.barycenter_of(cell);
+            double axis = local_axis(center);
+
+            polarities.push_back(polarity);
+            polarities_to_axis.push_back(polarity - axis);
+        }
+        return std::vector<std::vector<double>>({
+            polarities, polarities_to_axis
         });
     }
 };
@@ -1167,7 +1696,8 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+
+    void update_parameters (const DataIO::Config& cfg) final {
         _contractility = get_as<double>("contractility", cfg, _contractility);
         _preferential_shape = get_as<double>("preferential_shape", cfg,
                                              _preferential_shape);
@@ -1336,7 +1866,7 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) {
+    void update_parameters (const DataIO::Config& cfg) final {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg,
                                           _elastic_modulus);
         _preferential_shape_index = get_as<double>(
@@ -1407,6 +1937,7 @@ public:
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
+
 protected:
     double _elastic_modulus;
 
@@ -1472,11 +2003,13 @@ public:
     void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-        
-        double A0 = get_as<double>("preferential_area", cfg);
 
-        for (const auto& cell : this->_am.cells()) {
-            cell->state.area_preferential = A0;
+        if (cfg["preferential_area"]) {                
+            double A0 = get_as<double>("preferential_area", cfg);
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0;
+            }
         }
     }
     
@@ -1501,6 +2034,129 @@ public:
             energies,
             pressures
         });
+    }
+};
+
+
+template <typename Model>
+class AreaElasticityHeterotypic : public AreaElasticity<Model> 
+{
+public:
+    using Base = AreaElasticity<Model>;
+
+    using Cell = typename Base::Cell;
+
+public:
+    AreaElasticityHeterotypic (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model)
+    {
+        this->setup_preferential_area(cfg);
+    }
+
+
+private:
+    void setup_preferential_area(const Config& cfg) {
+        const auto method = get_as<std::string>("method", cfg);
+        if (false) { }
+
+        else if (method == "increment_heterotypic") {
+            auto _increments = get_as<std::vector<double>>("increments", cfg);
+            auto restrain = get_as<std::vector<std::size_t>>("restrain_types",
+                                                             cfg);
+
+            auto increments(_increments);
+            if (restrain.size() > 0) {
+                std::size_t types = 0;
+                std::size_t cnt_restrain = 0;
+                double area_change = 0.;
+                for (const auto& cell : this->_am.cells()) {
+                    types = std::max(types, cell->state.type);
+                    area_change += increments[cell->state.type];
+                    auto find_it = std::find(restrain.begin(),
+                                            restrain.end(),
+                                            cell->state.type);
+                    if (find_it != restrain.end())
+                    {
+                        cnt_restrain++;
+                    }
+                }
+
+                if (cnt_restrain == 0 and fabs(area_change) > 1.e-8) {
+                    throw std::runtime_error(fmt::format("Heterotypic increment of "
+                        "preferential area with restrain on types failed, "
+                        "because no cells with that type!"));
+                }
+
+                area_change /= cnt_restrain;
+                for (const auto& type : restrain) {
+                    increments[type] -= area_change;
+                }
+            }
+
+            for (const auto& cell : this->_am.cells()) {
+                if (cell->state.type >= increments.size()) {
+                    throw std::runtime_error(fmt::format("In update of WF "
+                        "AreaElasticityHeterogeneous, no incremental area "
+                        "value defined for cell of type {}.",
+                        cell->state.type));
+                }
+                cell->state.area_preferential += increments[cell->state.type];
+            }
+        }
+
+        else if (method == "set_heterotypic") {
+            auto A0 = get_as<std::vector<double>>("preferential_areas", cfg);
+            std::size_t types = 0;
+            for (const auto& cell : this->_am.cells()) {
+                types = std::max(types, cell->state.type);
+            }
+
+            if (A0.size() <= types) {
+                throw std::runtime_error(fmt::format("For heterotypic "
+                    "preferential area, one value for every type must be "
+                    "provided, but got {} values for {} types!",
+                    A0.size(), types+1));
+            }
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0[cell->state.type];
+            }
+        }
+
+        else if (method == "set_uniform") {
+            double A0 = get_as<double>("preferential_area", cfg);
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0;
+            }
+        }
+
+        else {
+            throw std::runtime_error(fmt::format("Unknown method '{}' to "
+                "set preferential area in AreaElasticity! Choose one of the "
+                "following", method,
+                "- increment_heterotypic\n"
+                "- set_heterotypic\n"
+                "- set_uniform\n"
+            ));
+        }
+    }
+
+
+public:
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["area_elasticity"]) {
+            DataIO::Config _cfg{};
+            _cfg["area_elasticit"] = cfg["area_elasticity"];
+            Base::update_parameters(_cfg);
+        }
+        
+        setup_preferential_area(cfg);
     }
 };
 

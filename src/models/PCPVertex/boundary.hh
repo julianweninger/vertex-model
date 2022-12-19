@@ -32,6 +32,10 @@ namespace WorkFunction {
  *              in `update_parameters`.
  *      - `stretch` (bool): Whether to pull boundary vertices that are inside
  *              the domain towards the closest boundary.
+ * 
+ *  TODO: Currently forces are applied in tangential / normal direction. 
+ *        However, the derivative of these directors with displacement along
+ *        the arc are not considered in a first order approximation.
  */
 template <typename Model>
 class BoundaryStripePotential : public WorkFunctionTerm<Model>
@@ -47,6 +51,39 @@ public:
 
     using Cell = typename Base::Cell;
 
+    enum Quadrant {
+        none,
+        inner_right,
+        inner_upper,
+        inner_left,
+        inner_lower,
+        outer_right,
+        outer_upper_right,
+        outer_upper,
+        outer_upper_left,
+        outer_left,
+        outer_lower_left,
+        outer_lower,
+        outer_lower_right,
+    };
+
+    bool is_inner_quadrant(Quadrant quadrant) const {
+        if (quadrant == inner_right) {
+            return true;
+        }
+        if (quadrant == inner_upper) {
+            return true;
+        }
+        if (quadrant == inner_left) {
+            return true;
+        }
+        if (quadrant == inner_lower) {
+            return true;
+        }
+        return false;
+    }
+
+
 private:
     double _elastic_constant;
 
@@ -60,119 +97,407 @@ private:
 
     bool _stretch;
 
+    std::pair<SpaceVec, SpaceVec> corners () const {
+        if (fabs(_curvature) < 1.e-8) {
+            return std::make_pair(
+                _origin - SpaceVec({_width, _height})/2.,
+                _origin + SpaceVec({_width, _height})/2.
+            );
+        }
+        throw std::runtime_error("");
+    }
+    std::pair<SpaceVec, SpaceVec> other_corners () const {
+        if (fabs(_curvature) < 1.e-8) {
+            const auto [ll_corner, ur_corner] = corners();
+            return std::make_pair(
+                ll_corner + SpaceVec({0, _height}),
+                ur_corner - SpaceVec({0, _height})
+            );
+        }
+        throw std::runtime_error("");
+    }
+
+    Quadrant get_quadrant (const std::shared_ptr<Vertex>& vertex) const {
+        SpaceVec pos = this->_am.position_of(vertex);
+
+        if (fabs(_curvature) < 1.e-8) {
+            const auto [ll_corner, ur_corner] = corners();
+
+            bool inside=true;
+            Quadrant quadrant = none;
+
+            if (pos[0] < ll_corner[0]) {
+                inside=false;
+                quadrant = outer_left;
+            }
+            else if (pos[0] > ur_corner[0]) {
+                inside=false;
+                quadrant = outer_right;
+            }
+
+            if (pos[1] < ll_corner[1]) {
+                inside=false;
+                if (quadrant==outer_left) {
+                    quadrant = outer_lower_left;
+                }
+                else if (quadrant==outer_right) {
+                    quadrant = outer_lower_right;
+                }
+                else {
+                    quadrant = outer_lower;
+                }
+            }
+            else if (pos[1] > ur_corner[1]) {
+                inside=false;
+                if (quadrant==outer_left) {
+                    quadrant = outer_upper_left;
+                }
+                else if (quadrant==outer_right) {
+                    quadrant = outer_upper_right;
+                }
+                else {
+                    quadrant = outer_upper;
+                }
+            }
+
+            if (inside) {
+                double dx;
+                if (pos[0] < _origin[0]) {
+                    quadrant = inner_left;
+                    dx = ll_corner[0] - pos[0];
+                }
+                else {
+                    quadrant = inner_right;
+                    dx = ur_corner[0] - pos[0];
+                }
+                
+                if (pos[1] < _origin[1]) {
+                    if (fabs(ll_corner[1] - pos[1]) < fabs(dx)) {
+                        quadrant = inner_lower;
+                    }
+                    // else: keep q=left/right quadrant
+                }
+                else {
+                    if (fabs(ur_corner[1] - pos[1]) < fabs(dx)) {
+                        quadrant = inner_upper;
+                    }
+                    // else: keep q=left/right quadrant
+                }
+            }
+
+            return quadrant;
+        }
+        
+        // with curvature
+        double R = 1. / _curvature;
+        SpaceVec origin = _origin - SpaceVec({0., R});
+
+        SpaceVec coords = pos - origin;
+
+        double theta = atan2(coords[0], coords[1]);
+        double r = arma::norm(coords);
+
+        bool inside=true;
+        Quadrant quadrant = none;
+
+        if (r < R - _height / 2.) {
+            inside = false;
+            quadrant = outer_lower;
+        }
+        else if (r > R + _height / 2.) {
+            inside = false;
+            quadrant = outer_upper;
+        }
+
+        double theta_max = _width / 2. / R;
+        if (theta > theta_max) {
+            inside = false;
+            if (quadrant==outer_lower) {
+                quadrant = outer_lower_right;
+            }
+            else if (quadrant==outer_upper) {
+                quadrant = outer_upper_right;
+            }
+            else {
+                quadrant = outer_right;
+            }
+        }
+        else if (theta < -theta_max) {
+            inside = false;
+            if (quadrant==outer_lower) {
+                quadrant = outer_lower_left;
+            }
+            else if (quadrant==outer_upper) {
+                quadrant = outer_upper_left;
+            }
+            else {
+                quadrant = outer_left;
+            }
+        }
+        
+        if (inside) {
+            double dr;
+            if (r < R) {
+                quadrant = inner_lower;
+                dr = (R - _height / 2.) - r;
+            }
+            else {
+                quadrant = inner_upper;
+                dr = (R + _height / 2.) - r;
+            }
+
+            if (theta < 0) {
+                double ds = r * (theta + theta_max);
+                if (fabs(ds) < fabs(dr)) {
+                    quadrant = inner_left;
+                }
+            }
+            else {
+                double ds = r * (theta - theta_max);
+                if (fabs(ds) < fabs(dr)) {
+                    quadrant = inner_right;
+                }
+            }
+        }
+
+        return quadrant;
+    }
+
+    SpaceVec get_normal (const std::shared_ptr<Vertex>& vertex) const {
+        SpaceVec pos = this->_am.position_of(vertex);
+        Quadrant quadrant = get_quadrant(vertex);
+        
+        if (fabs(_curvature) < 1.e-8) {
+            const auto [ll_corner, ur_corner] = corners();
+            const auto [ul_corner, lr_corner] = other_corners();
+
+            if (quadrant == inner_right) {
+                return SpaceVec({-1., 0.});
+            }
+            else if (quadrant == inner_upper) {
+                return SpaceVec({0., -1.});
+            }
+            else if (quadrant == inner_left) {
+                return SpaceVec({1., 0.});
+            }
+            else if (quadrant == inner_lower) {
+                return SpaceVec({0., 1.});
+            }
+            else if (quadrant == outer_right) {
+                return SpaceVec({1., 0.});
+            }
+            else if (quadrant == outer_upper_right) {
+                SpaceVec displ = ur_corner - pos;
+                return displ / arma::norm(displ);
+            }
+            else if (quadrant == outer_upper) {
+                return SpaceVec({0, 1.});
+            }
+            else if (quadrant == outer_upper_left) {
+                SpaceVec displ = ul_corner - pos;
+                return displ / arma::norm(displ);
+            }
+            else if (quadrant == outer_left) {
+                return SpaceVec({-1., 0.});
+            }
+            else if (quadrant == outer_lower_left) {
+                SpaceVec displ = ll_corner - pos;
+                return displ / arma::norm(displ);
+            }
+            else if (quadrant == outer_lower) {
+                return SpaceVec({0., 1.});
+            }
+            else if (quadrant == outer_lower_right) {
+                SpaceVec displ = lr_corner - pos;
+                return displ / arma::norm(displ);
+            }
+            else {
+                throw std::runtime_error("Unknown quadrant!");
+            }
+        }
+        
+        // with curvature
+        double R = 1. / _curvature;
+        SpaceVec origin = _origin - SpaceVec({0., R});
+
+        SpaceVec rpos = pos - origin;
+        double theta = std::atan2(rpos[0], rpos[1]);
+
+        // vectors of the arc
+        SpaceVec normal( {sin(- theta), -cos(- theta)});
+        SpaceVec tangent({cos(- theta),  sin(- theta)});
+
+        // opening angle of the arc
+        double theta_max = _width / 2. / R;
+
+        if (quadrant == inner_right) {
+            return tangent;
+        }
+        else if (quadrant == inner_upper) {
+            return -1. * normal;
+        }
+        else if (quadrant == inner_left) {
+            return -1. * tangent;
+        }
+        else if (quadrant == inner_lower) {
+            return normal;
+        }
+        else if (quadrant == outer_right) {
+            return -1. * tangent;
+        }
+        else if (quadrant == outer_upper_right) {
+            double uR = R + _height / 2.;
+            SpaceVec ur_corner = uR * SpaceVec({sin(theta_max),
+                                                cos(theta_max)});
+            SpaceVec displ = ur_corner - rpos;
+            return displ / arma::norm(displ);
+        }
+        else if (quadrant == outer_upper) {
+            return normal;
+        }
+        else if (quadrant == outer_upper_left) {
+            double uR = R + _height / 2.;
+            SpaceVec ul_corner = uR * SpaceVec({sin(-theta_max),
+                                                cos(-theta_max)});
+            SpaceVec displ = ul_corner - rpos;
+            return displ / arma::norm(displ);
+        }
+        else if (quadrant == outer_left) {
+            return tangent;
+        }
+        else if (quadrant == outer_lower_left) {
+            double lR = R - _height / 2.;
+            SpaceVec ll_corner = lR * SpaceVec({sin(-theta_max),
+                                                cos(-theta_max)});
+            SpaceVec displ = ll_corner - rpos;
+            return displ / arma::norm(displ);
+        }
+        else if (quadrant == outer_lower) {
+            return -1. * normal;
+        }
+        else if (quadrant == outer_lower_right) {
+            double lR = R - _height / 2.;
+            SpaceVec lr_corner = lR * SpaceVec({sin(theta_max),
+                                                cos(theta_max)});
+            SpaceVec displ = lr_corner - rpos;
+            return displ / arma::norm(displ);
+        }
+        else {
+            throw std::runtime_error("Unknown quadrant!");
+        }
+    }
+
+
     /// The vector from a position to the closest boundary, if outside
     SpaceVec get_displacement (const std::shared_ptr<Vertex>& vertex) const {
         SpaceVec pos = this->_am.position_of(vertex);
+        Quadrant quadrant = get_quadrant(vertex);
         if (fabs(_curvature) < 1.e-8) {
-            const SpaceVec ll_corner = _origin - SpaceVec({_width, _height})/2.;
-            const SpaceVec ur_corner = ll_corner + SpaceVec({_width, _height});
+            const auto [ll_corner, ur_corner] = corners();
+            const auto [ul_corner, lr_corner] = other_corners();
 
-            SpaceVec displ({0., 0.});
-            bool apply_stretch = this->_am.is_boundary(vertex);
-            for (std::size_t axis = 0; axis <= 1; axis++) {
-                if (pos[axis] < ll_corner[axis]) {
-                    displ[axis] = ll_corner[axis] - pos[axis];
-                    apply_stretch = false;
-                }
-                else if (pos[axis] > ur_corner[axis]) {
-                    displ[axis] = ur_corner[axis] - pos[axis];
-                    apply_stretch = false;
-                }
+            const SpaceVec right = 0.5 * (lr_corner + ur_corner);
+            const SpaceVec upper = 0.5 * (ul_corner + ur_corner);
+            const SpaceVec left = 0.5 * (ll_corner + ul_corner);
+            const SpaceVec lower = 0.5 * (ll_corner + lr_corner);
+
+            SpaceVec normal = get_normal(vertex);
+
+            if (quadrant == inner_right or quadrant == outer_right) {
+                return arma::dot((pos - right), normal) * normal;
             }
-
-            // use only axis along which distance is shorter
-            if (_stretch and apply_stretch) {
-                for (std::size_t axis = 0; axis <= 1; axis++) {
-                    if (pos[axis] < _origin[axis]) {
-                        displ[axis] = ll_corner[axis] - pos[axis];
-                    }
-                    else {
-                        displ[axis] = ur_corner[axis] - pos[axis];
-                    }
-                }
-
-                if (fabs(displ[1]) > fabs(displ[0])) {
-                    displ[1] = 0.;
-                }
-                else {
-                    displ[0] = 0.;
-                }
+            else if (quadrant == inner_upper or quadrant == outer_upper) {
+                return arma::dot((pos - upper), normal) * normal;
             }
+            else if (quadrant == inner_left or quadrant == outer_left) {
+                return arma::dot((pos - left), normal) * normal;
+            }
+            else if (quadrant == inner_lower or quadrant == outer_lower) {
+                return arma::dot((pos - lower), normal) * normal;
+            }
+            else if (quadrant == outer_upper_right) {
+                return arma::dot((pos - ur_corner), normal) * normal;
+            }
+            else if (quadrant == outer_upper_left) {
+                return arma::dot((pos - ul_corner), normal) * normal;
+            }
+            else if (quadrant == outer_lower_left) {
+                return arma::dot((pos - ll_corner), normal) * normal;
+            }
+            else if (quadrant == outer_lower_right) {
+                return arma::dot((pos - lr_corner), normal) * normal;
+            }
+            else {
+                throw std::runtime_error("Unknown quadrant!");
+            }
+            return SpaceVec({0., 0.});
+        }
+        
+        // with curvature
+        double R = 1. / _curvature;
+        SpaceVec origin = _origin - SpaceVec({0., R});
 
-            return displ;
+        SpaceVec rpos = pos - origin;
+        double r = arma::norm(rpos);
+        double theta = std::atan2(rpos[0], rpos[1]);
+        double theta_max = _width / 2. / R;
+
+        SpaceVec normal = get_normal(vertex);
+
+        if (quadrant == inner_right) {
+            return - r * fabs(theta_max - theta) * normal;
+        }
+        else if (quadrant == inner_upper) {
+            return - fabs((R + _height / 2.) - r) * normal;
+        }
+        else if (quadrant == inner_left) {
+            return - r * fabs(-theta_max - theta) * normal;
+        }
+        else if (quadrant == inner_lower) {
+            return - fabs((R - _height / 2. - r)) * normal;
+        }
+        else if (quadrant == outer_right) {
+            return - r * fabs(theta - theta_max) * normal;
+        }
+        else if (quadrant == outer_upper_right) {
+            double uR = R + _height / 2.;
+            SpaceVec ur_corner = uR * SpaceVec({sin(theta_max),
+                                                cos(theta_max)});
+            return rpos - ur_corner;
+        }
+        else if (quadrant == outer_upper) {
+            return - fabs(r - (R + _height / 2.)) * normal;
+        }
+        else if (quadrant == outer_upper_left) {
+            double uR = R + _height / 2.;
+            SpaceVec ul_corner = uR * SpaceVec({sin(-theta_max),
+                                                cos(-theta_max)});
+            return rpos - ul_corner;
+        }
+        else if (quadrant == outer_left) {
+            return - r * fabs(theta + theta_max) * normal;
+        }
+        else if (quadrant == outer_lower_left) {
+            double lR = R - _height / 2.;
+            SpaceVec ll_corner = lR * SpaceVec({sin(-theta_max),
+                                                cos(-theta_max)});
+            return rpos - ll_corner;
+        }
+        else if (quadrant == outer_lower) {
+            return - fabs(r - (R - _height / 2.)) * normal;
+        }
+        else if (quadrant == outer_lower_right) {
+            double lR = R - _height / 2.;
+            SpaceVec lr_corner = lR * SpaceVec({sin(theta_max),
+                                                cos(theta_max)});
+            return rpos - lr_corner;
         }
         else {
-            double R = 1. / _curvature;
-            SpaceVec center = _origin - SpaceVec({0., R});
-
-            SpaceVec coords = pos - center;
-
-            double theta = atan2(coords[0], coords[1]);
-            double r = arma::norm(coords);
-
-            double boundary_r, boundary_theta;
-            bool apply_stretch = this->_am.is_boundary(vertex);
-            if (r < R - _height / 2.) {
-                boundary_r = R - _height / 2.;
-                apply_stretch = false;
-            }
-            else if (r > R + _height / 2.) {
-                boundary_r = R + _height / 2.;
-                apply_stretch = false;
-            }
-            else {
-                boundary_r = r;
-            }
-
-            double theta_max = _width / 2. / R;
-            if (theta > theta_max) {
-                boundary_theta = theta_max;
-                apply_stretch = false;
-            }
-            else if (theta < -theta_max) {
-                boundary_theta = -theta_max;
-                apply_stretch = false;
-            }
-            else {
-                boundary_theta = theta;
-            }
-            
-            if (_stretch and apply_stretch) {
-                if (r < R) {
-                    boundary_r = R - _height / 2.;
-                }
-                else {
-                    boundary_r = R + _height / 2.;
-                }
-
-                if (theta < 0) {
-                    boundary_theta = -theta_max;
-                }
-                else {
-                    boundary_theta = theta_max;
-                }
-
-                // get closer boundary
-                double dr = fabs(r - boundary_r);
-                double ds = r * fabs(theta - boundary_theta);
-
-                if (dr > ds) {
-                    boundary_r = r;
-                }
-                else {
-                    boundary_theta = theta;
-                }
-            }
-
-            SpaceVec boundary = boundary_r * SpaceVec({sin(boundary_theta),
-                                                       cos(boundary_theta)});
-            
-            return boundary - coords;
+            throw std::runtime_error("Unknown quadrant!");
         }
     }
 
     void deform_plastic (double previous_curvature = 0.) {
-        
         // remove the curvature and map to a rectangle
         if (fabs(previous_curvature) > 1.e-8) {
             double R = 1. / previous_curvature;
@@ -281,8 +606,11 @@ public:
         if (cfg["origin"]) {
             _origin = get_as_SpaceVec<2>("origin", cfg);
         }
-        else {
+        else if (not model.get_space()->periodic) {
             _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
+        }
+        else {
+            _origin = model.get_space()->get_domain_size() / 2.;
         }
 
         if (_height < 1.e-8) {
@@ -310,10 +638,89 @@ public:
     }
 
     SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const final {
-        return _elastic_constant * get_displacement(vertex);
+        if (not this->_am.is_boundary(vertex)) {
+            return SpaceVec({0., 0.});
+        }
+
+        const auto quadrant = get_quadrant(vertex);
+        if (not _stretch and is_inner_quadrant(quadrant)) {
+            return SpaceVec({0., 0.});
+        }
+        
+        if (fabs(_curvature) < 1.e-10) {
+            return -1. * _elastic_constant * get_displacement(vertex);
+        }
+        
+        // with curvature
+        if (this->_am.get_space()->periodic) {
+            throw std::runtime_error("No curvature in periodic BC implemented");
+        }
+
+        SpaceVec displ = get_displacement(vertex);
+        return -1. * _elastic_constant * get_displacement(vertex);
+
+        // TODO --->
+
+        // derivative of axis to displacement of vertex
+
+        // SpaceVec origin = _origin - SpaceVec({0., 1. / _curvature});
+        // SpaceVec rpos = this->_am.position_of(vertex) - origin;
+        
+        // SpaceVec normal = displ / arma::norm(displ);
+
+        // // SpaceVec tmp;
+        // // if (quadrant == inner_right) {
+        // //     double x = rpos[0];
+        // //     double y = rpos[1];
+        // //     double x2 = x*x;
+        // //     double y2 = y*y;
+        // //     double _tmp = pow(x2 / y2 + 1, 1.5);
+        // //     auto dtx_dx = -x  / (y2 * _tmp)
+        // //     auto dty_dx =  x2 / (y2 * y * _tmp);
+
+        // //     _tmp = (sqrt(x/y2 + 1) (rpos[0]^2 + y2));
+        // //     auto dtx_dy = -rpos[1] / _tmp;
+        // //     auto dty_dy =  rpos[0] / _tmp;
+        // // }
+        
+        // // // use tangent ..
+
+        // double sum_x = rpos[0];
+        // double sum_y = rpos[1];
+        // double arg = sum_x / sum_y;
+
+        // double tmp_0 = sum_y * (pow(arg, 2) + 1);
+        // double tmp_1 = pow(sum_y, 2) * (pow(arg, 2) + 1);
+
+        // double dpx_dx =  normal[1] / tmp_0;
+        // double dpy_dx = -normal[0] / tmp_0;
+
+        // double dpx_dy = -(sum_x * normal[1]) / tmp_1;
+        // double dpy_dy =  (sum_x * normal[0]) / tmp_1;
+
+        // SpaceVec tmp({
+        //     displ[0] * dpx_dx + displ[1] * dpy_dx,
+        //     displ[0] * dpx_dy + displ[1] * dpy_dy,
+        // });
+        // double _dE_dx = _elastic_constant;
+
+        // // d/dx(1/sqrt(x^2/y^2 + 1)) = -x/(y^2 (x^2/y^2 + 1)^(3/2))
+        // // d/dy(1/sqrt(x^2/y^2 + 1)) = x^2/(y^3 (x^2/y^2 + 1)^(3/2))   
+
+        // // d/dx(-x/(y sqrt(x^2/y^2 + 1))) = -y/(sqrt(x^2/y^2 + 1) (x^2 + y^2))
+        // // d/dy(-x/(y sqrt(x^2/y^2 + 1))) = x/(sqrt(x^2/y^2 + 1) (x^2 + y^2))
+
+        // return - _dE_dx * (displ - tmp);
     }
 
     double compute_energy(const std::shared_ptr<Vertex>& vertex) const final {
+        if (not this->_am.is_boundary(vertex)) {
+            return 0.;
+        }
+        if (not _stretch and is_inner_quadrant(get_quadrant(vertex))) {
+            return 0.;
+        }
+
         double distance = arma::norm(get_displacement(vertex));
         return 0.5 * _elastic_constant * std::pow(distance, 2);
     }
