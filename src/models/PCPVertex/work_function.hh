@@ -1594,7 +1594,7 @@ public:
             double axis = local_axis(center);
 
             polarities.push_back(polarity);
-            polarities_to_axis.push_back(polarity + axis);
+            polarities_to_axis.push_back(polarity - axis);
         }
         return std::vector<std::vector<double>>({
             polarities, polarities_to_axis

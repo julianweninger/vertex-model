@@ -427,17 +427,16 @@ cell_properties/polar_direction: !pspace
 # --- Cell segmentation ------------------------------------------------------
 cell_segmentation:
   based_on:
-    - single_universe
     - cellular_structure
+    - single_universe
+    - my_style
   enabled: false
 
 cell_segmentation__polarity:
   based_on:
-    - single_universe
     - cellular_structure
-
-  universes:
-    seed: 0
+    - single_universe
+    - my_style
 
   select:
     edge_property:
@@ -449,7 +448,7 @@ cell_segmentation__polarity:
     vector_property:
       path: data/PCPTopology/Cells
       transform:
-        - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
+        - .sel: [!dag_prev , {property: edge_contractility_polar__polarity}]
         - .sel: [!dag_node -2, {property: cell_type}]
         - create_mask: [!dag_prev , ==, 1]
         - .where: [!dag_node -3, !dag_node -1]
@@ -458,22 +457,45 @@ cell_segmentation__polarity:
       path: data/PCPTopology/Cells
       transform:
         - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
-        - .sel: [!dag_node -2, {property: cell_type}]
+        - add: [!dag_prev , 3.1416]
+        - call_lambda:
+          - "lambda data: (data <= 1 / 4 * math.pi) | (data > 7 / 4 * math.pi)"
+          - !dag_node -1
+          # right
+        - call_lambda:
+          - "lambda data: (data > 1 / 4 * math.pi) & (data <= 3 / 4 * math.pi)"
+          - !dag_node -2
+          # up
+        - call_lambda:
+          - "lambda data: (data > 3 / 4 * math.pi) & (data <= 5 / 4 * math.pi)"
+          - !dag_node -3
+          # left
+        - call_lambda:
+          - "lambda data: (data > 5 / 4 * math.pi) & (data <= 7 / 4 * math.pi)"
+          - !dag_node -4
+          # down
+        - call_lambda: 
+          - "lambda qr, qu, ql, qd: xr.where(qr, -0.5, xr.where(ql, -1, xr.where(qu, 0.5, 1)))"
+          - !dag_node -4
+          - !dag_node -3
+          - !dag_node -2
+          - !dag_node -1
+        - .sel: [!dag_node -8, {property: cell_type}]
         - call_lambda:
           - "lambda d, type: d.where(type==1)"
           - !dag_node -2
           - !dag_node -1
-        - .sel: [!dag_node -4, {property: is_boundary}]
+        - .sel: [!dag_node -10, {property: is_boundary}]
         - call_lambda:
           - "lambda d, boundary: d.where(boundary==0)"
           - !dag_node -2
           - !dag_node -1
         - .rename: [!dag_prev , Polarity]
-
+  
   property_interpolation_plot_kwargs:
     interpolation: nearest
-    vmin: -3.1415
-    vmax: 3.1416
+    vmin: -1
+    vmax: 1
     cmap: brg
   
 cell_segmentation__axial_contractility:

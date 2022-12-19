@@ -29,11 +29,11 @@ worker_manager:
   #         seconds: 0.1 # !expr 60*40  
 
 parameter_space:
-  num_steps: 500
+  num_steps: 100
 
   seed: !sweep
     default: 42
-    range: [6]
+    range: [18]
     order: !expr -np.inf
 
   PCPTopology:
@@ -56,18 +56,14 @@ parameter_space:
         enabled: true
       1_by_proliferation:
         enabled: false
-        num_generations: 3
-        minimization_between_generations: ~
-        minimization:
-          num_repeat: 240
 
     # The sequence of operations
-    operations:
+    operations:          
       # - proliferate:
       #     times: []
       #     iterations_prolog: 1
 
-      #     num_cells: !expr 576 - 288
+      #     num_cells: !expr 2*576 - 648
       #     num_increases: 0
       #     area_threshold: 0
 
@@ -79,7 +75,7 @@ parameter_space:
 
       # - void:
       #     times: []
-      #     iterations_prolog: 50
+      #     iterations_prolog: 48
 
           
       # Put some markers into the tissue
@@ -144,7 +140,7 @@ parameter_space:
               target_name: curvature
               name: curvature_mechanics
             contractility:
-              - [0.1, 0.0, 0.0]
+              - [0.4, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
             boundary_type: 2
@@ -153,7 +149,7 @@ parameter_space:
             mode: manual
       # - void:
       #     times: []
-      #     iterations_prolog: 50
+      #     iterations_prolog: 24
       #     minimization:
       #       linetension_fluctuations: 0.04
 
@@ -167,9 +163,9 @@ parameter_space:
               target_name: curvature
               name: curvature_mechanics_
             contractility:
-              - [0.00, -0.05, 0.00]
-              - [-0.05, -0.05, -0.05]
-              - [0.00, -0.05, 0.00]
+              - [0.00, -0.05, 0.0]
+              - [-0.05, 0.00, 0.0]
+              - [0.00,  0.00, 0.0]
             boundary_type: 2
             
             exclude_cell_types: [0]
@@ -187,7 +183,7 @@ parameter_space:
       - void:
           times: !listgen [1, 501]
           minimization:
-            linetension_fluctuations: 0.02
+            linetension_fluctuations: 0.0001
 
 
     PCPVertex:
@@ -224,8 +220,8 @@ parameter_space:
             values: 
               - 0.
               - 5.e-2
-          width: !expr (288*2)**0.5
-          height: !expr (288/2)**0.5
+          width: !expr (72*2)**0.5
+          height: !expr (72/2)**0.5
           # NOTE adapt this to fit all cells constrainlessly
           stretch: true
           deform_plastic: true
@@ -233,8 +229,8 @@ parameter_space:
       agent_manager:
         setup_params:
           hexagonal:
-            lattice_columns: 24
-            lattice_rows: 12
+            lattice_columns: 12
+            lattice_rows: 6
       
       # continuous data manager
       data_manager:
