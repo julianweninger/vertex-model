@@ -140,27 +140,6 @@ private:
     std::pair<bool, std::size_t> _fix_number_work_function_terms;
 
 
-    enum BoundaryType {
-        Periodic,
-        PeriodicSkewed,
-        PeriodicCurved,
-        Free,
-        Fixed,
-        FixedCurved,
-        Potential
-    } _boundary_type;
-
-    bool boundary_is_fixed () const {
-        if (_boundary_type == BoundaryType::Fixed) {
-            return true;
-        }
-        if (_boundary_type == BoundaryType::FixedCurved) {
-            return true;
-        }
-        return false;
-    }
-
-
     // -- transition parameters -----------------------------------------------
 
     /// Whether topological transitions are enabled
@@ -380,48 +359,12 @@ private:
             functor->compute_and_set_forces();
         }
 
-        // fix the boundary
-        if (not _space->periodic and boundary_is_fixed()) {
-            apply_rule<Update::sync>(
-                [this](const auto& vertex) {
-                    auto state = vertex->state;
-                    if (this->_am.is_boundary(vertex)) {
-                        state.fix_in_space = true;
-                    }
-                    else {
-                        state.fix_in_space = false;
-                    }
-                    return state;
-                },
-                _am.vertices()
-            );
-        }
-
-        // decider on whether to fix vertex
-        std::function<bool(const std::shared_ptr<Vertex>& vertex)> fix_vertex;
-        fix_vertex = [](const auto& vertex) {
+        for (const auto& vertex : _am.vertices()) {
             if (vertex->state.fix_in_space) {
-                return true;
+                vertex->state.reset_force();
             }
-            return false;
-        };
-        if (not _space->periodic and boundary_is_fixed()) {
-            fix_vertex = [this, fix_vertex](const auto& vertex) {
-                return (fix_vertex(vertex) or this->_am.is_boundary(vertex));
-            };
+            vertex->state.fix_in_space = false;
         }
-        
-        // set forces on fixed vertices (e.g. boundary) to zero
-        apply_rule<Update::sync>(
-            [fix_vertex](const auto& vertex) {
-                auto state = vertex->state;
-                if (fix_vertex(vertex)) { 
-                    state.reset_force();
-                }
-                return state;
-            },
-            _am.vertices()
-        );
     }
 
     /** The update of position
@@ -741,6 +684,14 @@ public:
                 )
             );
         }
+        else if (term == "boundary_fixed") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryFixed<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "boundary_stripe_potential") {
             register_work_function_term(
                 name,
@@ -828,6 +779,7 @@ public:
                 "choose one of the following available terms:\n"
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
+                " - boundary_fixed\n"
                 " - boundary_stripe_potential\n"
                 " - cell_contractility\n"
                 " - edge_contractility\n"

@@ -10,6 +10,49 @@ namespace PCPVertex {
 namespace WorkFunction {
 
 
+
+/// @brief Fixes the boundary vertices in space
+template <typename Model>
+class BoundaryFixed : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Model::Edge;
+
+    using Cell = typename Model::Cell;
+
+public:
+    BoundaryFixed (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model)
+    { }
+
+    void compute_and_set_forces () final {
+        for (const auto& vertex : this->_am.vertices()) {
+            if (this->_am.is_boundary(vertex)) {
+                vertex->state.fix_in_space = true;
+            }
+        }
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        return 0.;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final { }
+};
+
 /// @brief Boundary quadratic potential in shape of a rectangle or ring
 /// @tparam Model  
 /** Use the WorkFunctionVertexTerm interface for a quadratic potential 
