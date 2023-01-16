@@ -122,7 +122,7 @@ parameter_space:
           parameters:
             boundary_type: 2
             contractility:
-              - [0.2, 0.0, 0.0]
+              - [0.1, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
           minimization:
@@ -149,7 +149,7 @@ parameter_space:
               name: Gamma_ppMLC
               default: 0.4
               values: 
-                - &Gamma_ppMLC1 0.4
+                - &Gamma_ppMLC1 0.05
                 # - &Gamma_ppMLC2 0.
             contractility: !coupled-sweep
               target_name: Gamma_ppMLC
