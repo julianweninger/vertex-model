@@ -1532,8 +1532,12 @@ public:
         }
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
+        
         _axis = get_as<double>("axis", cfg, _axis);
         _curvature = get_as<double>("curvature", cfg, _curvature);
+
+        _gamma = get_as<double>("gamma", cfg, _gamma);
+        _num_steps = get_as<std::size_t>("num_steps", cfg, _num_steps);
     }
 
 
