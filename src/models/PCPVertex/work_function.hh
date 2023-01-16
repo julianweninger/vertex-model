@@ -1365,7 +1365,7 @@ public:
 
         if (false) {}
         else if (setup == "gaussian") {
-            std::uniform_real_distribution distr(
+            std::normal_distribution<double> distr(
                 get_as<double>("orientation_mean", cfg),
                 get_as<double>("orientation_std", cfg)
             );
