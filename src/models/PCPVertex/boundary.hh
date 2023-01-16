@@ -50,7 +50,8 @@ public:
         return 0.;
     }
 
-    void update_parameters (const DataIO::Config& cfg) final { }
+    void update_parameters ([[maybe_unused]] const DataIO::Config& cfg) final
+    { }
 };
 
 /// @brief Boundary quadratic potential in shape of a rectangle or ring
