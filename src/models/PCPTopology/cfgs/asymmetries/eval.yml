@@ -17,10 +17,17 @@ _definitions:
       default: 0.
       values:
         - 0.
-        - 5.e-2
-    # ppMLC: !sweep
-    #   default: 0.4
-    #   values: [0.4, 0.]
+        - 6.e-2
+    Gamma_ppMLC: !sweep
+      default: 0
+      values: 
+        - 0.4
+        # - 0.
+    Gamma_pMLC: !sweep
+      default: 0
+      values: 
+        - 0.1
+        # - -0.1
 
   # first sweep dimension
   hue: &HUE ~ # curvature
@@ -83,8 +90,8 @@ multiverse:
 # universe examples
 energy:
   based_on: 
-    - single_universe
     - energy
+    - single_universe
 
 polarity_histplot: !pspace
   based_on:
@@ -99,6 +106,9 @@ polarity_histplot: !pspace
         transform:
           - .sel: [!dag_prev , {property: edge_contractility_polar__polarity_to_axis}]
           - .isel: [!dag_prev , {time: -1}]
+          - call_lambda:
+            - "lambda angle: np.fmod(angle + 3 * math.pi, 2 * math.pi) - math.pi"
+            - !dag_prev
           - .rename: [!dag_prev , polarity]
     subspace: *subspace_slice
   
@@ -430,21 +440,26 @@ cell_segmentation:
     - cellular_structure
     - single_universe
     - my_style
-  enabled: false
-
-cell_segmentation__polarity:
-  based_on:
-    - cellular_structure
-    - single_universe
-    - my_style
 
   select:
     edge_property:
-      # path: data/PCPTopology/Edge_energies
       path: data/PCPTopology/Edges
       transform:
-        - .sel: [!dag_prev , {property: edge_contractility_polar__contractility}]
-        - .rename: [!dag_prev , polar_contractility]
+        - .sel: [!dag_node -1, {property: edge_contractility_polar__contractility}]
+        - call_lambda:
+          # - "lambda d: (d - d.min()) / np.abs(d.max() - d.min() + 1.e-8)"
+          - "lambda d: d"
+          - !dag_prev
+        - .sel: [!dag_node -3, {property: edge_contractility_axial__contractility}]
+        - call_lambda:
+          # - "lambda d: (d - d.min()) / np.abs(d.max() - d.min() + 1.e-8)"
+          - "lambda d: d"
+          - !dag_prev
+        - call_lambda:
+          - "lambda pMLC, ppMLC: pMLC + ppMLC"
+          - !dag_node -3
+          - !dag_node -1
+        - .rename: [!dag_prev , Asymmetric contractility]
     vector_property:
       path: data/PCPTopology/Cells
       transform:
@@ -475,7 +490,7 @@ cell_segmentation__polarity:
           - !dag_node -4
           # down
         - call_lambda: 
-          - "lambda qr, qu, ql, qd: xr.where(qr, -0.5, xr.where(ql, -1, xr.where(qu, 0.5, 1)))"
+          - "lambda qr, qu, ql, qd: xr.where(qr, -0.75, xr.where(ql, -1, xr.where(qu, 0.75, 1)))"
           - !dag_node -4
           - !dag_node -3
           - !dag_node -2
@@ -492,18 +507,21 @@ cell_segmentation__polarity:
           - !dag_node -1
         - .rename: [!dag_prev , Polarity]
   
+  cell_center_marker_kwargs:
+    s: 0
+    colors: ['white', 'white', 'white']
+
   property_interpolation_plot_kwargs:
     interpolation: nearest
-    vmin: -1
-    vmax: 1
     cmap: brg
-  
-cell_segmentation__axial_contractility:
-  based_on: cell_segmentation__polarity
 
-  select:
-    edge_property:
-      path: data/PCPTopology/Edges
-      transform:
-        - .sel: [!dag_prev , {property: edge_contractility_axial__contractility}]
-        - .rename: [!dag_prev , axial_contractility]
+  vector_property_kwargs:
+    scale: 1.5
+    width: 0.0025
+    headlength: 2.5
+    headwidth: 2.
+
+  quiver_kwargs:
+    cmap: RdBu
+    width: 0.001
+    # clim: [-1., 1.]
