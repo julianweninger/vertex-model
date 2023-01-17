@@ -204,7 +204,10 @@ parameter_space:
             mode: manual
 
       - void:
-          times: !listgen [1, 1001]
+          times:
+            start: 1
+            stop: 1000000
+            step: 1
           minimization:
             linetension_fluctuations: 0.0001
             num_repeat: 1

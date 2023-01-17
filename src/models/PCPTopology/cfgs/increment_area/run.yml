@@ -137,7 +137,10 @@ parameter_space:
       # END differentiation
       
       - update_work_function_term:
-          times: !listgen [20001]
+          times:
+            start: 1
+            stop: 100000
+            step: 1
           name: area_elasticity_heterotypic
           parameters:
             method: increment_heterotypic
