@@ -21,7 +21,7 @@ message(STATUS "Adding python test targets ...")
 # Add tests for models, accessible via `make test_models_python`
 add_custom_target(test_models_python
                   COMMAND ${RUN_IN_UTOPIA_ENV}
-                          python -m pytest -v
+                          python -m pytest -v --durations 25
                           ${CMAKE_CURRENT_SOURCE_DIR}/model_tests/
 )
 
