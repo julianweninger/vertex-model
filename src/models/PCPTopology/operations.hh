@@ -98,18 +98,35 @@ struct OperationParams {
         minimization_params(get_as<Config>("minimization", cfg, Config()),
                             default_minim_params)
     {
-        auto times_list = get_as<std::vector<Time>>("times", cfg);
-        // TODO Consider wrapping negative values around
+        if (not cfg["times"]) {
+            throw std::runtime_error(fmt::format("Could not extract key "
+                "'times' from operation '{}'!", name));
+        }
+        else if (cfg["times"].IsSequence()) {
+            auto times_list = get_as<std::vector<Time>>("times", cfg);
 
-        // Make sure negative times are not included
-        times_list.erase(
-            std::remove_if(times_list.begin(), times_list.end(),
-                            [](auto& t){ return (t <= 0); }),
-            times_list.end()
-        );
+            // Make sure negative times are not included
+            times_list.erase(
+                std::remove_if(times_list.begin(), times_list.end(),
+                                [](auto& t){ return (t <= 0); }),
+                times_list.end()
+            );
 
-        // Populate the set; this will impose ordering
-        times.insert(times_list.begin(), times_list.end());
+            // Populate the set; this will impose ordering
+            times.insert(times_list.begin(), times_list.end());
+        }
+        else if (cfg["times"].IsMap()) {
+            auto start = get_as<Time>("start", cfg["times"]);
+            auto stop = get_as<Time>("stop", cfg["times"]);
+            auto step = get_as<Time>("step", cfg["times"]);
+
+            for (Time t = start; t < stop; t += step) {
+                if (t <= 0) {
+                    continue;
+                }
+                times.insert(t);
+            }
+        }
     }
 
     MinimizationMode setup_minimization_mode(std::string mode) {

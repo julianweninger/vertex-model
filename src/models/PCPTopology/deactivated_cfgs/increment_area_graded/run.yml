@@ -145,8 +145,10 @@ parameter_space:
       # END differentiation
       
       - increment_area_gradient:
-          times: !listgen [20001]
-          # times: !listgen [80001]
+          times:
+            start: 1
+            stop: 100000
+            step: 1
 
           iterations: 24
           increment_HC_gradient: !expr 2.e-4 / 24

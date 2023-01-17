@@ -32,7 +32,10 @@ parameter_space:
       # Minimize the energy using different numerical resolutions
       # NOTE Integrating to the same t_max = steps * dt
       - void:
-          times: !listgen [10001]
+          times:
+            start: 1
+            stop: 100000
+            step: 1
           minimization:
             linetension_fluctuations: 0.
             dt: !sweep
