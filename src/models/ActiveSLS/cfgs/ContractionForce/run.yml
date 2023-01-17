@@ -8,10 +8,10 @@ parameter_space:
   ActiveSLS:
     external_tension: !sweep
       default: 0.01
-      linspace: [0, 1, 51]
+      linspace: [0, 1, 11]
       name: T_ext
 
     active_tension: !sweep
       default: 0.2
-      linspace: [0., 5., 51]
+      linspace: [0., 5., 11]
       name: beta

@@ -29,7 +29,8 @@ def test_that_it_runs():
     # The `print_tree` flag creates output of which data was loaded
 
 
-def test_run_and_eval_cfgs():
+@pytest.mark.parametrize("cfg_name", mtc.default_config_sets.keys())
+def test_run_and_eval_cfgs(cfg_name):
     """Carries out all additional configurations that were specified alongside
     the default model configuration.
 
@@ -39,14 +40,14 @@ def test_run_and_eval_cfgs():
     If no run or eval configurations are given in the subdirectories, the
     respective defaults are used.
 
-    See :py:meth:`~utopya.model.Model.run_and_eval_cfg_paths` for more info.
+    See :py:meth:`~utopya.model.Model.default_config_sets` for more info.
     """
-    for cfg_name, cfg_paths in mtc.default_config_sets.items():
-        print(f"\nRunning '{cfg_name}' example ...")
 
-        mv, _ = mtc.create_run_load(
-            from_cfg=cfg_paths.get("run"), parameter_space=dict(num_steps=3)
-        )
-        mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get("eval"))
+    cfg_paths = mtc.default_config_sets[cfg_name]
 
-        print(f"Succeeded running and evaluating '{cfg_name}'.\n")
+    mv, _ = mtc.create_run_load(
+        from_cfg=cfg_paths.get("run"), parameter_space=dict(num_steps=3)
+    )
+    mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get("eval"))
+
+    print(f"Succeeded running and evaluating '{cfg_name}'.\n")

@@ -19,6 +19,7 @@ parameter_space:
 
     initialisation:
       1_by_proliferation:
+        enabled: false
         num_generations: 2
         minimization_between_generations:
           num_repeat: 2
@@ -89,7 +90,12 @@ parameter_space:
           preferential_shape: !sweep
             name: s0
             default: 3.72
-            values: [3.64, 3.72, 3.76, 3.8, 3.85]
+            values: 
+              # - 3.64
+              - 3.72
+              # - 3.76
+              - 3.8
+              # - 3.85
             order: 1
 
       # continuous data manager

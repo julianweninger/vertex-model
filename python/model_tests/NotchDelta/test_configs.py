@@ -12,7 +12,8 @@ mtc = ModelTest("NotchDelta", test_file=__file__)
 
 # Tests -----------------------------------------------------------------------
 
-def test_run_and_eval_cfgs():
+@pytest.mark.parametrize("cfg_name", mtc.default_config_sets.keys())
+def test_run_and_eval_cfgs(cfg_name):
     """Carries out all additional configurations that were specified alongside
     the default model configuration.
 
@@ -24,11 +25,11 @@ def test_run_and_eval_cfgs():
 
     See :py:meth:`~utopya.model.Model.default_config_sets` for more info.
     """
-    for cfg_name, cfg_paths in mtc.default_config_sets.items():
-        print("\nRunning '{}' example ...".format(cfg_name))
 
-        mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
-                                    plot_manager={'raise_exc': True})
-        mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+    cfg_paths = mtc.default_config_sets[cfg_name]
+    
+    mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
+                                plot_manager={'raise_exc': True})
+    mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
 
-        print("Succeeded running and evaluating '{}'.\n".format(cfg_name))
+    print("Succeeded running and evaluating '{}'.\n".format(cfg_name))

@@ -18,7 +18,8 @@ mtc = ModelTest("PCPTopology", test_file=__file__)
 
 # Tests -----------------------------------------------------------------------
 
-def test_run_and_eval_cfgs():
+@pytest.mark.parametrize("cfg_name", mtc.default_config_sets.keys())
+def test_run_and_eval_cfgs(cfg_name):
     """Carries out all additional configurations that were specified alongside
     the default model configuration.
 
@@ -98,55 +99,50 @@ def test_run_and_eval_cfgs():
         }
     })
 
-    print("Running the following tests: ")
-    for cfg_name, cfg_paths in mtc.default_config_sets.items():
-        print(cfg_name)
+    cfg_paths = mtc.default_config_sets[cfg_name]
 
-    for cfg_name, cfg_paths in mtc.default_config_sets.items():
-        print("\nRunning '{}' example ...".format(cfg_name))
+    params = recursive_update(deepcopy(_params),
+                              deepcopy(debug_params.get(cfg_name, dict())))
 
-        params = recursive_update(deepcopy(_params),
-                                  deepcopy(debug_params.get(cfg_name, dict())))
-
-        print("  With update config {}".format(params))
-        
-                
-        # Run multiverse with a timeout of 120 seconds
-        timeout = 120
-        def timeout_handler(signum, frame):
-            print("Aborting test of '{}' after {} seconds. "
-                  "Timeout reached!".format(cfg_name, timeout))
-            raise RuntimeError(
-                "Aborting test of '{}' after {} seconds. "
-                "Timeout reached!".format(cfg_name, timeout))
-
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
-
-        
-        mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
-                                    plot_manager={'raise_exc': True},
-                                    parameter_space=params
-                                    )
+    print("  With update config {}".format(params))
     
-        # Evaluate multiverse with a timeout of 60 seconds
-        timeout = 120
-        def timeout_handler(signum, frame):
-            print("Aborting test of '{}' after {} seconds. "
-                  "Timeout reached!".format(cfg_name, timeout))
-            raise RuntimeError(
-                "Aborting test of '{}' after {} seconds. "
+            
+    # Run multiverse with a timeout of 120 seconds
+    timeout = 120
+    def timeout_handler(signum, frame):
+        print("Aborting test of '{}' after {} seconds. "
                 "Timeout reached!".format(cfg_name, timeout))
+        raise RuntimeError(
+            "Aborting test of '{}' after {} seconds. "
+            "Timeout reached!".format(cfg_name, timeout))
 
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
-        
-        mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout)
+
+    
+    mv, _ = mtc.create_run_load(from_cfg=cfg_paths.get('run'),
+                                plot_manager={'raise_exc': True},
+                                parameter_space=params
+                                )
+
+    # Evaluate multiverse with a timeout of 60 seconds
+    timeout = 120
+    def timeout_handler(signum, frame):
+        print("Aborting test of '{}' after {} seconds. "
+                "Timeout reached!".format(cfg_name, timeout))
+        raise RuntimeError(
+            "Aborting test of '{}' after {} seconds. "
+            "Timeout reached!".format(cfg_name, timeout))
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout)
+    
+    mv.pm.plot_from_cfg(plots_cfg=cfg_paths.get('eval'))
 
 
-        signal.alarm(0)
+    signal.alarm(0)
 
-        print("Succeeded running and evaluating '{}'.\n".format(cfg_name))
+    print("Succeeded running and evaluating '{}'.\n".format(cfg_name))
 
 
 def test_disabled_plots():
