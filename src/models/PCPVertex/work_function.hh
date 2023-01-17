@@ -404,15 +404,11 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension(_linetension.n_rows);
-        for (size_t i = 0; i < _linetension.n_rows; ++i) {
-            tension[i] = arma::conv_to< std::vector<double> >::from(
-                _linetension.row(i)
-            );
-        };
-        _linetension = setup_symmetric_matrix(get_as<stdmat>(
-            "linetension", cfg, tension
-        ));
+        if (cfg["linetension"]) {
+            _linetension = setup_symmetric_matrix(get_as<stdmat>(
+                "linetension", cfg
+            ));
+        }
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
     }
@@ -814,15 +810,11 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension(_contractility.n_rows);
-        for (size_t i = 0; i < _contractility.n_rows; ++i) {
-            tension[i] = arma::conv_to< std::vector<double> >::from(
-                _contractility.row(i)
-            );
-        };
-        _contractility = setup_symmetric_matrix(get_as<stdmat>(
-            "contractility", cfg, tension
-        ));
+        if (cfg["contractility"]) {
+            _contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "contractility", cfg
+            ));
+        }
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
     }
@@ -1102,10 +1094,11 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
-        _contractility = setup_symmetric_matrix(get_as<stdmat>(
-            "contractility", cfg, tension
-        ));
+        if (cfg["contractility"]) {
+            _contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "contractility", cfg
+            ));
+        }
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
         double angle = atan2(_axis[1], _axis[0]);
@@ -1372,7 +1365,7 @@ public:
 
         if (false) {}
         else if (setup == "gaussian") {
-            std::uniform_real_distribution distr(
+            std::normal_distribution<double> distr(
                 get_as<double>("orientation_mean", cfg),
                 get_as<double>("orientation_std", cfg)
             );
@@ -1532,14 +1525,19 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) final {
-        stdmat tension = arma::conv_to<stdmat>::from(_contractility);
-        _contractility = setup_symmetric_matrix(get_as<stdmat>(
-            "contractility", cfg, tension
-        ));
+        if (cfg["contractility"]) {
+            _contractility = setup_symmetric_matrix(
+                get_as<stdmat>("contractility", cfg)
+            );
+        }
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
+        
         _axis = get_as<double>("axis", cfg, _axis);
         _curvature = get_as<double>("curvature", cfg, _curvature);
+
+        _gamma = get_as<double>("gamma", cfg, _gamma);
+        _num_steps = get_as<std::size_t>("num_steps", cfg, _num_steps);
     }
 
 

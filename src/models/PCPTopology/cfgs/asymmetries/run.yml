@@ -19,21 +19,21 @@ worker_manager:
   # num_workers: 6
 # run_kwargs:
 #   timeout: !expr 60*60*18
-  # stop_conditions:
-  #   - !stop-condition
-  #     name: single simulation timeout
-  #     description: terminates a simulation if it ran for too long
-  #     enabled: true               # (optional, true by default)
-  #     to_check:                   # A sequence of AND-connected conditions
-  #       - func: timeout_wall      # Looked up in utopya.stopcond_funcs
-  #         seconds: 0.1 # !expr 60*40  
+#   stop_conditions:
+#     - !stop-condition
+#       name: single simulation timeout
+#       description: terminates a simulation if it ran for too long
+#       enabled: true               # (optional, true by default)
+#       to_check:                   # A sequence of AND-connected conditions
+#         - func: timeout_wall      # Looked up in utopya.stopcond_funcs
+#           seconds: 0.1 # !expr 60*40  
 
 parameter_space:
-  num_steps: 100
+  num_steps: 1000
 
   seed: !sweep
     default: 42
-    range: [18]
+    range: [6]
     order: !expr -np.inf
 
   PCPTopology:
@@ -58,12 +58,12 @@ parameter_space:
         enabled: false
 
     # The sequence of operations
-    operations:          
+    operations:
       # - proliferate:
       #     times: []
       #     iterations_prolog: 1
 
-      #     num_cells: !expr 2*576 - 648
+      #     num_cells: !expr 12*48
       #     num_increases: 0
       #     area_threshold: 0
 
@@ -75,7 +75,7 @@ parameter_space:
 
       # - void:
       #     times: []
-      #     iterations_prolog: 48
+      #     iterations_prolog: 12
 
           
       # Put some markers into the tissue
@@ -86,8 +86,8 @@ parameter_space:
             name: rho
             default: 0.06
             values:
-              - &RHO_1 0.2
-              # - &RHO_2 0.26
+              # - &RHO_1 0.2
+              - &RHO_2 0.26
               # - &RHO_3 0.1
               # - &RHO_4 0.05
               # - &RHO_5 0.0
@@ -97,8 +97,8 @@ parameter_space:
             name: distribution
             default: [0.8, 0.2]
             values:
-              - [0.80, *RHO_1]
-              # - [0.74, *RHO_2]
+              # - [0.80, *RHO_1]
+              - [0.74, *RHO_2]
               # - [0.90, *RHO_3]
               # - [0.95, *RHO_4]
               # - [1.00, *RHO_5]
@@ -122,11 +122,17 @@ parameter_space:
           parameters:
             boundary_type: 2
             contractility:
-              - [0.2, 0.0, 0.0]
+              - [0.1, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
               - [0.0, 0.0, 0.0]
           minimization:
             mode: manual
+
+      - void:
+          times: []
+          # iterations_prolog: 50
+          minimization:
+            linetension_fluctuations: 0.04
       # END differentiation
 
       # Introduce asymmetries along axis
@@ -139,19 +145,31 @@ parameter_space:
             curvature: !coupled-sweep
               target_name: curvature
               name: curvature_mechanics
-            contractility:
-              - [0.4, 0.0, 0.0]
-              - [0.0, 0.0, 0.0]
-              - [0.0, 0.0, 0.0]
+            gamma_prime: !sweep
+              name: Gamma_ppMLC
+              default: 0.4
+              values: 
+                - &Gamma_ppMLC1 0.05
+                # - &Gamma_ppMLC2 0.
+            contractility: !coupled-sweep
+              target_name: Gamma_ppMLC
+              name: Gamma_ppMLC_matrix
+              values:
+                - [[*Gamma_ppMLC1, 0.0, 0.0],
+                   [0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0]]
+                # - [[*Gamma_ppMLC2, 0.0, 0.0],
+                #    [0.0, 0.0, 0.0],
+                #    [0.0, 0.0, 0.0]]
             boundary_type: 2
           
           minimization:
             mode: manual
-      # - void:
-      #     times: []
-      #     iterations_prolog: 24
-      #     minimization:
-      #       linetension_fluctuations: 0.04
+      - void:
+          times: []
+          # iterations_prolog: 12
+          minimization:
+            linetension_fluctuations: 0.04
 
       - register_work_function_term:
           times: []
@@ -162,17 +180,26 @@ parameter_space:
             curvature: !coupled-sweep
               target_name: curvature
               name: curvature_mechanics_
-            contractility:
-              - [0.00, -0.05, 0.0]
-              - [-0.05, 0.00, 0.0]
-              - [0.00,  0.00, 0.0]
+            gamma_prime: !sweep
+              name: Gamma_pMLC
+              default: 0.4
+              values: 
+                - &Gamma_pMLC1  0.01
+                # - &Gamma_pMLC2 -0.01
+            contractility: !coupled-sweep
+              target_name: Gamma_pMLC
+              name: Gamma_pMLC_matrix
+              values:
+                - [[0.0, *Gamma_pMLC1, 0.0],
+                   [*Gamma_pMLC1, 0.0, 0.0],
+                   [0.0,          0.0, 0.0]]
+                # - [[0.0, *Gamma_pMLC2, 0.0],
+                #    [*Gamma_pMLC2, 0.0, 0.0],
+                #    [0.0,          0.0, 0.0]]
             boundary_type: 2
             
             exclude_cell_types: [0]
             setup: uniform
-            # setup: gaussian
-            # orientation_mean: 0.
-            # orientation_std: !expr 30 / 180 * 3.1415
 
             gamma: 20
             num_steps: 100
@@ -181,13 +208,15 @@ parameter_space:
             mode: manual
 
       - void:
-          times: !listgen [1, 501]
+          times: !listgen [1, 1001]
           minimization:
             linetension_fluctuations: 0.0001
+            num_repeat: 1
 
 
     PCPVertex:
       log_level: warning
+      initial_jiggle: 2.5e-2
 
       space: *space
 
@@ -213,18 +242,20 @@ parameter_space:
 
       # BC
       - boundary_stripe_potential:
-          elastic_constant: 10.
+          elastic_constant: 0.
           curvature: !sweep
             name: curvature
             default: 0
             values: 
               - 0.
-              - 5.e-2
-          width: !expr (72*2)**0.5
-          height: !expr (72/2)**0.5
+              - 6.e-2
+          width: !expr (12*6 * 12/6)**0.5
+          height: !expr (12*6 / (12/6))**0.5
           # NOTE adapt this to fit all cells constrainlessly
           stretch: true
           deform_plastic: true
+     
+      - boundary_fixed: ~
 
       agent_manager:
         setup_params:
