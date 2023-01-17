@@ -21,7 +21,7 @@ _definitions:
     Gamma_ppMLC: !sweep
       default: 0
       values: 
-        - 0.05
+        - 0.1
         # - 0.
     Gamma_pMLC: !sweep
       default: 0
@@ -155,7 +155,7 @@ polarity_histplot: !pspace
     - function: sns.histplot
       data: !dag_result hair_cells_bulk
       x: polarity
-      bins: 16
+      bins: 8
       binrange: [-3.1416, 3.1416]
   helpers:
     setup_figure:
@@ -447,19 +447,17 @@ cell_segmentation:
       transform:
         - .sel: [!dag_node -1, {property: edge_contractility_polar__contractility}]
         - call_lambda:
-          # - "lambda d: (d - d.min()) / np.abs(d.max() - d.min() + 1.e-8)"
-          - "lambda d: d"
+          - "lambda d: (d - d.min()) / np.abs(d.max() - d.min() + 1.e-8)"
           - !dag_prev
         - .sel: [!dag_node -3, {property: edge_contractility_axial__contractility}]
         - call_lambda:
-          # - "lambda d: (d - d.min()) / np.abs(d.max() - d.min() + 1.e-8)"
-          - "lambda d: d"
+          - "lambda d: (d - d.min()) / np.abs(d.max() - d.min() + 1.e-8)"
           - !dag_prev
         - call_lambda:
-          - "lambda pMLC, ppMLC: pMLC + ppMLC"
+          - "lambda pMLC, ppMLC: pMLC - ppMLC"
           - !dag_node -3
           - !dag_node -1
-        - .rename: [!dag_prev , Asymmetric contractility]
+        - .rename: [!dag_prev , Contractility (diverging to high values)]
     vector_property:
       path: data/PCPTopology/Cells
       transform:
@@ -524,4 +522,4 @@ cell_segmentation:
   quiver_kwargs:
     cmap: RdBu
     width: 0.001
-    # clim: [-1., 1.]
+    clim: [-1., 1.]

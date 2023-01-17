@@ -16,17 +16,17 @@ paths:
 
 worker_manager:
   nonzero_exit_handling: warn_all
-  # num_workers: 6
-# run_kwargs:
-#   timeout: !expr 60*60*18
-#   stop_conditions:
-#     - !stop-condition
-#       name: single simulation timeout
-#       description: terminates a simulation if it ran for too long
-#       enabled: true               # (optional, true by default)
-#       to_check:                   # A sequence of AND-connected conditions
-#         - func: timeout_wall      # Looked up in utopya.stopcond_funcs
-#           seconds: 0.1 # !expr 60*40  
+
+run_kwargs:
+  timeout: !expr 60*60*18
+  # stop_conditions:
+  #   - !stop-condition
+  #     name: single simulation timeout
+  #     description: terminates a simulation if it ran for too long
+  #     enabled: true               # (optional, true by default)
+  #     to_check:                   # A sequence of AND-connected conditions
+  #       - func: timeout_wall      # Looked up in utopya.stopcond_funcs
+  #         seconds: 0.1 # !expr 60*40  
 
 parameter_space:
   num_steps: 1000
@@ -63,7 +63,7 @@ parameter_space:
       #     times: []
       #     iterations_prolog: 1
 
-      #     num_cells: !expr 12*48
+      #     num_cells: !expr 2*576 - 648
       #     num_increases: 0
       #     area_threshold: 0
 
@@ -75,7 +75,7 @@ parameter_space:
 
       # - void:
       #     times: []
-      #     iterations_prolog: 12
+      #     iterations_prolog: 24
 
           
       # Put some markers into the tissue
@@ -91,6 +91,7 @@ parameter_space:
               # - &RHO_3 0.1
               # - &RHO_4 0.05
               # - &RHO_5 0.0
+              # - &RHO_6 0.33
           method: fraction
           distribution: !coupled-sweep
             target_name: rho
@@ -102,6 +103,7 @@ parameter_space:
               # - [0.90, *RHO_3]
               # - [0.95, *RHO_4]
               # - [1.00, *RHO_5]
+              # - [0.67, *RHO_6]
           minimization:
             mode: manual
 
@@ -127,12 +129,11 @@ parameter_space:
               - [0.0, 0.0, 0.0]
           minimization:
             mode: manual
-
-      - void:
-          times: []
-          # iterations_prolog: 50
-          minimization:
-            linetension_fluctuations: 0.04
+      # - void:
+      #     times: []
+      #     iterations_prolog: 48
+      #     minimization:
+      #       linetension_fluctuations: 0.03
       # END differentiation
 
       # Introduce asymmetries along axis
@@ -149,7 +150,7 @@ parameter_space:
               name: Gamma_ppMLC
               default: 0.4
               values: 
-                - &Gamma_ppMLC1 0.05
+                - &Gamma_ppMLC1 0.1
                 # - &Gamma_ppMLC2 0.
             contractility: !coupled-sweep
               target_name: Gamma_ppMLC
@@ -165,11 +166,6 @@ parameter_space:
           
           minimization:
             mode: manual
-      - void:
-          times: []
-          # iterations_prolog: 12
-          minimization:
-            linetension_fluctuations: 0.04
 
       - register_work_function_term:
           times: []
@@ -249,19 +245,19 @@ parameter_space:
             values: 
               - 0.
               - 6.e-2
-          width: !expr (12*6 * 12/6)**0.5
-          height: !expr (12*6 / (12/6))**0.5
+          width: !expr (12 + 0.5)
+          height: !expr (12 - 0.5)
           # NOTE adapt this to fit all cells constrainlessly
           stretch: true
           deform_plastic: true
-     
       - boundary_fixed: ~
+
 
       agent_manager:
         setup_params:
           hexagonal:
             lattice_columns: 12
-            lattice_rows: 6
+            lattice_rows: 12
       
       # continuous data manager
       data_manager:
