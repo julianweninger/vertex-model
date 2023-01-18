@@ -318,6 +318,13 @@ private:
                         )
                     );
                 }
+                else if (name == "unregister_work_function_term") {
+                    _operations.push_back(
+                        build_unregister_work_function_term(
+                            name, op_cfg, _minimization_params
+                        )
+                    );
+                }
                 else if (name == "void") {
                     _operations.push_back(
                         build_void(name, op_cfg, _minimization_params)
@@ -339,6 +346,7 @@ private:
                         "- proliferate_generations\n"
                         "- update_work_function_term\n"
                         "- register_work_function_term\n"
+                        "- unregister_work_function_term\n"
                         "- void\n"
                         // "- bending_box_bc\n"
                         // "- brownian_noise\n"

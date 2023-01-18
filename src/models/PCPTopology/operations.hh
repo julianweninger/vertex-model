@@ -1118,6 +1118,26 @@ OperationBundle build_register_work_function_term (
     return std::make_pair(operation, params);
 }
 
+/// Remove a registered work function
+/** Takes configs:
+ *      - `name' (str, optional): The name given to this WF-term
+ */
+OperationBundle build_unregister_work_function_term (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    auto wf_name = get_as<std::string>("name", cfg);
+
+    Operation operation = [wf_name] (PCPVertex& vertex_model)
+    {
+        vertex_model.erase_work_function_term(wf_name);
+    };
+
+    return std::make_pair(operation, params);
+}
+
 
 /// The operation to do nothing
 OperationBundle build_void (
