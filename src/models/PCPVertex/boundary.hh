@@ -54,6 +54,128 @@ public:
     { }
 };
 
+
+/// @brief Fixes a segment of the boundary vertices in space
+/** 
+ *  Parameters:
+ *      - `lower_limit` (double): The lower limit of the fixed boundary. 
+ *              0 being the point to the right of the barycenter of the tisuse 
+ *              on the boundary. Can be in [0, 1], referencing a relative 
+ *              distance from the point 0, measuring the length of the boundary.
+ *      - `upper_limit` (double): The upper limit of the fixed boundary.
+ *              Analogous to `lower_limit`.
+ */
+template <typename Model>
+class BoundaryFixedPartial : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Model::Edge;
+
+    using Cell = typename Model::Cell;
+
+    /// The lower limit of the fixed boundary.
+    /** 0 being the point to the right of the barycenter of the tisuse on the 
+     *  boundary. Can be in [0, 1], referencing a relative distance from the
+     *  point 0, measuring the length of the boundary
+    */
+    double _lower_limit;
+    
+    /// The upper limit of the fixed boundary. See also lower limit.
+    double _upper_limit;
+
+
+public:
+    BoundaryFixedPartial (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _lower_limit(get_as<double>("lower_limit", cfg)),
+        _upper_limit(get_as<double>("upper_limit", cfg))
+    { }
+
+    void compute_and_set_forces () final {
+        if (_lower_limit < 0 or _lower_limit > 1) {
+            throw std::invalid_argument(fmt::format(
+                "In BoundaryFixedPartial, 'lower_limit' has to be in [0, 1], "
+                "but was {}", _lower_limit));
+        }
+        if (_upper_limit < 0 or _upper_limit > 1) {
+            throw std::invalid_argument(fmt::format(
+                "In BoundaryFixedPartial, 'lower_limit' has to be in [0, 1], "
+                "but was {}", _upper_limit));
+        }
+
+        const auto boundary_edges = this->_am.get_boundary_edges();
+        double boundary_length = 0.;
+        std::vector<double> angles{};
+        angles.reserve(boundary_edges.size());
+        
+        SpaceVec origin = this->_am.barycenter_of(boundary_edges);
+
+        std::size_t i = 0;
+        for (const auto& [edge, flip] : boundary_edges) {
+            boundary_length += this->_am.length_of(edge);
+            SpaceVec pos;
+            if (not flip) {
+                pos = this->_am.position_of(edge->custom_links().a);
+            }
+            else {
+                pos = this->_am.position_of(edge->custom_links().b);
+            }
+
+            angles.push_back(fabs(atan2((pos - origin)[1], (pos - origin)[0])));
+        }
+        auto min = std::distance(
+            angles.begin(),
+            std::min_element(angles.begin(), angles.end())
+        );
+
+        double lower_limit = _lower_limit * boundary_length;
+        double upper_limit = _upper_limit * boundary_length;
+        
+        double distance = 0.;
+        for (i = 0; i < boundary_edges.size(); i++) {
+            auto [edge, flip] = boundary_edges[(i + min)%boundary_edges.size()];
+            
+            if (distance >= lower_limit and distance <= upper_limit) {
+                if (not flip) {
+                    edge->custom_links().a->state.fix_in_space = true;
+                }
+                else {
+                    edge->custom_links().b->state.fix_in_space = true;
+                }
+                distance += this->_am.length_of(edge);
+            }
+            else {
+                break;
+            }
+        }
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        return 0.;
+    }
+
+    void update_parameters ([[maybe_unused]] const DataIO::Config& cfg) final
+    {
+        _lower_limit = get_as<double>("lower_limit", cfg, _lower_limit);
+        _upper_limit = get_as<double>("upper_limit", cfg, _upper_limit);
+    }
+};
+
 /// @brief Boundary quadratic potential in shape of a rectangle or ring
 /// @tparam Model  
 /** Use the WorkFunctionVertexTerm interface for a quadratic potential 

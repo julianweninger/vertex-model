@@ -692,6 +692,14 @@ public:
                 )
             );
         }
+        else if (term == "boundary_fixed_partial") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryFixedPartial<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "boundary_stripe_potential") {
             register_work_function_term(
                 name,
@@ -780,6 +788,7 @@ public:
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
                 " - boundary_fixed\n"
+                " - boundary_fixed_partial\n"
                 " - boundary_stripe_potential\n"
                 " - cell_contractility\n"
                 " - edge_contractility\n"
