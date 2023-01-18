@@ -198,6 +198,9 @@ public:
  *              in `update_parameters`.
  *      - `stretch` (bool): Whether to pull boundary vertices that are inside
  *              the domain towards the closest boundary.
+ *      - `skip_quadrants` (list[int]): Which quadrants to exclude from bc.
+ *              inner quadrants 1-4 from right anti-clockwise. outer quadrants
+ *                 5-12 from right, including corners.
  * 
  *  TODO: Currently forces are applied in tangential / normal direction. 
  *        However, the derivative of these directors with displacement along
@@ -219,18 +222,18 @@ public:
 
     enum Quadrant {
         none,
-        inner_right,
-        inner_upper,
-        inner_left,
-        inner_lower,
-        outer_right,
-        outer_upper_right,
-        outer_upper,
-        outer_upper_left,
-        outer_left,
-        outer_lower_left,
-        outer_lower,
-        outer_lower_right,
+        inner_right=1,
+        inner_upper=2,
+        inner_left=3,
+        inner_lower=4,
+        outer_right=5,
+        outer_upper_right=6,
+        outer_upper=7,
+        outer_upper_left=8,
+        outer_left=9,
+        outer_lower_left=10,
+        outer_lower=11,
+        outer_lower_right=12,
     };
 
     bool is_inner_quadrant(Quadrant quadrant) const {
@@ -249,7 +252,6 @@ public:
         return false;
     }
 
-
 private:
     double _elastic_constant;
 
@@ -262,6 +264,8 @@ private:
     SpaceVec _origin;
 
     bool _stretch;
+
+    std::set<Quadrant> _skip_quadrants;
 
     std::pair<SpaceVec, SpaceVec> corners () const {
         if (fabs(_curvature) < 1.e-8) {
@@ -762,7 +766,8 @@ public:
         _width(get_as<double>("width", cfg)),
         _height(get_as<double>("height", cfg)),
         _origin(SpaceVec({0., 0.})),
-        _stretch(get_as<bool>("stretch", cfg))
+        _stretch(get_as<bool>("stretch", cfg)),
+        _skip_quadrants{}
     {
         if (this->_am.get_space()->periodic) {
             throw std::runtime_error("Cannot setup stripe boundary potential "
@@ -795,6 +800,13 @@ public:
             
             deform_plastic();
         }
+
+        auto skip_quadrants = get_as<std::vector<std::size_t>>(
+            "skip_quadrants", cfg, {}
+        );
+        for (auto q : skip_quadrants) {
+            _skip_quadrants.insert(Quadrant(q));
+        }
     }
 
     void compute_and_set_forces () final {
@@ -810,6 +822,10 @@ public:
 
         const auto quadrant = get_quadrant(vertex);
         if (not _stretch and is_inner_quadrant(quadrant)) {
+            return SpaceVec({0., 0.});
+        }
+
+        if (_skip_quadrants.find(quadrant) != _skip_quadrants.end()) {
             return SpaceVec({0., 0.});
         }
         
