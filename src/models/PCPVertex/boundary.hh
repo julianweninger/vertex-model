@@ -58,12 +58,16 @@ public:
 /// @brief Fixes a segment of the boundary vertices in space
 /** 
  *  Parameters:
- *      - `lower_limit` (double): The lower limit of the fixed boundary. 
- *              0 being the point to the right of the barycenter of the tisuse 
- *              on the boundary. Can be in [0, 1], referencing a relative 
- *              distance from the point 0, measuring the length of the boundary.
- *      - `upper_limit` (double): The upper limit of the fixed boundary.
- *              Analogous to `lower_limit`.
+ *      - `from_left` (double, default: 0): The domain size from the left most
+ *          vertex in which all boundary vertices are fixed.
+ *      - `from_right` (double, default: 0): Same as `from_left`, measured from
+ *          the right most vertex.
+ *      - `from_top` (double, default: 0): Same as `from_left`, measured from
+ *          the top most vertex.
+ *      - `from_bottom` (double, default: 0): Same as `from_left`, measured from
+ *          the bottom most vertex.
+ *      - `fix` (bool): If false, the selection of vertices is updated every 
+ *          iteration.
  */
 template <typename Model>
 class BoundaryFixedPartial : public WorkFunctionTerm<Model>
@@ -78,16 +82,53 @@ class BoundaryFixedPartial : public WorkFunctionTerm<Model>
 
     using Cell = typename Model::Cell;
 
-    /// The lower limit of the fixed boundary.
-    /** 0 being the point to the right of the barycenter of the tisuse on the 
-     *  boundary. Can be in [0, 1], referencing a relative distance from the
-     *  point 0, measuring the length of the boundary
-    */
-    double _lower_limit;
+private:
+    /// The distance from the right most vertex which are fixed
+    double _right;
     
-    /// The upper limit of the fixed boundary. See also lower limit.
-    double _upper_limit;
+    double _top;
 
+    double _left;
+
+    double _bottom;
+
+    bool _fix;
+
+    const std::string _param_fixed;
+
+    void update_fixation () {
+        double min_x = std::numeric_limits<double>::max();
+        double max_x = std::numeric_limits<double>::min();
+        double min_y = std::numeric_limits<double>::max();
+        double max_y = std::numeric_limits<double>::min();
+        for (const auto& vertex : this->_am.vertices()) {
+            SpaceVec pos = this->_am.position_of(vertex);
+
+            min_x = std::min(min_x, pos[0]);
+            max_x = std::max(max_x, pos[0]);
+            min_y = std::min(min_y, pos[1]);
+            max_y = std::max(max_y, pos[1]);
+        }
+
+        for (const auto& vertex : this->_am.vertices()) {
+            SpaceVec pos = this->_am.position_of(vertex);
+            if (   pos[0] + 1.e-8 < min_x + _left
+                or pos[0] - 1.e-8 > max_x - _right
+                or pos[1] + 1.e-8 < min_y + _bottom
+                or pos[1] - 1.e-8 > max_y - _top
+            ) {
+                if (this->_am.is_boundary(vertex)) {
+                    vertex->state.update_parameter(_param_fixed, true);
+                }
+                else {
+                    vertex->state.update_parameter(_param_fixed, false);
+                }
+            }
+            else {
+                vertex->state.update_parameter(_param_fixed, false);
+            }
+        }
+    }
 
 public:
     BoundaryFixedPartial (
@@ -97,65 +138,38 @@ public:
     )
     :
         Base(name, cfg, model),
-        _lower_limit(get_as<double>("lower_limit", cfg)),
-        _upper_limit(get_as<double>("upper_limit", cfg))
-    { }
+
+        _right(get_as<double>("from_right", cfg, 0.)),
+        _top(get_as<double>("from_top", cfg, 0.)),
+        _left(get_as<double>("from_left", cfg, 0.)),
+        _bottom(get_as<double>("from_bottom", cfg, 0.)),
+        _fix(get_as<bool>("fix", cfg)),
+        _param_fixed(this->_name + "_fixed")
+    {
+        for (const auto& vertex : this->_am.vertices()) {
+            vertex->state.register_parameter(_param_fixed, false);
+        }
+
+        update_fixation();
+    }
+
+    ~BoundaryFixedPartial() {
+        for (const auto& vertex : this->_am.vertices()) {
+            vertex->state.unregister_parameter(_param_fixed);
+        }
+    }
 
     void compute_and_set_forces () final {
-        if (_lower_limit < 0 or _lower_limit > 1) {
-            throw std::invalid_argument(fmt::format(
-                "In BoundaryFixedPartial, 'lower_limit' has to be in [0, 1], "
-                "but was {}", _lower_limit));
-        }
-        if (_upper_limit < 0 or _upper_limit > 1) {
-            throw std::invalid_argument(fmt::format(
-                "In BoundaryFixedPartial, 'lower_limit' has to be in [0, 1], "
-                "but was {}", _upper_limit));
+        if (not _fix) {
+            update_fixation();
         }
 
-        const auto boundary_edges = this->_am.get_boundary_edges();
-        double boundary_length = 0.;
-        std::vector<double> angles{};
-        angles.reserve(boundary_edges.size());
-        
-        SpaceVec origin = this->_am.barycenter_of(boundary_edges);
-
-        std::size_t i = 0;
-        for (const auto& [edge, flip] : boundary_edges) {
-            boundary_length += this->_am.length_of(edge);
-            SpaceVec pos;
-            if (not flip) {
-                pos = this->_am.position_of(edge->custom_links().a);
+        for (const auto& vertex : this->_am.vertices()) {
+            if (not vertex->state.has_parameter(_param_fixed)) {
+                vertex->state.register_parameter(_param_fixed, false);
             }
-            else {
-                pos = this->_am.position_of(edge->custom_links().b);
-            }
-
-            angles.push_back(fabs(atan2((pos - origin)[1], (pos - origin)[0])));
-        }
-        auto min = std::distance(
-            angles.begin(),
-            std::min_element(angles.begin(), angles.end())
-        );
-
-        double lower_limit = _lower_limit * boundary_length;
-        double upper_limit = _upper_limit * boundary_length;
-        
-        double distance = 0.;
-        for (i = 0; i < boundary_edges.size(); i++) {
-            auto [edge, flip] = boundary_edges[(i + min)%boundary_edges.size()];
-            
-            if (distance >= lower_limit and distance <= upper_limit) {
-                if (not flip) {
-                    edge->custom_links().a->state.fix_in_space = true;
-                }
-                else {
-                    edge->custom_links().b->state.fix_in_space = true;
-                }
-                distance += this->_am.length_of(edge);
-            }
-            else {
-                break;
+            else if (vertex->state.get_parameter(_param_fixed)) {
+                vertex->state.fix_in_space = true;
             }
         }
     }
@@ -171,8 +185,32 @@ public:
 
     void update_parameters ([[maybe_unused]] const DataIO::Config& cfg) final
     {
-        _lower_limit = get_as<double>("lower_limit", cfg, _lower_limit);
-        _upper_limit = get_as<double>("upper_limit", cfg, _upper_limit);
+        bool change = false;
+
+        if (cfg["from_right"]) {
+            _right = get_as<double>("from_right", cfg);
+            change = true;
+        }
+        if (cfg["from_top"]) {
+            _top = get_as<double>("from_top", cfg);
+            change = true;
+        }
+        if (cfg["from_left"]) {
+            _left = get_as<double>("from_left", cfg);
+            change = true;
+        }
+        if (cfg["from_bottom"]) {
+            _bottom = get_as<double>("from_bottom", cfg);
+            change = true;
+        }
+        if (cfg["fix"]) {
+            _fix = get_as<bool>("fix", cfg);
+            change = true;
+        }
+
+        if (change) {
+            update_fixation();
+        }
     }
 };
 
@@ -252,7 +290,8 @@ public:
         return false;
     }
 
-private:
+
+protected:
     double _elastic_constant;
 
     double _curvature;
@@ -934,6 +973,576 @@ public:
         _curvature = get_as<double>("curvature", cfg, _curvature);
         if (get_as<bool>("deform_plastic", cfg, false)) {
             deform_plastic(tmp_curvature);
+        }
+    }
+};
+
+
+/// @brief Bending elasticity on boundary
+/** \f$ W = 1/2 B \kappa^2 \f$ 
+ * 
+ *  Parameters:
+ *      - `from_left` (double, default: 0): The domain size from the left most
+ *          vertex in which all boundary vertices are fixed.
+ *      - `from_right` (double, default: 0): Same as `from_left`, measured from
+ *          the right most vertex.
+ *      - `from_top` (double, default: 0): Same as `from_left`, measured from
+ *          the top most vertex.
+ *      - `from_bottom` (double, default: 0): Same as `from_left`, measured from
+ *          the bottom most vertex.
+*/
+template <typename Model>
+class BoundaryBendElastic : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Model::Edge;
+
+    using Cell = typename Model::Cell;
+
+private:
+    /// The elastic modulus
+    double _elasticity;
+
+    /// The distance from the right most vertex which are considered
+    double _right;
+    
+    double _top;
+
+    double _left;
+
+    double _bottom;
+
+    const std::string _param_bend;
+
+    enum BC {
+        periodic,
+        open,
+        fixed
+    } _boundary_condition;
+
+    /// The angles at which to fix the junction at the boundary
+    std::pair<double, double> _fixed_bc;
+
+    /// the anchoring points in fixed BC that comply with specified angles
+    std::shared_ptr<std::pair<SpaceVec, SpaceVec>> _fixed_bc__origin;
+
+    void update_contribution () {
+        double min_x = std::numeric_limits<double>::max();
+        double max_x = std::numeric_limits<double>::min();
+        double min_y = std::numeric_limits<double>::max();
+        double max_y = std::numeric_limits<double>::min();
+        for (const auto& vertex : this->_am.vertices()) {
+            SpaceVec pos = this->_am.position_of(vertex);
+
+            min_x = std::min(min_x, pos[0]);
+            max_x = std::max(max_x, pos[0]);
+            min_y = std::min(min_y, pos[1]);
+            max_y = std::max(max_y, pos[1]);
+        }
+
+        for (const auto& vertex : this->_am.vertices()) {
+            SpaceVec pos = this->_am.position_of(vertex);
+            if (   pos[0] + 1.e-8 < min_x + _left
+                or pos[0] - 1.e-8 > max_x - _right
+                or pos[1] + 1.e-8 < min_y + _bottom
+                or pos[1] - 1.e-8 > max_y - _top
+            ) {
+                if (this->_am.is_boundary(vertex)) {
+                    vertex->state.update_parameter(_param_bend, true);
+                }
+                else {
+                    vertex->state.update_parameter(_param_bend, false);
+                }
+            }
+            else {
+                vertex->state.update_parameter(_param_bend, false);
+            }
+        }
+    }
+
+    auto get_boundary () const {
+        auto boundary = this->_am.get_boundary_edges();
+
+        if (_boundary_condition == BC::periodic) {
+            return boundary;
+        }
+
+        std::size_t index = 0;
+        for (std::size_t i = 0; i < boundary.size(); i++) {
+            const auto& [edge, flip] = boundary[i];
+            std::shared_ptr<Vertex> vertex;
+            if (not flip) {
+                vertex = edge->custom_links().a;
+            }
+            else {
+                vertex = edge->custom_links().b;
+            }
+
+            if (not vertex->state.has_parameter(_param_bend)) {
+                continue;
+            }
+            if (not vertex->state.get_parameter(_param_bend)) {
+                index = i;
+                break;
+            }
+        }
+
+        std::rotate(
+            boundary.begin(),
+            boundary.begin() + index,
+            boundary.end()
+        );
+        // the first vertex is a non contributing vertex
+
+        index = 0;
+        for (std::size_t i = 0; i < boundary.size(); i++) {
+            const auto& [edge, flip] = boundary[i];
+            std::shared_ptr<Vertex> vertex;
+            if (not flip) {
+                vertex = edge->custom_links().a;
+            }
+            else {
+                vertex = edge->custom_links().b;
+            }
+
+            if (not vertex->state.has_parameter(_param_bend)) {
+                continue;
+            }
+            if (vertex->state.get_parameter(_param_bend)) {
+                index = i;
+                break;
+            }
+        }
+
+        std::rotate(
+            boundary.begin(),
+            boundary.begin() + index,
+            boundary.end()
+        );
+        // the first vertex is the contributing vertex
+
+        index = boundary.size() - 1;
+        for (int i = boundary.size() - 1; i >= 0; i--) {
+            const auto& [edge, flip] = boundary[i];
+            std::shared_ptr<Vertex> vertex;
+            if (not flip) {
+                vertex = edge->custom_links().a;
+            }
+            else {
+                vertex = edge->custom_links().b;
+            }
+
+            if (not vertex->state.has_parameter(_param_bend)) {
+                continue;
+            }
+            if (vertex->state.get_parameter(_param_bend)) {
+                index = i;
+                break;
+            }
+        }
+
+        for (std::size_t i = 0; i < boundary.size(); i++) {
+            const auto& [edge, flip] = boundary[i];
+            std::shared_ptr<Vertex> vertex;
+            if (not flip) { vertex = edge->custom_links().a; }
+            else          { vertex = edge->custom_links().b; }
+
+            if (not vertex->state.has_parameter(_param_bend)) {
+                vertex->state.register_parameter(_param_bend, false);
+            }
+        }
+
+        // remove the trailing vertices that are non contributing
+        boundary.erase(boundary.begin() + index, boundary.end());
+        for (const auto& [edge, flip] : boundary) {
+            edge->custom_links().a->state.update_parameter(_param_bend, true);
+            edge->custom_links().b->state.update_parameter(_param_bend, true);
+        }
+
+        if (boundary.empty()) {
+            throw std::runtime_error("Empty boundary");
+        }
+
+        return boundary;
+    }
+
+public:
+    BoundaryBendElastic (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _elasticity(get_as<double>("elasticity", cfg)),
+        _right(get_as<double>("from_right", cfg, 0.)),
+        _top(get_as<double>("from_top", cfg, 0.)),
+        _left(get_as<double>("from_left", cfg, 0.)),
+        _bottom(get_as<double>("from_bottom", cfg, 0.)),
+        _param_bend(this->_name + "_bending"),
+        _boundary_condition()
+    {    
+        const auto bc = get_as<std::string>("boundary", cfg);
+        if (bc == "periodic") {
+            _boundary_condition = BC::periodic;
+        }
+        else if (bc == "open") {
+            _boundary_condition = BC::open;
+        }
+        else if (bc == "fixed") {
+            _boundary_condition = BC::fixed;
+
+            _fixed_bc = std::make_pair(
+                get_as<double>("bc_prior", cfg),
+                get_as<double>("bc_post", cfg)
+            );
+        }
+        else {
+            throw std::runtime_error(fmt::format(
+                "In WF BoundaryBendElastic, unknown boundary condition `{}'. "
+                "Please choose one of the following: "
+                "- periodic\n"
+                "- open\n"
+                "- fixed\n",
+                bc
+            ));
+        }
+
+        for (const auto& vertex : this->_am.vertices()) {
+            vertex->state.register_parameter(_param_bend, false);
+        }
+
+        update_contribution();
+
+        update_parameters(cfg);
+    }
+
+    ~BoundaryBendElastic() {
+        for (const auto& vertex : this->_am.vertices()) {
+            vertex->state.unregister_parameter(_param_bend);
+        }
+    }
+
+    void compute_and_set_forces () final {
+        const auto boundary = get_boundary();
+        std::vector<std::shared_ptr<Vertex>> boundary_vs{};
+        boundary_vs.reserve(boundary.size() + 1);
+        std::vector<SpaceVec> dx{};
+        dx.reserve(boundary.size() + 2);
+        std::vector<double> l{};
+        l.reserve(boundary.size() + 2);
+        std::vector<SpaceVec> dx_ds{};
+        dx_ds.reserve(boundary.size() + 2);
+
+
+        // the first vertex
+        const auto& [edge, flip] = boundary.front();
+
+        if (not flip) {
+            boundary_vs.push_back(edge->custom_links().a);
+        }
+        else {
+            boundary_vs.push_back(edge->custom_links().b);
+        }
+
+        /// The junctions
+        // the consecutive vertices and junctions
+        for (const auto& [edge, flip] : boundary) {
+            if (not flip) {
+                boundary_vs.push_back(edge->custom_links().b);
+            }
+            else {
+                boundary_vs.push_back(edge->custom_links().a);
+            }
+
+            SpaceVec displ = this->_am.displacement(edge, flip);
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+            dx_ds.push_back(displ/arma::norm(displ));
+        }
+
+
+        // the boundary condition
+        if (_boundary_condition == BC::periodic) {
+            // the prior junction
+            auto [edge, flip] = boundary.back();
+
+            SpaceVec displ = this->_am.displacement(edge, flip);
+            dx.insert(dx.begin(), displ);
+            l.insert(l.begin(), arma::norm(displ));
+            dx_ds.insert(dx_ds.begin(), displ/arma::norm(displ));
+
+
+            // the post junction
+            std::tie(edge, flip) = boundary.front();
+
+            displ = this->_am.displacement(edge, flip);
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+            dx_ds.push_back(displ/arma::norm(displ));
+        }
+        else if (_boundary_condition == BC::open) {
+            // the prior junction
+            auto [edge, flip] = boundary.front();
+
+            SpaceVec displ = this->_am.displacement(edge, flip);
+            dx.insert(dx.begin(), displ);
+            l.insert(l.begin(), arma::norm(displ));
+            dx_ds.insert(dx_ds.begin(), displ/arma::norm(displ));
+
+
+            // the post junction
+            std::tie(edge, flip) = boundary.back();
+
+            displ = this->_am.displacement(edge, flip);
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+            dx_ds.push_back(displ/arma::norm(displ));
+        }
+        else if (_boundary_condition == BC::fixed) {
+            // the prior junction
+            auto [prior, post] = *_fixed_bc__origin;
+
+            SpaceVec displ = this->_am.position_of(boundary_vs.front()) - prior;
+            if (arma::norm(displ) < 0.5) {
+                prior -= SpaceVec({cos(std::get<0>(_fixed_bc)),
+                                   sin(std::get<0>(_fixed_bc))});
+                *_fixed_bc__origin = std::make_pair(prior, post);
+            }
+            dx.insert(dx.begin(), displ);
+            l.insert(l.begin(), arma::norm(displ));
+            dx_ds.insert(dx_ds.begin(), displ/arma::norm(displ));
+
+
+            // the post junction
+            displ = post - this->_am.position_of(boundary_vs.back());
+            if (arma::norm(displ) < 0.5) {
+                post += SpaceVec({cos(std::get<1>(_fixed_bc)),
+                                  sin(std::get<1>(_fixed_bc))});
+                *_fixed_bc__origin = std::make_pair(prior, post);
+            }
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+            dx_ds.push_back(displ/arma::norm(displ));
+        }
+
+
+        // The gradients
+        const std::size_t N = boundary_vs.size();
+        for (std::size_t i = 0; i < N; i++) {
+            SpaceVec dE_dx({
+                  std::pow(dx_ds[i+1][1] - dx_ds[i][1], 2)
+                  * (dx_ds[i+1][0] - dx_ds[i][0])
+                  / std::pow(l[i+1] + l[i], 3)
+                +   std::pow(dx_ds[i+1][0] - dx_ds[i][0], 3)
+                  / std::pow(l[i+1] + l[i], 3)
+                + (  dx_ds[i  ][1] * dx_ds[i  ][0] / l[i]
+                   + dx_ds[i+1][1] * dx_ds[i+1][0] / l[i+1]  )
+                  * (dx_ds[i+1][1] - dx_ds[i][1]) / std::pow(l[i+1] + l[i], 2)
+                + (  std::pow(dx_ds[i  ][0], 2) / l[i  ] - 1 / l[i]
+                   + std::pow(dx_ds[i+1][0], 2) / l[i+1] - 1 / l[i+1])
+                  * (dx_ds[i+1][0] - dx_ds[i][0])
+                  / std::pow(l[i+1] + l[i], 2)
+                , 
+                  std::pow(dx_ds[i+1][0] - dx_ds[i][0], 2) 
+                  * (dx_ds[i+1][1] - dx_ds[i][1]) 
+                  / std::pow(l[i+1] + l[i], 3)
+                + std::pow(dx_ds[i+1][1] - dx_ds[i][1], 3) 
+                  / std::pow(l[i+1] + l[i], 3)
+                + (  dx_ds[i  ][0] * dx_ds[i  ][1] / l[i]
+                   + dx_ds[i+1][0] * dx_ds[i+1][1] / l[i+1])
+                  * (dx_ds[i+1][0] - dx_ds[i][0]) / std::pow(l[i+1] + l[i], 2)
+                + (  std::pow(dx_ds[i  ][1], 2)/l[i  ] - 1 / l[i] 
+                   + std::pow(dx_ds[i+1][1], 2)/l[i+1] - 1 / l[i+1])
+                  * (dx_ds[i+1][1] - dx_ds[i][1]) 
+                  / std::pow(l[i+1] + l[i], 2)
+            });
+
+            boundary_vs[i]->state.add_force(-1. * _elasticity * dE_dx);
+
+            if (i < N - 1 or _boundary_condition == BC::periodic) {
+                SpaceVec dE_dx__pre({
+                    - dx_ds[i+1][0] * std::pow(dx_ds[i+1][1] - dx_ds[i][1], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    - dx_ds[i+1][0] * std::pow(dx_ds[i+1][0] - dx_ds[i][0], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    - dx_ds[i+1][1] * dx_ds[i+1][0] * (dx_ds[i+1][1] - dx_ds[i][1]) 
+                      / (l[i+1] * std::pow(l[i+1] + l[i], 2))
+                    + (1/l[i+1] - std::pow(dx_ds[i+1][0], 2) / l[i+1]) 
+                      * (dx_ds[i+1][0] - dx_ds[i][0])
+                      / std::pow(l[i+1] + l[i], 2)
+                    , 
+                    - dx_ds[i+1][1] * std::pow(dx_ds[i+1][0] - dx_ds[i][0], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    - dx_ds[i+1][1] * std::pow(dx_ds[i+1][1] - dx_ds[i][1], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    - dx_ds[i+1][0] * dx_ds[i+1][1] * (dx_ds[i+1][0] - dx_ds[i][0])
+                      / (l[i+1] * std::pow(l[i+1] + l[i], 2))
+                    + (1/l[i+1] - std::pow(dx_ds[i+1][1], 2) / l[i+1]) 
+                      * (dx_ds[i+1][1] - dx_ds[i][1]) 
+                      / std::pow(l[i+1] + l[i], 2)
+                });
+                boundary_vs[(i+1) % N]->state.add_force(
+                    -1 * _elasticity * dE_dx__pre
+                );
+            }
+            
+            if (i > 0 or _boundary_condition == BC::periodic) {
+                SpaceVec dE_dx__post({
+                      dx_ds[i][0] * std::pow(dx_ds[i+1][1] - dx_ds[i][1], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    + dx_ds[i][0] * std::pow(dx_ds[i+1][0] - dx_ds[i][0], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    - dx_ds[i][1]*dx_ds[i][0]*(dx_ds[i+1][1] - dx_ds[i][1]) 
+                      / (l[i] * std::pow(l[i+1] + l[i], 2))
+                    + (1/l[i] - std::pow(dx_ds[i][0], 2) / l[i])
+                      * (dx_ds[i+1][0] - dx_ds[i][0]) 
+                      / std::pow(l[i+1] + l[i], 2)
+                    ,
+                      dx_ds[i][1] * std::pow(dx_ds[i+1][0] - dx_ds[i][0], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    + dx_ds[i][1] * std::pow(dx_ds[i+1][1] - dx_ds[i][1], 2) 
+                      / std::pow(l[i+1] + l[i], 3)
+                    - dx_ds[i][0]*dx_ds[i][1]*(dx_ds[i+1][0] - dx_ds[i][0]) 
+                      / (l[i] * std::pow(l[i+1] + l[i], 2))
+                    + (1/l[i] - std::pow(dx_ds[i][1], 2) / l[i]) 
+                      * (dx_ds[i+1][1] - dx_ds[i][1]) 
+                      / std::pow(l[i+1] + l[i], 2)
+                });
+                boundary_vs[(i-1+N) % N]->state.add_force(
+                    -1 * _elasticity * dE_dx__post
+                );
+            }
+        }
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double Energy = 0.;
+
+        const auto boundary = get_boundary();
+        std::vector<SpaceVec> dx{};
+        dx.reserve(boundary.size());
+        std::vector<double> l{};
+        l.reserve(boundary.size());
+
+
+        // The junctions
+        for (const auto& [edge, flip] : boundary) {
+            SpaceVec displ = this->_am.displacement(edge, flip);
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+        }
+
+
+        // The boundary condition
+        if (_boundary_condition == BC::periodic) {
+            const auto& [edge, flip] = boundary.front();
+            SpaceVec displ = this->_am.displacement(edge, flip);
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+        }
+        else if (_boundary_condition == BC::open) {
+            // No energy contribution from open boundary condition
+        }
+        else if (_boundary_condition == BC::fixed) {
+            // the prior junction
+            auto [prior, post] = *_fixed_bc__origin;
+
+            std::shared_ptr<Vertex> vertex;
+            auto [edge, flip] = boundary.front();
+            if (not flip) { vertex = edge->custom_links().a; }
+            else          { vertex = edge->custom_links().b; }
+
+            SpaceVec displ = this->_am.position_of(vertex) - prior;
+            if (arma::norm(displ) < 0.5) {
+                prior -= SpaceVec({cos(std::get<0>(_fixed_bc)),
+                                   sin(std::get<0>(_fixed_bc))});
+                *_fixed_bc__origin = std::make_pair(prior, post);
+            }
+            dx.insert(dx.begin(), displ);
+            l.insert(l.begin(), arma::norm(displ));
+
+            // the post junction
+            std::tie(edge, flip) = boundary.back();
+            if (not flip) { vertex = edge->custom_links().b; }
+            else          { vertex = edge->custom_links().a; }
+
+            displ = post - this->_am.position_of(vertex);
+            if (arma::norm(displ) < 0.5) {
+                post += SpaceVec({cos(std::get<1>(_fixed_bc)),
+                                  sin(std::get<1>(_fixed_bc))});
+                *_fixed_bc__origin = std::make_pair(prior, post);
+            }
+            dx.push_back(displ);
+            l.push_back(arma::norm(displ));
+        }
+
+
+        // Calculate the energy
+        for (std::size_t i = 1; i < dx.size(); i++) {
+            SpaceVec d2x_ds2 = (dx[i]/l[i] - dx[i-1]/l[i-1]) / (l[i] + l[i-1]);
+
+            Energy += 0.5 * _elasticity * std::pow(arma::norm(d2x_ds2), 2);
+        }
+
+        return Energy;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final
+    {
+        _elasticity = get_as<double>("elasticity", cfg, _elasticity);
+
+        if (_boundary_condition == BC::fixed) {
+            const auto [prior, post] = _fixed_bc;
+            _fixed_bc = std::make_pair(
+                get_as<double>("bc_prior", cfg, prior),
+                get_as<double>("bc_post", cfg, post)
+            );
+        }
+
+
+        _fixed_bc__origin = nullptr;
+
+        if (_boundary_condition == BC::fixed) {
+            const auto boundary = get_boundary();
+            
+            std::shared_ptr<Vertex> vertex__start;
+            std::shared_ptr<Vertex> vertex__end;
+
+            auto [edge, flip] = boundary.front();
+            if (not flip) {
+                vertex__start = edge->custom_links().a;
+            }
+            else {
+                vertex__start = edge->custom_links().b;
+            }
+
+            std::tie(edge, flip) = boundary.back();
+            if (not flip) {
+                vertex__end = edge->custom_links().b;
+            }
+            else {
+                vertex__end = edge->custom_links().a;
+            }
+
+            auto [prior, post] = _fixed_bc;
+            SpaceVec displ_prior({cos(prior), sin(prior)});
+            SpaceVec displ_post ({cos(post) , sin(post) });
+
+            _fixed_bc__origin = std::make_shared<std::pair<SpaceVec, SpaceVec>>(
+                this->_am.position_of(vertex__start) - displ_prior,
+                this->_am.position_of(vertex__end)   + displ_post
+            );
         }
     }
 };

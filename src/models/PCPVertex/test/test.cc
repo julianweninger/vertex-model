@@ -224,7 +224,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
             }
 
             // this iterates below the level of defined work functions
-            for (const auto& term_pair : work_function_terms[test_term_index++]) {
+            double cumulated_energy = 0.;
+            bool test_skipped = true;
+            for (const auto& term_pair : work_function_terms[test_term_index++])
+            {
                 auto term_name = term_pair.first.as<std::string>();
                 auto params = term_pair.second;
 
@@ -301,8 +304,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 model.register_work_function_term(term_name, name, params);
 
                 const auto& term_function = model.get_work_function_term(name);
+                cumulated_energy += fabs(term_function->compute_energy());
+                test_skipped = false;
 
-                std::uniform_real_distribution<double> uniform_distr(0, 2 * M_PI);
+                std::uniform_real_distribution<double> uniform_distr(0, 2*M_PI);
                 std::size_t steps = 200;
 
                 for (const auto& vertex : am.vertices()) {
@@ -347,6 +352,23 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
                     am.move_to(vertex, v_pos0);
                 }
+            }
+
+            if (not test_skipped){
+                // the machine epsilon has to be scaled to the magnitude of the 
+                // values used and multiplied by the desired precision in ULPs 
+                // (units in the last place)
+                bool test_non_zero = (
+                    cumulated_energy > std::numeric_limits<double>::epsilon() 
+                                       * cumulated_energy * 10
+                );
+                test_non_zero = (
+                    test_non_zero 
+                    // unless the result is subnormal
+                    or (cumulated_energy >= std::numeric_limits<double>::min())
+                );
+                BOOST_TEST(test_non_zero);
+                    
             }
         }
     }

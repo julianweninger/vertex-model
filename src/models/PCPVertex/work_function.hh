@@ -859,6 +859,256 @@ public:
     }
 };
 
+
+/// @brief The edge contractility term to apical and basal boundary
+/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+ *  
+ * Parameters:
+ *      - `apical_contractility`: the contractility \f$ \Gamma \f$ applied to 
+ *              apical junctions. A vector where the entries correspond to cell 
+ *              types.
+ *      - `basal_contractility`: the contractility \f$ \Gamma \f$ applied to 
+ *              apical junctions. A vector where the entries correspond to cell 
+ *              types.
+ */
+template <typename Model>
+class EdgeContractilityHeterotypicBoundary : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+private:
+    std::vector<double> _apical_contractility;
+
+    std::vector<double> _basal_contractility;
+
+    /// The entry whether none (0) / basal (1) / apical (2)
+    std::string _classification;
+
+    double get_contractility (const std::shared_ptr<Edge>& edge) const {
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+
+        std::size_t type;
+        std::shared_ptr<Cell> cell;
+
+        if (ca) { 
+            type = ca->state.type;
+            cell = ca;
+        }
+        else {
+            type = cb->state.type;
+            cell = cb;
+        }
+
+        if (not edge->state.has_parameter(_classification)) {
+            if (ca and cb) {
+                edge->state.register_parameter(_classification, 0);
+            }
+            else {
+                throw std::runtime_error("T1 transitions not implemented");
+            }
+        }
+
+        auto classification = edge->state.get_parameter(_classification);
+        if (fabs(classification - 0) < 1.e-3) {
+            return 0;
+        }
+        else if (fabs(classification - 3) < 1.e-3) {
+            return 0;
+        }
+        else if (fabs(classification - 1) < 1.e-3) {
+            if (type >= _basal_contractility.size()) {
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicBoundary, no "
+                    "parameter registered for cells of type {}. "
+                    "Parameters for {} types registered.",
+                    type,
+                    _basal_contractility.size()
+                ));
+
+            }
+
+            return _basal_contractility[cell->state.type];
+        }
+        else if (fabs(classification - 2) < 1.e-3) {
+            if (type >= _apical_contractility.size()) {
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicBoundary, no "
+                    "parameter registered for cells of type {}. "
+                    "Parameters for {} types registered.",
+                    type,
+                    _apical_contractility.size()
+                ));
+            }
+
+            return _apical_contractility[cell->state.type];
+        }
+        else {
+            throw std::runtime_error(fmt::format(
+                "Unknown none (0) / basal (1) / apical (2) specification of "
+                "junction {}!",
+                classification
+            ));
+        }
+
+    }
+public:
+    EdgeContractilityHeterotypicBoundary (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _apical_contractility(get_as<std::vector<double>>(
+            "apical_contractility", cfg)),
+        _basal_contractility(get_as<std::vector<double>>(
+            "basal_contractility", cfg)),
+        _classification(name + "__classification")
+    {
+        for (const auto& edge : this->_am.edges()) {
+            auto [ca, cb] = this->_am.adjoints_of(edge);
+
+            if (ca and cb) {
+                // bulk
+                edge->state.register_parameter(_classification, 0);
+                continue;
+            }
+
+            if (not ca) { std::swap(ca, cb); }
+
+            SpaceVec displ({0., 1.});
+            for (const auto& [e, flip] : ca->custom_links().edges) {
+                if (e == edge) {
+                    displ = this->_am.displacement(edge, flip);
+                    break;
+                }
+            }
+
+            if (fabs(atan(displ[1] / displ[0])) > 75 / 180. * M_PI) {
+                // vertical
+                edge->state.register_parameter(_classification, 3);
+            }
+            else if (displ[0] >= 0) {
+                // basal junction
+                edge->state.register_parameter(_classification, 1);
+            }
+            else {
+                // apical junction
+                edge->state.register_parameter(_classification, 2);
+            }
+        }
+    }
+
+    ~EdgeContractilityHeterotypicBoundary () {
+        for (const auto& edge : this->_am.edges()) {
+            edge->state.unregister_parameter(_classification);
+        }
+    }
+
+    void compute_and_set_forces () final {
+        for (const auto& edge : this->_am.edges()) {
+            double k = get_contractility(edge);
+            if (fabs(k) < 1.e-10) {
+                continue;
+            }
+
+            SpaceVec displ = this->_am.displacement(edge);
+
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            a->state.add_force(+ k * displ);
+            b->state.add_force(- k * displ);
+        }
+    }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        return get_contractility(edge) * this->_am.length_of(edge);
+    }
+
+    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
+        double k = get_contractility(edge);
+        if (fabs(k) < 1.e-10) { return 0.; }
+        return 0.5 * k * std::pow(this->_am.length_of(edge), 2);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& edge : edges) {
+            energy += compute_energy(edge);
+        }
+        return energy;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final {
+        _apical_contractility = get_as<std::vector<double>>(
+            "apical_contractility", cfg);
+        _basal_contractility = get_as<std::vector<double>>(
+            "basal_contractility", cfg);
+    }
+
+
+
+
+    std::vector<std::string> write_task_edge_properties_names () const final {
+        return std::vector<std::string>({
+            "contractility",
+            "classification"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const final {
+        std::vector<double> contractilities({});
+        std::vector<double> classifications({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(get_contractility(edge));
+            classifications.push_back(edge->state.get_parameter(_classification));
+        }
+        return std::vector<std::vector<double>>({
+            contractilities,
+            classifications
+        });
+    }
+
+    std::vector<std::string> write_task_edge_energies_names () const final {
+        return std::vector<std::string>({
+            "energy",
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const final {
+        std::vector<double> energies({});
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            energies.push_back(compute_energy(edge));
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+            tensions
+        });
+    }
+};
+
+
 /// @brief The edge contractility term with axial-asymmetric values
 /** \f$ E_{i,j} = k l_{i,j}^2 (t \cdot \tau)^2\f$, a term linear in 
  *  edge length \f$ l \f$, modulated with the angle between the junctions' 
