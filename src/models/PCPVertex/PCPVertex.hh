@@ -684,6 +684,14 @@ public:
                 )
             );
         }
+        else if (term == "boundary_bend_elastic") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryBendElastic<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "boundary_fixed") {
             register_work_function_term(
                 name,
@@ -728,6 +736,14 @@ public:
             register_work_function_term(
                 name,
                 std::make_shared<EdgeContractilityHeterotypic<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "edge_contractility_heterotypic_boundary") {
+            register_work_function_term(
+                name,
+                std::make_shared<EdgeContractilityHeterotypicBoundary<PCPVertex>>(
                     name, params, *this
                 )
             );
@@ -787,12 +803,14 @@ public:
                 "choose one of the following available terms:\n"
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
+                " - boundary_bend_elastic\n"
                 " - boundary_fixed\n"
                 " - boundary_fixed_partial\n"
                 " - boundary_stripe_potential\n"
                 " - cell_contractility\n"
                 " - edge_contractility\n"
                 " - edge_contractility_heterotypic\n"
+                " - edge_contractility_heterotypic_boundary\n"
                 " - edge_contractility_axial\n"
                 " - edge_contractility_polar\n"
                 " - linetension\n"

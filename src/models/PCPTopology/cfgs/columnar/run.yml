@@ -1,0 +1,172 @@
+# A minimal configuration to do cell proliferation 
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+perform_sweep: true
+paths:
+  model_note: default__columnar
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+
+parameter_space:
+  num_steps: 50
+
+  seed: !sweep
+    default: 0
+    range: [1]
+    order: !expr -np.inf
+
+  PCPTopology:
+    space: &Space
+      extent: [1.0, 1.0]
+      periodic: false
+    initialisation:
+      0_add_noise:
+        enabled: false
+      1_by_proliferation:
+        enabled: false
+        num_generations: 0
+        
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.02  # this was evaluated in the previous test to be a good dt
+      num_steps: 50
+      jiggle_intensity: 0.
+      linetension_fluctuations: &dL 0.005
+      linetension_fluctuations_tau: &tau_dL 24
+      num_repeat: *tau_dL 
+      
+    operations:
+      # Differentiate hair and support cells
+      - differentiate_random:
+          times: []
+          iterations_prolog: 1
+          rho: !sweep
+            name: rho
+            default: 0.06
+            values:
+              # - &RHO_1 0.2
+              # - &RHO_2 0.26
+              # - &RHO_3 0.1
+              # - &RHO_4 0.05
+              # - &RHO_5 0.0
+              # - &RHO_6 0.33
+              - &RHO_7 0.5
+          method: fraction
+          distribution: !coupled-sweep
+            target_name: rho
+            name: distribution
+            default: [0.8, 0.2]
+            values:
+              # - [0.80, *RHO_1]
+              # - [0.74, *RHO_2]
+              # - [0.90, *RHO_3]
+              # - [0.95, *RHO_4]
+              # - [1.00, *RHO_5]
+              # - [0.67, *RHO_6]
+              - [0.5, *RHO_7]
+          minimization:
+            mode: manual
+
+      # disperse them as much as possible
+      - minimize_cell_contacts:
+          times: []
+          iterations_prolog: 1
+          num_steps: 10000
+          type: 1
+          neutral_probability: 0.5
+          minimization:
+            mode: manual
+
+      # END differentiation
+      - void:
+          iterations_prolog: 5
+          times: []
+
+      - update_work_function_term:
+          times: []
+          iterations_prolog: 1
+          name: edge_contractility_heterotypic_boundary
+          parameters:
+            Gamma: !sweep
+              name: Gamma
+              default: 0.2
+              values: 
+                - &Gamma_0 0.
+                - &Gamma_1 0.1
+                # - &Gamma_15 0.15
+                # - &Gamma_2 0.2
+                # - &Gamma_3 0.3
+                # - &Gamma_5 0.5
+                # - &Gamma_7 0.7
+            apical_contractility: !coupled-sweep
+              name: apical_contractility
+              target_name: Gamma
+              default: [0.2, 0.0]
+              values:
+                - [*Gamma_0 , 0.]
+                - [*Gamma_1 , 0.]
+                # - [*Gamma_15 , 0.]
+                # - [*Gamma_2 , 0.]
+                # - [*Gamma_3 , 0.]
+                # - [*Gamma_5 , 0.]
+                # - [*Gamma_7 , 0.]
+            basal_contractility: [0.0, 0.0]
+          minimization:
+            mode: manual
+
+      - void:
+          times:
+            start: 1
+            stop: 100000
+            step: 1
+
+    PCPVertex:
+      log_level: warning
+      space: *Space
+      agent_manager:
+        setup_method: column
+        setup_params:
+          column:
+            num_cells: 60
+      initial_jiggle: 0.00001
+
+      work_function_terms:
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 4.
+      # fluctuations
+      - linetension_fluctuations:
+          amplitude: *dL
+          timescale: *tau_dL
+      # heterogeneity
+      - edge_contractility_heterotypic_boundary:
+          apical_contractility: [0.0, 0.0]
+          basal_contractility: [0.0, 0.0]
+
+      # BC
+      - boundary_bend_elastic:
+          elasticity: 50.
+          boundary: open
+          from_bottom: 0.5
+
+    data_manager:
+      deciders:
+        write_interval: &Interval
+          type: interval
+          args:
+            intervals:
+              - [0, 10, 1]
+              - [10, 101, 5]
+      triggers:
+        build_interval: *Interval

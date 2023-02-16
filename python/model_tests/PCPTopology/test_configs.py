@@ -59,6 +59,16 @@ def test_run_and_eval_cfgs(cfg_name):
                 }
             }
         },
+        'columnar': {
+            'num_steps': 1,
+            'PCPTopology': {
+                'PCPVertex': {
+                    'agent_manager': {
+                        'setup_params': {'column': {'num_cells': 6}}
+                    }
+                }
+            }
+        },
         'evaluate_shear_thinning': {
             'num_steps': 1
         },
