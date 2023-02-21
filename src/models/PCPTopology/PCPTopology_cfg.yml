@@ -45,170 +45,61 @@ initialisation:
 operations:  
   # this happens after the proliferation
   
-  - differentiate_NotchDelta:
-      times: []
-      iterations_prolog: 2
+  # - differentiate_NotchDelta:
+  #     times: []
+  #     iterations_prolog: 2
       
-      steps: 1000        # only used if method='NotchDelta'
+  #     steps: 1000        # only used if method='NotchDelta'
 
-  - increment_area:
-      times: !listgen [0, 10, 1]
+  # - increment_area:
+  #     times: !listgen [0, 10, 1]
       
-      hair: 0.01
-      stddev_hair: 0.01
-      adapt_support: true
+  #     hair: 0.01
+  #     stddev_hair: 0.01
+  #     adapt_support: true
 
-  - increment_domain:
-      times: []
+  # - increment_domain:
+  #     times: []
 
-      value: [0., 0.]
-      compensate: true
-      fix_hair_cell_area: false
+  #     value: [0., 0.]
+  #     compensate: true
+  #     fix_hair_cell_area: false
 
-  - increment_shape_index:
-      times: []
+  # - increment_shape_index:
+  #     times: []
 
-      progenitor: 0.
-      hair: 0.
-      support: 0.
+  #     progenitor: 0.
+  #     hair: 0.
+  #     support: 0.
 
-  - increment_linetension:
-      times: []
+  # - increment_linetension:
+  #     times: []
       
-      hair_hair: 10.
-      support_support: 0.
+  #     hair_hair: 10.
+  #     support_support: 0.
 
-  - increment_edge_contractility:
-      times: []
+  # - increment_edge_contractility:
+  #     times: []
       
-      hair_hair: 0.
-      support_support: 0.
+  #     hair_hair: 0.
+  #     support_support: 0.
 
-  - jiggle: # this is a void operation, but calling minimization
+  - void: # this is a void operation, but calling minimization
       times: []
       iterations_epilog: 4
 
       emit_interval: 4
 
-# -- The Collier model used in differentiation (optional)
-Collier:
-  space: {periodic: false}
-  cell_manager:
-    grid:
-      structure: square
-      resolution: 23
-    neighborhood:
-      mode: empty # is synchronised with vertex model
-      compute_and_store: false
-
-    # Cell initialization parameters
-    cell_params:
-      notch: 1.
-      notch_sigma: 0.2
-      delta: 1.
-      delta_sigma: 0.2
-      nicd: 0.1
-      nicd_sigma: 0.02
-
-  # -- Dynamics
-  time_resolution: 1000
-
-  degradation_delta: 1.
-  degradation_notch: 0.1
-
-  production_notch: 1.
-  production_delta: 200.
-  production_nicd: 200.
-
-  interaction_strength_trans: 1.
-  interaction_strength_cis: 10.
-
-  cooperativity_delta: 1.
-  cooperativity_nicd: 1.
-
-  notch_threshold_factor: 0.1
-  # -- Data manager configuration
-  data_manager:
-    deciders: {write_always: {type: always}}
-    triggers: {build_once: {type: once}}
-    tasks:
-      Density_progenitor: &density_C
-        active: true
-        trigger: build_once
-        decider: write_always
-      Density_hair: *density_C
-      Density_support: *density_C
-      Density_rosettes: *density_C
-      Density_notch: *density_C
-      Density_delta: *density_C
-      Density_nicd: *density_C
-      Density_time: *density_C
-
-# -- The NotchDelta model used in differentiation (optional)
-NotchDelta:
-  log_level: info
-  
-  space: {periodic: false}
-  cell_manager:
-    grid:
-      structure: square
-      resolution: 23
-    neighborhood:
-      mode: empty # is synchronised with vertex model
-    cell_params: ~
-
-  # -- Dynamics
-  rate_ph:
-    rate_0: 0.6e-2 # the rate above threshold
-    # the rates below threshold
-    #   if more than one entry given, linear mapping.
-    #   latter rates correspond to lower concentrations of atoh1
-    rate_1: 0.
-
-  rate_ps: 1.e-2
-
-  atoh1_suppression:
-    # in every step the atoh1 level in neighboring cells is divided by this value 
-    rate_0: 1. # for 0 HC neighbors
-    # for one or more HC neighbors
-    #   if more than one entry given, each entry for one more neighbor
-    #   i.e. rate_1 for one HC neighbor, rate_2 for 2 HC neighbors, etc.
-    #   last entry for n or more HC neighbors 
-    rate_1: 1.02
-  
-  # HC differentiate if atoh1 accumulated above threshold
-  atoh1_threshold: 1.
-  
-  # Swap state with a neighbor with this probability if HC-HC contact
-  rate_swap: 0.2
-
-  # for the accumulation of atoh1
-  lambda: 40
-
-  # -- Data manager
-  data_manager:
-    deciders: {write_always: {type: always}}
-    triggers: {build_once: {type: once}}
-    tasks:
-      Density_progenitor: &density_ND
-        active: true
-        trigger: build_once
-        decider: write_always
-      Density_hair: *density_ND
-      Density_support: *density_ND
-      Density_rosettes: *density_ND
-      Density_time: *density_ND
-
 
 # --- Dynamics
 # Minimization parameter
-minimization:
+minimization: &Minimization
   update_scheme: steepest_gradient
   dt: 0.05
   num_steps: 20
 
-  linetension_fluctuation: 0.01
-  linetension_fluctuation_tau: 24
+  linetension_fluctuations: 0.01
+  linetension_fluctuations_tau: 24
 
   tolerance: 1.e-8
   jiggle_tolerance: 1.e-6
@@ -221,16 +112,23 @@ minimization:
 
 # The model for energy minimization
 PCPVertex:
-  log_level: debug
+  log_level: info
+
   initial_jiggle: 1.e-2
 
   space: *SPACE
 
-  boundary_parameter:
-    area_elasticity: 1.
-    area_preferential: 1. # per cell
-    contractility: 100.
-    shape_index_preferential: 3.54491 # 2 sqrt(pi)
+  # --- Initialization parameters
+  work_function_terms:
+  - linetension_fluctuations:
+      amplitude: 0.02
+      timescale: 24
+  - area_elasticity:
+      elastic_modulus: 1
+      preferential_area: 1
+  - cell_contractility:
+      contractility: 1.
+      preferential_shape: 3.72
 
   # --- Initialization parameters
   agent_manager:
@@ -252,40 +150,14 @@ PCPVertex:
     
     vertex_manager: ~
 
-    edge_manager:
-      agent_params:
-        linetension: 0.
-        contractility: 0.
+    edge_manager: ~
 
     cell_manager:
       agent_params:
-        area_preferential: 1.
-        area_preferential_var: 0.
-        shape_index_preferential: 3.72
-        contractility: 1.
-        cell_type: progenitor
+        type: 0
 
   # --- Dynamics
-  minimization:
-    update_scheme: steepest_gradient
-    dt: 0.05
-    num_steps: 20
-
-    linetension_fluctuation: 0.1
-    linetension_fluctuation_tau: 12
-
-    tolerance: 1.e-8
-    jiggle_tolerance: 1.e-6
-    jiggle_intensity: 0.
-    
-    max_steps: 15000
-
-    num_repeat: 1
-
-  area_elasticity: 1.
-  cell_shape_implementation: contractile
-  # can be contractile or shape_elastic
-  # shape index normalization is to cell area and target cell area, resp.
+  minimization: *Minimization
 
   T1_threshold: 0.03
   T1_separation_factor: 1.05
@@ -294,6 +166,8 @@ PCPVertex:
   T1_timeout: 12
   T2_threshold: 0.0075
 
+  Energy_buffer_size: !expr 24 * 20
+
   data_manager: &data_manager
     deciders:
       write_always: {type: always}
@@ -301,7 +175,7 @@ PCPVertex:
         type: interval
         args:
           intervals:
-            - [0, 100, 25]
+            - [0, 100, 24]
       write_at_equilibrium:
         type: equilibrium_decider
     triggers:
@@ -312,31 +186,14 @@ PCPVertex:
           time: 0
       build_always: {type: always}
     tasks:
-      Energy_total: &energy_continuous
+      Energy: &energy_continuous
         active: true
         trigger: build_once
         decider: write_always
-      Energy_linetension: *energy_continuous
-      Energy_areaelasticity: *energy_continuous
-      Energy_cell_contractility: *energy_continuous
-      Energy_edge_contractility: *energy_continuous
-      Energy_boundary_area_elasticity: *energy_continuous
-      Energy_boundary_shape_elasticity: *energy_continuous
       Energy_time: *energy_continuous
 
-      transitions: *energy_continuous
-
-      Cell_stats: &Statistics_continuous
-        active: false
-        trigger: build_once
-        decider: write_always
-      Hair_cell_stats: *Statistics_continuous
-      Support_cell_stats: *Statistics_continuous
-      Bulk_cell_stats: *Statistics_continuous
-      Bulk_hair_cell_stats: *Statistics_continuous
-      Bulk_support_cell_stats: *Statistics_continuous
-      Interface_length: *Statistics_continuous
-      Statistics_time: *Statistics_continuous
+      Transitions: *energy_continuous
+      Interface_length: *energy_continuous
 
       Vertices: &agents_continuous
         active: true
@@ -354,7 +211,6 @@ PCPVertex:
 data_manager:
   deciders:
     write_always: {type: always}
-    write_stats: {type: always}
     write_interval: &interval
       type: interval
       args:
@@ -371,34 +227,15 @@ data_manager:
   
   # these are the datasets written
   tasks:
-    Energy_total: &energy
+    Energy: &energy
       active: true
       trigger: build_once
       decider: write_always
-    Energy_linetension: *energy
-    Energy_areaelasticity: *energy
-    Energy_cell_contractility: *energy
-    Energy_edge_contractility: *energy
-    Energy_boundary_area_elasticity: *energy
-    Energy_boundary_shape_elasticity: *energy
     Energy_time: *energy
     Continuous_time: *energy
     
-    transitions: *energy
-        
-    Cell_stats: &Statistics
-      active: true
-      trigger: build_once
-      decider: write_stats
-    Hair_cell_stats: *Statistics
-    Support_cell_stats: *Statistics
-    Bulk_cell_stats: *Statistics
-    Bulk_hair_cell_stats: *Statistics
-    Bulk_support_cell_stats: *Statistics
-    Cell_neighbourhood: *Statistics
-    Cell_area_histogram: *Statistics
-    Interface_length: *Statistics
-    Statistics_time: *Statistics
+    Transitions: *energy
+    Interface_length: *energy
     
     Vertices: &agents_equilibrium
       active: true
@@ -406,15 +243,16 @@ data_manager:
       decider: write_interval
     Cells: *agents_equilibrium
     Edges: *agents_equilibrium
-    Cell_cluster: 
-      <<: *agents_equilibrium
-      active: false
 
     Cell_energies: &agent_energies
       active: true
       trigger: build_interval
       decider: write_interval
     Edge_energies: *agent_energies
+
+    Cell_cluster: 
+      <<: *agents_equilibrium
+      active: false
 
     PCP_Cells:
       active: false

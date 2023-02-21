@@ -16,6 +16,10 @@ parameter_space:
   num_steps: 3
 
   PCPTopology:
+    initialisation:
+      1_by_proliferation:
+        enabled: false
+
     operations:
       - proliferate:
           times: !listgen [101]
@@ -24,10 +28,23 @@ parameter_space:
           emit_interval: 0
 
           num_increases: 4
-          area_threshold: 0.
+          area_threshold: 1.75
 
           minimization_after_increase: ~
           minimization: ~     # use default
+
+    PCPVertex:
+      log_level: info
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
 
     data_manager:
       deciders:
@@ -35,7 +52,7 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 4, 1]
+              - [0, 5, 1]
               - [5, 25, 5]
               - [25, 51, 25]
               - [64, 65, 1]

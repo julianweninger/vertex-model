@@ -10,7 +10,6 @@
 
 #include "utils.hh"
 #include "../PCPVertex.hh"
-#include "../energy.hh"
 #include "../algorithm.hh"
 #include "../operations.hh"
 #include "../PCPVertex_write_tasks.hh"
@@ -23,14 +22,22 @@ using Vertex = Utopia::Models::PCPVertex::PCPVertex::Vertex;
 using Edge = Utopia::Models::PCPVertex::PCPVertex::Edge;
 using Cell = Utopia::Models::PCPVertex::PCPVertex::Cell;
 
+using SpaceVec = Utopia::Models::PCPVertex::PCPVertex::SpaceVec;
+
 template<bool periodic>
 struct Fixture {    
     Models::PCPVertex::PCPVertex vertex_model;
 
+    const std::shared_ptr<spdlog::logger> log;
+
     Fixture ()
     :
-        vertex_model(model_factory())
-    { }
+        vertex_model(model_factory()),
+        log(spdlog::stdout_color_mt("TransitionTests"))
+    {
+        log->debug("Setting log level to '{}' ...", "trace");
+        log->set_level(spdlog::level::from_str("trace"));
+    }
 
     ~Fixture()
     {
@@ -64,75 +71,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         fixture.vertex_model.prolog();
         test_custom_links(fixture.vertex_model);
     }
-
-    BOOST_AUTO_TEST_CASE_TEMPLATE(test_divide_cell, F, Fixtures) {
-        F fixture;
-        auto& model = fixture.vertex_model;
-        bool periodic_BC = model.get_space()->periodic;
-
-        model.prolog();
-
-        const auto& am = model.get_am();
-
-        const auto cells = am.cells();
-        const auto edges = am.edges();
-        const auto vertices = am.vertices();
-
-        // find the first cell that is not a boundary cell
-        auto cell = *std::find_if(cells.begin(), cells.end(),
-                                  [am, periodic_BC](const auto& cell) {
-                                      if (periodic_BC) {
-                                          return (not am.is_boundary(cell));
-                                      }
-                                      else {
-                                          return am.is_boundary(cell);
-                                      }
-                                  });
-        if (periodic_BC) {
-            BOOST_TEST(not am.is_boundary(cell));
-            // NOTE this is a bulk cell
-            // NOTE implicit test of removal of bulk cell in non-periodic BC
-        }
-        else {
-            BOOST_TEST(am.is_boundary(cell));
-        }
-
-        // set arbitrary values and check inheritance
-        cell->state._area_preferential = 0.314;
-        cell->state.type = PCPVertex::CellType::support;
-        cell->state.shape_index_preferential = 4.;
-        cell->state.contractility = 0.114;
-        model.divide_cell(cell, 0.);
-
-        const auto cells_new = am.cells();
-        const auto edges_new = am.edges();
-        const auto vertices_new = am.vertices();
-
-        BOOST_TEST(cells.size() + 1 == cells_new.size());
-        BOOST_TEST(edges.size() + 3 == edges_new.size());
-        BOOST_TEST(vertices.size() + 2 == vertices_new.size());
-
-        for (auto new_cell : {cells_new[cells_new.size() - 2],
-                              cells_new[cells_new.size() - 1]})
-        {
-            BOOST_TEST(new_cell->state.area_preferential()
-                       ==  cell->state.area_preferential());
-            BOOST_TEST(new_cell->state.type
-                       ==  cell->state.type);
-            BOOST_TEST(new_cell->state.shape_index_preferential
-                       ==  cell->state.shape_index_preferential);
-            BOOST_TEST(new_cell->state.contractility
-                       ==  cell->state.contractility);
-        }
-
-        test_custom_links(model);
-
-        BOOST_TEST_MESSAGE("Iterating model after cell division.");
-        
-        // check that it does not fail somewhere ...
-        model.iterate();
-        test_custom_links(model);
-    } // test divide cell
 
     BOOST_AUTO_TEST_CASE_TEMPLATE(test_T1, F, Fixtures) {
         F fixture;
@@ -177,8 +115,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             [](double val, const auto& c) {
                 return val + c->custom_links().edges.size();
             }) - adj_a_num_es - adj_b_num_es;
-
-        edge->state._linetension = 200.;
 
         // move both vertices to the center of the edge
         auto a = edge->custom_links().a;
@@ -288,8 +224,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         PCPVertex::SpaceVec center = .5*(am.position_of(a) + am.position_of(b));
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
-
-        edge->state._linetension = 200.;
 
         // information to identify new objects
         const std::size_t max_edge_id = (*std::max_element(edges.begin(),
@@ -427,8 +361,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
 
-        edge->state._linetension = 200.;
-
         // information to identify new objects
         const std::size_t max_vertex_id = (*std::max_element(vertices.begin(),
                                             vertices.end(),
@@ -497,24 +429,44 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                                   });
         BOOST_TEST(not am.is_boundary(cell));
 
-        // decrement area in small steps to avoid numerical errors!
-        for (int i = 0; i < 9; i++) {
-            if (not cell) { break; }
+        cell->state.type = 1;
 
-            cell->state._area_preferential -= 0.1;
-            
-            for (int i = 0; i < 250; i++) {
-                model.iterate();
+        // remove edges until cell is triangular
+        std::size_t cnt = 0;
+        while (cell->custom_links().edges.size() > 3) {
+            const auto& edges = cell->custom_links().edges;
+            const auto& [edge, flip] = edges[123456789 % edges.size()];
+
+            SpaceVec displ = am.displacement(edge);
+            am.move_by(edge->custom_links().a,  0.49 * displ);
+            am.move_by(edge->custom_links().b, -0.49 * displ);
+    
+            model.iterate();
+
+            if (cnt > 10) {
+                throw std::runtime_error("Unable to remove junctions to reach "
+                    "triangular cell.");
             }
         }
-
-        if (cell) {
-            cell->state._area_preferential -= 0.075;
-            
-            for (int i = 0; i < 10; i++) {
-                model.iterate();
+        
+        // move all vertices close to center
+        SpaceVec center = am.barycenter_of(cell);
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            std::shared_ptr<Vertex> vertex;
+            if (not flip) {
+                vertex = edge->custom_links().a;
             }
+            else {
+                vertex = edge->custom_links().b;
+            }
+
+            SpaceVec pos = am.position_of(vertex);
+            SpaceVec displ = model.get_space()->displacement(pos, center);
+
+            am.move_by(vertex, 0.99 * displ);
         }
+
+        model.iterate();
 
         BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
                     == cells.end()));
@@ -549,25 +501,25 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                                     return am.is_boundary(cell);
                                 });
         BOOST_TEST(am.is_boundary(cell));
-
-        // decrement area in small steps to avoid numerical errors!
-        for (int i = 0; i < 9; i++) {
-            if (not cell) { break; }
-
-            cell->state._area_preferential -= 0.1;
-            
-            for (int i = 0; i < 250; i++) {
-                model.iterate();
+        
+        // move all vertices close to center
+        SpaceVec center = am.barycenter_of(cell);
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            std::shared_ptr<Vertex> vertex;
+            if (not flip) {
+                vertex = edge->custom_links().a;
             }
+            else {
+                vertex = edge->custom_links().b;
+            }
+
+            SpaceVec pos = am.position_of(vertex);
+            SpaceVec displ = model.get_space()->displacement(pos, center);
+
+            am.move_by(vertex, 0.99 * displ);
         }
 
-        if (cell) {
-            cell->state._area_preferential -= 0.075;
-            
-            for (int i = 0; i < 10; i++) {
-                model.iterate();
-            }
-        }
+        model.iterate();
 
         BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
                     == cells.end()));
@@ -581,6 +533,76 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         test_custom_links(model);
     }
+
+    BOOST_AUTO_TEST_CASE_TEMPLATE(test_divide_cell, F, Fixtures) {
+        F fixture;
+        auto& model = fixture.vertex_model;
+        bool periodic_BC = model.get_space()->periodic;
+
+        model.prolog();
+
+        const auto& am = model.get_am();
+
+        const auto cells = am.cells();
+        const auto edges = am.edges();
+        const auto vertices = am.vertices();
+        
+
+        // find the first cell that is not a boundary cell
+        auto cell = *std::find_if(cells.begin(), cells.end(),
+                                  [am, periodic_BC](const auto& cell) {
+                                      if (periodic_BC) {
+                                          return (not am.is_boundary(cell));
+                                      }
+                                      else {
+                                          return am.is_boundary(cell);
+                                      }
+                                  });
+        if (periodic_BC) {
+            BOOST_TEST(not am.is_boundary(cell));
+            // NOTE this is a bulk cell
+            // NOTE implicit test of removal of bulk cell in non-periodic BC
+        }
+        else {
+            BOOST_TEST(am.is_boundary(cell));
+        }
+
+        // set arbitrary values and check inheritance
+        cell->state.type = 1;
+        cell->state.register_parameter("some_cell_value", 1.);
+        model.divide_cell(cell, 0.);
+
+
+        const auto cells_new = am.cells();
+        const auto edges_new = am.edges();
+        const auto vertices_new = am.vertices();
+
+        BOOST_TEST(cells.size() + 1 == cells_new.size());
+        BOOST_TEST(edges.size() + 3 == edges_new.size());
+        BOOST_TEST(vertices.size() + 2 == vertices_new.size());
+
+        for (auto new_cell : {cells_new[cells_new.size() - 2],
+                              cells_new[cells_new.size() - 1]})
+        {
+            BOOST_TEST(new_cell->state.list_parameters().size()
+                       ==  cell->state.list_parameters().size());
+            BOOST_TEST(new_cell->state.type
+                       ==  cell->state.type);
+            BOOST_TEST(new_cell->state.get_parameter("some_cell_value")
+                       ==  cell->state.get_parameter("some_cell_value"));
+
+            new_cell->state.type = 0;
+            new_cell->state.unregister_parameter("some_cell_value");
+        }
+
+        test_custom_links(model);
+
+        BOOST_TEST_MESSAGE("Iterating model after cell division.");
+        
+        // check that it does not fail somewhere ...
+        model.iterate();
+        test_custom_links(model);
+    } // test divide cell
 
     
     BOOST_AUTO_TEST_CASE(test_triangle_deformation) {

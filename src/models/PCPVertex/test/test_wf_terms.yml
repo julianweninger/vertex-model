@@ -1,0 +1,289 @@
+---
+test_work_function_terms:
+# Area elasticity
+- area_elasticity:
+    elastic_modulus: 0.5
+    preferential_area: 0.95
+- area_elasticity_heterotypic:
+    name: area_elasticity_heterotypic__increment_once
+    elastic_modulus: 0.5
+    preferential_area: 0.95
+    method: increment_heterotypic
+    increments: [1.e-4, -1.e-4]
+    restrain_types: []
+    mode: once
+- area_elasticity_heterotypic:
+    name: area_elasticity_heterotypic__set_heterotypic
+    elastic_modulus: 0.5
+    preferential_area: 0.95
+    method: set_heterotypic
+    preferential_areas: [1.0001, 0.9999]
+- area_elasticity_heterotypic:
+    name: area_elasticity_heterotypic__set_uniform
+    elastic_modulus: 0.5
+    preferential_area: 0.5
+    method: set_uniform 
+    preferential_area: 1.0001
+
+# Cell shape
+- cell_contractility:
+    contractility: 0.5
+    preferential_shape: 3.76
+- shape_elasticity:
+    elastic_modulus: 0.5
+    preferential_shape_index: 3.76
+
+# Linetension
+- linetension:
+    linetension: 0.1
+- linetension_heterotypic:
+    linetension: 
+      - [ 0.1, -0.1, 0.05]
+      - [-0.1,  0.2, 0.05]
+      - [0.05, 0.05, 0.]
+    boundary_type: 2
+
+# Line contractility
+- edge_contractility:
+    contractility: 0.01
+- edge_contractility_heterotypic:
+    contractility: 
+      - [0.05, 0.10, 0.01]
+      - [0.10, 0.20, 0.01]
+      - [0.01, 0.01, 0]
+    boundary_type: 2
+- edge_contractility_heterotypic_boundary:
+    apical_contractility: [0.05, 0.10]
+    basal_contractility: [0.02, 0.01]
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+
+# Axial modulation of line contractility
+- edge_contractility_axial:
+    contractility: 
+      - [0.01, 0.01, 0.]
+      - [0.01, 0.01, 0.]
+      - [0.0 , 0., 0.]
+    boundary_type: 2
+    angle: 0
+- edge_contractility_axial:
+    name: edge_contractility_axial_curved
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    contractility: 
+      - [0.01, 0.01, 0.]
+      - [0.01, 0.01, 0.]
+      - [0.0 , 0., 0.]
+    boundary_type: 2
+    angle: 0
+    curvature: 0.01
+    origin: [-2, -2]
+
+# Polar modulation of line contractility
+- edge_contractility_polar:
+    skip_test_cases:
+      - columnar-periodic
+      - columnar
+    contractility: 
+      - [0.00, 0.01, 0.]
+      - [0.01, 0.00, 0.]
+      - [0.0 , 0., 0.]
+    boundary_type: 2
+    axis: 0
+    gamma: 10
+    num_steps: 5
+    setup: uniform
+    exclude_cell_types: [0]
+
+    test_precision: 5.e-3
+- edge_contractility_polar:
+    name: edge_contractility_polar_curved
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    contractility: 
+      - [0.00, 0.01, 0.]
+      - [0.01, 0.00, 0.]
+      - [0.0 , 0.00, 0.]
+    boundary_type: 2
+    gamma: 10
+    num_steps: 5
+    axis: 0
+    curvature: 0.01
+    setup: uniform
+    exclude_cell_types: [0]
+
+    test_precision: 5.e-3
+
+- boundary_stripe_potential:
+    name: boundary_stripe_potential__compressed_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    height: 7.
+    width: 7.
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_stripe_potential__compressed_1
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.9
+    height: 8
+    width: 8
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+- boundary_stripe_potential:
+    name: boundary_stripe_potential__stretched_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    height: 9.
+    width: 9.
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_stripe_potential__stretched_1
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.9
+    height: 8
+    width: 8
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+- boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__compressed_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    curvature: 2.e-2
+    height: 5.
+    width: 10.8
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__compressed_1
+    test_precision: 15.  # TODO, consider derivatives of directors along arc
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.1
+    curvature: 2.e-2
+    height: 5.657
+    width: 11.314
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+- boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__stretched_0
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.
+    curvature: 2.e-2
+    height: 6.
+    width: 11.6
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+  boundary_stripe_potential:
+    name: boundary_curved_stripe_potential__stretched_1
+    test_precision: 10.  # TODO, consider derivatives of directors along arc
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 0.1
+    curvature: 2.e-2
+    height: 5.657
+    width: 11.314
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: false
+
+- boundary_bend_elastic:
+    name: boundary_bend_elastic__open
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+    from_top: 0.5
+    elasticity: 0.5
+    boundary: open
+- boundary_bend_elastic:
+    name: boundary_bend_elastic__basal__open
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+    elasticity: 0.5
+    from_bottom: 0.5
+    boundary: open
+- boundary_bend_elastic:
+    name: boundary_bend_elastic__fixed
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+    from_bottom: 0.5
+    elasticity: 0.5
+    boundary: fixed
+    bc_prior: 0.
+    bc_post: 0.3
+- boundary_bend_elastic:
+    name: boundary_bend_elastic__periodic
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+    elasticity: 0.5
+    boundary: periodic
+
+test_update_area_elasticity_heterotypic:
+  area_elasticity_heterotypic:
+    term: area_elasticity_heterotypic
+    elastic_modulus: 1
+    preferential_area: 1
+    method: set_uniform
+  area_elasticity_heterotypic__set_heterotypic:
+    method: set_heterotypic
+    preferential_areas: [1.1, 0.9]
+  area_elasticity_heterotypic__incr_heterotypic:
+    method: increment_heterotypic
+    increments: [0.1, -0.1]
+    restrain_types: []
+  area_elasticity_heterotypic__incr_heterotypic__restrain:
+    method: increment_heterotypic
+    increments: [0., -0.1]
+    restrain_types: [0]
+
+test_update_edge_contractility_polar:
+  edge_contractility_polar:
+    contractility: 
+      - [0.0, 1.0, 0.0]
+      - [1.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0]
+    boundary_type: 2
+    axis: 0
+    gamma: 0.1
+    num_steps: 1
+    setup: uniform
+    exclude_cell_types: [0]
+  

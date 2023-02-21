@@ -10,7 +10,7 @@
 namespace Utopia::Models::PCPVertex {
 
 template<class Model>
-struct EntitiesManager {
+class EntitiesManager {
 
 public:
     /// The type of the space
@@ -38,7 +38,7 @@ public:
     };
 
     /// The traits of an Edge
-    using EdgeTraits = Utopia::AgentTraits<EdgeState, Update::manual, false,
+    using EdgeTraits = Utopia::AgentTraits<EdgeState, Update::manual, true,
                                            EmptyTag, EdgeLinks>;
 
     /// The type of the managed edges
@@ -74,17 +74,12 @@ public:
         
         /// A cell in the Collier model
         std::shared_ptr<Utopia::Models::Collier::Collier::Cell> c_cell;
-
-        std::shared_ptr<RotationCellState> rotation_state;
     };
     using CellTraits = Utopia::AgentTraits<CellState, Update::manual, false,
                                            EmptyTag, CellLinks>;
 
     /// The type of the managed cells
     using Cell = Utopia::Agent<CellTraits, Space>;
-
-    /// The cell-type (hair, support) of the cells
-    using CellType = typename Cell::State::CellType;
 
     /// The type of a rule function acting on vertices of this agent manager
     /** This is a convenience type def that models can use to easily have this
@@ -276,34 +271,6 @@ public:
         return move_by(*vertex, move_vec);
     }
 
-    /// Calculate to where a vertex would move
-    /** Vertices move along the self-managed value Vertex::State::f.
-     * 
-     *  The result is also stored in vertex->state.virtual_position.
-     * 
-     *  \param beta     The step size along the direction of update
-     */
-    const SpaceVec& displace_virtual (const std::shared_ptr<Vertex>& vertex,
-                                      double beta) const {
-        if (std::get<double>(vertex->state.virtual_pos) == beta) {
-            return std::get<SpaceVec>(vertex->state.virtual_pos);
-        }
-
-        SpaceVec pos = position_of(vertex) + beta * vertex->state.f;
-        
-        if (this->_space->periodic) {
-            pos = this->_space->map_into_space(pos);
-        }
-        else {
-            if (not this->_space->contains(pos)) {
-                throw OutOfSpace(pos, this->_space, "Could not move agent!");
-            }
-        }
-
-        vertex->state.virtual_pos = std::make_pair(beta, pos);
-        return std::get<SpaceVec>(vertex->state.virtual_pos);
-    }
-
     /// The displacement between two vertices
     /** \details see Utopia::Space::displacement
      */
@@ -392,18 +359,6 @@ public:
         return distance(edge->custom_links().a, edge->custom_links().b);
     }
 
-    auto length_of (const std::shared_ptr<Edge>& edge, double beta) const
-    {
-        if (beta < 1.e-14) {
-            return distance(edge->custom_links().a, edge->custom_links().b);
-        }
-        else {
-            const SpaceVec &a = displace_virtual(edge->custom_links().a, beta);
-            const SpaceVec &b = displace_virtual(edge->custom_links().b, beta);
-            return _space->distance(a, b);
-        }
-    }
-
     SpaceVec center_of (const std::shared_ptr<Edge>& edge) const {
         SpaceVec a = position_of(edge->custom_links().a);
         SpaceVec displ = displacement(edge);
@@ -411,28 +366,25 @@ public:
     }
 
     /// Calculate the perimeter of a cell
-    double perimeter_of (const std::shared_ptr<Cell>& cell,
-                         double beta = 0.) const
+    double perimeter_of (const std::shared_ptr<Cell>& cell) const
     {
-        return perimeter_of(cell->custom_links().edges, beta);
+        return perimeter_of(cell->custom_links().edges);
     }
 
     /// Calculate the perimeter of a boundary.
     /** This can be a boundary of a cell or any other closed loop of edges.
      */
-    double perimeter_of (const OrderedEdgeContainer& boundary,
-                         double beta) const
+    double perimeter_of (const OrderedEdgeContainer& boundary) const
     {
         double perimeter = 0.;
         for (const auto& [e, flip] : boundary) {
-            perimeter += length_of(e, beta);
+            perimeter += length_of(e);
         }
         return perimeter;
     }
 
     /// Calculate the area of a cell
-    /** \param beta     The update step length at which to predict the area
-     *  \tparam get_sign    If false the area can have a sign. It will be
+    /** \tparam get_sign    If false the area can have a sign. It will be
      *                      negative when the cell's edges are ordered clockwise
      *                      instead of anti-clockwise.
      *                      If true, throws on counter-clockwise ordering
@@ -441,15 +393,14 @@ public:
      *        orientation they are ordered.
      */
     template <bool get_sign = false>
-    double area_of (const std::shared_ptr<Cell>& cell, double beta = 0.) const
+    double area_of (const std::shared_ptr<Cell>& cell) const
     {
-        return area_of<get_sign>(cell->custom_links().edges, beta);
+        return area_of<get_sign>(cell->custom_links().edges);
     }
 
     /// Calculate the area of a boundary
     /** \param boundary The edges defining a boundary. This can be of a cell
      *                  or any other closed loop.
-     *  \param beta     The update step length at which to predict the area
      *  \tparam get_sign    If false the area can have a sign. It will be
      *                      negative when the cell's edges are ordered clockwise
      *                      instead of anti-clockwise.
@@ -459,8 +410,7 @@ public:
      *        orientation they are ordered.
      */
     template <bool get_sign = false>
-    double area_of(const OrderedEdgeContainer& boundary,
-                   double beta = 0.) const 
+    double area_of(const OrderedEdgeContainer& boundary) const 
     {
         static_assert(Space::dim == 2, "Area of a cell is only implemented for "
                       "2 dimensional space!");
@@ -472,62 +422,33 @@ public:
 
         // define a reference in space
         auto [e, flip] = boundary.front();
-        std::shared_ptr<Vertex> reference;
-        if (not flip) { reference = e->custom_links().a; }
-        else { reference = e->custom_links().b; }
-
         SpaceVec ref;
-        if (beta < 1.e-14) {
-            ref = position_of(reference);
-        }
-        else {
-            ref = displace_virtual(reference, beta);
-        }
+        if (not flip) { ref = position_of(e->custom_links().a); }
+        else { ref = position_of(e->custom_links().b); }
 
         double area = 0.;
-        if (beta < 1.e-14) {
-            for (const auto& [e, flip] : boundary) {
-                SpaceVec a = position_of(e->custom_links().a);
-                SpaceVec b = position_of(e->custom_links().b);
+        for (const auto& [e, flip] : boundary) {
+            SpaceVec a = position_of(e->custom_links().a);
+            SpaceVec b = position_of(e->custom_links().b);
 
-                if (flip) { std::swap(a, b); }
+            if (flip) { std::swap(a, b); }
 
-                // define the vertices positions relative to the reference
-                /* this is important in periodic space to calculate with 
-                    * "real" coordinates */
-                a = ref + _space->displacement(ref, a);
-                b = ref + _space->displacement(ref, b);
+            // define the vertices positions relative to the reference
+            /* this is important in periodic space to calculate with 
+                * "real" coordinates */
+            a = ref + _space->displacement(ref, a);
+            b = ref + _space->displacement(ref, b);
 
-                area += a[0] * b[1] - b[0] * a[1];
-            }
-        }
-        else {
-            for (const auto& [e, flip] : boundary) {
-                SpaceVec a = this->displace_virtual(e->custom_links().a,
-                                                    beta);
-                SpaceVec b = this->displace_virtual(e->custom_links().b,
-                                                    beta);
-                
-                if (flip) { std::swap(a, b); }
-
-                a = ref + _space->displacement(ref, a);
-                b = ref + _space->displacement(ref, b);
-
-                area += a[0] * b[1] - b[0] * a[1];
-            }
+            area += a[0] * b[1] - b[0] * a[1];
         }
 
         area /= 2.;
 
         if constexpr (not get_sign) {
-            // With beta = 0, negative area not allowed
-            if (area < 1.e-12 and beta < 1.e-12) {
+            if (area < 1.e-12) {
                 throw std::runtime_error(fmt::format(
                     "Negative area ({}) of a boundary defining a cell with "
                     "{} edges!", area, boundary.size()));
-            }
-            else if (area < 0.) {
-                return std::nan("1");
             }
         }
 
@@ -537,25 +458,19 @@ public:
     /// Calculate the shape index of a cell
     /** shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$
      *  and area \f$ A \f$.
-     * 
-     *  \param beta     The update step length at which to predict the area
      */ 
-    double shape_index_of (const std::shared_ptr<Cell>& cell,
-                           double beta = 0.) const
+    double shape_index_of (const std::shared_ptr<Cell>& cell) const
     {
-        return shape_index_of(cell->custom_links().edges, beta);
+        return shape_index_of(cell->custom_links().edges);
     }
 
     /// Calculate the shape index of a boundary
     /** shape index \f$ p = P / \sqrt(A) \f$ with the cell's perimeter \f$ P \f$
      *  and area \f$ A \f$.
-     * 
-     *  \param beta     The update step length at which to predict the area
      */ 
-    double shape_index_of (const OrderedEdgeContainer& boundary,
-                           double beta = 0.) const
+    double shape_index_of (const OrderedEdgeContainer& boundary) const
     {
-        return perimeter_of(boundary, beta) / sqrt( area_of(boundary, beta) );
+        return perimeter_of(boundary) / sqrt( area_of(boundary) );
     }
     
     /// Returns the barycenter of the given cell
@@ -578,6 +493,11 @@ public:
         static_assert(Space::dim == 2, "Center of a cell is only implemented "
                       "for 2 dimensional space!");
 
+        if (boundary.size() < 3) {
+            throw std::runtime_error("Cannot calculate barycenter of an"
+                "edge collection with less than 3 edges!");
+        }
+
         // define a reference in space
         auto [e, flip] = boundary.front();
         std::shared_ptr<Vertex> reference;
@@ -593,7 +513,7 @@ public:
             auto _a = e->custom_links().a;
             auto _b = e->custom_links().b;
 
-            if (flip) { std::swap(_a, _b); }            
+            if (flip) { std::swap(_a, _b); }
 
             SpaceVec a = position_of(reference) + displacement(reference, _a);
             SpaceVec b = position_of(reference) + displacement(reference, _b);
@@ -602,6 +522,7 @@ public:
             area += da;
             center += (a + b) * da;
         }
+
         area /= 2;
         if (area < 1.e-12) { area += 1e-12; }
         center /= (6 * area);
@@ -743,62 +664,28 @@ public:
     }
 
     /// The neighboring cells to a cell of type `hair`
-    /** The neighbors of cell that are of CellType::hair.
-     * 
-     *  \param cell   The considered cell
+    /** \param cell   The considered cell
      */
-    AgentContainer<Cell> hair_neighbors_of(
-            const std::shared_ptr<Cell>& cell) const
+    AgentContainer<Cell> neighbors_of_type(
+            const std::shared_ptr<Cell>& cell,
+            const std::size_t& type,
+            const std::size_t& distance=1
+    ) const
     {
-        std::set<std::shared_ptr<Cell>> hair_neighbors;
+        std::set<std::shared_ptr<Cell>> subset_neighbors;
 
-        auto neighbors = this->neighbors_of(cell);
+        auto neighbors = this->neighbors_of(cell, distance);
 
         for (const auto & nb : neighbors) {
-            if (nb->state.type == CellType::hair)
+            if (nb->state.type == type)
             {
-                hair_neighbors.insert(nb);
+                subset_neighbors.insert(nb);
             }
         }
-        hair_neighbors.erase(nullptr);
+        subset_neighbors.erase(nullptr);
 
-        return AgentContainer<Cell>(hair_neighbors.begin(),
-                                    hair_neighbors.end());
-    }
-
-    /// The neighboring cells to a cell of type `hair`
-    /** The neighbors and next neighbors of cell that are of CellType::hair.
-     * 
-     *  \param cell   The considered cell
-     */
-    AgentContainer<Cell> hair_next_neighbors_of(
-            const std::shared_ptr<Cell>& cell) const
-    {
-        std::set<std::shared_ptr<Cell>> hair_neighbors;
-
-        auto neighbors = this->neighbors_of(cell);
-
-        for (const auto & nb : neighbors) {
-            if (nb->state.type == CellType::hair)
-            {
-                hair_neighbors.insert(nb);
-            }
-            else {
-                auto next_neighbors = this->neighbors_of(nb);
-                for (const auto& nn : next_neighbors) {
-                    if (nn->state.type == CellType::hair)
-                    {
-                        hair_neighbors.insert(nn);
-                    }
-                }
-            }
-        }
-
-        hair_neighbors.erase(cell);
-        hair_neighbors.erase(nullptr);
-
-        return AgentContainer<Cell>(hair_neighbors.begin(),
-                                    hair_neighbors.end());
+        return AgentContainer<Cell>(subset_neighbors.begin(),
+                                    subset_neighbors.end());
     }
 
     /// Hexatic order of a cell
@@ -806,15 +693,15 @@ public:
      *  Correction rescales the position of next neighbour HC from an elongated
      *  arrangement to a circular configuration.
      */
-    std::pair<double, double> hexatic_order_of (const std::shared_ptr<Cell>& cell) const 
+    std::pair<double, double> hexatic_order_of (
+        const std::shared_ptr<Cell>& cell,
+            const std::size_t& type,
+            const std::size_t& distance=1
+    ) const 
     {
+        const auto neighbors = neighbors_of_type(cell, type, distance);
         
-        if (cell->state.type != CellType::hair) {
-            return std::make_pair(0., 0.);
-        }
-
-        auto hair_neighbors = hair_next_neighbors_of(cell);
-        if (hair_neighbors.size() < 3) {
+        if (neighbors.size() < 3) {
             return std::make_pair(0., 0.);
         }
         
@@ -834,7 +721,7 @@ public:
         // NOTE a sheared hexagon maps to 1
         using namespace std::complex_literals;
         std::complex<double> hex_order = std::accumulate(
-            hair_neighbors.begin(), hair_neighbors.end(),
+            neighbors.begin(), neighbors.end(),
             std::complex<double>(0., 0.),
             [this, center]
             (std::complex<double> val, const auto& nb)
@@ -848,7 +735,7 @@ public:
             }
         );
         std::complex<double> hex_order_corr = std::accumulate(
-            hair_neighbors.begin(), hair_neighbors.end(),
+            neighbors.begin(), neighbors.end(),
             std::complex<double>(0., 0.),
             [this, center, phi, ratio_WH]
             (std::complex<double> val, const auto& nb)
@@ -867,21 +754,19 @@ public:
             }
         );
 
-        std::complex<double> N(hair_neighbors.size());
+        std::complex<double> N(neighbors.size());
         return std::make_pair(std::norm(hex_order / N),
                               std::norm(hex_order_corr / N));
     }
 
     // see transitions.hh
-    template <typename EdgeParamMatrix>
-    void divide_cell(const std::shared_ptr<Cell> cell, double division_angle,
-            EdgeParamMatrix linetension, EdgeParamMatrix edge_contractility);
+    std::pair<std::shared_ptr<Cell>, std::shared_ptr<Cell> >
+    divide_cell(const std::shared_ptr<Cell> cell, double division_angle);
 
     // see transitions.hh
-    template <typename EdgeParamMatrix>
     bool remove_edge_T1 (const std::shared_ptr<Edge> edge,
-        EdgeParamMatrix linetension, EdgeParamMatrix contractility,
-        std::function<double(const AgentContainer<Edge>&,
+        std::function<double(const AgentContainer<Vertex>&,
+                             const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double separation, double T1_barrier, double random_number,
         std::size_t time);
@@ -1618,16 +1503,16 @@ private:
         add_edge(vertices[4], vertices[5]);
         add_edge(vertices[5], vertices[0]);
 
-        auto cell = add_cell(pos, this->edges());
+        auto cell = add_cell(this->edges());
     }
 
 
     // -- Agent creation -----------------------------------------------------
 
     /// Create a Vertex and associate it with the VertexManager
-    auto add_vertex (const SpaceVec& pos, const Config& custom_cfg = {})
+    const auto& add_vertex (const SpaceVec& pos)
     {
-        return _vertex_manager.add_agent(pos, custom_cfg);
+        return _vertex_manager.add_agent(pos);
     }
 
     /// Create a Edge and associate it with the EdgeManager
@@ -1636,24 +1521,33 @@ private:
      * 
      *  \param a    The start vertex of the new edge
      *  \param b    The end vertex of the new edge
-     *  \param custom_cfg   (optional) A custom cfg used to initialize the
-     *                      edge's state. If not provided the agent manager's
-     *                      default is used.
      */
-    auto add_edge (std::shared_ptr<Vertex> a, std::shared_ptr<Vertex> b,
-                   const Config& custom_cfg = {})
+    const auto& add_edge (const std::shared_ptr<Vertex>& a,
+                          const std::shared_ptr<Vertex>& b)
     {
-        auto e = _edge_manager.add_agent({0., 0.}, custom_cfg);
-        e->custom_links().a = a;
-        e->custom_links().b = b;
+        const auto& edge = _edge_manager.add_agent({0., 0.});
+        edge->custom_links().a = a;
+        edge->custom_links().b = b;
 
         // Create the required weak links
         for (const auto& v : {a, b}) {
-            _vertices_adjoint_edges[v->id()].push_back(e);
+            _vertices_adjoint_edges[v->id()].push_back(edge);
         }
 
-        return e;
+        return edge;
     }
+
+    const auto& add_edge (
+        const std::shared_ptr<Vertex>& a,
+        const std::shared_ptr<Vertex>& b,
+        const std::shared_ptr<Edge>& parent
+    )
+    {
+        const auto& edge = add_edge(a, b);
+        edge->state.inherit_from_state(parent->state);
+        return edge;
+    }
+
 
     /// Create a Cell and associate it with the CellManager
     /** Creates a cell using edges as the cell's boundary.
@@ -1666,11 +1560,15 @@ private:
      *                      cell's state. If not provided the agent manager's
      *                      default is used.
      */
-    auto add_cell (const SpaceVec& pos,
-                   AgentContainer<Edge> edges,
-                   const Config& custom_cfg = {})
+    const auto& add_cell (
+        AgentContainer<Edge> edges,
+        const Config& custom_cfg = {}
+    )
     {
-        auto cell = _cell_manager.add_agent(pos, custom_cfg);
+        const auto& cell = _cell_manager.add_agent(
+            SpaceVec({0., 0.}),
+            custom_cfg
+        );
         cell->custom_links().edges = this->order_edges(edges);
 
         // check that edges are anti-clockwise
@@ -1715,23 +1613,14 @@ private:
     /// Create a cell and associate it with the CellManager
     /** See add_cell()
      */
-    auto add_cell(AgentContainer<Edge> edges,
-                  const std::shared_ptr<Cell>& parent_cell)
+    const auto& add_cell(
+        AgentContainer<Edge> edges,
+        const std::shared_ptr<Cell>& parent_cell
+    )
     {
-        return add_cell(SpaceVec({0., 0.}), edges,
-                        parent_cell->state.create_cfg_from_props());
-    }
-
-    /// Create a cell with properties inherited from a parent cell
-    /** Arguments passed on to add_cell() without precising the pos. The cell's
-     *  barycenter will be calculated from the positions of the vertices
-     *  defining the boundary.
-     */
-    auto add_cell(const SpaceVec& pos,
-                  AgentContainer<Edge> edges,
-                  const std::shared_ptr<Cell>& parent_cell)
-    {
-        return add_cell(pos, edges, parent_cell->state.create_cfg_from_props());
+        const auto& cell = add_cell(edges);
+        cell->state.inherit_from_state(parent_cell->state);
+        return cell;
     }
 
     /// Remove a vertex
@@ -1757,7 +1646,8 @@ private:
 
     // see transitions.hh
     bool remove_boundary_edge(const std::shared_ptr<Edge> edge,
-        std::function<double(const AgentContainer<Edge>&,
+        std::function<double(const AgentContainer<Vertex>&,
+                             const AgentContainer<Edge>&,
                              const AgentContainer<Cell>&)> get_energy,
         double T1_barrier, double random_number);
 

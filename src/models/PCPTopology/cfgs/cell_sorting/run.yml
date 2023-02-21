@@ -28,7 +28,7 @@ run_kwargs:
           seconds: !expr 60*25.    # --> terminated after 10 minutes wall time
 
 parameter_space:
-  num_steps: 100
+  num_steps: 1000
 
   seed: !sweep
     default: 42
@@ -38,11 +38,16 @@ parameter_space:
 
     differentiation: !sweep
       default: random
-      values: [random, domain]
+      values: 
+        - random
+        - domain
 
     case: !sweep
       default: control
-      values: [control, DITH, HIT]
+      values: 
+        - control
+        - DITH
+        - HIT
 
     initialisation:
       1_by_proliferation:
@@ -61,102 +66,77 @@ parameter_space:
             differentiate_random: 
               times: []
               iterations_prolog: 1
-              fraction: 0.5
+              distribution: [0.7, 0.3]
+              method: fraction
               minimization:
                 mode: manual
           values: [
             {differentiate_random: {
               times: [],
               iterations_prolog: 1,
-              fraction: 0.5,
-              minimization: {mode: manual}}},
+              distribution: [0.7, 0.3],
+              method: fraction,
+              minimization: {mode: manual}} },
             {differentiate_domain: {
               times: [],
               iterations_prolog: 1,
-              relative_width: 0.5,
+              relative_widths: [0.5, 0.5],
+              relative_heights: [1.],
               minimization: {mode: manual}}}
           ]
           name: op_init
       # END differentiation
       
       # Eliminate HC-HC contacts
-      - increment_linetension:
+      - register_work_function_term:
           times: []
           iterations_prolog: 1
-          
-          hair_hair: !coupled-sweep
-            target_name: case
-            default: 0.
-            values: [0., 1., 0.5]
-            name: HH
-          hair_support: !coupled-sweep
-            target_name: case
-            default: 0.
-            values: [0., 0.2, 1.]
-            name: HS
-          support_support: !coupled-sweep
-            target_name: case
-            default: 0.
-            values: [0., 0., 0.]
-            name: SS
-          
+          term: linetension_heterotypic
+          parameters:
+            linetension: !coupled-sweep
+              target_name: case
+              name: linetension
+              default: 
+                - [0., 0., 0.]
+                - [0., 0., 0.]
+                - [0., 0., 0.]
+              values: 
+                - [[0.0, 0.0, 0.],
+                   [0.0, 0.0, 0.],
+                   [0.0, 0.0, 0.]]
+                - [[0.00, 0.05, 0.],
+                   [0.05, 0.10, 0.],
+                   [0.0, 0.0, 0.]]
+                - [[0.0, 0.10, 0.],
+                   [0.1, 0.05, 0.],
+                   [0.0, 0.0, 0.]]
+            boundary_type: 2
           minimization:
             mode: manual
-      # END Differential junctional properties
 
-      - jiggle:
-          times: !listgen [10001]
+      - void:
+          times:
+            start: 1
+            stop: 100000
+            step: 1
           
 
-    # --- Dynamics
-    # Minimization parameter
-    minimization: &minimization
-      update_scheme: steepest_gradient
-      dt: 0.05
-      num_steps: 20
-      num_repeat: 25
-      jiggle_intensity: 0.
-      linetension_fluctuation: 0.1
-      linetension_fluctuation_tau: 25
-
-    NotchDelta:
-      cell_manager:
-        grid:
-          resolution: 32
-    PCPVertex:      
-      area_elasticity: 1.
-      
-      cell_shape_implementation: contractile
-      # possible contractile or shape_elastic
-      # whether to normalize shape index to A^0 or A, respectively
-
-      agent_manager:
-        cell_manager:
-          agent_params:
-            area_preferential: 1.
-            contractility: 1.
-            shape_index_preferential: 3.72
-            polarity: -1.5708   # -Pi / 2
-        edge_manager:
-          agent_params:
-            linetension: 0.
-            contractility: 0.
-        setup_params:
-          hexagonal:
-            lattice_rows: &ROWS 4
-            lattice_columns: *ROWS
-
-      minimization: *minimization
-
-      T1_threshold: 0.03
-      T1_separation_factor: 1.05
-      T1_probability: 1.
-      T1_barrier: 0.02
-      T2_threshold: 0.0075
-
-
+    PCPVertex:
       log_level: warning
-      
+
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      - linetension_heterotypic:
+          register: false
+
       # continuous data manager
       data_manager:
         deciders:
@@ -164,21 +144,16 @@ parameter_space:
             type: interval
             args: 
               intervals:
-                - [0, 1000000000, 50]
+                - [0, 1000000000, 5]
         tasks:
-          Energy_total: &energy_continuous {decider: write_energy}
-          Energy_linetension: *energy_continuous
-          Energy_areaelasticity: *energy_continuous
-          Energy_cell_contractility: *energy_continuous
-          Energy_edge_contractility: *energy_continuous
-          Energy_boundary_area_elasticity: {active: false}
-          Energy_boundary_shape_elasticity: {active: false}
+          Energy: &energy_continuous {decider: write_energy}
           Energy_time: *energy_continuous
-          transitions: *energy_continuous
 
           Vertices: &position {active: false}
           Cells: *position
           Edges: *position
+          Cell_energies: *position
+          Edge_energies: *position
 
     # equilibrium data manager
     data_manager:
@@ -196,6 +171,3 @@ parameter_space:
               - [200, 15001, 100]
       triggers:
         build_interval: *interval
-      tasks:
-        Energy_boundary_area_elasticity: {enabled: false}
-        Energy_boundary_shape_elasticity: {enabled: false}

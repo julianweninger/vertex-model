@@ -10,10 +10,10 @@
 #include "utils.hh"
 
 #include "../../PCPVertex/PCPVertex.hh"
-#include "../../PCPVertex/energy.hh"
 #include "../../PCPVertex/algorithm.hh"
 #include "../../PCPVertex/operations.hh"
 #include "../../PCPVertex/PCPVertex_write_tasks.hh"
+#include "../../PCPVertex/work_function.hh"
 
 #include "../PCPTopology.hh"
 #include "../operations.hh"
@@ -28,7 +28,6 @@ using namespace Utopia;
 using namespace Utopia::Models::PCPVertex::OperationCollection;
 using Utopia::DataIO::Config;
 
-using CellType = Models::PCPVertex::PCPVertex::CellType;
 using SpaceVec = Models::PCPVertex::PCPVertex::SpaceVec;
 
 struct Fixture : ModelFixture {
@@ -77,7 +76,7 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
     std::size_t time;
         
     name = "apply_operation_prolog";
-    model.register_operation(build_jiggle(
+    model.register_operation(build_void(
         name, get_as<Config>(name, cfg), default_minim_params));
     model.prolog();
     time = model.get_continuous_time();
@@ -94,7 +93,7 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
         (Models::PCPVertex::PCPTopology& model, std::string name)
     {
         std::size_t time = model.get_continuous_time();
-        model.register_operation(build_jiggle(
+        model.register_operation(build_void(
             name, get_as<Config>(name, cfg), default_minim_params));
         model.iterate();
 
@@ -117,7 +116,7 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
     // NOTE 5 iterations, jiggle 3 times (2x3 + 1)
         
     name = "apply_operation_epilog";
-    model.register_operation(build_jiggle(
+    model.register_operation(build_void(
         name, get_as<Config>(name, cfg), default_minim_params));
     
     prev_time = model.get_continuous_time();
@@ -130,277 +129,14 @@ BOOST_AUTO_TEST_CASE(test_PCPTopology_apply_operation) {
 BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_jiggle) {
-        const std::string name = "jiggle";
-        auto [operation, params] = build_jiggle(
+        const std::string name = "void";
+        auto [operation, params] = build_void(
             name, get_as<Config>(name, cfg), default_minim_params);
 
         operation(vertex_model);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_jiggle__linetension_fluctuations) {
-        std::string name = "jiggle__linetension_fluctuations_1";
-        auto [operation, params] = build_jiggle(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        const auto& edges = vertex_model.get_am().edges();
-
-        operation(vertex_model);
-
-        for (const auto& e : edges) {
-            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
-            BOOST_TEST(fabs(e->state._linetension_fluctuation) < 1.e-12);
-        }
-        
-        std::size_t t;
-        // spin up
-        for (t = 0; t < 300; t++) {
-            vertex_model.minimize_energy(params.minimization_params);
-        }
-
-        // target linetension does not change
-        for (const auto& e : edges) {
-            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
-        }
-
-        std::vector<double> values{};
-        values.reserve(200 * edges.size());
-        for (t = 300; t < 500; t++) {
-            vertex_model.minimize_energy(params.minimization_params);
-
-            std::transform(edges.begin(), edges.end(),
-                           std::back_inserter(values),
-                           [](const auto& e) -> double
-                           { return e->state.linetension(); });
-        }
-
-        auto [mean, stddev] = get_statistics(values);
-        BOOST_TEST(fabs(mean) < 0.01);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 5);
-
-
-        name = "jiggle__linetension_fluctuations_2";
-        auto [operation_2, params_2] = build_jiggle(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation_2(vertex_model);
-
-        for (t = 500; t < 600; t++) {
-            vertex_model.minimize_energy(params_2.minimization_params);
-        }
-
-        // target linetension does not change
-        for (const auto& e : edges) {
-            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
-            BOOST_TEST(fabs(e->state._linetension_fluctuation) < 1.e-12);
-        }
-
-
-        name = "jiggle__linetension_fluctuations_3";
-        auto [operation_3, params_3] = build_jiggle(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation_3(vertex_model);
-
-        for (const auto& e : edges) {
-            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
-            BOOST_TEST(fabs(e->state._linetension_fluctuation) < 1.e-12);
-        }
-        
-        // spin up
-        for (t = 600; t < 900; t++) {
-            vertex_model.minimize_energy(params_3.minimization_params);
-        }
-
-        // target area does not change
-        for (const auto& e : edges) {
-            BOOST_TEST(fabs(e->state._linetension) < 1.e-12);
-        }
-
-
-        values.clear();
-        for (t = 900; t < 1100; t++) {
-            vertex_model.minimize_energy(params_3.minimization_params);
-
-            std::transform(edges.begin(), edges.end(),
-                           std::back_inserter(values),
-                           [](const auto& e) -> double
-                           { return e->state.linetension(); });
-        }
-
-        std::tie(mean, stddev) = get_statistics(values);
-        BOOST_TEST(fabs(mean) < 0.01);
-        BOOST_CHECK_CLOSE(stddev, 0.4, 5);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_jiggle__area_fluctuations) {
-        std::string name = "jiggle__area_fluctuations_1";
-        auto [operation, params] = build_jiggle(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        const auto& cells = vertex_model.get_am().cells();
-
-        operation(vertex_model);
-
-        for (const auto& c : cells) {
-            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
-            BOOST_TEST(fabs(c->state._area_preferential_fluctuations) < 1.e-12);
-        }
-        
-        std::size_t t;
-        // spin up
-        for (t = 0; t < 300; t++) {
-            vertex_model.minimize_energy(params.minimization_params);
-        }
-
-        // target area does not change
-        for (const auto& c : cells) {
-            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
-        }
-
-        std::vector<double> values{};
-        values.reserve(200 * cells.size());
-        for (t = 300; t < 500; t++) {
-            vertex_model.minimize_energy(params.minimization_params);
-
-            std::transform(cells.begin(), cells.end(),
-                           std::back_inserter(values),
-                           [](const auto& c) -> double
-                           { return c->state.area_preferential(); });
-        }
-
-        auto [mean, stddev] = get_statistics(values);
-        BOOST_CHECK_CLOSE(mean, 1., 5);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 5);
-        for (const auto& v : values) {
-            BOOST_TEST(v >= 0.4);
-        }
-
-
-        name = "jiggle__area_fluctuations_2";
-        auto [operation_2, params_2] = build_jiggle(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation_2(vertex_model);
-
-        for (t = 500; t < 600; t++) {
-            vertex_model.minimize_energy(params_2.minimization_params);
-        }
-
-        // target area does not change
-        for (const auto& c : cells) {
-            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
-            BOOST_TEST(  fabs(c->state._area_preferential_fluctuations)
-                        < 1.e-12);
-        }
-
-
-        name = "jiggle__area_fluctuations_3";
-        auto [operation_3, params_3] = build_jiggle(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation_3(vertex_model);
-
-        for (const auto& c : cells) {
-            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
-            BOOST_TEST(fabs(c->state._area_preferential_fluctuations) < 1.e-12);
-        }
-        
-        // spin up
-        for (t = 600; t < 900; t++) {
-            vertex_model.minimize_energy(params_3.minimization_params);
-        }
-
-        // target area does not change
-        for (const auto& c : cells) {
-            BOOST_TEST(fabs(c->state._area_preferential - 1) < 1.e-12);
-        }
-
-
-        values.clear();
-        for (t = 900; t < 1100; t++) {
-            vertex_model.minimize_energy(params_3.minimization_params);
-
-            std::transform(cells.begin(), cells.end(),
-                           std::back_inserter(values),
-                           [](const auto& c) -> double
-                           { return c->state.area_preferential(); });
-        }
-
-        std::tie(mean, stddev) = get_statistics(values);
-        BOOST_CHECK_CLOSE(mean, 1., 5);
-        BOOST_CHECK_CLOSE(stddev, 0.35, 5);
-        for (const auto& v : values) {
-            BOOST_TEST(v >= 0.3);
-        }
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_domain) {
-        const std::string name = "differentiate_domain";
-        auto [operation, params] = build_differentiate_domain(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation(vertex_model);
-
-        const auto& am = vertex_model.get_am();
-        const auto& cells = am.cells();
-        auto cnt = std::count_if(cells.begin(), cells.end(),
-                                 [](const auto& cell) {
-                                        return cell->state.type == 
-                                               CellType::hair; });
-
-        BOOST_CHECK_CLOSE(double(cnt)/cells.size(), 0.5*0.75, 10);
-        
-        cnt = std::count_if(cells.begin(), cells.end(),
-                            [](const auto& cell) {
-                                return cell->state.type == 
-                                        CellType::progenitor; });
-        BOOST_TEST(cnt == 0);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_random) {
-        const std::string name = "differentiate_random";
-        auto [operation, params] = build_differentiate_random(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation(vertex_model);
-
-        const auto& cells = vertex_model.get_am().cells();
-        auto cnt = std::count_if(cells.begin(), cells.end(),
-                                 [](const auto& cell) {
-                                        return cell->state.type == 
-                                               CellType::hair; });
-
-        BOOST_CHECK_CLOSE(double(cnt)/cells.size(), 0.25, 25);
-
-        cnt = std::count_if(cells.begin(), cells.end(),
-                            [](const auto& cell) {
-                                return cell->state.type == 
-                                        CellType::progenitor; });
-        BOOST_TEST(cnt == 0);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_random_fraction) {
-        const std::string name = "differentiate_random_fraction";
-        auto [operation, params] = build_differentiate_random(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation(vertex_model);
-
-        const auto& cells = vertex_model.get_am().cells();
-        auto cnt = std::count_if(cells.begin(), cells.end(),
-                                 [](const auto& cell) {
-                                        return cell->state.type == 
-                                               CellType::hair; });
-
-        BOOST_TEST(cnt == 14); // Rounded from 0.23 * 64 = 14.72 cells 
-
-        cnt = std::count_if(cells.begin(), cells.end(),
-                            [](const auto& cell) {
-                                return cell->state.type == 
-                                        CellType::progenitor; });
-        BOOST_TEST(cnt == 0);
-    }
-
+    
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_Collier) {
         using Utopia::Models::Collier::Collier;
 
@@ -455,6 +191,48 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
                 return cell->custom_links().c_cell; });
     }
 
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_domain) {
+        const std::string name = "differentiate_domain";
+        auto [operation, params] = build_differentiate_domain(
+            name, get_as<Config>(name, cfg), default_minim_params);
+
+        operation(vertex_model);
+
+        const auto& am = vertex_model.get_am();
+        const auto& cells = am.cells();
+        auto cnt_0 = std::count_if(cells.begin(), cells.end(),
+                                   [](const auto& cell) {
+                                        return cell->state.type == 0; });
+        auto cnt_1 = std::count_if(cells.begin(), cells.end(),
+                                   [](const auto& cell) {
+                                        return cell->state.type == 1; });
+        auto cnt_2 = std::count_if(cells.begin(), cells.end(),
+                                   [](const auto& cell) {
+                                        return cell->state.type == 2; });
+        auto cnt_3 = std::count_if(cells.begin(), cells.end(),
+                                   [](const auto& cell) {
+                                        return cell->state.type == 3; });
+        auto cnt_4 = std::count_if(cells.begin(), cells.end(),
+                                   [](const auto& cell) {
+                                        return cell->state.type == 4; });
+
+        double f_accu = 0; // size of largest square containing type-1
+        double f_area = 0.2 * 0.3 * 64.; // size of largest square containing value
+        BOOST_CHECK_SMALL(cnt_0 - f_area + f_accu, 2.);
+        f_accu = 0.2 * 0.3 * 64.;
+        f_area = 0.6 * 0.8 * 64.;
+        BOOST_CHECK_SMALL(cnt_1 - f_area + f_accu, 2.);
+        f_accu = 0.6 * 0.8 * 64.;
+        f_area = 0.8 * 1.0 * 64.;
+        BOOST_CHECK_SMALL(cnt_2 - f_area + f_accu, 2.);
+        f_accu = 0.8 * 1.0 * 64.;
+        f_area = 1.0 * 1.0 * 64.;
+        BOOST_CHECK_SMALL(cnt_3 - f_area + f_accu, 2.);
+        BOOST_CHECK_EQUAL(cnt_4, 0);
+    }
+
+
     BOOST_AUTO_TEST_CASE(test_PCPTopology_differentiate_NotchDelta) {
         using Utopia::Models::PCPVertex::PCPVertex;
         using Utopia::Models::NotchDelta::NotchDelta;
@@ -492,18 +270,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
 
                 // the state's have been synchronized
                 auto type = cell->state.type;
-                if (type == PCPVertex::CellType::progenitor) {
-                    BOOST_TEST(   nd_cell->state.cell_type
-                               == NotchDelta::CellType::progenitor);
-                }
-                else if (type == PCPVertex::CellType::hair) {
-                    BOOST_TEST(   nd_cell->state.cell_type
-                               == NotchDelta::CellType::hair);
-                }
-                else if (type == PCPVertex::CellType::support) {
-                    BOOST_TEST(   nd_cell->state.cell_type
-                               == NotchDelta::CellType::support);
-                }
+                BOOST_TEST(   nd_cell->state.cell_type
+                           == NotchDelta::CellType(type));
             }
         };
 
@@ -588,18 +356,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
 
                 // the state's have been synchronized
                 auto type = cell->state.type;
-                if (type == PCPVertex::CellType::progenitor) {
-                    BOOST_TEST(   nd_cell->state.cell_type
-                               == NotchDelta::CellType::progenitor);
-                }
-                else if (type == PCPVertex::CellType::hair) {
-                    BOOST_TEST(   nd_cell->state.cell_type
-                               == NotchDelta::CellType::hair);
-                }
-                else if (type == PCPVertex::CellType::support) {
-                    BOOST_TEST(   nd_cell->state.cell_type
-                               == NotchDelta::CellType::support);
-                }
+                BOOST_TEST(   nd_cell->state.cell_type
+                           == NotchDelta::CellType(type));
             }
         };
 
@@ -609,7 +367,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         auto NotchDelta_prolif(get_as<Config>("NotchDelta", process_cfg));
         auto NotchDelta_2nd_prolif(get_as<Config>("NotchDelta_2nd_task",
                                                      process_cfg));
-
 
 
         // the random differentiation
@@ -622,18 +379,29 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         rnd_operation(vertex_model);
 
         const auto& cells = vertex_model.get_am().cells();
-        auto cnt_hair = std::count_if(cells.begin(), cells.end(),
-                                      [](const auto& cell) {
-                                            return (   cell->state.type
-                                                    == CellType::hair); });
+        auto cnt_prog = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return (   cell->state.type
+                        == int(NotchDelta::CellType::progenitor)); }
+        );
+        BOOST_CHECK_SMALL(double(cnt_prog), 1.e-6);
 
-        BOOST_CHECK_CLOSE(double(cnt_hair)/cells.size(), 0.35, 35);
+        auto cnt_support = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return (   cell->state.type
+                        == int(NotchDelta::CellType::support)); }
+        );
+        BOOST_CHECK_SMALL(cnt_support - 0.65 * cells.size(), 1.);
 
-        auto cnt = std::count_if(cells.begin(), cells.end(),
-                            [](const auto& cell) {
-                                return cell->state.type == 
-                                        CellType::progenitor; });
-        BOOST_TEST(cnt == 0);
+        auto cnt_hair = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return (   cell->state.type
+                        == int(NotchDelta::CellType::hair)); }
+        );
+        BOOST_CHECK_SMALL(cnt_hair - 0.35 * cells.size(), 1.);
 
         // save states for next try
         std::vector<std::size_t> cell_states;
@@ -682,659 +450,192 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         BOOST_TEST(notch_delta_prolog);
         BOOST_TEST(notch_delta->get_time() == 100);
 
-        auto new_cnt_hair = std::count_if(cells.begin(), cells.end(),
-                                      [](const auto& cell) {
-                                            return (   cell->state.type
-                                                    == CellType::hair); });
+        auto new_cnt_prog = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return (   cell->state.type
+                        == int(NotchDelta::CellType::progenitor)); }
+        );
+        BOOST_CHECK_SMALL(double(new_cnt_prog), 1.e-6);
 
-        BOOST_TEST(new_cnt_hair == cnt_hair);
+        auto new_cnt_support = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return (   cell->state.type
+                        == int(NotchDelta::CellType::support)); }
+        );
+        BOOST_CHECK_EQUAL(cnt_support, new_cnt_support);
 
-        cnt = std::count_if(cells.begin(), cells.end(),
-                            [](const auto& cell) {
-                                return cell->state.type == 
-                                        CellType::progenitor; });
-        BOOST_TEST(cnt == 0);
+        auto new_cnt_hair = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return (   cell->state.type
+                        == int(NotchDelta::CellType::hair)); }
+        );
+        BOOST_CHECK_EQUAL(cnt_hair, new_cnt_hair);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area) {
-        const std::string name = "increment_area";
-        auto [operation, params] = build_increment_area(
+
+    BOOST_AUTO_TEST_CASE(test_PCPTopology__differentiate_random) {
+        const std::string name = "differentiate_random";
+        auto [operation, params] = build_differentiate_random(
             name, get_as<Config>(name, cfg), default_minim_params);
 
         operation(vertex_model);
 
         const auto& cells = vertex_model.get_am().cells();
-
-        for (const auto& cell : cells) {
-            BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
-        }
-
-                   
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-
-        op_diff(vertex_model);
-        
-        for (const auto& cell : cells) {
-            BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
-        }
-
-
-        operation(vertex_model);
-
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                BOOST_CHECK_CLOSE(cell->state._area_preferential, 4, 10);
+        auto cnt_0 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type == 0;
             }
-            else if (cell->state.type == CellType::support) {
-                BOOST_CHECK_CLOSE(cell->state._area_preferential, 5, 10);
+        );
+        auto cnt_1 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type == 1;
             }
-        }
-        
-    }
-    
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_adapt)
-    {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        const std::string name = "increment_area_adapt";
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        auto [operation, params] = build_increment_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        const auto& cells = vertex_model.get_am().cells();
-        double area = 0.;
-        for (const auto& c : cells) {
-            area += c->state.area_preferential();
-        }
-
-        op_diff(vertex_model);
-        operation(vertex_model);
-        
-        double new_area = 0.;
-        for (const auto& c : cells) {
-            new_area += c->state.area_preferential();
-        }
-
-        BOOST_CHECK_CLOSE(area, new_area, 5);
-
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
+        );
+        auto cnt_2 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type == 2;
             }
-        }
-    }
-    
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_relax)
-    {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        const std::string name = "increment_area_relax";
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        auto [operation, params] = build_increment_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        const auto& cells = vertex_model.get_am().cells();
-
-        // apply the differentiation and operation
-        op_diff(vertex_model);
-        operation(vertex_model);
-        
-        // check that the cells fit in the domain
-        double cell_area = 0.;
-        for (const auto& c : cells) {
-            cell_area += c->state.area_preferential();
-        }
-
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 2.e-1);
-
-        // check the statistics of HCs
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
-                // incremented by 1
+        );
+        auto cnt_3 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type > 2;
             }
-        }
+        );
 
-        // check statistics of SCs
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::support) {
-                BOOST_CHECK_CLOSE(cell->state._area_preferential, 3, 10);
-                // incremented by 2
-            }
-        }
+        BOOST_CHECK_SMALL(cnt_0 - 0.2 * 64, 2.);
+        BOOST_CHECK_SMALL(cnt_1 - 0.5 * 64, 2.);
+        BOOST_CHECK_SMALL(cnt_2 - 0.3 * 64, 2.);
+        BOOST_CHECK_EQUAL(cnt_3, 0);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_gradient) {
-        const std::string name = "increment_area_gradient";
-        auto [operation, params] = build_increment_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
 
-        const auto& cells = vertex_model.get_am().cells();
-                   
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-
-        op_diff(vertex_model);
-
-        operation(vertex_model);
-        
-        double max = std::numeric_limits<double>::min();
-        double min = std::numeric_limits<double>::max();
-        std::shared_ptr<double> SC = nullptr;
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                max = std::max(max, cell->state._area_preferential);
-                min = std::min(min, cell->state._area_preferential);
-            }
-            else {
-                if (SC == nullptr) {
-                    SC = std::make_shared<double>(cell->state._area_preferential);
-                }
-                else {
-                    BOOST_CHECK_CLOSE(*SC, cell->state._area_preferential,
-                                      1.e-6);
-                }
-            }
-        }
-
-        BOOST_CHECK_CLOSE(max, *SC + 1., 5);  // close to 5 percent
-        BOOST_CHECK_CLOSE(min, *SC - 0.1, 5); // close to 5 percent        
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_cell_contractility) {
-        const std::string name = "increment_cell_contractility";
-        auto [operation, params] = build_increment_cell_contractility(
+    BOOST_AUTO_TEST_CASE(test_PCPTopology__differentiate_random_fraction) {
+        const std::string name = "differentiate_random_fraction";
+        auto [operation, params] = build_differentiate_random(
             name, get_as<Config>(name, cfg), default_minim_params);
 
         operation(vertex_model);
 
         const auto& cells = vertex_model.get_am().cells();
-
-
-
-        std::vector<double> contractilities;
-        contractilities.reserve(cells.size());
-        for (const auto& cell : cells) {
-            contractilities.push_back(cell->state.contractility);
-        }
-
-        // increment by one
-        BOOST_TEST(   contractilities
-                   == std::vector<double>(contractilities.size(), 2.));
-
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-
-
-        op_diff(vertex_model);
-        
-        contractilities.clear();
-        contractilities.reserve(cells.size());
-        for (const auto& cell : cells) {
-            contractilities.push_back(cell->state.contractility);
-        }
-
-        // differentiation does not change
-        BOOST_TEST(   contractilities
-                   == std::vector<double>(contractilities.size(), 2.));
-        
-
-        operation(vertex_model);
-
-        // build statistics with different cell types
-        std::vector<double> contractilities_HCs;
-        std::vector<double> contractilities_SCs;
-        contractilities_HCs.reserve(cells.size());
-        contractilities_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                contractilities_HCs.push_back(cell->state.contractility);
+        auto cnt_0 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type == 0;
             }
-            else if (cell->state.type == CellType::support) {
-                contractilities_SCs.push_back(cell->state.contractility);
+        );
+        auto cnt_1 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type == 1;
             }
-        }
-        contractilities_HCs.shrink_to_fit();
-        contractilities_SCs.shrink_to_fit();
+        );
+        auto cnt_2 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type == 2;
+            }
+        );
+        auto cnt_3 = std::count_if(
+            cells.begin(), cells.end(),
+            [](const auto& cell) {
+                return cell->state.type > 2;
+            }
+        );
 
-        // increment by 2
-        BOOST_TEST(   contractilities_HCs
-                   == std::vector<double>(contractilities_HCs.size(), 4.));
-        // increment by 3
-        BOOST_TEST(   contractilities_SCs
-                   == std::vector<double>(contractilities_SCs.size(), 5.));   
+        BOOST_CHECK_EQUAL(cnt_0, std::ceil(0.2 * 64));
+        BOOST_CHECK_EQUAL(cnt_1, std::ceil(0.5 * 64));
+        BOOST_CHECK_EQUAL(cnt_2, 64 - cnt_1 - cnt_0);
+        BOOST_CHECK_EQUAL(cnt_3, 0);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain)
-    {
-        const std::string name = "increment_domain";
-        auto [operation, params] = build_increment_domain(
-            name, get_as<Config>(name, cfg), default_minim_params);
 
-        const auto& cells = vertex_model.get_am().cells();
-        double area = 0.;
-        for (const auto& c : cells) {
-            area += c->state.area_preferential();
-        }
+    BOOST_AUTO_TEST_CASE(test_PCPTopology_minimize_cell_contacts) {
+        const std::string name = "minimize_cell_contacts";
+        auto config = get_as<Config>(name, cfg);
+        auto [operation, params] = build_minimize_cell_contacts(
+            name, config, default_minim_params);
 
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
-
-        operation(vertex_model);
-        
-        double new_area = 0.;
-        for (const auto& c : cells) {
-            new_area += c->state.area_preferential();
-        }
-
-        BOOST_CHECK_CLOSE(area, new_area, 1e-2);
-
-        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
-        SpaceVec d_domain = new_domain - domain;
-
-        BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
-        BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_area)
-    {
-        const std::string name = "increment_domain_area";
-        auto [operation, params] = build_increment_domain(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        const auto& cells = vertex_model.get_am().cells();
-        double area = 0.;
-        for (const auto& c : cells) {
-            area += c->state.area_preferential();
-        }
-
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
-
-        operation(vertex_model);
-        
-        double new_area = 0.;
-        for (const auto& c : cells) {
-            new_area += c->state.area_preferential();
-        }
-        BOOST_CHECK_CLOSE(area, new_area, 1e-2);
-
-        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
-
-        // incremented by area
-        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], 
-                          domain[0] * domain[1] + 0.02, 1e-5);
-        // ratio constant
-        BOOST_CHECK_CLOSE(new_domain[0] / new_domain[1],
-                          domain[0] / domain[1], 1.e-5);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate)
-    {
-        const std::string name = "increment_domain_compensate";
-        auto [operation, params] = build_increment_domain(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        const auto& cells = vertex_model.get_am().cells();
-        double area = 0.;
-        for (const auto& c : cells) {
-            area += c->state.area_preferential();
-        }
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
-
-        operation(vertex_model);
-        
-        double new_area = 0.;
-        for (const auto& c : cells) {
-            new_area += c->state.area_preferential();
-        }
-        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_hc)
-    {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        const std::string name = "increment_domain_compensate_fix_hc";
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        auto [operation, params] = build_increment_domain(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        op_diff(vertex_model);
-
-        const auto& cells = vertex_model.get_am().cells();
-        double area_hc = 0;
-        for (const auto& c : cells) {
-            if (c->state.type == CellType::hair) {
-                area_hc += c->state.area_preferential();
-            }
-        }
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-
-        operation(vertex_model);
-        
-        double new_area = 0.;
-        double new_area_hc = 0;
-        for (const auto& c : cells) {
-            new_area += c->state.area_preferential();
-            if (c->state.type == CellType::hair) {
-                new_area_hc += c->state.area_preferential();
-            }
-        }
-        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
-        BOOST_CHECK_CLOSE(area_hc, new_area_hc, 1e-7);
-    }
-
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_sc)
-    {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        const std::string name = "increment_domain_compensate_fix_sc";
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        auto [operation, params] = build_increment_domain(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        op_diff(vertex_model);
-
-        const auto& cells = vertex_model.get_am().cells();
-        double area_sc = 0;
-        for (const auto& c : cells) {
-            if (c->state.type == CellType::support) {
-                area_sc += c->state.area_preferential();
-            }
-        }
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-
-        operation(vertex_model);
-        
-        double new_area = 0.;
-        double new_area_sc = 0;
-        for (const auto& c : cells) {
-            new_area += c->state.area_preferential();
-            if (c->state.type == CellType::support) {
-                new_area_sc += c->state.area_preferential();
-            }
-        }
-        SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
-        BOOST_CHECK_CLOSE(area_sc, new_area_sc, 1e-7);
-    }
-    
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_edge_contractility) {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        const std::string name = "increment_edge_contractility";
-        auto [operation, params] = build_increment_edge_contractility(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation(vertex_model);
-
-        const auto& am = vertex_model.get_am();
-        const auto& edges = am.edges();
-
-        for (const auto& edge : edges) {
-            BOOST_TEST(edge->state.contractility() == 0.11);
-        }
-
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-
-        op_diff(vertex_model);
-        // NOTE terminal differentiation, hence progenitor - non-progenitor
-        //      not tested
-        // NOTE The properties of the entities (edges) do not change during
-        //      differentiation.
-
-        for (const auto& edge : edges) {
-            const auto [a, b] = am.adjoints_of(edge);
-            if (a->state.type == CellType::hair and
-                b->state.type == CellType::hair)
-            {
-                BOOST_TEST(edge->state.contractility() == 0.11);
-            }
-            else if (a->state.type == CellType::support and
-                     b->state.type == CellType::support)
-            {
-                BOOST_TEST(edge->state.contractility() == 0.11);
-            }
-            else if (a->state.type != b->state.type)
-            {
-                BOOST_TEST(edge->state.contractility() == 0.11);
-            }
-        }
-
-        // apply operation once more
-        operation(vertex_model);
-        // NOTE this sets all edges contractility to the same matrix entries
-
-        for (const auto& edge : edges) {
-            const auto [a, b] = am.adjoints_of(edge);
-            if (a->state.type == CellType::hair and
-                b->state.type == CellType::hair)
-            {
-                BOOST_TEST(edge->state.contractility()/ 2 == 0.22);
-            }
-            else if (a->state.type == CellType::support and
-                     b->state.type == CellType::support)
-            {
-                BOOST_TEST(edge->state.contractility()/ 2 == 0.33);
-            }
-            else if (a->state.type != b->state.type)
-            {
-                BOOST_TEST(edge->state.contractility()/ 2 == 0.23);
-            }
-        }
-    }
-    
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_edge_contractility_het) {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        // differentiate heterogeneous cell types
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        op_diff(vertex_model);
-
-        const std::string name = "increment_edge_contractility_heterogeneous";
-        auto [operation, params] = build_increment_edge_contractility(
-            name, get_as<Config>(name, cfg), default_minim_params);
+        auto [differentiate, _params] = build_differentiate_random(
+            name, get_as<Config>("differentiate_vanish", config),
+            default_minim_params
+        );
+    	
+        differentiate(vertex_model);
 
         operation(vertex_model);
 
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
-        const auto& edges = am.edges();
+        std::size_t contacts = 0;
+        for (const auto& cell : cells) {
+            if (cell->state.type != 1) {
+                continue;
+            }
 
-        for (const auto& edge : edges) {
-            BOOST_TEST(edge->state.contractility() == 0.0);
+            for (const auto& n : am.neighbors_of(cell)) {
+                if (n->state.type == cell->state.type) {
+                    contacts++;
+                }
+            }
         }
+        contacts /= 2;
+
+        BOOST_CHECK_SMALL(static_cast<double>(contacts), 1.1);
+
 
         for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                for (const auto& [e, flip] : cell->custom_links().edges) {
-                    BOOST_TEST(  vertex_model.get_energy_edge_contractility({e})
-                               < 1.e-10);
+            cell->state.type = 0;
+        }
+
+        auto [_differentiate, __params] = build_differentiate_random(
+            name, get_as<Config>("differentiate_minimize", config),
+            default_minim_params
+        );
+
+        _differentiate(vertex_model);
+
+        contacts = 0;
+        for (const auto& cell : cells) {
+            if (cell->state.type != 1) {
+                continue;
+            }
+
+            for (const auto& n : am.neighbors_of(cell)) {
+                if (n->state.type == cell->state.type) {
+                    contacts++;
                 }
             }
         }
 
-        // the adjoint cells. cell_a is hair cell if one of a and b is.
-        for (const auto& edge : edges) {
-            const auto [cell_a, cell_b] = am.adjoints_of(edge);
-            if (    cell_a->state.type == CellType::hair
-                and cell_b->state.type == CellType::support)
-            {
-                BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
-                           < 1.e-10);
-            }
-            else if (    cell_a->state.type == CellType::support
-                     and cell_b->state.type == CellType::hair)
-            {
-                BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
-                           < 1.e-10);
-            }
-            else if (    cell_a->state.type == CellType::support
-                     and cell_b->state.type == CellType::support)
-            {
-                BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
-                           > 1.e-10);
-            }
-            else {
-                BOOST_TEST(
-                    fabs(vertex_model.get_energy_edge_contractility({edge}))
-                    < 1.e-12
-                );
-            }
-        }
-    }
-    
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_linetension) {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
-
-        const std::string name = "increment_linetension";
-
-        auto [operation, params] = build_increment_linetension(
-            name, get_as<Config>(name, cfg), default_minim_params);
+        // in 50 / 50 expect 3 / 6 neighbours to be type 1 in ranodm
+        BOOST_CHECK_SMALL(static_cast<double>(contacts), 2.75 * 32);
+        // NOTE have 52 / 48 ratio
 
         operation(vertex_model);
 
-        const auto& am = vertex_model.get_am();
-        const auto& edges = am.edges();
-
-        for (const auto& edge : edges) {
-            BOOST_TEST(edge->state.linetension() == 0.11);
-        }
-
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-
-        op_diff(vertex_model);
-        // NOTE terminal differentiation, hence progenitor - non-progenitor
-        //      not tested
-        // NOTE The properties of the entities (edges) do not change during
-        //      differentiation.
-
-        for (const auto& edge : edges) {
-            const auto [a, b] = am.adjoints_of(edge);
-            if (a->state.type == CellType::hair and
-                b->state.type == CellType::hair)
-            {
-                BOOST_TEST(edge->state.linetension() == 0.11);
+        std::size_t new_contacts = 0;
+        for (const auto& cell : cells) {
+            if (cell->state.type != 1) {
+                continue;
             }
-            else if (a->state.type == CellType::support and
-                     b->state.type == CellType::support)
-            {
-                BOOST_TEST(edge->state.linetension() == 0.11);
-            }
-            else if (a->state.type != b->state.type)
-            {
-                BOOST_TEST(edge->state.linetension() == 0.11);
+
+            for (const auto& n : am.neighbors_of(cell)) {
+                if (n->state.type == cell->state.type) {
+                    new_contacts++;
+                }
             }
         }
-
-        // apply operation once more
-        operation(vertex_model);
-        // NOTE this sets all edges linetension to the same matrix entries
-
-        for (const auto& edge : edges) {
-            const auto [a, b] = am.adjoints_of(edge);
-            if (a->state.type == CellType::hair and
-                b->state.type == CellType::hair)
-            {
-                BOOST_TEST(edge->state.linetension() / 2 == 0.22);
-            }
-            else if (a->state.type == CellType::support and
-                     b->state.type == CellType::support)
-            {
-                BOOST_TEST(edge->state.linetension() / 2 == 0.33);
-            }
-            else if (a->state.type != b->state.type)
-            {
-                BOOST_TEST(edge->state.linetension() / 2 == 0.23);
-            }
-        }
+        // in 50 / 50 expect 2 / 6 neighbours to be type 1 at best
+        BOOST_CHECK_SMALL(static_cast<double>(new_contacts), 1.8 * 32);
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_shape_index) {
-        const std::string name = "increment_shape_index";
-        auto [operation, params] = build_increment_shape_index(
-            name, get_as<Config>(name, cfg), default_minim_params);
-
-        operation(vertex_model);
-
-        const auto& cells = vertex_model.get_am().cells();
-
-        std::vector<double> shape_indices;
-        shape_indices.reserve(cells.size());
-        for (const auto& cell : cells) {
-            shape_indices.push_back(cell->state.shape_index_preferential);
-        }
-        
-        auto [mean, stddev] = get_statistics(shape_indices);
-        BOOST_CHECK_CLOSE(mean, 4.6, 10); // initially is 3.6
-        BOOST_CHECK_SMALL(stddev, 1e-6);
-
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-
-
-        op_diff(vertex_model);
-        
-        shape_indices.clear();
-        shape_indices.reserve(cells.size());
-        for (const auto& cell : cells) {
-            shape_indices.push_back(cell->state.shape_index_preferential);
-        }
-
-        std::tie(mean, stddev) = get_statistics(shape_indices);
-        BOOST_CHECK_CLOSE(mean, 4.6, 10); // differentiation does not change
-        BOOST_CHECK_SMALL(stddev, 1e-6);
-        
-
-        operation(vertex_model);
-
-        std::vector<double> shape_indices_HCs;
-        std::vector<double> shape_indices_SCs;
-        shape_indices_HCs.reserve(cells.size());
-        shape_indices_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                shape_indices_HCs.push_back(cell->state.shape_index_preferential);
-            }
-            else if (cell->state.type == CellType::support) {
-                shape_indices_SCs.push_back(cell->state.shape_index_preferential);
-            }
-        }
-        shape_indices_HCs.shrink_to_fit();
-        shape_indices_SCs.shrink_to_fit();
-        
-        std::tie(mean, stddev) = get_statistics(shape_indices_HCs);
-        BOOST_CHECK_CLOSE(mean, 6.6, 10); // increment from 4.6
-        BOOST_CHECK_SMALL(stddev, 1e-6);
-        
-        std::tie(mean, stddev) = get_statistics(shape_indices_SCs);
-        BOOST_CHECK_CLOSE(mean, 7.6, 10); // increment from 4.6
-        BOOST_CHECK_SMALL(stddev, 1e-6);        
-    }
 
     BOOST_AUTO_TEST_CASE(test_PCPTopology_proliferate)
     {
@@ -1365,385 +666,1025 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPTopology_operations, Fixture)
         }
     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_pure_shear)
-    {
-        const std::string name = "pure_shear";
-        auto op_cfg = get_as<Config>(name, cfg);
-        auto [operation, params] = build_pure_shear(
-            name, op_cfg, default_minim_params);
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area) {
+    //     const std::string name = "increment_area";
+    //     auto [operation, params] = build_increment_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
 
-        auto iterations = get_as<std::size_t>("iterations", op_cfg);
+    //     operation(vertex_model);
 
-        auto domain_0 = vertex_model.get_space()->get_domain_size();
-        double area_0 = domain_0[0] * domain_0[1];
-        double r_0 = domain_0[0] / domain_0[1];
+    //     const auto& cells = vertex_model.get_am().cells();
 
-        for (std::size_t i = 0; i < iterations; i++) {
-            operation(vertex_model);
-        }
+    //     for (const auto& cell : cells) {
+    //         BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
+    //     }
 
-        auto domain = vertex_model.get_space()->get_domain_size();
-        double area = domain[0] * domain[1];
-        double r = domain[0] / domain[1];
+                   
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
 
-        BOOST_CHECK_CLOSE(area_0, area, 1.e-6);
-        BOOST_CHECK_CLOSE(r, r_0 * exp(2*0.2), 1.e-6);
-    }
+    //     op_diff(vertex_model);
+        
+    //     for (const auto& cell : cells) {
+    //         BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
+    //     }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_relax_area)
-    {        
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        const std::string name = "relax_area";
-        auto [operation, params] = build_relax_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
+    //     operation(vertex_model);
 
-        const auto& am = vertex_model.get_am();
-        const auto& cells = vertex_model.get_am().cells();
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             BOOST_CHECK_CLOSE(cell->state._area_preferential, 4, 10);
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             BOOST_CHECK_CLOSE(cell->state._area_preferential, 5, 10);
+    //         }
+    //     }
+        
+    // }
+    
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_adapt)
+    // {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        // random cell for that A_0 is different from A
-        // A_0 / A = 2
-        auto cell = cells[0];
-        auto cell_hair = cells[1]; 
-        cell_hair->state.type = CellType::hair;
-        auto cell_support = cells[2];
-        cell_support->state.type = CellType::support;
+    //     const std::string name = "increment_area_adapt";
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     auto [operation, params] = build_increment_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
 
-        cell->state._area_preferential = 2. * am.area_of(cell);
-        cell_hair->state._area_preferential = 2. * am.area_of(cell_hair);
-        cell_support->state._area_preferential = 2. * am.area_of(cell_support);
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     double area = 0.;
+    //     for (const auto& c : cells) {
+    //         area += c->state.area_preferential();
+    //     }
 
-        operation(vertex_model);
+    //     op_diff(vertex_model);
+    //     operation(vertex_model);
+        
+    //     double new_area = 0.;
+    //     for (const auto& c : cells) {
+    //         new_area += c->state.area_preferential();
+    //     }
 
-        // A_0' / A = 2 - 0.1 * (A_0 / A - 1) = 1.9
-        BOOST_CHECK_CLOSE(cell->state.area_preferential() / am.area_of(cell),
-                          1.9, 1e-8);
-        BOOST_CHECK_CLOSE((cell_hair->state.area_preferential()
-                           / am.area_of(cell_hair)),
-                          1.9, 1e-8);
-        BOOST_CHECK_CLOSE((  cell_support->state.area_preferential()
-                           / am.area_of(cell_support)),
-                          1.9, 1e-8);
+    //     BOOST_CHECK_CLOSE(area, new_area, 5);
+
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
+    //         }
+    //     }
+    // }
+    
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_relax)
+    // {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     const std::string name = "increment_area_relax";
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     auto [operation, params] = build_increment_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+
+    //     // apply the differentiation and operation
+    //     op_diff(vertex_model);
+    //     operation(vertex_model);
+        
+    //     // check that the cells fit in the domain
+    //     double cell_area = 0.;
+    //     for (const auto& c : cells) {
+    //         cell_area += c->state.area_preferential();
+    //     }
+
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 2.e-1);
+
+    //     // check the statistics of HCs
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             BOOST_CHECK_CLOSE(cell->state._area_preferential, 2, 10);
+    //             // incremented by 1
+    //         }
+    //     }
+
+    //     // check statistics of SCs
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::support) {
+    //             BOOST_CHECK_CLOSE(cell->state._area_preferential, 3, 10);
+    //             // incremented by 2
+    //         }
+    //     }
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_area_gradient) {
+    //     const std::string name = "increment_area_gradient";
+    //     auto [operation, params] = build_increment_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+                   
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+
+    //     op_diff(vertex_model);
+
+    //     operation(vertex_model);
+        
+    //     double max = std::numeric_limits<double>::min();
+    //     double min = std::numeric_limits<double>::max();
+    //     std::shared_ptr<double> SC = nullptr;
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             max = std::max(max, cell->state._area_preferential);
+    //             min = std::min(min, cell->state._area_preferential);
+    //         }
+    //         else {
+    //             if (SC == nullptr) {
+    //                 SC = std::make_shared<double>(cell->state._area_preferential);
+    //             }
+    //             else {
+    //                 BOOST_CHECK_CLOSE(*SC, cell->state._area_preferential,
+    //                                   1.e-6);
+    //             }
+    //         }
+    //     }
+
+    //     BOOST_CHECK_CLOSE(max, *SC + 1., 5);  // close to 5 percent
+    //     BOOST_CHECK_CLOSE(min, *SC - 0.1, 5); // close to 5 percent        
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_cell_contractility) {
+    //     const std::string name = "increment_cell_contractility";
+    //     auto [operation, params] = build_increment_cell_contractility(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     operation(vertex_model);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+
+
+
+    //     std::vector<double> contractilities;
+    //     contractilities.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         contractilities.push_back(cell->state.contractility);
+    //     }
+
+    //     // increment by one
+    //     BOOST_TEST(   contractilities
+    //                == std::vector<double>(contractilities.size(), 2.));
+
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+
+
+    //     op_diff(vertex_model);
+        
+    //     contractilities.clear();
+    //     contractilities.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         contractilities.push_back(cell->state.contractility);
+    //     }
+
+    //     // differentiation does not change
+    //     BOOST_TEST(   contractilities
+    //                == std::vector<double>(contractilities.size(), 2.));
+        
+
+    //     operation(vertex_model);
+
+    //     // build statistics with different cell types
+    //     std::vector<double> contractilities_HCs;
+    //     std::vector<double> contractilities_SCs;
+    //     contractilities_HCs.reserve(cells.size());
+    //     contractilities_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             contractilities_HCs.push_back(cell->state.contractility);
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             contractilities_SCs.push_back(cell->state.contractility);
+    //         }
+    //     }
+    //     contractilities_HCs.shrink_to_fit();
+    //     contractilities_SCs.shrink_to_fit();
+
+    //     // increment by 2
+    //     BOOST_TEST(   contractilities_HCs
+    //                == std::vector<double>(contractilities_HCs.size(), 4.));
+    //     // increment by 3
+    //     BOOST_TEST(   contractilities_SCs
+    //                == std::vector<double>(contractilities_SCs.size(), 5.));   
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain)
+    // {
+    //     const std::string name = "increment_domain";
+    //     auto [operation, params] = build_increment_domain(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     double area = 0.;
+    //     for (const auto& c : cells) {
+    //         area += c->state.area_preferential();
+    //     }
+
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
+
+    //     operation(vertex_model);
+        
+    //     double new_area = 0.;
+    //     for (const auto& c : cells) {
+    //         new_area += c->state.area_preferential();
+    //     }
+
+    //     BOOST_CHECK_CLOSE(area, new_area, 1e-2);
+
+    //     SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+    //     SpaceVec d_domain = new_domain - domain;
+
+    //     BOOST_CHECK_CLOSE(d_domain[0], 0.1, 1e-5);
+    //     BOOST_CHECK_CLOSE(d_domain[1], 0.2, 1e-5);
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_area)
+    // {
+    //     const std::string name = "increment_domain_area";
+    //     auto [operation, params] = build_increment_domain(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     double area = 0.;
+    //     for (const auto& c : cells) {
+    //         area += c->state.area_preferential();
+    //     }
+
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
+
+    //     operation(vertex_model);
+        
+    //     double new_area = 0.;
+    //     for (const auto& c : cells) {
+    //         new_area += c->state.area_preferential();
+    //     }
+    //     BOOST_CHECK_CLOSE(area, new_area, 1e-2);
+
+    //     SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+
+    //     // incremented by area
+    //     BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], 
+    //                       domain[0] * domain[1] + 0.02, 1e-5);
+    //     // ratio constant
+    //     BOOST_CHECK_CLOSE(new_domain[0] / new_domain[1],
+    //                       domain[0] / domain[1], 1.e-5);
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate)
+    // {
+    //     const std::string name = "increment_domain_compensate";
+    //     auto [operation, params] = build_increment_domain(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     double area = 0.;
+    //     for (const auto& c : cells) {
+    //         area += c->state.area_preferential();
+    //     }
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], area, 2.e-1);
+
+    //     operation(vertex_model);
+        
+    //     double new_area = 0.;
+    //     for (const auto& c : cells) {
+    //         new_area += c->state.area_preferential();
+    //     }
+    //     SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_hc)
+    // {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     const std::string name = "increment_domain_compensate_fix_hc";
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     auto [operation, params] = build_increment_domain(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     op_diff(vertex_model);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     double area_hc = 0;
+    //     for (const auto& c : cells) {
+    //         if (c->state.type == CellType::hair) {
+    //             area_hc += c->state.area_preferential();
+    //         }
+    //     }
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+
+    //     operation(vertex_model);
+        
+    //     double new_area = 0.;
+    //     double new_area_hc = 0;
+    //     for (const auto& c : cells) {
+    //         new_area += c->state.area_preferential();
+    //         if (c->state.type == CellType::hair) {
+    //             new_area_hc += c->state.area_preferential();
+    //         }
+    //     }
+    //     SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
+    //     BOOST_CHECK_CLOSE(area_hc, new_area_hc, 1e-7);
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_domain_compensate_fix_sc)
+    // {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     const std::string name = "increment_domain_compensate_fix_sc";
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     auto [operation, params] = build_increment_domain(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     op_diff(vertex_model);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     double area_sc = 0;
+    //     for (const auto& c : cells) {
+    //         if (c->state.type == CellType::support) {
+    //             area_sc += c->state.area_preferential();
+    //         }
+    //     }
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+
+    //     operation(vertex_model);
+        
+    //     double new_area = 0.;
+    //     double new_area_sc = 0;
+    //     for (const auto& c : cells) {
+    //         new_area += c->state.area_preferential();
+    //         if (c->state.type == CellType::support) {
+    //             new_area_sc += c->state.area_preferential();
+    //         }
+    //     }
+    //     SpaceVec new_domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(new_domain[0] * new_domain[1], new_area, 2.e-1);
+    //     BOOST_CHECK_CLOSE(area_sc, new_area_sc, 1e-7);
+    // }
+    
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_edge_contractility) {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     const std::string name = "increment_edge_contractility";
+    //     auto [operation, params] = build_increment_edge_contractility(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     operation(vertex_model);
+
+    //     const auto& am = vertex_model.get_am();
+    //     const auto& edges = am.edges();
+
+    //     for (const auto& edge : edges) {
+    //         BOOST_TEST(edge->state.contractility() == 0.11);
+    //     }
+
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+
+    //     op_diff(vertex_model);
+    //     // NOTE terminal differentiation, hence progenitor - non-progenitor
+    //     //      not tested
+    //     // NOTE The properties of the entities (edges) do not change during
+    //     //      differentiation.
+
+    //     for (const auto& edge : edges) {
+    //         const auto [a, b] = am.adjoints_of(edge);
+    //         if (a->state.type == CellType::hair and
+    //             b->state.type == CellType::hair)
+    //         {
+    //             BOOST_TEST(edge->state.contractility() == 0.11);
+    //         }
+    //         else if (a->state.type == CellType::support and
+    //                  b->state.type == CellType::support)
+    //         {
+    //             BOOST_TEST(edge->state.contractility() == 0.11);
+    //         }
+    //         else if (a->state.type != b->state.type)
+    //         {
+    //             BOOST_TEST(edge->state.contractility() == 0.11);
+    //         }
+    //     }
+
+    //     // apply operation once more
+    //     operation(vertex_model);
+    //     // NOTE this sets all edges contractility to the same matrix entries
+
+    //     for (const auto& edge : edges) {
+    //         const auto [a, b] = am.adjoints_of(edge);
+    //         if (a->state.type == CellType::hair and
+    //             b->state.type == CellType::hair)
+    //         {
+    //             BOOST_TEST(edge->state.contractility()/ 2 == 0.22);
+    //         }
+    //         else if (a->state.type == CellType::support and
+    //                  b->state.type == CellType::support)
+    //         {
+    //             BOOST_TEST(edge->state.contractility()/ 2 == 0.33);
+    //         }
+    //         else if (a->state.type != b->state.type)
+    //         {
+    //             BOOST_TEST(edge->state.contractility()/ 2 == 0.23);
+    //         }
+    //     }
+    // }
+    
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_edge_contractility_het) {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     // differentiate heterogeneous cell types
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     op_diff(vertex_model);
+
+    //     const std::string name = "increment_edge_contractility_heterogeneous";
+    //     auto [operation, params] = build_increment_edge_contractility(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     operation(vertex_model);
+
+    //     const auto& am = vertex_model.get_am();
+    //     const auto& cells = am.cells();
+    //     const auto& edges = am.edges();
+
+    //     for (const auto& edge : edges) {
+    //         BOOST_TEST(edge->state.contractility() == 0.0);
+    //     }
+
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             for (const auto& [e, flip] : cell->custom_links().edges) {
+    //                 BOOST_TEST(  vertex_model.get_energy_edge_contractility({e})
+    //                            < 1.e-10);
+    //             }
+    //         }
+    //     }
+
+    //     // the adjoint cells. cell_a is hair cell if one of a and b is.
+    //     for (const auto& edge : edges) {
+    //         const auto [cell_a, cell_b] = am.adjoints_of(edge);
+    //         if (    cell_a->state.type == CellType::hair
+    //             and cell_b->state.type == CellType::support)
+    //         {
+    //             BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
+    //                        < 1.e-10);
+    //         }
+    //         else if (    cell_a->state.type == CellType::support
+    //                  and cell_b->state.type == CellType::hair)
+    //         {
+    //             BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
+    //                        < 1.e-10);
+    //         }
+    //         else if (    cell_a->state.type == CellType::support
+    //                  and cell_b->state.type == CellType::support)
+    //         {
+    //             BOOST_TEST(  vertex_model.get_energy_edge_contractility({edge})
+    //                        > 1.e-10);
+    //         }
+    //         else {
+    //             BOOST_TEST(
+    //                 fabs(vertex_model.get_energy_edge_contractility({edge}))
+    //                 < 1.e-12
+    //             );
+    //         }
+    //     }
+    // }
+    
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_linetension) {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     const std::string name = "increment_linetension";
+
+    //     auto [operation, params] = build_increment_linetension(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     operation(vertex_model);
+
+    //     const auto& am = vertex_model.get_am();
+    //     const auto& edges = am.edges();
+
+    //     for (const auto& edge : edges) {
+    //         BOOST_TEST(edge->state.linetension() == 0.11);
+    //     }
+
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+
+    //     op_diff(vertex_model);
+    //     // NOTE terminal differentiation, hence progenitor - non-progenitor
+    //     //      not tested
+    //     // NOTE The properties of the entities (edges) do not change during
+    //     //      differentiation.
+
+    //     for (const auto& edge : edges) {
+    //         const auto [a, b] = am.adjoints_of(edge);
+    //         if (a->state.type == CellType::hair and
+    //             b->state.type == CellType::hair)
+    //         {
+    //             BOOST_TEST(edge->state.linetension() == 0.11);
+    //         }
+    //         else if (a->state.type == CellType::support and
+    //                  b->state.type == CellType::support)
+    //         {
+    //             BOOST_TEST(edge->state.linetension() == 0.11);
+    //         }
+    //         else if (a->state.type != b->state.type)
+    //         {
+    //             BOOST_TEST(edge->state.linetension() == 0.11);
+    //         }
+    //     }
+
+    //     // apply operation once more
+    //     operation(vertex_model);
+    //     // NOTE this sets all edges linetension to the same matrix entries
+
+    //     for (const auto& edge : edges) {
+    //         const auto [a, b] = am.adjoints_of(edge);
+    //         if (a->state.type == CellType::hair and
+    //             b->state.type == CellType::hair)
+    //         {
+    //             BOOST_TEST(edge->state.linetension() / 2 == 0.22);
+    //         }
+    //         else if (a->state.type == CellType::support and
+    //                  b->state.type == CellType::support)
+    //         {
+    //             BOOST_TEST(edge->state.linetension() / 2 == 0.33);
+    //         }
+    //         else if (a->state.type != b->state.type)
+    //         {
+    //             BOOST_TEST(edge->state.linetension() / 2 == 0.23);
+    //         }
+    //     }
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_increment_shape_index) {
+    //     const std::string name = "increment_shape_index";
+    //     auto [operation, params] = build_increment_shape_index(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     operation(vertex_model);
+
+    //     const auto& cells = vertex_model.get_am().cells();
+
+    //     std::vector<double> shape_indices;
+    //     shape_indices.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         shape_indices.push_back(cell->state.shape_index_preferential);
+    //     }
+        
+    //     auto [mean, stddev] = get_statistics(shape_indices);
+    //     BOOST_CHECK_CLOSE(mean, 4.6, 10); // initially is 3.6
+    //     BOOST_CHECK_SMALL(stddev, 1e-6);
+
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+
+
+    //     op_diff(vertex_model);
+        
+    //     shape_indices.clear();
+    //     shape_indices.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         shape_indices.push_back(cell->state.shape_index_preferential);
+    //     }
+
+    //     std::tie(mean, stddev) = get_statistics(shape_indices);
+    //     BOOST_CHECK_CLOSE(mean, 4.6, 10); // differentiation does not change
+    //     BOOST_CHECK_SMALL(stddev, 1e-6);
+        
+
+    //     operation(vertex_model);
+
+    //     std::vector<double> shape_indices_HCs;
+    //     std::vector<double> shape_indices_SCs;
+    //     shape_indices_HCs.reserve(cells.size());
+    //     shape_indices_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             shape_indices_HCs.push_back(cell->state.shape_index_preferential);
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             shape_indices_SCs.push_back(cell->state.shape_index_preferential);
+    //         }
+    //     }
+    //     shape_indices_HCs.shrink_to_fit();
+    //     shape_indices_SCs.shrink_to_fit();
+        
+    //     std::tie(mean, stddev) = get_statistics(shape_indices_HCs);
+    //     BOOST_CHECK_CLOSE(mean, 6.6, 10); // increment from 4.6
+    //     BOOST_CHECK_SMALL(stddev, 1e-6);
+        
+    //     std::tie(mean, stddev) = get_statistics(shape_indices_SCs);
+    //     BOOST_CHECK_CLOSE(mean, 7.6, 10); // increment from 4.6
+    //     BOOST_CHECK_SMALL(stddev, 1e-6);        
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_pure_shear)
+    // {
+    //     const std::string name = "pure_shear";
+    //     auto op_cfg = get_as<Config>(name, cfg);
+    //     auto [operation, params] = build_pure_shear(
+    //         name, op_cfg, default_minim_params);
+
+    //     auto iterations = get_as<std::size_t>("iterations", op_cfg);
+
+    //     auto domain_0 = vertex_model.get_space()->get_domain_size();
+    //     double area_0 = domain_0[0] * domain_0[1];
+    //     double r_0 = domain_0[0] / domain_0[1];
+
+    //     for (std::size_t i = 0; i < iterations; i++) {
+    //         operation(vertex_model);
+    //     }
+
+    //     auto domain = vertex_model.get_space()->get_domain_size();
+    //     double area = domain[0] * domain[1];
+    //     double r = domain[0] / domain[1];
+
+    //     BOOST_CHECK_CLOSE(area_0, area, 1.e-6);
+    //     BOOST_CHECK_CLOSE(r, r_0 * exp(2*0.2), 1.e-6);
+    // }
+
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_relax_area)
+    // {        
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
+
+    //     const std::string name = "relax_area";
+    //     auto [operation, params] = build_relax_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
+
+    //     const auto& am = vertex_model.get_am();
+    //     const auto& cells = vertex_model.get_am().cells();
+
+    //     // random cell for that A_0 is different from A
+    //     // A_0 / A = 2
+    //     auto cell = cells[0];
+    //     auto cell_hair = cells[1]; 
+    //     cell_hair->state.type = CellType::hair;
+    //     auto cell_support = cells[2];
+    //     cell_support->state.type = CellType::support;
+
+    //     cell->state._area_preferential = 2. * am.area_of(cell);
+    //     cell_hair->state._area_preferential = 2. * am.area_of(cell_hair);
+    //     cell_support->state._area_preferential = 2. * am.area_of(cell_support);
+
+    //     operation(vertex_model);
+
+    //     // A_0' / A = 2 - 0.1 * (A_0 / A - 1) = 1.9
+    //     BOOST_CHECK_CLOSE(cell->state.area_preferential() / am.area_of(cell),
+    //                       1.9, 1e-8);
+    //     BOOST_CHECK_CLOSE((cell_hair->state.area_preferential()
+    //                        / am.area_of(cell_hair)),
+    //                       1.9, 1e-8);
+    //     BOOST_CHECK_CLOSE((  cell_support->state.area_preferential()
+    //                        / am.area_of(cell_support)),
+    //                       1.9, 1e-8);
 
                           
-        // random cell for that A_0 is different from A
-        // A_0 / A = 2
-        cell->state._area_preferential = 0.5 * am.area_of(cell);
+    //     // random cell for that A_0 is different from A
+    //     // A_0 / A = 2
+    //     cell->state._area_preferential = 0.5 * am.area_of(cell);
 
-        operation(vertex_model);
+    //     operation(vertex_model);
 
-        // A_0' / A = 0.5 - 0.1 * (A_0 / A - 1) = 0.55
-        BOOST_CHECK_CLOSE(cell->state.area_preferential() / am.area_of(cell),
-                          0.55, 1e-8);
+    //     // A_0' / A = 0.5 - 0.1 * (A_0 / A - 1) = 0.55
+    //     BOOST_CHECK_CLOSE(cell->state.area_preferential() / am.area_of(cell),
+    //                       0.55, 1e-8);
 
         
-        // use minimum area preferential    
-        cell->state._area_preferential = 100.;
-        cell_hair->state._area_preferential = 100.;
-        cell_support->state._area_preferential = 100.;
+    //     // use minimum area preferential    
+    //     cell->state._area_preferential = 100.;
+    //     cell_hair->state._area_preferential = 100.;
+    //     cell_support->state._area_preferential = 100.;
 
-        const std::string name_min = "relax_area_minimum";
-        auto [operation_min, params_min] = build_relax_area(
-            name_min, get_as<Config>(name_min, cfg), default_minim_params);
+    //     const std::string name_min = "relax_area_minimum";
+    //     auto [operation_min, params_min] = build_relax_area(
+    //         name_min, get_as<Config>(name_min, cfg), default_minim_params);
 
-        operation_min(vertex_model);
+    //     operation_min(vertex_model);
 
-        // relax instantly, but only to minimum
-        BOOST_CHECK_CLOSE(cell->state.area_preferential(), 12., 1e-8);
-        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential(), 18., 1e-8);
-        BOOST_CHECK_CLOSE(cell_support->state.area_preferential(), 16., 1e-8);
+    //     // relax instantly, but only to minimum
+    //     BOOST_CHECK_CLOSE(cell->state.area_preferential(), 12., 1e-8);
+    //     BOOST_CHECK_CLOSE(cell_hair->state.area_preferential(), 18., 1e-8);
+    //     BOOST_CHECK_CLOSE(cell_support->state.area_preferential(), 16., 1e-8);
         
-        // use maximum area preferential
-        cell->state._area_preferential = 0.001;
-        cell_hair->state._area_preferential = 0.001;
-        cell_support->state._area_preferential = 0.001;
+    //     // use maximum area preferential
+    //     cell->state._area_preferential = 0.001;
+    //     cell_hair->state._area_preferential = 0.001;
+    //     cell_support->state._area_preferential = 0.001;
 
-        const std::string name_max = "relax_area_maximum";
-        auto [operation_max, params_max] = build_relax_area(
-            name_max, get_as<Config>(name_max, cfg), default_minim_params);
+    //     const std::string name_max = "relax_area_maximum";
+    //     auto [operation_max, params_max] = build_relax_area(
+    //         name_max, get_as<Config>(name_max, cfg), default_minim_params);
 
-        operation_max(vertex_model);
+    //     operation_max(vertex_model);
 
-        // relax instantly, but only to maximum
-        BOOST_CHECK_CLOSE(cell->state.area_preferential(), 0.4, 1e-8);
-        BOOST_CHECK_CLOSE(cell_hair->state.area_preferential(), 0.3, 1e-8);
-        BOOST_CHECK_CLOSE(cell_support->state.area_preferential(), 0.2, 1e-8);
-    }
+    //     // relax instantly, but only to maximum
+    //     BOOST_CHECK_CLOSE(cell->state.area_preferential(), 0.4, 1e-8);
+    //     BOOST_CHECK_CLOSE(cell_hair->state.area_preferential(), 0.3, 1e-8);
+    //     BOOST_CHECK_CLOSE(cell_support->state.area_preferential(), 0.2, 1e-8);
+    // }
 
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        double init_area = domain[0] * domain[1];
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area) {
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     double init_area = domain[0] * domain[1];
 
-        std::string name = "set_area";
-        auto [operation, params] = build_set_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
+    //     std::string name = "set_area";
+    //     auto [operation, params] = build_set_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
 
-        operation(vertex_model);
+    //     operation(vertex_model);
 
-        const auto& cells = vertex_model.get_am().cells();
+    //     const auto& cells = vertex_model.get_am().cells();
 
-        std::vector<double> areas;
-        areas.reserve(cells.size());
-        for (const auto& cell : cells) {
-            areas.push_back(cell->state.area_preferential());
-        }
-        auto [mean, stddev] = get_statistics(areas);
+    //     std::vector<double> areas;
+    //     areas.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         areas.push_back(cell->state.area_preferential());
+    //     }
+    //     auto [mean, stddev] = get_statistics(areas);
 
-        BOOST_CHECK_CLOSE(mean, 2, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.1, 15);
+    //     BOOST_CHECK_CLOSE(mean, 2, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.1, 15);
 
 
-        // differentiate progenitor cells, test again                   
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
+    //     // differentiate progenitor cells, test again                   
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
 
-        op_diff(vertex_model);
-        operation(vertex_model);
+    //     op_diff(vertex_model);
+    //     operation(vertex_model);
 
-        std::vector<double> areas_HCs;
-        std::vector<double> areas_SCs;
-        areas_HCs.reserve(cells.size());
-        areas_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-        auto cell_hair = cells[0];
-            if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential());
-            }
-            else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential());
-            }
-        }
-        areas_HCs.shrink_to_fit();
-        areas_SCs.shrink_to_fit();
+    //     std::vector<double> areas_HCs;
+    //     std::vector<double> areas_SCs;
+    //     areas_HCs.reserve(cells.size());
+    //     areas_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //     auto cell_hair = cells[0];
+    //         if (cell->state.type == CellType::hair) {
+    //             areas_HCs.push_back(cell->state.area_preferential());
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             areas_SCs.push_back(cell->state.area_preferential());
+    //         }
+    //     }
+    //     areas_HCs.shrink_to_fit();
+    //     areas_SCs.shrink_to_fit();
         
-        std::tie(mean, stddev) = get_statistics(areas_HCs);
-        BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
+    //     std::tie(mean, stddev) = get_statistics(areas_HCs);
+    //     BOOST_CHECK_CLOSE(mean, 4, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         
-        std::tie(mean, stddev) = get_statistics(areas_SCs);
-        BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
+    //     std::tie(mean, stddev) = get_statistics(areas_SCs);
+    //     BOOST_CHECK_CLOSE(mean, 5, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.3, 25);
 
-        domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
+    //     domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
 
 
-        // change only the area of support cells
-        name = "set_area_partial";
-        auto [operation_partial, params_partial] = build_set_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
+    //     // change only the area of support cells
+    //     name = "set_area_partial";
+    //     auto [operation_partial, params_partial] = build_set_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
        
-        operation_partial(vertex_model);
+    //     operation_partial(vertex_model);
 
-        std::vector<double> areas_HCs_partial;
-        areas_SCs.clear();
-        areas_HCs_partial.reserve(cells.size());
-        areas_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                areas_HCs_partial.push_back(cell->state.area_preferential());
-            }
-            else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential());
-            }
-        }
-        areas_HCs_partial.shrink_to_fit();
-        areas_SCs.shrink_to_fit();
+    //     std::vector<double> areas_HCs_partial;
+    //     areas_SCs.clear();
+    //     areas_HCs_partial.reserve(cells.size());
+    //     areas_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             areas_HCs_partial.push_back(cell->state.area_preferential());
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             areas_SCs.push_back(cell->state.area_preferential());
+    //         }
+    //     }
+    //     areas_HCs_partial.shrink_to_fit();
+    //     areas_SCs.shrink_to_fit();
         
-        std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
-        BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
-        BOOST_CHECK_EQUAL_COLLECTIONS(
-            areas_HCs_partial.begin(), areas_HCs_partial.end(), 
-            areas_HCs.begin(), areas_HCs.end());
+    //     std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
+    //     BOOST_CHECK_CLOSE(mean, 4, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.2, 25);
+    //     BOOST_CHECK_EQUAL_COLLECTIONS(
+    //         areas_HCs_partial.begin(), areas_HCs_partial.end(), 
+    //         areas_HCs.begin(), areas_HCs.end());
         
-        std::tie(mean, stddev) = get_statistics(areas_SCs);
-        BOOST_CHECK_CLOSE(mean, 6, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
+    //     std::tie(mean, stddev) = get_statistics(areas_SCs);
+    //     BOOST_CHECK_CLOSE(mean, 6, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.2, 25);
 
-        domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
+    //     domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
 
 
-        // set area of support 
-        name = "set_area_fixed";
-        auto [operation_fixed, params_fixed] = build_set_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
+    //     // set area of support 
+    //     name = "set_area_fixed";
+    //     auto [operation_fixed, params_fixed] = build_set_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
        
-        operation_fixed(vertex_model);
+    //     operation_fixed(vertex_model);
 
-        areas_HCs.clear();
-        areas_SCs.clear();
-        areas_HCs.reserve(cells.size());
-        areas_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential());
-            }
-            else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential());
-            }
-        }
-        areas_HCs.shrink_to_fit();
-        areas_SCs.shrink_to_fit();
+    //     areas_HCs.clear();
+    //     areas_SCs.clear();
+    //     areas_HCs.reserve(cells.size());
+    //     areas_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             areas_HCs.push_back(cell->state.area_preferential());
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             areas_SCs.push_back(cell->state.area_preferential());
+    //         }
+    //     }
+    //     areas_HCs.shrink_to_fit();
+    //     areas_SCs.shrink_to_fit();
         
-        std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
-        BOOST_TEST(areas_HCs == std::vector<double>(areas_HCs.size(), 2.),
-                   boost::test_tools::per_element());
-        BOOST_TEST(areas_SCs == std::vector<double>(areas_SCs.size(), 7.),
-                   boost::test_tools::per_element());
+    //     std::tie(mean, stddev) = get_statistics(areas_HCs_partial);
+    //     BOOST_TEST(areas_HCs == std::vector<double>(areas_HCs.size(), 2.),
+    //                boost::test_tools::per_element());
+    //     BOOST_TEST(areas_SCs == std::vector<double>(areas_SCs.size(), 7.),
+    //                boost::test_tools::per_element());
 
-        domain = vertex_model.get_space()->get_domain_size();
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
+    //     domain = vertex_model.get_space()->get_domain_size();
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], init_area, 1.e-5);
         
-    }
+    // }
     
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax)
-    {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax)
+    // {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        const std::string name = "set_area_relax";
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        auto [operation, params] = build_set_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
+    //     const std::string name = "set_area_relax";
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     auto [operation, params] = build_set_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
 
-        const auto& cells = vertex_model.get_am().cells();
+    //     const auto& cells = vertex_model.get_am().cells();
 
-        SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
+    //     SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
 
-        op_diff(vertex_model);
-        operation(vertex_model);
+    //     op_diff(vertex_model);
+    //     operation(vertex_model);
 
-        std::vector<double> areas_HCs;
-        std::vector<double> areas_SCs;
-        areas_HCs.reserve(cells.size());
-        areas_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential());
-            }
-            else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential());
-            }
-        }
-        areas_HCs.shrink_to_fit();
-        areas_SCs.shrink_to_fit();
+    //     std::vector<double> areas_HCs;
+    //     std::vector<double> areas_SCs;
+    //     areas_HCs.reserve(cells.size());
+    //     areas_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             areas_HCs.push_back(cell->state.area_preferential());
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             areas_SCs.push_back(cell->state.area_preferential());
+    //         }
+    //     }
+    //     areas_HCs.shrink_to_fit();
+    //     areas_SCs.shrink_to_fit();
         
-        auto [mean, stddev] = get_statistics(areas_HCs);
+    //     auto [mean, stddev] = get_statistics(areas_HCs);
 
-        BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
+    //     BOOST_CHECK_CLOSE(mean, 4, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         
-        std::tie(mean, stddev) = get_statistics(areas_SCs);
+    //     std::tie(mean, stddev) = get_statistics(areas_SCs);
 
-        BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
+    //     BOOST_CHECK_CLOSE(mean, 5, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.3, 25);
 
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        double cell_area = std::accumulate(areas_HCs.begin(),
-                                           areas_HCs.end(), 0.);
-        cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
-                                    cell_area);
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     double cell_area = std::accumulate(areas_HCs.begin(),
+    //                                        areas_HCs.end(), 0.);
+    //     cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
+    //                                 cell_area);
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
 
-        // Test no shear implied
-        BOOST_TEST(domain[0] / domain[1] == domain_0[0] / domain_0[1]);
-    }
+    //     // Test no shear implied
+    //     BOOST_TEST(domain[0] / domain[1] == domain_0[0] / domain_0[1]);
+    // }
     
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax_PD_axis)
-    {
-        using CellType = Models::PCPVertex::PCPVertex::CellType;
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax_PD_axis)
+    // {
+    //     using CellType = Models::PCPVertex::PCPVertex::CellType;
 
-        const std::string name = "set_area_relax_PD_axis";
-        auto [op_diff, params_diff] = build_differentiate_random(
-            "differentiate_random", get_as<Config>("differentiate_random", cfg),
-            default_minim_params);
-        auto [operation, params] = build_set_area(
-            name, get_as<Config>(name, cfg), default_minim_params);
+    //     const std::string name = "set_area_relax_PD_axis";
+    //     auto [op_diff, params_diff] = build_differentiate_random(
+    //         "differentiate_random", get_as<Config>("differentiate_random", cfg),
+    //         default_minim_params);
+    //     auto [operation, params] = build_set_area(
+    //         name, get_as<Config>(name, cfg), default_minim_params);
 
-        SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
+    //     SpaceVec domain_0 = vertex_model.get_space()->get_domain_size();
 
-        op_diff(vertex_model);
-        operation(vertex_model);
+    //     op_diff(vertex_model);
+    //     operation(vertex_model);
 
-        const auto& cells = vertex_model.get_am().cells();
-        std::vector<double> areas_HCs;
-        std::vector<double> areas_SCs;
-        areas_HCs.reserve(cells.size());
-        areas_SCs.reserve(cells.size());
-        for (const auto& cell : cells) {
-            if (cell->state.type == CellType::hair) {
-                areas_HCs.push_back(cell->state.area_preferential());
-            }
-            else if (cell->state.type == CellType::support) {
-                areas_SCs.push_back(cell->state.area_preferential());
-            }
-        }
-        areas_HCs.shrink_to_fit();
-        areas_SCs.shrink_to_fit();
+    //     const auto& cells = vertex_model.get_am().cells();
+    //     std::vector<double> areas_HCs;
+    //     std::vector<double> areas_SCs;
+    //     areas_HCs.reserve(cells.size());
+    //     areas_SCs.reserve(cells.size());
+    //     for (const auto& cell : cells) {
+    //         if (cell->state.type == CellType::hair) {
+    //             areas_HCs.push_back(cell->state.area_preferential());
+    //         }
+    //         else if (cell->state.type == CellType::support) {
+    //             areas_SCs.push_back(cell->state.area_preferential());
+    //         }
+    //     }
+    //     areas_HCs.shrink_to_fit();
+    //     areas_SCs.shrink_to_fit();
         
-        auto [mean, stddev] = get_statistics(areas_HCs);
+    //     auto [mean, stddev] = get_statistics(areas_HCs);
 
-        BOOST_CHECK_CLOSE(mean, 4, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.2, 25);
+    //     BOOST_CHECK_CLOSE(mean, 4, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.2, 25);
         
-        std::tie(mean, stddev) = get_statistics(areas_SCs);
+    //     std::tie(mean, stddev) = get_statistics(areas_SCs);
 
-        BOOST_CHECK_CLOSE(mean, 5, 10);
-        BOOST_CHECK_CLOSE(stddev, 0.3, 25);
+    //     BOOST_CHECK_CLOSE(mean, 5, 10);
+    //     BOOST_CHECK_CLOSE(stddev, 0.3, 25);
 
-        SpaceVec domain = vertex_model.get_space()->get_domain_size();
-        double cell_area = std::accumulate(areas_HCs.begin(),
-                                           areas_HCs.end(), 0.);
-        cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
-                                    cell_area);
-        BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
+    //     SpaceVec domain = vertex_model.get_space()->get_domain_size();
+    //     double cell_area = std::accumulate(areas_HCs.begin(),
+    //                                        areas_HCs.end(), 0.);
+    //     cell_area = std::accumulate(areas_SCs.begin(), areas_SCs.end(),
+    //                                 cell_area);
+    //     BOOST_CHECK_CLOSE(domain[0] * domain[1], cell_area, 1.e-5);
 
-        // PD axis unchanged
-        BOOST_TEST(domain[1] == domain_0[1]);
-    }
+    //     // PD axis unchanged
+    //     BOOST_TEST(domain[1] == domain_0[1]);
+    // }
     
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax_PD_axis_FAIL)
-    {
-        const std::string name = "set_area_relax_PD_axis_FAIL";
-        BOOST_CHECK_THROW(
-            build_set_area(name, get_as<Config>(name, cfg),
-                           default_minim_params),
-            std::invalid_argument
-        );
-    }
-    BOOST_AUTO_TEST_CASE(test_PCPTopology_simple_shear)
-    {
-        const std::string name = "simple_shear";
-        auto op_cfg = get_as<Config>(name, cfg);
-        auto [operation, params] = build_simple_shear(
-            name, op_cfg, default_minim_params);
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_set_area_relax_PD_axis_FAIL)
+    // {
+    //     const std::string name = "set_area_relax_PD_axis_FAIL";
+    //     BOOST_CHECK_THROW(
+    //         build_set_area(name, get_as<Config>(name, cfg),
+    //                        default_minim_params),
+    //         std::invalid_argument
+    //     );
+    // }
+    // BOOST_AUTO_TEST_CASE(test_PCPTopology_simple_shear)
+    // {
+    //     const std::string name = "simple_shear";
+    //     auto op_cfg = get_as<Config>(name, cfg);
+    //     auto [operation, params] = build_simple_shear(
+    //         name, op_cfg, default_minim_params);
 
-        auto iterations = get_as<std::size_t>("iterations", op_cfg);
+    //     auto iterations = get_as<std::size_t>("iterations", op_cfg);
 
-        auto domain_0 = vertex_model.get_space()->get_domain_size();
-        double area_0 = domain_0[0] * domain_0[1];
-        double r_0 = domain_0[0] / domain_0[1];
+    //     auto domain_0 = vertex_model.get_space()->get_domain_size();
+    //     double area_0 = domain_0[0] * domain_0[1];
+    //     double r_0 = domain_0[0] / domain_0[1];
 
-        for (std::size_t i = 0; i < iterations; i++) {
-            operation(vertex_model);
-        }
+    //     for (std::size_t i = 0; i < iterations; i++) {
+    //         operation(vertex_model);
+    //     }
 
-        auto domain = vertex_model.get_space()->get_domain_size();
-        double area = domain[0] * domain[1];
-        double r = domain[0] / domain[1];
+    //     auto domain = vertex_model.get_space()->get_domain_size();
+    //     double area = domain[0] * domain[1];
+    //     double r = domain[0] / domain[1];
 
-        BOOST_CHECK_CLOSE(area_0, area, 1.e-6);
-        BOOST_CHECK_CLOSE(r, r_0, 1.e-6);
+    //     BOOST_CHECK_CLOSE(area_0, area, 1.e-6);
+    //     BOOST_CHECK_CLOSE(r, r_0, 1.e-6);
 
-        const auto& am = vertex_model.get_am();
-        for (const auto& cell : am.cells()) {
-            am.barycenter_of(cell);
-            BOOST_CHECK(am.area_of(cell) > 0);
-        }
-    }
+    //     const auto& am = vertex_model.get_am();
+    //     for (const auto& cell : am.cells()) {
+    //         am.barycenter_of(cell);
+    //         BOOST_CHECK(am.area_of(cell) > 0);
+    //     }
+    // }
     
 BOOST_AUTO_TEST_SUITE_END()

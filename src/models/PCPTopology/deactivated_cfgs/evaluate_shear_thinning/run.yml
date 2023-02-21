@@ -98,7 +98,7 @@ parameter_space:
           adapt_support: True
 
           minimization:
-            linetension_fluctuation: !sweep
+            linetension_fluctuations: !sweep
               name: dL
               order: 2
               default: 0.06
@@ -115,7 +115,10 @@ parameter_space:
       
       # Minimize the energy using different fluctuation intensities
       - simple_shear:
-          times: !listgen [10001]
+          times:
+            start: 1
+            stop: 100000
+            step: 1
           iterations: !coupled-sweep
             target_name: vxx
             name: iterations
@@ -158,7 +161,7 @@ parameter_space:
           absolute_shear_velocity: true
 
           minimization:
-            linetension_fluctuation: !coupled-sweep
+            linetension_fluctuations: !coupled-sweep
               target_name: dL
               name: dL_
             num_repeat: 1
@@ -170,8 +173,8 @@ parameter_space:
       dt: 0.05  # this was evaluated in the previous test to be a good dt
       num_steps: 20
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.02
-      linetension_fluctuation_tau: &tau_dL 24
+      linetension_fluctuations: 0.02
+      linetension_fluctuations_tau: &tau_dL 24
       num_repeat: *tau_dL
 
     PCPVertex:

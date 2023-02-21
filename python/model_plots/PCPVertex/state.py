@@ -18,6 +18,7 @@ from scipy.interpolate import griddata
 
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
+from utopya.tools import recursive_update
 
 from ..tools import save_and_close
 
@@ -53,16 +54,12 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         ValueError: On mismatch of data shapes
     """
     # Get the data
-    energy = uni['data'][model_name]['Energy']['Total']
-    linetension = uni['data'][model_name]['Energy']['Linetension']
-    cell_contractility = uni['data'][model_name]['Energy']['Cell_contractility']
-    edge_contractility = uni['data'][model_name]['Energy']['Edge_contractility']
-    areaelasticity = uni['data'][model_name]['Energy']['Areaelasticity']
+    energy = uni['data'][model_name]['Energy']['Terms']
     
-    transitions = uni['data'][model_name]['Energy/transitions']
-    num_T1s = transitions.sel(property="num_T1s")
-    num_T1s_attempted = transitions.sel(property="num_T1s_attempted")
-    num_T2s = transitions.sel(property="num_T2s")
+    transitions = uni['data'][model_name]['Energy/Transitions']
+    num_T1s = transitions.sel(type="num_T1s")
+    num_T1s_attempted = transitions.sel(type="num_T1s_attempted")
+    num_T2s = transitions.sel(type="num_T2s")
     if cumsum_transitions:
         num_T1s = num_T1s.cumsum()
         num_T1s_attempted = num_T1s_attempted.cumsum()
@@ -71,16 +68,12 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
     # Create the line plot of energy
     ax1 = hlpr.ax
-    ax1.plot(energy.time, energy,
-             label='total', alpha=0.5)
-    ax1.plot(linetension.time, linetension,
-             label='linetension', alpha=0.5)
-    ax1.plot(cell_contractility.time, cell_contractility,
-             label='cell contractility', alpha=0.5)
-    ax1.plot(edge_contractility.time, edge_contractility,
-             label='edge contractility', alpha=0.5)
-    ax1.plot(areaelasticity.time, areaelasticity, 
-             label='areaelasticity', alpha=0.5)
+    ax1.plot(
+        energy.time,
+        energy,
+        hue='terms',
+        alpha=0.5,
+    )
 
     ax1.set_xlabel("Time [steps]")
     ax1.set_ylabel("Energy [a.u.]")
@@ -111,34 +104,36 @@ def transitions(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.fig.tight_layout()
 
 
-@is_plot_func(creator_type=UniversePlotCreator, supports_animation=True)
-def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
-                       datapath: str='PCPVertex', cfgpath: str='PCPVertex',
-                       select_times: list=None,
-                       cell_marker_size: int=60,
-                       cell_marker_colors: Tuple[str, str]=['gray', 'r'],
-                       plot_vertices: bool=False,
-                       plot_excess_length: float=1.,
-                       property: dict=None,
-                       property_label: str=None,
-                       property_path: str=None,
-                       property_hair_cells_only: bool=False,
-                       property_support_cells_only: bool=False,
-                       property_bulk_cells_only: bool=False,
-                       property_interpolation_kwargs: dict={},
-                       property_interpolation_plot_kwargs: dict={},
-                       property_ignore_nan: bool=False,
-                       property_resolution: Tuple[int, int]=[512,512],
-                       edge_property_path: str=None,
-                       edge_property: dict=None,
-                       edge_property_split: Tuple[dict, dict]=None,
-                       quiver_kwargs: dict=None,
-                       vector_property: dict=None,
-                       vector_property_path: str=None,
-                       vector_property_kwargs: dict=None,
-                       vector_property_is_nematic: bool=False,
-                       vector_property_hair_cells_only: bool=False,
-                       vector_property_support_cells_only: bool=False,):
+@is_plot_func(
+    creator_type=UniversePlotCreator,
+    use_dag=True,
+    required_dag_tags=(
+        'Vertices',
+        'Edges',
+        'Cells',
+        'periodic',
+        'Lx',
+        'Ly'
+    ),
+    compute_only_required_dag_tags=False,
+    supports_animation=True
+)
+def cellular_structure(
+    *,
+    data: dict,
+    hlpr: PlotHelper,
+    select_times: list=None,
+    cell_center_marker_kwargs: dict=None,
+    plot_vertices: bool=False,
+    plot_excess_length: float=1.,
+    property_interpolation_kwargs: dict=None,
+    property_interpolation_plot_kwargs: dict=None,
+    property_resolution: Tuple[int, int]=[512,512],
+    quiver_kwargs: dict=None,
+    vector_property_kwargs: dict=None,
+    vector_property_is_nematic: bool=False,
+    set_limits: dict=None,
+):
     """Performs a plot of the cells, edges and vertices
     
     Args:
@@ -149,8 +144,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         cfgpath (str): Path to the vertex model's configuration
         select_times (list, optional): Timepoints to select for plotting.
             If None, all timepoints are plotted
-        cell_marker_size (int, default 60): Marker size for the cell-centers.
-            Only used for HCs (red) and SCs (gray).
+        cell_center_marker_kwargs (dict): Forwarded to ax.scatter for cell
+            centers. Can have additional colors argument that will be used to
+            define colors of cells
         plot_vertices (bool, default: false): Whether to plot the vertices
         property_grp (str, optional)
         property (str, optional): An additional cell property to plot. Data is 
@@ -198,23 +194,48 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                             bottom=.5-ylim,
                             top=.5+ylim)
 
+    _cell_center_marker_kwargs = dict({
+        's': 40,
+        'linewidth': 0,
+        'alpha': 0.5,
+        'colors': ['white', 'r', 'gray']
+    })
+    if cell_center_marker_kwargs is not None:
+        _cell_center_marker_kwargs = recursive_update(
+            _cell_center_marker_kwargs,
+            cell_center_marker_kwargs
+        )
+    cell_marker_colors = _cell_center_marker_kwargs.pop('colors')
 
-    # Get the group that all datasets are in
-    grp = uni['data/'+datapath]
-    # Get the shape of the data
-    uni_cfg = uni['cfg']
-    vertex_cfg = uni_cfg
-    for level in cfgpath.split('/'):
-        vertex_cfg = vertex_cfg[level]
-
+    _property_interpolation_kwargs=dict({})
+    if property_interpolation_kwargs is not None:
+        _property_interpolation_kwargs = recursive_update(
+            _property_interpolation_kwargs,
+            property_interpolation_kwargs
+        )
+    _property_interpolation_plot_kwargs=dict({})
+    if property_interpolation_plot_kwargs is not None:
+        _property_interpolation_plot_kwargs = recursive_update(
+            _property_interpolation_plot_kwargs,
+            property_interpolation_plot_kwargs
+        )
 
     # Prepare the figure ......................................................
     # Prepare the figure to have as many columns as there are properties
     hlpr.setup_figure()
 
+    
+    # Dynamically provide some information to the plot helper
+    hlpr.provide_defaults('set_title',
+                            title="My data at time {}".format(0))
+    hlpr.provide_defaults('set_labels', y=dict(label="My data"))
+    hlpr.provide_defaults('set_limits', y=[0, 1])
+
     def update():
         global cbar
         cbar = None
+        global edges_cbar
+        edges_cbar = None
 
         # the domain extent for non periodic boundaries (centered on (0., 0.))
         domain_size_min_x = 0.
@@ -222,54 +243,46 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
         domain_size_min_y = 0.
         domain_size_max_y = 0.
 
-        if (not vertex_cfg['space']['periodic']):
+        if (not data['periodic']):
             domain_size_min_x =  1000000.
             domain_size_max_x = -1000000.
             domain_size_min_y =  1000000.
             domain_size_max_y = -1000000.
-            for time in grp['Vertices']:
-                domain_size_min_x = min(
-                    domain_size_min_x,
-                    grp['Vertices'][time].sel(property="x").min())
-                domain_size_max_x = max(
-                    domain_size_max_x,
-                    grp['Vertices'][time].sel(property="x").max())
-                domain_size_min_y = min(
-                    domain_size_min_y,
-                    grp['Vertices'][time].sel(property="y").min())
-                domain_size_max_y = max(
-                    domain_size_max_y,
-                    grp['Vertices'][time].sel(property="y").max())
+            domain_size_min_x = min(
+                domain_size_min_x,
+                data['Vertices'].sel(property="x").min())
+            domain_size_max_x = max(
+                domain_size_max_x,
+                data['Vertices'].sel(property="x").max())
+            domain_size_min_y = min(
+                domain_size_min_y,
+                data['Vertices'].sel(property="y").min())
+            domain_size_max_y = max(
+                domain_size_max_y,
+                data['Vertices'].sel(property="y").max())
 
         if select_times is not None:
-            times = [str(time) for time in select_times]
+            times = select_times
         else:
-            times = [time for time in grp['Vertices']]
+            times = np.unique(data['Vertices'].coords['time'])
 
         for time in times:
             hlpr.ax.clear()
 
             if cbar is not None: 
                 cbar.remove()
+
+            if edges_cbar is not None: 
+                edges_cbar.remove()
             hlpr.ax.set_aspect('auto')
-            
-            if not time in grp['Vertices']:
-                log.warning("Requested time {} is not available in data. "
-                            "Available timepoints: {}."
-                            "Continuing ..."
-                            "".format(time,
-                                      [int(time) for time in grp['Vertices']]))
-                hlpr.invoke_helper('set_title', title="Time {}".format(time))
-                yield
-                continue
-            
-            v_data = grp['Vertices'][time]
-            e_data = grp['Edges'][time]
-            c_data = grp['Cells'][time]
-            
-            Lx = v_data.attrs["Lx"][0]
-            Ly = v_data.attrs["Ly"][0]
-            if (vertex_cfg['space']['periodic']):
+
+            v_data = data['Vertices'].sel(time=time)
+            e_data = data['Edges'].sel(time=time)
+            c_data = data['Cells'].sel(time=time)
+
+            Lx = data['Lx'].sel(time=time).data
+            Ly = data['Ly'].sel(time=time).data
+            if data['periodic']:
                 domain_size_max_x = Lx
                 domain_size_max_y = Ly
             
@@ -294,7 +307,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 hlpr.ax.scatter(v_data.sel(property="x"),
                                 v_data.sel(property="y"),
                                 c="black")
-                if vertex_cfg['space']['periodic']:
+                if data['periodic']:
                     ax = v_data.sel(property="x")
                     ay = v_data.sel(property="y")
                     l = plot_excess_length
@@ -328,8 +341,20 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
             ### plot edges
             # the ids of the vertices a and b of the edges
-            vertex_a = e_data.sel(property="vertex_a")
-            vertex_b = e_data.sel(property="vertex_b")
+            vertex_a = e_data.sel(property="vertex_a").dropna(dim='id').astype(int)
+            vertex_b = e_data.sel(property="vertex_b").dropna(dim='id').astype(int)
+
+            # for id in vertex_a.squeeze().data:
+            #     if not id in v_data.id:
+            #         e_data = e_data.where(e_data!=id, drop=True)
+            # for id in vertex_b.squeeze().data:
+            #     if not id in v_data.id:
+            #         e_data = e_data.where(e_data!=id, drop=True)
+            #     # print(v_data.sel(id=vertex_a))
+            # e_data = e_data.dropna(dim='id')
+
+            # vertex_a = e_data.sel(property="vertex_a").dropna(dim='id').astype(int)
+            # vertex_b = e_data.sel(property="vertex_b").dropna(dim='id').astype(int)
 
             # the coordinates of vertices a and b in the set of edges
             ax = v_data.sel(id=vertex_a, property='x')
@@ -344,7 +369,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             by = by.assign_coords(id=vertex_b.id)
 
             def displacement(ax, ay, bx, by):
-                if not vertex_cfg['space']['periodic']:
+                if not data['periodic']:
                     return bx - ax, by - ay
                 
                 if abs(curvature) < 1.e-12:
@@ -390,9 +415,9 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             dx, dy = displacement(ax, ay, bx, by)
 
             def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
-                global cbar
+                global edges_cbar
 
-                if vertex_cfg['space']['periodic']:
+                if data['periodic']:
                     # only plot within box + excess length
                     x = xr.where(x > -2 * plot_excess_length, x, np.nan)
                     x = xr.where(x < Lx + 2 * plot_excess_length, x, np.nan)
@@ -403,49 +428,42 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 _quiver_kwargs = dict(headlength=0., headaxislength=0.,
                                     headwidth=0., scale=1, scale_units='xy',
                                     color='black')
-                if quiver_kwargs:
+                if quiver_kwargs is not None:
                     _quiver_kwargs.update(quiver_kwargs)
             
                 # for the color of the edges
-                if edge_property is not None:
-                    if edge_property_path is not None:
-                        if not edge_property_path in grp:
-                            raise ValueError("Failed to access property of edges at path "
-                                "'data/{}/{}' (relative to '{}'. Available paths: {}"
-                                "".format(datapath, edge_property_path, datapath, grp.keys())
-                            )
-                        if not time in grp[edge_property_path]:
-                            raise ValueError('No edge property data available at time {}.'
-                                            ''.format(time))
-                        e_prop_data = grp[edge_property_path][time]
-                    else:
-                        e_prop_data = e_data
-
-                    e_prop_data = e_prop_data.sel(**edge_property).squeeze()
-                    
-                    if edge_property_split is None:
+                if 'edge_property' in data:
+                    e_prop_data = data['edge_property'].sel(time=time, id=x.id)
+                    e_prop_dims = [d for d in e_prop_data.dims if d != 'id']
+                    # Assign property to every cell
+                    if not 'x' in e_prop_data.coords or not 'y' in e_prop_data.coords:
+                        if not 'id' in e_prop_data.dims:
+                            raise ValueError("Expected `id` in property_data dims "
+                                "(were {}).", e_prop_data.dims)
+                    if len(e_prop_dims) == 0:
                         # append coloring
                         quiver_args.append(e_prop_data)
 
                         quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
                         if colorbar:
-                            cbar = hlpr.fig.colorbar(
-                                quiver, ax=hlpr.ax, extend='both'
+                            edges_cbar = hlpr.fig.colorbar(
+                                quiver, ax=hlpr.ax, extend='both',
+                                fraction=0.046, pad=0.04
                             )
-                            cbar.set_label(label=_quiver_kwargs.get(
-                                'label', list(edge_property.values())[0]))
-                            cbar.minorticks_on()
+                            edges_cbar.set_label(e_prop_data.name)
+                            edges_cbar.minorticks_on()
 
-                    else:
+                    elif len(e_prop_dims) == 1:
+                        e_prop_dim=e_prop_dims[0]
                         __quiver_kwargs = dict(cmap='seismic')
                         __quiver_kwargs.update(_quiver_kwargs)
 
-
-                        if len(edge_property_split) % 2 != 0:
+                        e_prop_coords=e_prop_data.coords[e_prop_dim].data
+                        if len(e_prop_coords) % 2 != 0:
                             raise RuntimeError("Edge split property not mod 2")
                         
-                        N = int(len(edge_property_split) / 2)
+                        N = int(len(e_prop_coords) / 2)
 
                         length = (dx**2 + dy**2)**0.5
                         shift_x = 0.03 * -dy / length
@@ -455,31 +473,34 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                         for i in range(0, N):
                             _x = x + dx / N * i
                             _y = y + dy / N * i
+                            name_0=e_prop_coords[i]
+                            name_1=e_prop_coords[N+i]
                             hlpr.ax.quiver(
                                 _x+shift_x, _y+shift_y, dx / N, dy / N, 
-                                e_prop_data.sel(**edge_property_split[i]),
+                                e_prop_data.sel({e_prop_dim: name_0}),
                                 **__quiver_kwargs)
 
                             quiver = hlpr.ax.quiver(
                                 _x-shift_x, _y-shift_y, dx / N, dy / N, 
-                                e_prop_data.sel(**edge_property_split[N + i]),
+                                e_prop_data.sel({e_prop_dim: name_1}),
                                 **__quiver_kwargs)
                         
                         if colorbar:
-                            cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
+                            edges_cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
                                                      extend='both')
-                            cbar.set_label(label=edge_property)
-                            cbar.minorticks_on()
+                            edges_cbar.set_label(e_prop_data.name)
+                            edges_cbar.minorticks_on()
+                    else:
+                        raise
 
                 else:
                     quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
 
 
-
             quiver_and_colors(ax, ay, dx, dy, colorbar=True)
 
             ### plot duplicates of periodic edges
-            if vertex_cfg['space']['periodic'] and curvature < 1.e-12:
+            if data['periodic'] and curvature < 1.e-12:
                 length = max(skew_x, skew_y) + 1 + 1.e-6
 
                 # plot periodic copies of the domain
@@ -499,7 +520,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                       ay - Ly + i * skew_y, dx, dy)
 
             ### plot duplicates of periodic edges
-            elif vertex_cfg['space']['periodic']:
+            elif data['periodic']:
                 mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
                 # NOTE bitwise or
 
@@ -566,57 +587,30 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                   colorbar=False)
 
             ### plot cells
-            cell_type = c_data.sel(property="cell_type")
-            x = c_data.sel(property="x")
-            y = c_data.sel(property="y")
-            hc_color = cell_marker_colors[1]
-            sc_color = cell_marker_colors[0]
-            color = [hc_color if d == 1 else sc_color for d in cell_type]
-            hlpr.ax.scatter(x, y, c=color, s=cell_marker_size,
-                            alpha=0.5)
+            cell_type = c_data.sel(property="cell_type").dropna(dim='id').astype(int)
+            x = c_data.sel(property="x").dropna(dim='id')
+            y = c_data.sel(property="y").dropna(dim='id')
+            hlpr.ax.scatter(
+                x, y,
+                c=[cell_marker_colors[d.data] for d in cell_type],
+                **_cell_center_marker_kwargs
+            )
             
             # plot cell data
-            if property is not None or property_path is not None:
-                if property_path is not None:
-                    if not property_path in grp:
-                        raise ValueError("Failed to access property data at path "
-                            "'data/{}/{}' (relative to '{}'. Available paths: {}"
-                            "".format(datapath, property_path, datapath, grp.keys())
-                        )
-                    if not time in grp[property_path]:
-                        raise ValueError('No property data available at time {}.'
-                                        ''.format(time))
-                    prop_data = grp[property_path][time]
-                else:
-                    prop_data = c_data
-                
+            if 'property' in data:
+                prop_data = data['property'].sel(time=time)
+
                 # Assign property to every cell
-                if not 'id' in prop_data.dims:
-                    if 'x' in prop_data.coords and 'y' in prop_data.coords:
-                        log.warning("Could not map property data to cells, "
-                                    "but found coordinates. Using coordinates "
-                                    "provided in property data.")
-                    else:
+                if not 'x' in prop_data.coords or not 'y' in prop_data.coords:
+                    if not 'id' in prop_data.dims:
                         raise ValueError("Expected `id` in property_data dims "
                             "(were {}).", prop_data.dims)
-                else:
-                    prop_data = prop_data.assign_coords({'x': x, 'y': y})
-                
-                if property is not None:
-                    prop_data = prop_data.sel(**property)
+                    else:
+                        prop_data = prop_data.assign_coords({'x': x, 'y': y})
 
                 # perform the interpolation
                 if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
                     prop_data.data[0] += 1.e-10
-                if property_hair_cells_only:
-                    prop_data = prop_data.where(cell_type == 1)
-                if property_support_cells_only:
-                    prop_data = prop_data.where(cell_type == 2)
-                if property_bulk_cells_only:
-                    is_boundary = c_data.sel(property="is_boundary").round()
-                    prop_data = prop_data.where(is_boundary == 0)
-                if property_ignore_nan:
-                    prop_data = prop_data.dropna(dim='id')
 
                 min_x = floor(domain_size_min_x)
                 max_x = ceil(domain_size_max_x)
@@ -630,7 +624,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                 grid_z1 = griddata((prop_data.x, prop_data.y),
                                    prop_data.squeeze(),
                                    (grid_x, grid_y),
-                                   **property_interpolation_kwargs)
+                                   **_property_interpolation_kwargs)
 
                 interpol = hlpr.ax.imshow(grid_z1.T,
                                           extent=(min_x,
@@ -638,53 +632,40 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                                                   min_y,
                                                   max_y),
                                           origin='lower',
-                                          **property_interpolation_plot_kwargs)
+                                          **_property_interpolation_plot_kwargs)
 
                 cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
 
-                if property_label:
-                    cbar.set_label(label=property_label)
-                else:
-                    cbar.set_label(label=list(property.values())[0])
+                cbar.set_label(label=prop_data.name)
                     
                 cbar.minorticks_on()
             
-            if vector_property is not None:
-                if vector_property_path is not None:
-                    if not vector_property_path in grp:
-                        raise ValueError("Failed to access property data at path "
-                            "'data/{}/{}' (relative to '{}'. Available paths: {}"
-                            "".format(datapath, vector_property_path, datapath, grp.keys())
-                        )
-                    if not time in grp[vector_property_path]:
-                        raise ValueError('No vectoriel property data available at time {}.'
-                                        ''.format(time))
-                    prop_v_data = grp[vector_property_path][time]
-                else:
-                    prop_v_data = c_data
+            if 'vector_property' in data:
+                prop_v_data = data['vector_property'].sel(time=time) #.dropna(dim='id')
 
-                if len(vector_property) == 2:
-                    prop_x_data = prop_v_data.sel(vector_property['x'])
-                    prop_y_data = prop_v_data.sel(vector_property['y'])
-                elif len(vector_property) == 1:
-                    prop_x_data = np.cos(prop_v_data.sel(vector_property))
-                    prop_y_data = np.sin(prop_v_data.sel(vector_property))
+                # Assign property to every cell
+                if not 'x' in prop_v_data.coords or not 'y' in prop_v_data.coords:
+                    if not 'id' in prop_v_data.dims:
+                        raise ValueError("Expected `id` in property_data dims "
+                            "(were {}).", prop_v_data.dims)
+                    else:
+                        prop_v_data = prop_v_data.assign_coords({'x': x, 'y': y})
+
+                if len(prop_v_data.dims) == 2:
+                    prop_v_dim = [d for d in prop_v_data.dims if d != 'id'][0]
+                    prop_x_data = prop_v_data.isel({prop_v_dim: 0})
+                    prop_y_data = prop_v_data.isel({prop_v_dim: 1})
+                elif len(prop_v_data.dims) == 1:
+                    prop_x_data = np.cos(prop_v_data)
+                    prop_y_data = np.sin(prop_v_data)
                 else:
                     raise ValueError("Expected dict with 2 entries (x and y) "
-                                     "or 1 entry (angle), but dict {} has {} "
-                                     "entries!".format(vector_property,
-                                     len(vector_property)))
-
-                if vector_property_hair_cells_only:
-                    prop_x_data = prop_x_data.where(cell_type == 1)
-                    prop_y_data = prop_y_data.where(cell_type == 1)
-                if vector_property_support_cells_only:
-                    prop_x_data = prop_x_data.where(cell_type == 2)
-                    prop_y_data = prop_y_data.where(cell_type == 2)
+                                     "or 1 entry (angle), but received {}!"
+                                     "".format(prop_v_data))
 
                 _v_property_kwargs = dict(angles='xy', scale_units='xy',
                                           scale=3.)
-                if vector_property_kwargs:
+                if vector_property_kwargs is not None:
                     _v_property_kwargs.update(vector_property_kwargs)
 
                 hlpr.ax.quiver(x, y, prop_x_data, prop_y_data,
@@ -696,24 +677,24 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
 
 
-            hlpr.invoke_helper('set_title', title="Time {}".format(time))
-            hlpr.invoke_helper('set_labels',
+            hlpr.provide_defaults('set_title', title="Time {}".format(time))
+            hlpr.provide_defaults('set_labels',
                                x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
 
-            if (vertex_cfg['space']['periodic']):
+            if (data['periodic']):
                 if abs(curvature) > 1.e-12:        
                     R = 1. / curvature
                     Ox = Lx / 2.
                     Oy = Ly / 2. - R
                     
                     if max_theta < m.pi/2. - 0.2:
-                        hlpr.invoke_helper('set_limits', 
+                        hlpr.provide_defaults('set_limits', 
                             x=((R + Ly/2.) * np.sin(-max_theta)+Lx/2,
                             (R + Ly/2.) * np.sin( max_theta)+Lx/2),
                             y=((R - Ly/2.) * np.cos(-max_theta) - R + Ly/2,
                                 Oy + R + Ly/2.))
                     else:
-                        hlpr.invoke_helper('set_limits', 
+                        hlpr.provide_defaults('set_limits', 
                             x=(-(R + Ly/2.) + Lx/2, (R + Ly/2.) + Lx/2),
                             y=( (R + Ly/2.) * np.cos(-max_theta) - R + Ly/2,
                                 Oy + R + Ly/2.))
@@ -739,7 +720,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
                     hlpr.ax.add_patch(circle_inner)
                     hlpr.ax.add_patch(circle_outer)
                 else:
-                    hlpr.invoke_helper('set_limits', x=(0, Lx), y=(0, Ly))
+                    hlpr.provide_defaults('set_limits', x=(0, Lx), y=(0, Ly))
 
 
                 if skew_x > 1.e-12:
@@ -757,13 +738,16 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
 
 
             else:
-                hlpr.invoke_helper('set_limits',
-                                   x=(domain_size_min_x, domain_size_max_x),
-                                   y=(domain_size_min_y, domain_size_max_y))
+                hlpr.provide_defaults('set_limits',
+                                      x=(domain_size_min_x, domain_size_max_x),
+                                      y=(domain_size_min_y, domain_size_max_y))
+            
+            if set_limits is not None:
+                hlpr.provide_defaults('set_limits', **set_limits)
             
             hlpr.ax.set_aspect('equal')
 
             # end update here
             yield
 
-    hlpr.register_animation_update(update)
+    hlpr.register_animation_update(update, invoke_helpers_before_grab=True)

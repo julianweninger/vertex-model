@@ -14,25 +14,13 @@ auto model_factory(ParentType parent) {
     return PCPTopology("PCPTopology", parent, {}, std::make_tuple(
         // energy adaptors
         continuous_time_adaptor, time_energy_adaptor, energy_adaptor,
-        linetension_adaptor, areaelasticity_adaptor,
-        cell_contractility_adaptor, edge_contractility_adaptor,
-        boundary_area_elasticity_adaptor, boundary_shape_elasticity_adaptor,
         // transitions
         transition_adaptor,
         // statistics
-        statistics_time_adaptor, cell_neighbourhood_adaptor,
-        cell_area_histogram_adaptor,
-        cell_stats_adaptor<typename PCPTopology::Cell>,
-        hair_cell_stats_adaptor<typename PCPTopology::Cell>,
-        support_cell_stats_adaptor<typename PCPTopology::Cell>,
-        bulk_cell_stats_adaptor<typename PCPTopology::Cell>,
-        bulk_hair_cell_stats_adaptor<typename PCPTopology::Cell>,
-        bulk_support_cell_stats_adaptor<typename PCPTopology::Cell>,
         interface_length_adaptor,
         // the position adaptors
         vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
-        cells_adaptor<typename PCPVertex::Space::SpaceVec,
-                      typename PCPTopology::CellType>,
+        cells_adaptor<typename PCPVertex::Space::SpaceVec>,
         edges_adaptor<typename PCPVertex::Space::SpaceVec>,
         cell_energies_adaptor, edge_energies_adaptor,
         cell_cluster_adaptor,

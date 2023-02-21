@@ -252,7 +252,6 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             for (std::size_t q = 0; q < num_columns; q++) {
                 std::size_t c_id = q + r * lim_columns;
                 this->add_cell(
-                    SpaceVec({q + 0.5, 0.75 * r + 0.5}) % cell_shape,
                     { edges[3*c_id], // lower left
                       edges[3*c_id + 1], // lower right
                       edges[3*c_id + 2], // left
@@ -266,7 +265,6 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             for (std::size_t q = 0; q < num_columns; q++) {
                 std::size_t c_id = q + r * lim_columns;
                 this->add_cell(
-                    SpaceVec({q + 1., 0.75 * r + 0.5}) % cell_shape,
                     { edges[3*c_id + 1], // lower left
                       edges[3*c_id + 2], // lower right
                       edges[3*((q+1)%lim_columns + r*lim_columns)], // left
@@ -375,10 +373,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                     if (   (row % 2 == 0 and col % 3 == 0)
                         or (row % 2 == 1 and col % 3 == 1))
                     {
-                        this->cells()[id]->state.type = CellType::hair;
-                    }
-                    else {
-                        this->cells()[id]->state.type = CellType::support;
+                        this->cells()[id]->state.type += 1;
                     }
                 }
             }
@@ -388,10 +383,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                 for (std::size_t col = 0; col < num_columns; col++) {
                     auto id = row * num_columns + col;
                     if (row % 2 == 0 and col % 2 == 0) {
-                        this->cells()[id]->state.type = CellType::hair;
-                    }
-                    else {
-                        this->cells()[id]->state.type = CellType::support;
+                        this->cells()[id]->state.type += 1;
                     }
                 }
             }
@@ -409,10 +401,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                     auto id = row * num_columns + col;
                     if (   (row % 2 == 0 and col % 5 == 0)
                         or (row % 2 == 1 and col % 5 == 2)) {
-                        this->cells()[id]->state.type = CellType::hair;
-                    }
-                    else {
-                        this->cells()[id]->state.type = CellType::support;
+                        this->cells()[id]->state.type += 1;
                     }
                 }
             }
@@ -432,10 +421,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                     auto id = row * num_columns + col;
                     if (row % 2 == 0 and col % 3 == (row % 6) / 2)
                     {
-                        this->cells()[id]->state.type = CellType::hair;
-                    }
-                    else {
-                        this->cells()[id]->state.type = CellType::support;
+                        this->cells()[id]->state.type += 1;
                     }
                 }
             }
@@ -459,13 +445,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                         and col >= 0 and col < int(num_columns))
                     {
                         auto id = row * num_columns + col;
-                        this->cells()[id]->state.type = CellType::hair;
+                        this->cells()[id]->state.type += 1;
                     }
-                }
-            }
-            for (const auto& cell : cells()) {
-                if (cell->state.type == CellType::progenitor) {
-                    cell->state.type = CellType::support;
                 }
             }
         }
@@ -577,7 +558,6 @@ void EntitiesManager<Model>::setup_agents_column (const Config& cfg)
     // Add cells
     for (std::size_t q = 0; q < num_columns; q++) {
         this->add_cell(
-            SpaceVec({q + 0.5, 0.5}) % cell_shape,
             {
               edges[3 * q],       // left
               edges[3 * q + 1],   // lower

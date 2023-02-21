@@ -20,7 +20,7 @@ parameter_space:
       1_by_proliferation:
         num_generations: 1
         minimization:
-          linetension_fluctuation: 0.
+          linetension_fluctuations: 0.
 
     operations:
       - differentiate_Collier:
@@ -29,3 +29,57 @@ parameter_space:
 
           minimization:
             mode: manual
+            
+    # -- The Collier model used in differentiation (optional)
+    Collier:
+      space: {periodic: false}
+      cell_manager:
+        grid:
+          structure: square
+          resolution: 23
+        neighborhood:
+          mode: empty # is synchronised with vertex model
+          compute_and_store: false
+
+        # Cell initialization parameters
+        cell_params:
+          notch: 1.
+          notch_sigma: 0.2
+          delta: 1.
+          delta_sigma: 0.2
+          nicd: 0.1
+          nicd_sigma: 0.02
+
+      # -- Dynamics
+      time_resolution: 1000
+
+      degradation_delta: 1.
+      degradation_notch: 0.1
+
+      production_notch: 1.
+      production_delta: 200.
+      production_nicd: 200.
+
+      interaction_strength_trans: 1.
+      interaction_strength_cis: 10.
+
+      cooperativity_delta: 1.
+      cooperativity_nicd: 1.
+
+      notch_threshold_factor: 0.1
+      # -- Data manager configuration
+      data_manager:
+        deciders: {write_always: {type: always}}
+        triggers: {build_once: {type: once}}
+        tasks:
+          Density_progenitor: &density_C
+            active: true
+            trigger: build_once
+            decider: write_always
+          Density_hair: *density_C
+          Density_support: *density_C
+          Density_rosettes: *density_C
+          Density_notch: *density_C
+          Density_delta: *density_C
+          Density_nicd: *density_C
+          Density_time: *density_C

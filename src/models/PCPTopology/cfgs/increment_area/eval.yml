@@ -8,15 +8,16 @@ _definitions:
   enabled: false
   hue: &HUE Gamma
   subspace_slice: &subspace_slice
+    direction: forward
     Gamma: !sweep
       default: 0.
-      values: [0., 0.4, 0.8]
-    HC_sep: !sweep
-      default: false
-      values: 
-        # - true
-        - false
-      order: -1
+      values: [0., 0.1, 0.2]
+    # HC_sep: !sweep
+    #   default: false
+    #   values: 
+    #     # - true
+    #     - false
+    #   order: -1
 
     rho: !sweep
       default: 0.2
@@ -30,10 +31,11 @@ _definitions:
 
   hue_2: &HUE_2 rho
   subspace_slice_2: &subspace_slice_2
-    HC_sep: !sweep
-      default: false
-      values: [true, false]
-      order: -1
+    direction: forward
+    # HC_sep: !sweep
+    #   default: false
+    #   values: [true, false]
+    #   order: -1
 
     rho: !sweep
       default: 0.2
@@ -692,7 +694,14 @@ area_mapped/hair_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
           - .rename: [!dag_prev , num_hair_neighbors]
 
   to_plot:
@@ -726,7 +735,7 @@ area_mapped/hexatic_order: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: hexatic_order}]
+          - .sel: [!dag_prev , {property: hexatic_order__corr}]
           - .rename: [!dag_prev , hexatic_order]
 
   to_plot:
@@ -755,7 +764,7 @@ area_mapped/hexatic_order_w_data: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: hexatic_order}]
+          - .sel: [!dag_prev , {property: hexatic_order__corr}]
           - .rename: [!dag_prev , hexatic_order]
 
   to_plot:
@@ -1064,7 +1073,14 @@ cell_properties/HH_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
           - .rename: [!dag_prev , num_hair_neighbors]
   y: num_hair_neighbors
   to_plot: 

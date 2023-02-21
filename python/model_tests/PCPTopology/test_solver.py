@@ -22,13 +22,13 @@ def test_solver():
     for uni in dm['multiverse']:
         data = dm['multiverse'][uni]['data']['PCPTopology']
 
+        assert 'Energy' in data
+        assert 'Time' in data['Energy']
+        assert 'Terms' in data['Energy']
+
         assert 'Energy' in data['PCPVertex']
         assert 'Time' in data['PCPVertex']['Energy']
-        assert 'Total' in data['PCPVertex']['Energy']
-        assert 'Linetension' in data['PCPVertex']['Energy']
-        assert 'Areaelasticity' in data['PCPVertex']['Energy']
-        assert 'Cell_contractility' in data['PCPVertex']['Energy']
-        assert 'Edge_contractility' in data['PCPVertex']['Energy']
+        assert 'Terms' in data['PCPVertex']['Energy']
 
         assert 'Vertices' in data
         assert 'Edges' in data

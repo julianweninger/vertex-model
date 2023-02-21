@@ -4,37 +4,16 @@
 # accompanying *_base_plots.yml file and in the utopya base plot configs.
 ---
 energy:
-  based_on: energy
-energy_boundary:
-  based_on: energy_boundary
-  enabled: false
+  based_on:
+    - energy
 
 energy_continuous:
   based_on: 
     - energy
     - select.uni.continuous_energy_terms
-energy_continuous_boundary:
-  based_on: 
-    - energy_boundary
-    - select.uni.continuous_energy_terms
-  enabled: false
 
 transitions:
   based_on: transitions
-
-transitions_cumulated:
-  based_on: transitions
-  cumsum_transitions: true
-
-transitions_continuous:
-  based_on: transitions_continuous
-  cumsum_transitions: true
-
-transitions_multiplot:
-  based_on:
-    - transitions_multiplot
-    - universe
-    - select.uni.transitions
 
 # effective diffusion
 diffusion:
@@ -44,145 +23,6 @@ diffusion:
 displacement:
   based_on: displacement_uni
 
-# Cell properties from cell statistics ----------------------------------------
-cell_stats:
-  enabled: false
-  based_on:
-    - universe
-    - _cell_stats
-    - select_cell_stats
-
-  helpers:
-    set_labels:
-      x: time
-
-cell_stats/area:
-  based_on: cell_stats
-
-  to_plot: 
-    cells:
-      label: all cells
-    hair_cells:
-      label: hair cells
-    support_cells:
-      label: support cells
-
-  property: area
-
-  helpers:
-    set_labels:
-      y: average area
-
-cell_stats/area_pref:
-  based_on: cell_stats/area
-
-  property: area_preferential
-
-  helpers:
-    set_labels:
-      y: average pref. area
-
-cell_stats/shape:
-  based_on: cell_stats/area
-
-  property: shape_index
-
-  helpers:
-    set_labels:
-      y: average shape index
-
-cell_stats/HC_neighbors:
-  based_on: cell_stats
-
-  to_plot:
-    bulk_cells:
-      label: all cells (bulk)
-    bulk_hair_cells:
-      label: hair cells (bulk)
-    bulk_support_cells:
-      label: support cells (bulk)
-
-  property: num_hair_neighbors
-
-  helpers:
-    set_labels:
-      y: average hair cell neighbors
-
-cell_stats/neighbors:
-  based_on: cell_stats/HC_neighbors
-
-  property: num_neighbors
-
-  helpers:
-    set_labels:
-      y: average neighbors
-
-cell_stats/hexatic_order:
-  based_on: cell_stats
-
-  to_plot: 
-    bulk_hair_cells:
-      label: hair cells (bulk)
-      plot_min_max: True
-  
-  property: hexatic_order
-
-  helpers:
-    set_labels:
-      y: average hexatic_order
-
-cell_stats/neighbors_vs_area:
-  based_on:
-    - universe
-
-  module: model_plots.PCPTopology
-  plot_func: scatter_xy_data
-
-  plot_time_color_gradient: true
-  cmap: plasma
-
-  select:
-    # the data containing all cells
-    x:
-      path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-      transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: area
-    y:
-      path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-      transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_neighbors
-
-  helpers:
-    set_labels:
-      x: HC area
-      y: average neighbours for HCs
-    set_limits:
-      x: [0., 5.]
-      y: [3., 12]
-
-cell_stats/hc_neighbors_vs_area:
-  based_on: cell_stats/neighbors_vs_area
-
-  select:
-    y:
-      path: data/PCPTopology/Statistics/Bulk_hair_cell_stats
-      transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_hair_neighbors
-
-  helpers:
-    set_labels:
-      y: average hair-hair contacts
-    set_limits:
-      y: [0., 5]
 
 # Cell properties from cell data ----------------------------------------------
 
@@ -256,17 +96,17 @@ cell_properties/shape:
     set_labels:
       y: average shape index
 
-cell_properties/HC_neighbors:
-  based_on: cell_properties
-  select:
-    property:
-      transform:
-        - .sel: [!dag_prev , {property: num_hair_neighbors}]
-        - .rename: [!dag_prev , num_hair_neighbors]
-  y: num_hair_neighbors
-  helpers:
-    set_labels:
-      y: average hair neighbors
+# cell_properties/HC_neighbors:
+#   based_on: cell_properties
+#   select:
+#     property:
+#       transform:
+#         - .sel: [!dag_prev , {property: num_hair_neighbors}]
+#         - .rename: [!dag_prev , num_hair_neighbors]
+#   y: num_hair_neighbors
+#   helpers:
+#     set_labels:
+#       y: average hair neighbors
 
 cell_properties/neighbors:
   based_on: cell_properties
@@ -282,10 +122,11 @@ cell_properties/neighbors:
 
 cell_properties/hexatic_order:
   based_on: cell_properties
+  enabled: False
   select:
     property:
       transform:
-        - .sel: [!dag_prev , {property: hexatic_order}]
+        - .sel: [!dag_prev , {property: hexatic_order__corr}]
         - .rename: [!dag_prev , hexatic_order]
   y: hexatic_order
   to_plot: 
@@ -317,7 +158,7 @@ cell_properties/elongation:
       ci: sd
   helpers:
     set_labels:
-      y: average hexatic order
+      y: average cell elongation
 
 cell_properties_x_vs_y:
   enabled: false
@@ -352,69 +193,70 @@ cell_properties/neighbors_vs_area:
   x: area
   y: num_neighbors
 
-cell_properties/HH_contacts_vs_area:
-  based_on: cell_properties_x_vs_y
+# cell_properties/HH_contacts_vs_area:
+#   based_on: cell_properties_x_vs_y
+#   enabled: False
 
-  select:
-    x:
-      transform:
-        - .sel: [!dag_prev , {property: area}]
-        - .rename: [!dag_prev , area]
-    y:
-      transform:
-        - .sel: [!dag_prev , {property: num_hair_neighbors}]
-        - .rename: [!dag_prev , num_hair_neighbors]
+#   select:
+#     x:
+#       transform:
+#         - .sel: [!dag_prev , {property: area}]
+#         - .rename: [!dag_prev , area]
+#     y:
+#       transform:
+#         - .sel: [!dag_prev , {property: num_hair_neighbors}]
+#         - .rename: [!dag_prev , num_hair_neighbors]
 
-  to_plot:
-    - function: sns.scatterplot
-      data: !dag_result hair_cells
+#   to_plot:
+#     - function: sns.scatterplot
+#       data: !dag_result hair_cells
 
-  x: area
-  y: num_hair_neighbors
-  hue: time
+#   x: area
+#   y: num_hair_neighbors
+#   hue: time
       
-energy_vs_SCHC_contacts:
-  based_on: universe
-  enabled: False
+# energy_vs_SCHC_contacts:
+#   based_on: universe
+#   enabled: False
 
-  module: model_plots.PCPTopology
-  plot_func: scatter_xy_data
+#   module: model_plots.PCPTopology
+#   plot_func: scatter_xy_data
 
-  plot_time_color_gradient: True
-  cmap: plasma
+#   plot_time_color_gradient: True
+#   cmap: plasma
 
-  select:
-    # the data containing all cells
-    _cells: data/PCPTopology/Cells
-    property:
-      path: data/PCPTopology/Cells
-      transform:
-      - .sel:
-        args: [!dag_tag _cells]
-        kwargs:
-          property: num_hair_neighbors
-    y: 
-      path: data/PCPTopology/Energy/Edge_contractility
+#   select:
+#     # the data containing all cells
+#     _cells: data/PCPTopology/Cells
+#     property:
+#       path: data/PCPTopology/Cells
+#       transform:
+#       - .sel:
+#         args: [!dag_tag _cells]
+#         kwargs:
+#           property: num_hair_neighbors
+#     y: 
+#       path: data/PCPTopology/Energy/Edge_contractility
     
-  transform:
-    - .sel:
-      args: [!dag_tag _cells]
-      kwargs:
-        property: cell_type
-    - create_mask:
-      args: [!dag_prev , ==, 2]
-    - .where:
-      args: [!dag_tag property, !dag_prev ]
-    - .mean:
-      args: [!dag_prev  ,id]
-      kwargs:
-        skipna: True
-      tag: x
+#   transform:
+#     - .sel:
+#       args: [!dag_tag _cells]
+#       kwargs:
+#         property: cell_type
+#     - create_mask:
+#       args: [!dag_prev , ==, 2]
+#     - .where:
+#       args: [!dag_tag property, !dag_prev ]
+#     - .mean:
+#       args: [!dag_prev  ,id]
+#       kwargs:
+#         skipna: True
+#       tag: x
 
-  helpers:
-    set_labels:
-      x: average HC neighbors for SCs
-      y: edge contractility energy
+#   helpers:
+#     set_labels:
+#       x: average HC neighbors for SCs
+#       y: edge contractility energy
 
 energy_vs_HCHC_contacts:
   based_on: energy_vs_SCHC_contacts
@@ -464,7 +306,7 @@ pressure:
     property:
       path: data/PCPTopology/Cell_energies
       transform:
-        - .sel: [!dag_prev , {energy_term: pressure}]
+        - .sel: [!dag_prev , {term: area_elasticity__pressure}]
         - .rename: [!dag_prev , pressure]
   y: pressure
   x: time
@@ -482,7 +324,7 @@ tension:
     property:
       path: data/PCPTopology/Edge_energies
       transform:
-        - .sel: [!dag_prev , {energy_term: tension}]
+        - .sel: [!dag_prev , {term: linetension_fluctuations__tension}]
         - .rename: [!dag_prev , tension]
     
   to_plot: 
@@ -501,6 +343,7 @@ tension:
 
   x: time
   y: tension
+  hue: term
 
 
 # --- Equilibrium cellular structures -----------------------------------------
@@ -518,96 +361,134 @@ equilibrium_cellular_structure__area:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: {property: area}
-  property_label: cell area
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , Area]
 
 equilibrium_cellular_structure__elongation:
   based_on: equilibrium_cellular_structure
   enabled: false
+  select:
+    vector_property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_prev , {property: [q_x, q_y]}]
+        - .rename: [!dag_prev , Cell elongation]
 
   vector_property_is_nematic: True
 
-  vector_property:
-    x: {property: q_x}
-    y: {property: q_y}
   vector_property_kwargs:
     scale: 0.75
     headwidth: 1
     headlength: 1.
 
-equilibrium_cellular_structure__tension:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__tension:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  property: ~
-  property_path: ~
-  edge_property: {energy_term: tension}
-  edge_property_path: Edge_energies
-  quiver_kwargs:
-    cmap: cool
-    width: 0.01
+#   select:
+#     edge_property:
+#       path: data/PCPTopology/Edge_energies
+#       transform:
+#         - .sel: [!dag_prev , {term: tension}]
+#         - .rename: [!dag_prev , Tension]
+#   quiver_kwargs:
+#     cmap: cool
+#     width: 0.01
 
-equilibrium_cellular_structure__pressure:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__pressure:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  property: {energy_term: pressure}
-  property_path: Cell_energies
-  property_interpolation_plot_kwargs:
-    cmap: cool
-
+#   select:
+#     property:
+#       path: data/PCPTopology/Cell_energies
+#       transform:
+#         - .sel: [!dag_prev , {property: pressure}]
+#         - .rename: [!dag_prev , Pressure]
+#   property_interpolation_plot_kwargs:
+#     cmap: cool
 
 equilibrium_cellular_structure__area_elasticity:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: {energy_term: area_elasticity}
-  property_path: Cell_energies
+  select:
+    property:
+      path: data/PCPTopology/Cell_energies
+      transform:
+        - .sel: [!dag_prev , {term: area_elasticity}]
+        - .rename: [!dag_prev , Area elasticity]
 
 equilibrium_cellular_structure__cell_contractility:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: {energy_term: cell_contractility}
-  property_path: Cell_energies
+  select:
+    property:
+      path: data/PCPTopology/Cell_energies
+      transform:
+        - .sel: [!dag_prev , {term: cell_contractility}]
+        - .rename: [!dag_prev , Cell contractility]
 
 equilibrium_cellular_structure__linetension:
   based_on: equilibrium_cellular_structure
   enabled: false
 
-  property: ~
-  property_path: ~
-  edge_property: {energy_term: linetension}
-  edge_property_path: Edge_energies
+  select:
+    edge_property:
+      path: data/PCPTopology/Edge_energies
+      transform:
+        - .sel: [!dag_prev , {term: linetension_fluctuations}]
+        - .rename: [!dag_prev , Line-tension fluct.]
 
-equilibrium_cellular_structure__edge_contractility:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__edge_contractility:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  edge_property: {energy_term: edge_contractility}
-  edge_property_path: Edge_energies
+#   select:
+#     edge_property:
+#       path: data/PCPTopology/Edge_energies
+#       transform:
+#         - .sel: [!dag_prev , {term: edge_contractility}]
+#         - .rename: [!dag_prev , Edge contractility]
 
-equilibrium_cellular_structure__hexatic_order:
-  based_on: equilibrium_cellular_structure
-  enabled: false
+# equilibrium_cellular_structure__hexatic_order:
+#   based_on: equilibrium_cellular_structure
+#   enabled: false
 
-  property: {property: hexatic_order}
-  property_path: ~
-  property_hair_cells_only: True
+#   select:
+#     property:
+#       path: data/PCPTopology/Cells
+#       transform:
+#         - .sel: [!dag_prev , {property: hexatic_order__corr}]
+#         - .sel: [!dag_node -2, {property: cell_type}]
+#         - call_lambda:
+#           - "lambda d, type: d.where(type==1)"
+#           - !dag_node -2
+#           - !dag_node -1
+#         - .rename: [!dag_prev , Hexatic order]
 
-equilibrium_cellular_structure__segmentation:
-  based_on: equilibrium_cellular_structure
-  enabled: false
-  cell_marker_colors: ['w', 'cyan']
-  quiver_kwargs:
-    color: [1., 0., 1.]
 
 
 # --- Continuous cellular structures ------------------------------------------
 cellular_structure_continuous:
   based_on:
     - cellular_structure
-  datapath: PCPTopology/PCPVertex
+  select:
+    Vertices:
+      path: data/PCPTopology/PCPVertex/Vertices
+    Edges:
+      path: data/PCPTopology/PCPVertex/Edges
+    Cells:
+      path: data/PCPTopology/PCPVertex/Cells
+    Lx:
+      path: data/PCPTopology/PCPVertex/Vertices
+    Ly:
+      path: data/PCPTopology/PCPVertex/Vertices
 
 
 # --- Cellular geometries -----------------------------------------------------
@@ -620,25 +501,14 @@ cell_neighbourhood: !pspace
     area:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: area
-        - .rename: [!dag_prev , area]
+        - .sel: [!dag_prev , {property: area}]
     cell_type:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: cell_type
-        - .rename: [!dag_prev , cell_type]
+        - .sel: [!dag_prev , {property: cell_type}]
     shape_index:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
         - .sel: [!dag_prev , {property: perimeter}]
         - .sel: [!dag_node -2, {property: area_preferential}]
         - pow: [!dag_node -1 , 0.5]
@@ -647,19 +517,18 @@ cell_neighbourhood: !pspace
     num_neighbors:
       path: data/PCPTopology/Cells
       transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_neighbors
-        - .rename: [!dag_prev , num_neighbors]
-    num_hair_neighbors:
-      path: data/PCPTopology/Cells
-      transform:
-        - .sel:
-          args: [!dag_prev ]
-          kwargs:
-            property: num_hair_neighbors
-        - .rename: [!dag_prev , num_hair_neighbors]
+        - .sel: [!dag_prev , {property: num_neighbors}]
+    # num_hair_neighbors:
+    #   path: data/PCPTopology/Cells
+    #   transform:
+    #     - .sel: [!dag_node -1, {property: cell_type}]
+    #     - .sel: [!dag_node -2, {property: num_neighbors}]
+    #     - .sel: [!dag_node -3, {property: num_neighbors__self}]
+    #     - call_lambda:
+    #       - "lambda type, nbs, _nbs: xr.where(type==0, _nbs, nbs - _nbs)"
+    #       - !dag_node -3
+    #       - !dag_node -2
+    #       - !dag_node -1
 
   only_type: !sweep
     default: all
@@ -674,6 +543,8 @@ NotchDelta_densities:
   based_on: 
     - .plot.multiplot
     - universe
+
+  enabled: False
 
   select:
     progenitor:

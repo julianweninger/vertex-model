@@ -15,30 +15,12 @@ multiverse:
 
 select.uni.energy_terms:
   select:
-    total: 
-      path: data/PCPVertex/Energy/Total
-      transform: &transform_energy_to_dataframe
+    energy: 
+      path: data/PCPVertex/Energy/Terms
+      transform:
         - .rename: [!dag_prev , energy]
         - import_and_call:
           args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
-    line_tension: 
-      path: data/PCPVertex/Energy/Linetension
-      transform: *transform_energy_to_dataframe
-    area_elasticity: 
-      path: data/PCPVertex/Energy/Areaelasticity
-      transform: *transform_energy_to_dataframe
-    cell_contractility: 
-      path: data/PCPVertex/Energy/Cell_contractility
-      transform: *transform_energy_to_dataframe
-    edge_contractility: 
-      path: data/PCPVertex/Energy/Edge_contractility
-      transform: *transform_energy_to_dataframe
-    boundary_area_elasticity: 
-      path: data/PCPVertex/Energy/Boundary_area_elasticity
-      transform: *transform_energy_to_dataframe
-    boundary_shape_elasticity: 
-      path: data/PCPVertex/Energy/Boundary_shape_elasticity
-      transform: *transform_energy_to_dataframe
 
 _energy:
   based_on:
@@ -46,6 +28,7 @@ _energy:
 
   x: time
   y: energy
+  hue: term
 
   helpers:
     set_labels:
@@ -60,57 +43,53 @@ energy:
 
   to_plot:
   - function: sns.lineplot
-    data: !dag_result total
-    label: total
-  - function: sns.lineplot
-    data: !dag_result line_tension
-    label: line tension
-  - function: sns.lineplot
-    data: !dag_result area_elasticity
-    label: area elasticity
-  - function: sns.lineplot
-    data: !dag_result cell_contractility
-    label: cell contractility
-  - function: sns.lineplot
-    data: !dag_result edge_contractility
-    label: edge contractility
-    
-energy_boundary:
-  based_on:
-    - universe
-    - _energy
-    - select.uni.energy_terms
+    data: !dag_result energy
 
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result total
-      label: total
-    - function: sns.lineplot
-      data: !dag_result line_tension
-      label: line tension
-    - function: sns.lineplot
-      data: !dag_result area_elasticity
-      label: area elasticity
-    - function: sns.lineplot
-      data: !dag_result cell_contractility
-      label: cell contractility
-    - function: sns.lineplot
-      data: !dag_result edge_contractility
-      label: edge contractility
-    - function: sns.lineplot
-      data: !dag_result boundary_area_elasticity
-      label: boundary area elasticity
-    - function: sns.lineplot
-      data: !dag_result boundary_shape_elasticity
-      label: boundary shape elasticity
-
+select.uni.transitions:
+  select:
+    transitions: 
+      path: data/PCPVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+          
 transitions:
   based_on:
     - universe
+    - .plot.multiplot
+    - select.uni.energy_terms
 
-  model_name: PCPVertex
-  module: model_plots.PCPVertex
-  plot_func: transitions
+  select:
+    transitions: 
+      path: data/PCPVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+
+  x: time
+
+  to_plot:
+    [0, 0]:
+    - function: sns.lineplot
+      data: !dag_result energy
+      hue: term
+      y: energy
+
+    [1, 0]:
+    - function: sns.lineplot
+      data: !dag_result transitions
+      y: transitions
+      hue: type
+      hue_order: [num_T1s, num_T1s_attempted, num_T2s]
+
+  helpers:
+    setup_figure:
+      ncols: 2
+      constrained_layout: True
+    set_labels:
+      x: time
 
 
 
@@ -199,23 +178,97 @@ select_cells_properties:
       
 
 cellular_structure:
-  based_on:
-    - universe
+  based_on: universe
+
   module: model_plots.PCPVertex
   plot_func: cellular_structure
-  
-  datapath: PCPVertex
-  cfgpath: PCPVertex
+
+  select:
+    Vertices:
+      path: data/PCPVertex/Vertices
+      transform:
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['x', 'y']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+        - import_and_call:
+          - model_plots.PCPTopology.data_ops
+          - stack
+          - !dag_prev 
+          - {ids: [id, time]}
+    Edges:
+      path: data/PCPVertex/Edges
+      transform:
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['vertex_a', 'vertex_b']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+        - import_and_call:
+          - model_plots.PCPTopology.data_ops
+          - stack
+          - !dag_prev 
+          - {ids: [id, time]}
+    Cells:
+      path: data/PCPVertex/Cells
+      transform:
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['x', 'y', 'cell_type']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+        - import_and_call:
+          - model_plots.PCPTopology.data_ops
+          - stack
+          - !dag_prev 
+          - {ids: [id, time]}
+
+    periodic: 
+      path: cfg/PCPVertex
+      transform:
+        - call_lambda:
+          - "lambda kv: kv['space']['periodic']"
+          - !dag_prev
+    Lx:
+      path: data/PCPVertex/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Lx'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    Ly:
+      path: data/PCPVertex/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Ly'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
 
   plot_vertices: false
-  cell_marker_size: 40
+  cell_center_marker_kwargs:
+    s: 0.5
+    colors: ['white', 'r', 'gray']
 
-  helpers:
-    set_labels:
-      x: x [a.u.]
-      y: y [a.u.]
-    save_figure: {bbox_inches: tight}
+  property_interpolation_kwargs:
+    method: nearest
+  property_interpolation_plot_kwargs: ~
+  
+  vector_property_is_nematic: False
+  vector_property_kwargs:
+    scale: 1
+    headlength: 2.5
+    # headwidth: 3
+    headaxislength: 2.5
 
+  quiver_kwargs:
+    cmap: Blues
+
+  file_ext: png
   animation:
     enabled: true
     writer: frames
@@ -231,7 +284,11 @@ cellular_structure:
 
     animation_update_kwargs: {}
 
+  helpers:
+    save_figure: {bbox_inches: tight}
+
   # Can use constrained layout, because axis labels don't change
   style:
     figure.constrained_layout.use: true
     axes.grid: false
+

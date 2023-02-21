@@ -14,136 +14,56 @@ paths:
   model_note: default_proliferation_non_periodic
 
 parameter_space:
-  num_steps: 2
+  num_steps: 16
 
   PCPTopology:
     space: &SPACE
       periodic: false
       extent: [30, 30]
 
-    minimization:
-      dt: 0.01
-      num_steps: 100
-
     initialisation:
       1_by_proliferation:
         enabled: false
 
+    minimization:
+      dt: 0.05
+      num_steps: 20
+
     operations:
-      - jiggle:
-          times: []
-          iterations_prolog: 1
+      - proliferate:
+          times: !listgen [101]
+          iterations_prolog: 0
+          iterations_epilog: 0
+          emit_interval: 0
 
-          minimization: &JiggleQuickDirty
-            jiggle_intensity: 1.e-3
-            num_repeat: 2
-            tolerance: 1.e-8
-            jiggle_tolerance: 1.e-6
+          num_increases: 4
+          area_threshold: 1.75
 
-      - proliferate:
-          times: [1]
-          num_cells: 16
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 32 cells
+          minimization_after_increase:
+            num_repeat: 8
 
-      - jiggle:
-          times: [2]
-      # NOTE time 2: jiggle (see last operation)
-
-      - proliferate:
-          times: [3]
-          num_cells: 32
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 64 cells
-
-      - proliferate:
-          times: [4]
-          num_cells: 64
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 128 cells
-      
-      - proliferate:
-          times: [5]
-          num_cells: 128
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 256 cells
-      
-      - proliferate:
-          times: [6]
-          num_cells: 256
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 512 cells
-      
-      - proliferate:
-          times: [7]
-          num_cells: 512
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 1024 cells
-      
-      - proliferate:
-          times: [8]
-          num_cells: 1024
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 2048 cells 
-      
-      - proliferate:
-          times: [9]
-          num_cells: 2048
-          num_increases: 0
-          area_threshold: 0.
-          minimization_after_division:
-            num_steps: 20
-          minimize_after_division: True
-          minimization: ~
-      # 4096 cells 
+          minimization: ~     # use default
 
     PCPVertex:
       log_level: info
 
       space: *SPACE
 
-      # --- Initialization parameters
-      agent_manager:
-        setup_method: hexagonal
-        setup_params:
-          hexagonal:
-            lattice_rows: 4
-            lattice_columns: 4
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      - linetension_heterotypic:
+          boundary_type: 1
+          linetension:
+            - [0., 0.01]
+            - [0.01, 0.1]
 
       data_manager:
         deciders:
@@ -161,6 +81,10 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 11, 1]
+              - [0, 5, 1]
+              - [5, 25, 5]
+              - [25, 51, 25]
+              - [64, 65, 1]
+              - [75, 101, 25]
       triggers:
         build_interval: *interval

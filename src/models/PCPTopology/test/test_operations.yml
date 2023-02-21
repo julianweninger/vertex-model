@@ -86,49 +86,49 @@ apply_operation_epilog:
 
   minimization: *Minimization
 
-jiggle:
+void:
   times: []
 
-jiggle__linetension_fluctuations_1:
+void__linetension_fluctuations_1:
   times: []
   minimization:
     update_scheme: steepest_gradient
     jiggle_intensity: 0.
-    linetension_fluctuation: 0.3
-    linetension_fluctuation_tau: 1.
+    linetension_fluctuations: 0.3
+    linetension_fluctuations_tau: 1.
 
     dt: 0.01
     num_steps: 1
 
 
-jiggle__linetension_fluctuations_2:
+void__linetension_fluctuations_2:
   times: []
   minimization:
     update_scheme: steepest_gradient
     jiggle_intensity: 0.
-    linetension_fluctuation: 0.
-    linetension_fluctuation_tau: 1.
+    linetension_fluctuations: 0.
+    linetension_fluctuations_tau: 1.
 
     dt: 0.01
     num_steps: 1
 
-jiggle__linetension_fluctuations_3:
+void__linetension_fluctuations_3:
   times: []
   minimization:
     update_scheme: steepest_gradient
     jiggle_intensity: 0.
-    linetension_fluctuation: 0.4
-    linetension_fluctuation_tau: 1.
+    linetension_fluctuations: 0.4
+    linetension_fluctuations_tau: 1.
 
     dt: 0.02
     num_steps: 1
 
-jiggle__area_fluctuations_1:
+void__area_fluctuations_1:
   times: []
   minimization:
     update_scheme: steepest_gradient
     jiggle_intensity: 0.
-    linetension_fluctuation: 0.
+    linetension_fluctuations: 0.
 
     dt: 0.01
     num_steps: 1
@@ -137,12 +137,12 @@ jiggle__area_fluctuations_1:
     area_fluctuation_tau: 1.
 
 
-jiggle__area_fluctuations_2:
+void__area_fluctuations_2:
   times: []
   minimization:
     update_scheme: steepest_gradient
     jiggle_intensity: 0.
-    linetension_fluctuation: 0.
+    linetension_fluctuations: 0.
 
     dt: 0.01
     num_steps: 1
@@ -150,12 +150,12 @@ jiggle__area_fluctuations_2:
     area_fluctuation_A_min: 0.4
     area_fluctuation_tau: 1.
 
-jiggle__area_fluctuations_3:
+void__area_fluctuations_3:
   times: []
   minimization:
     update_scheme: steepest_gradient
     jiggle_intensity: 0.
-    linetension_fluctuation: 0.
+    linetension_fluctuations: 0.
 
     dt: 0.02
     num_steps: 1
@@ -164,19 +164,19 @@ jiggle__area_fluctuations_3:
     area_fluctuation_tau: 1.
 
 
-differentiate_domain:
-  times: []
-  relative_width: 0.5
-  relative_height: 0.75
-  probability: 0.25
+### test operations ###
 
-differentiate_random:
+proliferate:
   times: []
-  probability: 0.25
+  num_increases: 1
+  area_threshold: 0.
 
-differentiate_random_fraction:
-  times: []
-  fraction: 0.23
+  minimization_after_increase:
+    tolerance: 1000
+    num_repeat: 1
+    jiggle_tolerance: 1000
+    jiggle_intensity: 0.
+
 
 differentiate_Collier:
   times: []
@@ -215,12 +215,20 @@ differentiate_Collier:
     cooperativity_nicd: 1.
     notch_threshold_factor: 0.1
 
+
 differentiate_Collier_second_task:
   times: []
   steps: 10
 
   # reusing the Collier model from `differentiate_Collier`
 
+
+differentiate_domain:
+  times: []
+  relative_widths: [0.2, 0.4, 0.2, 0.2]
+  relative_heights: [0.3, 0.5, 0.2]
+
+  
 differentiate_NotchDelta: &NotchDelta
   times: []
   steps: 100
@@ -246,10 +254,12 @@ differentiate_NotchDelta: &NotchDelta
     rate_swap: 1.0
     space: {periodic: false}
 
+
 differentiate_NotchDelta_skip_init:
   Random:
     times: []
-    probability: 0.35
+    distribution: [0., 0.35, 0.65]
+    method: fraction
     
   NotchDelta:
     times: []
@@ -263,205 +273,228 @@ differentiate_NotchDelta_skip_init:
     times: []
     steps: 100
 
+
 differentiate_NotchDelta_second_task:
   times: []
   steps: 10
 
   # reusing the NotchDelta model from `differentiate_NotchDelta`
 
-increment_area:
+
+differentiate_random:
   times: []
+  distribution: [0.2, 0.5, 0.3]
+  method: probability
 
-  progenitor: 1.
-  hair: 2.
-  support: 3.
 
-increment_area_adapt:
+differentiate_random_fraction:
   times: []
+  distribution: [0.2, 0.5, 0.3]
+  method: fraction
 
-  hair: 1.
-  adapt_support: True
 
-increment_area_relax:
+minimize_cell_contacts:
   times: []
+  type: 1
+  num_steps: 1000
+  neutral_probability: 0.2
 
-  hair: 1.
-  support: 2.
-  relax_domain: True
+  # a subcritical density
+  differentiate_vanish:
+    times: []
+    method: fraction
+    distribution: [0.74, 0.26]
 
-increment_area_gradient:
-  times: []
+  # a supercritical density
+  differentiate_minimize:
+    times: []
+    method: fraction
+    distribution: [0.52, 0.48]
 
-  gradient_hair_max: 1.
-  gradient_hair_min: -0.1
-  adapt_support: True
 
-increment_cell_contractility:
-  times: []
 
-  progenitor: 1.
-  hair: 2.
-  support: 3.
+# increment_area:
+#   times: []
 
-increment_domain:
-  times: []
+#   progenitor: 1.
+#   hair: 2.
+#   support: 3.
 
-  value: [0.1, 0.2] # increment by values
-  compensate: false
+# increment_area_adapt:
+#   times: []
 
-increment_domain_area:
-  times: []
+#   hair: 1.
+#   adapt_support: True
 
-  value: 0.02 # increment by area value -- keep ratio
-  compensate: false
+# increment_area_relax:
+#   times: []
 
-increment_domain_compensate:
-  times: []
+#   hair: 1.
+#   support: 2.
+#   relax_domain: True
 
-  value: 0.1
-  compensate: true
-  fix_hair_cell_area: false
+# increment_area_gradient:
+#   times: []
 
-increment_domain_compensate_fix_hc:
-  times: []
+#   gradient_hair_max: 1.
+#   gradient_hair_min: -0.1
+#   adapt_support: True
 
-  value: 0.1
-  compensate: true
-  fix_hair_cell_area: true
+# increment_cell_contractility:
+#   times: []
 
-increment_domain_compensate_fix_sc:
-  times: []
+#   progenitor: 1.
+#   hair: 2.
+#   support: 3.
 
-  value: 0.1
-  compensate: true
-  fix_support_cell_area: true
+# increment_domain:
+#   times: []
 
-increment_edge_contractility: &edge_props
-  times: []
-  progenitor_progenitor: 0.11
-  progenitor_hair: 0.
-  progenitor_support: 0.
-  hair_hair: 0.22
-  hair_support: 0.23
-  support_support: 0.33
+#   value: [0.1, 0.2] # increment by values
+#   compensate: false
 
-increment_edge_contractility_heterogeneous:
-  times: []
-  set_ppMLC: 0.1
-  set_ppMLC_angle: 1.5708 # pi / 2
-  set_pMLC: -0.2  # NOTE non-physical
+# increment_domain_area:
+#   times: []
 
-increment_linetension: *edge_props
+#   value: 0.02 # increment by area value -- keep ratio
+#   compensate: false
 
-increment_shape_index:
-  times: []
+# increment_domain_compensate:
+#   times: []
 
-  progenitor: 1.
-  hair: 2.
-  support: 3.
+#   value: 0.1
+#   compensate: true
+#   fix_hair_cell_area: false
 
-proliferate:
-  times: []
-  num_increases: 1
-  area_threshold: 0.
+# increment_domain_compensate_fix_hc:
+#   times: []
 
-  minimization_after_increase:
-    tolerance: 1000
-    num_repeat: 1
-    jiggle_tolerance: 1000
-    jiggle_intensity: 0.
+#   value: 0.1
+#   compensate: true
+#   fix_hair_cell_area: true
 
-pure_shear:
-  times: []
-  shear_velocity: 0.01
-  deform_plastic: True
-  iterations: 20
+# increment_domain_compensate_fix_sc:
+#   times: []
 
-relax_area:
-  times: []
+#   value: 0.1
+#   compensate: true
+#   fix_support_cell_area: true
 
-  factor: 0.1
-  minimum: 0.1
-  maximum: 15.
+# increment_edge_contractility: &edge_props
+#   times: []
+#   progenitor_progenitor: 0.11
+#   progenitor_hair: 0.
+#   progenitor_support: 0.
+#   hair_hair: 0.22
+#   hair_support: 0.23
+#   support_support: 0.33
 
-relax_area_minimum:
-  times: []
+# increment_edge_contractility_heterogeneous:
+#   times: []
+#   set_ppMLC: 0.1
+#   set_ppMLC_angle: 1.5708 # pi / 2
+#   set_pMLC: -0.2  # NOTE non-physical
 
-  factor: 1.
+# increment_linetension: *edge_props
 
-  # preferential areas initialised very large, then relaxed
-  minimum: 12.
-  minimum_hair: 18.
-  minimum_support: 16.
+# increment_shape_index:
+#   times: []
 
-relax_area_maximum:
-  times: []
+#   progenitor: 1.
+#   hair: 2.
+#   support: 3.
 
-  factor: 1.
-  # preferential areas initialised very small, then relaxed
-  maximum: 0.4
-  maximum_hair: 0.3
-  maximum_support: 0.2
+# pure_shear:
+#   times: []
+#   shear_velocity: 0.01
+#   deform_plastic: True
+#   iterations: 20
 
-set_area:
-  times: []
+# relax_area:
+#   times: []
 
-  progenitor: 2.
-  stddev_progenitor: 0.1
-  hair: 4.
-  stddev_hair: 0.2
-  support: 5.
-  stddev_support: 0.3
+#   factor: 0.1
+#   minimum: 0.1
+#   maximum: 15.
 
-set_area_partial:
-  times: []
+# relax_area_minimum:
+#   times: []
 
-  hair: 0. # do not change areas of HCs
-  support: 6.
-  stddev_support: 0.2
+#   factor: 1.
 
-set_area_fixed:
-  times: []
+#   # preferential areas initialised very large, then relaxed
+#   minimum: 12.
+#   minimum_hair: 18.
+#   minimum_support: 16.
 
-  hair: 2. # do not change areas of HCs
-  # stddev_hair: 0. by default
-  support: 7.
-  stddev_support: 0.  # no variation
+# relax_area_maximum:
+#   times: []
 
-set_area_relax:
-  times: []
+#   factor: 1.
+#   # preferential areas initialised very small, then relaxed
+#   maximum: 0.4
+#   maximum_hair: 0.3
+#   maximum_support: 0.2
 
-  hair: 4.
-  stddev_hair: 0.2
-  support: 5.
-  stddev_support: 0.3
-  relax_domain: True
+# set_area:
+#   times: []
 
-set_area_relax_PD_axis:
-  times: []
+#   progenitor: 2.
+#   stddev_progenitor: 0.1
+#   hair: 4.
+#   stddev_hair: 0.2
+#   support: 5.
+#   stddev_support: 0.3
 
-  hair: 4.
-  stddev_hair: 0.2
-  support: 5.
-  stddev_support: 0.3
-  relax_domain_PD_axis: True
+# set_area_partial:
+#   times: []
 
-set_area_relax_PD_axis_FAIL:
-  times: []
+#   hair: 0. # do not change areas of HCs
+#   support: 6.
+#   stddev_support: 0.2
 
-  hair: 4.
-  stddev_hair: 0.2
-  support: 5.
-  stddev_support: 0.3
+# set_area_fixed:
+#   times: []
 
-  # can't both be True
-  relax_domain_PD_axis: True
-  relax_domain: True
+#   hair: 2. # do not change areas of HCs
+#   # stddev_hair: 0. by default
+#   support: 7.
+#   stddev_support: 0.  # no variation
 
-simple_shear:
-  times: []
-  shear_velocity: [0.05, 0]
-  deform_plastic: True
-  iterations: 16
-  minimization:
-    mode: manual
+# set_area_relax:
+#   times: []
+
+#   hair: 4.
+#   stddev_hair: 0.2
+#   support: 5.
+#   stddev_support: 0.3
+#   relax_domain: True
+
+# set_area_relax_PD_axis:
+#   times: []
+
+#   hair: 4.
+#   stddev_hair: 0.2
+#   support: 5.
+#   stddev_support: 0.3
+#   relax_domain_PD_axis: True
+
+# set_area_relax_PD_axis_FAIL:
+#   times: []
+
+#   hair: 4.
+#   stddev_hair: 0.2
+#   support: 5.
+#   stddev_support: 0.3
+
+#   # can't both be True
+#   relax_domain_PD_axis: True
+#   relax_domain: True
+
+# simple_shear:
+#   times: []
+#   shear_velocity: [0.05, 0]
+#   deform_plastic: True
+#   iterations: 16
+#   minimization:
+#     mode: manual

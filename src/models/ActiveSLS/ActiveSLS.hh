@@ -1,6 +1,5 @@
 #ifndef UTOPIA_MODELS_ACTIVESLS_HH
 #define UTOPIA_MODELS_ACTIVESLS_HH
-// TODO Adjust above include guard (and at bottom of file)
 
 // standard library includes
 #include <random>

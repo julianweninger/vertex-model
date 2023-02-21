@@ -36,8 +36,8 @@ parameter_space:
       dt: 0.05  # this was evaluated in the previous test to be a good dt
       num_steps: 20
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.02
-      linetension_fluctuation_tau: &tau_dL 24
+      linetension_fluctuations: 0.02
+      linetension_fluctuations_tau: &tau_dL 24
       num_repeat: *tau_dL
       
       area_fluctuation: 1.e-6
@@ -130,7 +130,7 @@ parameter_space:
 
           minimization:
             num_repeat: 1
-            linetension_fluctuation: !coupled-sweep &dL_coupled
+            linetension_fluctuations: !coupled-sweep &dL_coupled
               target_name: Gamma
               name: dL
               default: 0.
@@ -145,8 +145,10 @@ parameter_space:
       # END differentiation
       
       - increment_area_gradient:
-          times: !listgen [20001]
-          # times: !listgen [80001]
+          times:
+            start: 1
+            stop: 100000
+            step: 1
 
           iterations: 24
           increment_HC_gradient: !expr 2.e-4 / 24
@@ -163,7 +165,7 @@ parameter_space:
 
           minimization:
             num_repeat: 1
-            linetension_fluctuation: !coupled-sweep
+            linetension_fluctuations: !coupled-sweep
               <<: *dL_coupled
               name: dL_
 

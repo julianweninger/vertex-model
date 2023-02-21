@@ -16,9 +16,9 @@ add_model_tests(# Use consistent capitalization for the model name!
                     # test cases
                     "test.yml"
                     "test_periodic.yml"
-                    "test_shape_elastic.yml"
                     "test_columnar.yml"
                     "test_columnar_periodic.yml"
+                    "test_wf_terms.yml"
                     
                     # test transitions
                     "test_transitions.yml"

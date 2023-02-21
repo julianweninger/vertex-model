@@ -1,73 +1,156 @@
 # The evaluation of default_proliferation_minimal
----
-energy:
-  based_on: energy
+---    
+_definitions:
+  enabled: false
 
-energy_continuous:
+  hue: &HUE Gamma
+
+  subspace_slice: &subspace_slice
+    Gamma: !sweep
+      default: 0
+      values: 
+        - 0.
+        - 0.1
+        # - 0.15
+        # - 0.2
+        # - 0.3
+        # - 0.5
+        # - 0.7
+
+  time_min: &TIME_MIN ~
+  time_max: &TIME_MAX ~
+
+# modify style parameter
+my_style:
+  enabled: false
+    
+universe:
+  enabled: false
+  based_on:
+    - universe
+    - my_style
+
+single_universe:
+  enabled: False
+  based_on: universe
+  universes:
+    seed: 0
+
+multiverse:
+  enabled: false
+  based_on:
+    - multiverse
+    - my_style
+
+
+# -----------------------------------------------------------------------------
+
+
+# universe examples
+energy:
   based_on: 
     - energy
-    - select.uni.continuous_energy_terms
-
-transitions:
-  based_on: transitions
-
-transitions_cumulated:
-  based_on: transitions
-  cumsum_transitions: true
-
-transitions_continuous:
-  based_on: transitions_continuous
-  cumsum_transitions: true
+    - single_universe
 
 
-cell_properties:
+# Cell properties from cell data ----------------------------------------------
+cell_properties/area: !pspace
   based_on:
     - .plot.multiplot
-    - universe
-    - select_cells_properties
-  enabled: False
+    - multiverse
+    - select_cells_properties_mv
 
-  select:
-    property:
-      path: data/PCPTopology/Cells
-
-  to_plot: 
+  to_plot:
     - function: sns.lineplot
       data: !dag_result all_cells
       label: all cells
+      color: grey
+      ci: ~
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+      color: royalblue
       ci: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
+      color: red
       ci: sd
-    - function: sns.lineplot
-      data: !dag_result support_cells
-      label: support cells
-      ci: sd
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+    subspace: *subspace_slice
+
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, 0]
+      tag: _support_cells
+
+    # # mask for bulk cells
+    # - import_and_call:
+    #   args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+    #          {ids: [seed, id]}]
+    # - .squeeze: [!dag_prev ]
+    # - create_mask: [!dag_prev , <, 0.5] # not boundary
+    # - .rename: [!dag_prev , is_bulk]
+    #   tag: _is_bulk
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+      tag: hair_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: hair_cells
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+      tag: support_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: support_cells
 
   x: time
-
-  helpers:
-    set_labels:
-      x: time
-
-cell_properties/area:
-  based_on: cell_properties
-  select:
-    property:
-      transform:
-        - .sel: [!dag_prev , {property: area}]
-        - .rename: [!dag_prev , area]
   y: area
+
   helpers:
     set_labels:
-      y: average area
+      x: time [$\tau_\lambda$]
+      y: $\langle area \rangle$
+    set_limits:
+      x: [*TIME_MIN, *TIME_MAX]
+      y: [0.9, 1.1]
 
-cell_properties/shape:
-  based_on: cell_properties
-  select:
-    property:
-      transform:
+cell_properties/shape: !pspace
+  based_on: cell_properties/area
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
           - .sel: [!dag_prev , {property: perimeter}]
           - .sel: [!dag_node -2, {property: area_preferential}]
           - pow: [!dag_node -1 , 0.5]
@@ -77,8 +160,103 @@ cell_properties/shape:
   helpers:
     set_labels:
       y: average shape index
+    set_limits:
+      y: [3.72, 4.3]
 
+
+cell_properties/width: !pspace
+  based_on: cell_properties/area
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: [x, y]}]
+          - .rename: [!dag_prev , pos]
+          - call_lambda:
+            - "lambda cells: 0.5 * (cells.shift(id=-1) - cells.shift(id=1))"
+            - !dag_prev
+          - .rename: [!dag_prev , displ]
+          - call_lambda:
+            - "lambda displ: ((  displ.sel(property='x')**2 
+                               + displ.sel(property='x')**2)**0.5).squeeze()"
+            - !dag_prev
+          - .rename: [!dag_prev , width]
+
+  x: time
+  y: width
+
+  helpers:
+    set_labels:
+      y: $\langle width \rangle [\sqrt{A_0}]$
+    set_limits:
+      y: [1., 2.]
+
+
+tissue_length: !pspace
+  based_on: cell_properties/area
+
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result tissue_length
+      ci: sd
+
+  select_and_combine:
+    fields:
+      _tissue_length:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: [x, y]}]
+          - .rename: [!dag_prev , pos]
+          - call_lambda:
+            # the pairwise distance, exclude first and last cell
+            - "lambda pos: pos.shift(id=-2).shift(id=1) - pos"
+            - !dag_prev
+          - .rename: [!dag_prev , displ]
+          - call_lambda:
+            - "lambda displ: ((  displ.sel(property='x')**2 
+                               + displ.sel(property='x')**2)**0.5).squeeze()"
+            - !dag_prev
+          - .rename: [!dag_prev , distance]
+          - .sum: [!dag_prev , id]
+          - .rename: [!dag_prev , length]
+          - call_lambda:
+            - "lambda length: length / length.isel(time=0)"
+            - !dag_prev
+          - .rename: [!dag_prev , rel_length]
+
+  transform:
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_tag _tissue_length]
+    - callattr: [!dag_prev , reset_index]
+      tag: tissue_length
+
+  y: rel_length
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      y: $\langle relative\ tissue\ length \rangle \ [\sqrt{A_0}]$
+    set_limits:
+      y: [0.9, 1.1]
       
-equilibrium_cellular_structure:
+
+# --- Cell segmentation ------------------------------------------------------
+cell_segmentation:
   based_on:
     - cellular_structure
+    - single_universe
+    - my_style
+  select:
+    edge_property:
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_node -1, {property: edge_contractility_heterotypic_boundary__contractility}]
+
+  quiver_kwargs:
+    cmap: cool
+
+  cell_center_marker_kwargs:
+    s: 2
+    colors: ['white', 'red', 'white']

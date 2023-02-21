@@ -12,46 +12,29 @@
 ---
 perform_sweep: true
 paths:
-  model_note: default__heterogeneities
+  model_note: default__polarity
 
 worker_manager:
   nonzero_exit_handling: warn_all
 
 parameter_space:
-  num_steps: 10
+  num_steps: 5
+
+  # num_cells: &NUM_CELLS 256     # The final number of cells
 
   seed: !sweep
     default: 42
-    range: [2]
+    range: [1]
+    order: -1
 
-  PCPTopology:
-
+  PCPTopology:   
     initialisation:
       1_by_proliferation:
-        num_generations: 2
+        num_generations: 0
+    
 
     # The sequence of operations
-    operations:
-      # Differentiate hair and support cells
-      - differentiate_random:
-          times: []
-          iterations_prolog: 1
-          fraction: 0.20
-          minimization:
-            mode: manual
-      - differentiate_NotchDelta:
-          times: []
-          iterations_prolog: 1
-          discard_initialisation: True
-          # NOTE: Notch model skipped because random differentiation terminal
-          #       Swap removes HC-HC contacts partially
-          
-          steps: 2000
-
-          minimization:
-            mode: manual
-      # END differentiation
-      
+    operations:      
       # Eliminate HC-HC contacts
       - increment_linetension:
           times: []
@@ -61,90 +44,60 @@ parameter_space:
           times: []
           iterations_prolog: 1
           hair_hair: 1000
+          minimization:
+            num_repeat: &equilibration_time 5
       # END Differential junctional properties
-
 
       # Introduce junctional heterogeneity
       - increment_edge_contractility:
           times: []
-          iterations_prolog: 1
+          iterations_prolog: 0
 
-          set_ppMLC: &ppMLC 0.8
+          set_ppMLC: &ppMLC 0.
           ppMLC_angle: 0.
+          inhibit_ppMLC: false
 
           set_pMLC: 0.
 
           minimization:
-            num_repeat: 20
+            num_repeat: *equilibration_time
 
-      # Introduce polarity
+      # # Introduce polarity
       - increment_edge_contractility:
           times: []
           iterations_prolog: 1
 
           set_ppMLC: *ppMLC
           ppMLC_angle: 0.
+          inhibit_ppMLC: False
 
-          set_pMLC: &pMLC 0.8
-          reset_HC_polarity: [False, 0.]
-          reset_HC_polarity_random: True
+          set_pMLC: &pMLC 0.6
+          reset_HC_polarity: [True, 1.5708]
+          reset_HC_polarity_random: False
           
           minimization:
-            mode: manual
-
-      # Remove tissue orientation
-      - increment_edge_contractility:
-          times: [1001]
-
-          set_ppMLC: 0.
-          ppMLC_angle: 0.
-
-          set_pMLC: *pMLC
-          reset_HC_polarity: [False, 0.]
-          
-          minimization:
-            mode: manual
-
-      # Restore tissue orientation
-      - increment_edge_contractility:
-          times: [2001]
-
-          set_ppMLC: *ppMLC
-          ppMLC_angle: 0.
-
-          set_pMLC: *pMLC
-          reset_HC_polarity: [False, 0.]
-          
-          minimization:
-            mode: manual
-
-      - jiggle:
-          times: !listgen [3001]
+            num_repeat: *equilibration_time
+            
+      - void:
+          times:
+            start: 1
+            stop: 100000
+            step: 1
           
 
     # --- Dynamics
-    # Minimization parameter
-    minimization: &minimization
-      update_scheme: steepest_gradient
-      dt: 0.01
-      tolerance: 1.e-8
-      max_steps: 500000
-      num_repeat: 1
-      num_steps: 100
-      jiggle_intensity: 0.
-      linetension_fluctuation: 0.001
-      jiggle_tolerance: 1.e-6
+    NotchDelta: {cell_manager: {grid: { resolution: 32}}}
 
-      area_fluctuation: 0.0
-      area_fluctuation_tau: 1.
-      area_fluctuation_A_min: 0.15
-
-    NotchDelta:
-      cell_manager:
-        grid:
-          resolution: 32
     PCPVertex:      
+      boundary_parameter:
+        area_elasticity: 1.
+        area_preferential: 1.
+        shape_elasticity: 0.1
+        shape_index_preferential: 3.54491 # 2 sqrt(pi)
+
       area_elasticity: 1.
+
+      enable_T1_transitions: True
       
       cell_shape_implementation: contractile
       # possible contractile or shape_elastic
@@ -163,10 +116,27 @@ parameter_space:
             contractility: 0.
         setup_params:
           hexagonal:
-            lattice_rows: &ROWS 4
-            lattice_columns: *ROWS
-
-      minimization: *minimization
+            HC_structure: ratio_1_to_3
+            lattice_rows: 12
+            lattice_columns: 12
+            HC_structure_no_HC_at_boundary: True
+            # lattice_rows: !coupled-sweep
+            #   target_name: HC_structure
+            #   default: 16
+            #   values: [14, 16, 14, 16, 14]
+            # lattice_columns: !coupled-sweep
+            #   target_name: HC_structure
+            #   default: 16
+            #   values: [18, 16, 20, 18, 14]
+            # HC_structure: !sweep
+            #   default: ration_1_to_3
+            #   values:
+            #     - ratio_1_to_2
+            #     - ratio_1_to_3
+            #     - ratio_1_to_4
+            #     - ratio_1_to_5
+            #     - ratio_1_to_6
+            #   name: HC_structure
 
       T1_threshold: 0.03
       T1_separation_factor: 1.05
@@ -191,8 +161,8 @@ parameter_space:
           Energy_areaelasticity: *energy_continuous
           Energy_cell_contractility: *energy_continuous
           Energy_edge_contractility: *energy_continuous
-          Energy_boundary_area_elasticity: {active: false}
-          Energy_boundary_shape_elasticity: {active: false}
+          Energy_boundary_area_elasticity: *energy_continuous
+          Energy_boundary_shape_elasticity: *energy_continuous
           Energy_time: *energy_continuous
           transitions: *energy_continuous
 
@@ -212,9 +182,7 @@ parameter_space:
             intervals:
               - [0  ,  5]
               - [5  ,  100,  5]
-              - [100, 1501, 25]
+              - [100, 1000, 25]
+              - [1000, 10000, 100]
       triggers:
         build_interval: *interval
-      tasks:
-        Energy_boundary_area_elasticity: {enabled: false}
-        Energy_boundary_shape_elasticity: {enabled: false}

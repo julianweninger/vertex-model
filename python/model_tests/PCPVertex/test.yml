@@ -1,11 +1,21 @@
 # The model configuration for the heterogeneous Savanna Model
 ---
-parameter_space:  
+parameter_space:
   PCPVertex:
     model_name: PCPVertex
 
     space: 
-      periodic: false
+      periodic: true
+
+    initial_jiggle: 0.
+
+    work_function_terms:
+    - area_elasticity:
+        elastic_modulus: 1
+        preferential_area: 1
+    - cell_contractility:
+        contractility: 1.
+        preferential_shape: 3.72
 
     data_manager:
       deciders:

@@ -7,6 +7,11 @@ worker_manager:
   nonzero_exit_handling: warn_all
     
 parameter_space:
+  direction: !sweep
+    default: forward
+    values:
+      - forward
+      # - backward
   num_steps: !coupled-sweep
     target_name: direction
     default: 20000
@@ -29,14 +34,14 @@ parameter_space:
       dt: 0.05  # this was evaluated in the previous test to be a good dt
       num_steps: 20
       jiggle_intensity: 0.
-      linetension_fluctuation: 0.02
-      linetension_fluctuation_tau: &tau_dL 24
+      linetension_fluctuations: 0.02
+      linetension_fluctuations_tau: &tau_dL 24
       num_repeat: *tau_dL
 
     # -- Initialisation
     initialisation:
       1_by_proliferation:
-        num_generations: 4
+        num_generations: 3
         minimization_between_generations: ~
         minimization:
           num_repeat: 240
@@ -47,94 +52,102 @@ parameter_space:
       - differentiate_random:
           times: []
           iterations_prolog: 1
-          fraction: !sweep
+          rho: !sweep
             name: rho
-            default: 0.2
+            default: 0.26
             values:
               - 0.2
               # - 0.26
               # - 0.1
-            order: -3
+          method: fraction
+          distribution: !coupled-sweep
+            target_name: rho
+            name: distribution
+            default: [0.8, 0.2]
+            values:
+              - [0.80, 0.20]
+              # - [0.74, 0.26]
+              # - [0.90, 0.10]
           minimization:
             mode: manual
+
       # disperse them as much as possible
-      - differentiate_NotchDelta:
+      - minimize_cell_contacts:
           times: []
           iterations_prolog: 1
-          discard_initialisation: True
-          steps: 6000
-          minimization:
-            mode: manual
+          num_steps: 6000
+          type: 1
+          neutral_probability: 0.2
       
       # Eliminate HC-HC contacts
-      - increment_linetension:
-          times: []
-          iterations_prolog: 10
-          HC_sep: !sweep
-            name: HC_sep
-            default: True
-            values: 
-              # - True
-              - False
-            order: -2
-          hair_hair: !coupled-sweep
-            target_name: HC_sep
-            name: lambda_HH
-            default: 1.
-            values: 
-              # - 1.
-              - 0.
-      - increment_linetension:
+      - update_work_function_term:
           times: []
           iterations_prolog: 1
-          hair_hair: !coupled-sweep
-            target_name: HC_sep
-            name: lambda_HH_
-            default: 1000.
-            values: 
-              # - 1000.
-              - 0.
+          name: linetension_heterotypic
+          parameters:
+            linetension: [[0., 0., 0.],
+                          [0., 2., 0.],
+                          [0., 0., 0.]]
+      - update_work_function_term:
+          times: []
+          iterations_prolog: 1
+          name: linetension_heterotypic
+          parameters:
+            linetension:
+              - [0., 0., 0.]
+              - [0., 4., 0.]
+              - [0., 0., 0.]
+      - update_work_function_term:
+          times: []
+          iterations_prolog: 1
+          name: linetension_heterotypic
+          parameters:
+            linetension:
+              - [0., 0., 0.]
+              - [0., 1000., 0.]
+              - [0., 0., 0.]
 
-      - increment_edge_contractility:
+      - update_work_function_term:
           times: []
           iterations_prolog: 1
-          support_support: !sweep
+          name: edge_contractility_heterotypic
+          Gamma: !sweep
             name: Gamma
             default: 0.
-            linspace: [0, 0.8, 3]
+            values: 
+              - 0.
+              - 0.1
+              - 0.2
             order: 2
+          parameters:
+            contractility: !coupled-sweep
+              target_name: Gamma
+              name: contractility
+              default: [[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]]
+              values:
+              - [[ 0.0 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
+              - [[ 0.1 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
+              - [[ 0.2 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
           minimization:
-            # num_repeat: 960
-            # NOTE long equilibration recommended
-
-            linetension_fluctuation: !coupled-sweep &dL_coupled
+            linetension_fluctuations: !coupled-sweep &dL_coupled
               target_name: Gamma
               name: dL
               default: 0.
-              values: [0.02, 0.06, 0.08]
+              values: [0.02, 0.03, 0.04]
       # END differentiation
       
-      - increment_area:
-          times: !listgen [20001]
-          hair: !coupled-sweep
-            target_name: direction
-            default: 0.0005
-            values: 
-              - !expr  2.e-4
-              # - !expr -2.e-4
-            name: increment
-          direction: !sweep
-            default: forward
-            values: 
-              - forward
-              # - backward
-            name: direction
-            order: 1
-          
-          adapt_support: True
-
+      - update_work_function_term:
+          times:
+            start: 1
+            stop: 100000
+            step: 1
+          name: area_elasticity_heterotypic
+          parameters:
+            method: increment_heterotypic
+            increments: [0., !expr 2.e-4]
+            restrain_types: [0]
           minimization:
-            linetension_fluctuation: !coupled-sweep
+            linetension_fluctuations: !coupled-sweep
               <<: *dL_coupled
               name: dL_
 
@@ -142,10 +155,31 @@ parameter_space:
     PCPVertex:
       log_level: warning
 
-      agent_manager:
-        cell_manager:
-          agent_params:
-            shape_index_preferential: 3.8
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+      - area_elasticity_heterotypic:
+          elastic_modulus: 1
+          preferential_area: 1
+          method: set_uniform
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      - linetension_heterotypic:
+          boundary_type: 2
+          linetension:
+            - [0., 0., 0.]
+            - [0., 1., 0.]
+            - [0., 0., 0.]
+      - edge_contractility_heterotypic:
+          boundary_type: 2
+          contractility:
+            - [0., 0., 0.]
+            - [0., 0., 0.]
+            - [0., 0., 0.]
+
+
       T1_barrier: 1.e-2
       T1_probability: 1.
       T1_timeout: 12
@@ -160,17 +194,12 @@ parameter_space:
               intervals:
                 - [0, 1000000000, 320]
         tasks:
-          Energy_total: &energy_continuous
+          Energy: &energy_continuous
             decider: write_energy
             active: true
-          Energy_linetension: *energy_continuous
-          Energy_areaelasticity: *energy_continuous
-          Energy_cell_contractility: *energy_continuous
-          Energy_edge_contractility: *energy_continuous
-          Energy_boundary_area_elasticity: {active: false}
-          Energy_boundary_shape_elasticity: {active: false}
           Energy_time: *energy_continuous
-          transitions: *energy_continuous
+          Transitions: *energy_continuous
+          Interface_length: {active: false}
 
           Vertices: &position {active: false}
           Cells: *position
@@ -198,26 +227,10 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 20001, 250]
+              - [0, 20001, 10]
       triggers:
         build_interval: *interval
       tasks:
-        Energy_boundary_area_elasticity: {active: false}
-        Energy_boundary_shape_elasticity: {active: false}
-
-        Cell_stats: &Statistics
-          active: false
-          trigger: build_once
-          decider: write_stats
-        Hair_cell_stats: *Statistics
-        Support_cell_stats: *Statistics
-        Bulk_cell_stats: *Statistics
-        Bulk_hair_cell_stats: *Statistics
-        Bulk_support_cell_stats: *Statistics
-        Cell_neighbourhood: *Statistics
-        Cell_area_histogram: *Statistics
-        Interface_length: *Statistics
-        Statistics_time: *Statistics
-
+        Interface_length: {active: false}
         Cell_energies: {active: false}
         Edge_energies: {active: false}

@@ -19,7 +19,11 @@ worker_manager:
 
 parameter_space:
   num_steps: &NUM_STEPS 3
-  times: &TIMES !listgen [1001]
+  times: &TIMES
+    times:
+      start: 1
+      stop: 100000
+      step: 1
 
   seed: !sweep
     default: 42

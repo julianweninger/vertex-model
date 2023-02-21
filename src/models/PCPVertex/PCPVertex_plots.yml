@@ -5,9 +5,6 @@
 ---
 energy:
   based_on: energy
-energy_boundary:
-  based_on: energy_boundary
-  enabled: false
 
 transitions:
   based_on: transitions
@@ -57,25 +54,13 @@ cell_properties/area:
     set_labels:
       y: average area
 
-cell_properties/area_preferential:
-  based_on: cell_properties
-  select:
-    property:
-      transform:
-        - .sel: [!dag_prev , {property: area_preferential}]
-        - .rename: [!dag_prev , area_preferential]
-  y: area_preferential
-  helpers:
-    set_labels:
-      y: average pref. area
-
 cell_properties/shape:
   based_on: cell_properties
   select:
     property:
       transform:
           - .sel: [!dag_prev , {property: perimeter}]
-          - .sel: [!dag_node -2, {property: area_preferential}]
+          - .sel: [!dag_node -2, {property: area}]
           - pow: [!dag_node -1 , 0.5]
           - div: [!dag_node -3, !dag_node -1]
           - .rename: [!dag_prev , shape_index]
@@ -87,3 +72,14 @@ cell_properties/shape:
 cellular_structure:
   based_on:
     - cellular_structure
+
+    
+cellular_structure__area:
+  based_on:
+    - cellular_structure
+  select:
+    property:
+      path: data/PCPVertex/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , Area]
