@@ -18,7 +18,7 @@ Centre, National Centre for Biological Sciences, Bangalore.
 ## Installation
 The following instructions assume that you built Utopia in a
 development environment, as indicated in the framework repository's
-[`README.md`](https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia/blob/master/README.md)
+[`README.md`](https://gitlab.com/utopia-project/utopia/-/blob/master/README.md)
 
 ### Step-by-step Instructions
 These instructions are intended for 'clean' __Ubuntu__ or __macOS__ setups
@@ -36,7 +36,7 @@ With access to the Utopia GitLab group, you can clone the repository to that
 directory using the following command:
 
 ```bash
-git clone https://ts-gitlab.iup.uni-heidelberg.de/utopia/vertex-model.git
+git clone https://gitlab.com/utopia-project/utopia.git
 ```
 
 Inside your top level `Utopia` directory, there should now be two repositories:
@@ -55,7 +55,7 @@ No additional dependencies required.
 Enter the repository and create your desired build directory:
 
 ```bash
-cd models
+cd vertex-model
 mkdir build
 ```
 
@@ -97,10 +97,10 @@ with
 utopia models ls
 ```
 
-and perform a simulation run for `MyModel` with
+and perform a simulation run for e.g. `PCPTopology` with
 
 ```bash
-utopia run MyModel
+utopia run PCPTopology --cfg-set proliferation
 ```
 
 #### 5 — Stay up-to-date
@@ -125,7 +125,7 @@ Have a look at the [contribution guide](CONTRIBUTING.md) to see the tasks that y
 
 
 ## Model Documentation
-Unlike the [main Utopia documentation](https://hermes.iup.uni-heidelberg.de/utopia_doc/latest/html/), the models included in this repository come with their own documentation which has to be built locally.
+Unlike the [main Utopia documentation](https://docs.utopia-project.org/html/index.html), the models included in this repository come with their own documentation which has to be built locally.
 It is *not* available online.
 
 To build these docs locally, navigate to the `build` directory and execute
@@ -205,7 +205,7 @@ _Note:_
 Code coverage is useful information when writing and evaluating tests.
 The coverage percentage of the C++ code is reported via the GitLab CI pipeline.
 Check the
-[`README.md` in the main repository](https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia#c-code-coverage)
+[`README.md` in the main repository](https://gitlab.com/utopia-project/utopia/utopia#c-code-coverage)
 for information on how to compile your code with coverage report flags and how
 to retrieve the coverage information.
 
@@ -226,4 +226,4 @@ the package manager; those are listed above.
 
 --- 
 
-[Utopia]: https://ts-gitlab.iup.uni-heidelberg.de/utopia/utopia
+[Utopia]: https://gitlab.com/utopia-project/utopia/utopia
