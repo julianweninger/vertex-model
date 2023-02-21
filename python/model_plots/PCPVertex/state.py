@@ -213,9 +213,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
     hlpr.setup_figure()
 
     def update():
-        global cbar
-        cbar = None
-
         # the domain extent for non periodic boundaries (centered on (0., 0.))
         domain_size_min_x = 0.
         domain_size_max_x = 0.
@@ -247,10 +244,7 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             times = [time for time in grp['Vertices']]
 
         for time in times:
-            hlpr.ax.clear()
-
-            if cbar is not None: 
-                cbar.remove()
+            hlpr.fig.clear()
             hlpr.ax.set_aspect('auto')
             
             if not time in grp['Vertices']:
@@ -390,8 +384,6 @@ def cellular_structure(dm: DataManager, *, uni: UniverseGroup, hlpr: PlotHelper,
             dx, dy = displacement(ax, ay, bx, by)
 
             def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
-                global cbar
-
                 if vertex_cfg['space']['periodic']:
                     # only plot within box + excess length
                     x = xr.where(x > -2 * plot_excess_length, x, np.nan)
