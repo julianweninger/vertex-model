@@ -232,11 +232,6 @@ def cellular_structure(
     hlpr.provide_defaults('set_limits', y=[0, 1])
 
     def update():
-        global cbar
-        cbar = None
-        global edges_cbar
-        edges_cbar = None
-
         # the domain extent for non periodic boundaries (centered on (0., 0.))
         domain_size_min_x = 0.
         domain_size_max_x = 0.
@@ -267,13 +262,7 @@ def cellular_structure(
             times = np.unique(data['Vertices'].coords['time'])
 
         for time in times:
-            hlpr.ax.clear()
-
-            if cbar is not None: 
-                cbar.remove()
-
-            if edges_cbar is not None: 
-                edges_cbar.remove()
+            hlpr.fig.clear()
             hlpr.ax.set_aspect('auto')
 
             v_data = data['Vertices'].sel(time=time)
@@ -415,8 +404,6 @@ def cellular_structure(
             dx, dy = displacement(ax, ay, bx, by)
 
             def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
-                global edges_cbar
-
                 if data['periodic']:
                     # only plot within box + excess length
                     x = xr.where(x > -2 * plot_excess_length, x, np.nan)
