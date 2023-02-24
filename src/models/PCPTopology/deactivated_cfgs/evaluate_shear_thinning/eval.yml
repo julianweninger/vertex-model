@@ -226,7 +226,7 @@ elongation_vs_shear: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
       markers: True
       dashes: False
       err_style: 'bars'
@@ -254,7 +254,7 @@ cell_properties/area: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:
@@ -338,7 +338,7 @@ cell_properties/coordination: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/subordination: !pspace
   based_on: cell_properties/neighbors
@@ -346,7 +346,7 @@ cell_properties/subordination: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result support_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/HH_neighbors: !pspace
   based_on: cell_properties/area
@@ -362,7 +362,7 @@ cell_properties/HH_neighbors: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   helpers:
     set_labels:
       y: average neighbors
@@ -378,7 +378,7 @@ edge_properties/min_length: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_edges
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:
@@ -408,7 +408,7 @@ shape_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     fields:
@@ -437,7 +437,7 @@ pressure_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: ~
+      errorbar: ~
       estimator: std
   select_and_combine:
     fields:
@@ -460,7 +460,7 @@ HH_contacts_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:
@@ -483,7 +483,7 @@ elongation_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:

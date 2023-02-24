@@ -65,17 +65,17 @@ cell_properties/area: !pspace
       data: !dag_result all_cells
       label: all cells
       color: grey
-      ci: ~
+      errorbar: ~
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
       color: royalblue
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
       color: red
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     fields:
@@ -200,7 +200,7 @@ tissue_length: !pspace
   to_plot:
     - function: sns.lineplot
       data: !dag_result tissue_length
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     fields:

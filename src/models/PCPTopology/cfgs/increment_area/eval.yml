@@ -229,6 +229,8 @@ area_mapped/neighbors: !pspace
       tag: property
 
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
@@ -237,6 +239,8 @@ area_mapped/neighbors: !pspace
     - .where: [!dag_tag property, !dag_tag _hair_cells]
       tag: hair_cells_xarray
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: hair_cells
@@ -244,6 +248,8 @@ area_mapped/neighbors: !pspace
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
       tag: support_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
@@ -254,17 +260,17 @@ area_mapped/neighbors: !pspace
       data: !dag_result all_cells
       label: all cells
       color: grey
-      ci: ~
+      errorbar: ~
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
       color: red
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
       color: royalblue
-      ci: sd
+      errorbar: sd
 
   x: area
   y: num_neighbors
@@ -352,17 +358,17 @@ area_mapped/neighbors_w_data: !pspace
       data: !dag_result all_cells
       label: all cells
       color: grey
-      ci: ~
+      errorbar: ~
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
       color: royalblue
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
       color: red
-      ci: sd
+      errorbar: sd
     - function: sns.scatterplot
       data: !dag_result experiment
       label: basilar papilla
@@ -577,7 +583,7 @@ area_mapped/coordination_fit: !pspace
     - function: sns.lineplot
       data: !dag_result hair_cells
       hue: Gamma
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result linear_fit_experiment
       label: lin. fit experiment
@@ -675,10 +681,10 @@ area_mapped/coordination_quantify: !pspace
     - function: sns.lineplot
       data: !dag_result hair_cells
       hue: Gamma
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result HC_smoothed
-      ci: ~
+      errorbar: ~
     - function: sns.scatterplot
       data: !dag_result experiment
       label: 
@@ -708,15 +714,15 @@ area_mapped/hair_neighbors: !pspace
     - function: sns.lineplot
       data: !dag_result all_cells
       label: all cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
-      ci: sd
+      errorbar: sd
 
   x: area
   y: num_hair_neighbors
@@ -742,7 +748,7 @@ area_mapped/hexatic_order: !pspace
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
-      ci: sd
+      errorbar: sd
 
   x: area
   y: hexatic_order
@@ -771,7 +777,7 @@ area_mapped/hexatic_order_w_data: !pspace
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
-      ci: sd
+      errorbar: sd
     - function: sns.scatterplot
       data: !dag_result data_experiment
       label: basilar papilla
@@ -977,7 +983,7 @@ cell_properties/area: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:
@@ -1057,14 +1063,14 @@ cell_properties/coordination: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/subordination: !pspace
   based_on: cell_properties/neighbors
   to_plot: 
     - function: sns.lineplot
       data: !dag_result support_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/HH_neighbors: !pspace
   based_on: cell_properties/area
@@ -1086,7 +1092,7 @@ cell_properties/HH_neighbors: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   helpers:
     set_labels:
       y: average neighbors
@@ -1103,7 +1109,7 @@ edge_properties/min_length: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_edges
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:

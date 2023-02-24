@@ -103,17 +103,17 @@ cell_properties: !pspace
       data: !dag_result all_cells
       label: all cells
       color: grey
-      ci: ~
+      errorbar: ~
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
       color: royalblue
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
       color: red
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     subspace: *subspace_slice

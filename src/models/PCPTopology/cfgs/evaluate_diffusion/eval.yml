@@ -94,6 +94,9 @@ diffusion_constant: !pspace
     subspace: *subspace_slice_2
   transform:
     - pass: [!dag_tag _displacement]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_prev ,
+             {ids: [seed, id]}]
       tag: displacement
 
     # the time coordinates
@@ -119,11 +122,15 @@ diffusion_constant: !pspace
     - .where: [!dag_prev , !dag_tag equilibrium]
     - .mean: [!dag_prev , time]
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
       tag: diffusion_const
     - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
     - .mean: [!dag_prev , time]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
     - callattr: [!dag_prev , reset_index]
@@ -183,7 +190,7 @@ cell_properties/area: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:
@@ -240,7 +247,7 @@ cell_properties/pressure: !pspace
     - function: sns.lineplot
       data: !dag_result all_cells
       estimator: std
-      ci: ~
+      errorbar: ~
   helpers:
     set_labels:
       y: stddev. pressure
@@ -271,7 +278,7 @@ cell_properties/coordination: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/subordination: !pspace
   based_on: cell_properties/neighbors
@@ -279,7 +286,7 @@ cell_properties/subordination: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result support_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/HH_neighbors: !pspace
   based_on: cell_properties/area
@@ -301,7 +308,7 @@ cell_properties/HH_neighbors: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   helpers:
     set_labels:
       y: average neighbors
@@ -317,7 +324,7 @@ shape_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     fields:
@@ -356,7 +363,7 @@ pressure_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: ~
+      errorbar: ~
       estimator: std
   select_and_combine:
     fields:
@@ -383,7 +390,7 @@ HH_contacts_vs_dL: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:

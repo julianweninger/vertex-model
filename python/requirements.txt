@@ -2,7 +2,5 @@
 # These can be related to plotting and/or testing, and are installed alongside
 # the registration of model tests.
 
-dantro>=0.16
-
-# TODO fix incompatibilities with 0.12
-seaborn==0.11.2
+dantro>=0.18
+seaborn>=0.12

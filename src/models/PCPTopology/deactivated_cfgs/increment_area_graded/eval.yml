@@ -454,7 +454,7 @@ cells_spatial/HC_density: !pspace
   to_plot:
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     fields:
@@ -508,13 +508,13 @@ cell_properties: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result support_cells
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     subspace: *subspace_slice
@@ -618,14 +618,14 @@ cell_properties/coordination: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/subordination: !pspace
   based_on: cell_properties/neighbors
   to_plot: 
     - function: sns.lineplot
       data: !dag_result support_cells
-      ci: sd
+      errorbar: sd
 
 cell_properties/HH_neighbors: !pspace
   based_on: cell_properties/area
@@ -640,7 +640,7 @@ cell_properties/HH_neighbors: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
-      ci: sd
+      errorbar: sd
   helpers:
     set_labels:
       y: average neighbors
@@ -657,7 +657,7 @@ edge_properties/min_length: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_edges
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:

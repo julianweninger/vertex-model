@@ -24,7 +24,7 @@ energy: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result energy
-      ci: sd
+      errorbar: sd
       style: curvature
       size: init
 

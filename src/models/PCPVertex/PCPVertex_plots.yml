@@ -26,15 +26,15 @@ cell_properties:
     - function: sns.lineplot
       data: !dag_result all_cells
       label: all cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
-      ci: sd
+      errorbar: sd
 
   x: time
 
