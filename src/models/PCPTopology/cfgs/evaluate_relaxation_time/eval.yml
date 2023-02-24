@@ -67,7 +67,7 @@ cell_properties/area: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      ci: sd
+      errorbar: sd
   select_and_combine:
     fields:
       _property:

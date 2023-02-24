@@ -120,6 +120,8 @@ _diffusion:
     - .rename: [!dag_prev , square_displ]
       tag: square_displ_xr
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , id]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: square_displacement
 
@@ -129,6 +131,8 @@ _diffusion:
     - .rename: [!dag_prev , diffusion]
       tag: diffusion_xr
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , id]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: diffusion
 
@@ -136,11 +140,13 @@ _diffusion:
     - pow: [!dag_tag square_displ_xr, 0.5]
     - .rename: [!dag_prev , distance]
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , id]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: distance
 
   x: time
-  ci: sd
+  errorbar: sd
   to_plot:
   - function: sns.lineplot
     data: !dag_result diffusion
@@ -268,6 +274,8 @@ select_cells_properties:
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
       tag: hair_cells_xarray
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
@@ -275,6 +283,8 @@ select_cells_properties:
 
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
       tag: support_cells_xarray
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
@@ -282,16 +292,22 @@ select_cells_properties:
 
     # the data for bulk cells
     - .where: [!dag_tag property, !dag_tag _is_bulk]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: all_cells_bulk
     
     - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hair_cells_bulk
     
     - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: support_cells_bulk
@@ -365,6 +381,8 @@ select_cells_properties_mv:
     - .squeeze: [!dag_prev ]
       tag: property
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: all_cells
 
@@ -390,12 +408,16 @@ select_cells_properties_mv:
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
       tag: hair_cells_xarray
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hair_cells
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
       tag: support_cells_xarray
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
@@ -404,15 +426,21 @@ select_cells_properties_mv:
     # the data for bulk cells
     - .where: [!dag_tag property, !dag_tag _is_bulk]
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: all_cells_bulk
       
     - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hair_cells_bulk
       
     - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: support_cells_bulk
@@ -589,18 +617,26 @@ select_edges_properties:
       tag: _boundary_edges
 
     - .where: [!dag_tag property, !dag_tag _ss_edges]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: ss_edges
     - .where: [!dag_tag property, !dag_tag _hs_edges]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hs_edges
     - .where: [!dag_tag property, !dag_tag _hh_edges]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hh_edges
     - .where: [!dag_tag property, !dag_tag _boundary_edges]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: boundary_edges
@@ -649,17 +685,25 @@ select_edges_properties_mv:
 
     - .where: [!dag_tag property, !dag_tag _ss_edges]
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: ss_edges
     - .where: [!dag_tag property, !dag_tag _hs_edges]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hs_edges
     - .where: [!dag_tag property, !dag_tag _hh_edges]
     - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hh_edges
     - .where: [!dag_tag property, !dag_tag _boundary_edges]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: boundary_edges

@@ -170,7 +170,7 @@ energy_mv: !pspace
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_tag _cell_contractility]
     - callattr: [!dag_prev , reset_index]
       tag: cell_contractility
-  ci: sd
+  errorbar: sd
   x: time
   y: energy
   # hue: level_0
@@ -361,7 +361,7 @@ transitions_multiplot_over_time: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result T1s
-      ci: sd
+      errorbar: sd
 
   x: time
   y: num_T1s
@@ -390,17 +390,17 @@ cell_properties: !pspace
       data: !dag_result all_cells
       label: all cells
       color: grey
-      ci: ~
+      errorbar: ~
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
       color: royalblue
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
       color: red
-      ci: sd
+      errorbar: sd
 
   select_and_combine:
     subspace: *subspace_slice

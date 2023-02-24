@@ -25,7 +25,6 @@ displacement:
 
 
 # Cell properties from cell data ----------------------------------------------
-
 cell_properties:
   based_on:
     - .plot.multiplot
@@ -41,17 +40,15 @@ cell_properties:
     - function: sns.lineplot
       data: !dag_result all_cells
       label: all cells
-      ci: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
-      ci: sd
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
-      ci: sd
 
   x: time
+  errorbar: sd
 
   helpers:
     set_labels:
@@ -133,7 +130,7 @@ cell_properties/hexatic_order:
     - function: sns.lineplot
       data: !dag_result hair_cells_bulk
       label: hair cells
-      ci: sd
+      errorbar: sd
   helpers:
     set_labels:
       y: average hexatic order
@@ -155,7 +152,7 @@ cell_properties/elongation:
     - function: sns.lineplot
       data: !dag_result hair_cells_bulk
       label: hair cells
-      ci: sd
+      errorbar: sd
   helpers:
     set_labels:
       y: average cell elongation
@@ -292,15 +289,15 @@ pressure:
     - function: sns.lineplot
       data: !dag_result all_cells
       label: all cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result support_cells
       label: support cells
-      ci: sd
+      errorbar: sd
 
   select:
     property:
@@ -331,15 +328,15 @@ tension:
     - function: sns.lineplot
       data: !dag_result all_edges
       label: all edges
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result ss_edges
       label: support-support
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hs_edges
       label: support-hair
-      ci: sd
+      errorbar: sd
 
   x: time
   y: tension

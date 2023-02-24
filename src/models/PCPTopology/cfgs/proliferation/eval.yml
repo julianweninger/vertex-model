@@ -28,7 +28,7 @@ cell_properties:
     - function: sns.lineplot
       data: !dag_result all_cells
       label: all cells
-      ci: sd
+      errorbar: sd
 
   x: time
 

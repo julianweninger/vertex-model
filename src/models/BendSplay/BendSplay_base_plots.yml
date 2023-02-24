@@ -25,7 +25,7 @@ energy:
   to_plot: 
     - function: sns.lineplot
       data: !dag_result energy
-      ci: sd
+      errorbar: sd
 
 
 # A time series plot of the circular mean and std of the agent orientation
@@ -51,7 +51,7 @@ orientation:
   to_plot: 
     - function: sns.scatterplot
       data: !dag_result orientations
-      # ci: sd
+      # errorbar: sd
   
   helpers:
     setup_figure:

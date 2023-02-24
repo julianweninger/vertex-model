@@ -75,7 +75,7 @@ energy:
     tag: lagrange_concentration
   x: time
   y: Energy
-  ci: sd
+  errorbar: sd
 
 
 cell_segmentation:

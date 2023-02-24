@@ -64,22 +64,22 @@ Collier_densities:
       data: !dag_result progenior
       label: Progenitor
       color: gray
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result support
       label: Support
       color: black
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair
       label: Hair
       color: red
-      ci: sd
+      errorbar: sd
     - function: sns.lineplot
       data: !dag_result rosettes
       label: Rosettes
       color: violet
-      ci: sd
+      errorbar: sd
 
   x: time
   y: density

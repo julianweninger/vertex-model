@@ -28,15 +28,15 @@ space: &SPACE
 initialisation:
   # Add some noise to initial lattice
   0_add_noise:
-    enabled: true
+    enabled: false
 
     minimization:
       num_repeat: 1
 
   # Proliferate cells
   1_by_proliferation:
-    enabled: true
-    num_generations: 1
+    enabled: false
+    num_generations: 0
     minimization_between_generations: ~
     minimization:
       num_repeat: &equilibration_time 25
@@ -44,51 +44,29 @@ initialisation:
 # The sequence of operations
 operations:  
   # this happens after the proliferation
-  
-  # - differentiate_NotchDelta:
-  #     times: []
-  #     iterations_prolog: 2
-      
-  #     steps: 1000        # only used if method='NotchDelta'
+  - proliferate:
+      times:
+        start: 1
+        stop: 100000
+        step: 10
+      iterations_prolog: 0
+      iterations_epilog: 0
+      emit_interval: 0
 
-  # - increment_area:
-  #     times: !listgen [0, 10, 1]
-      
-  #     hair: 0.01
-  #     stddev_hair: 0.01
-  #     adapt_support: true
+      num_increases: 4
+      area_threshold: 1.75
 
-  # - increment_domain:
-  #     times: []
+      minimization_after_increase: 
+        num_repeat: 1
+      minimization:
+        num_repeat: 1
 
-  #     value: [0., 0.]
-  #     compensate: true
-  #     fix_hair_cell_area: false
-
-  # - increment_shape_index:
-  #     times: []
-
-  #     progenitor: 0.
-  #     hair: 0.
-  #     support: 0.
-
-  # - increment_linetension:
-  #     times: []
-      
-  #     hair_hair: 10.
-  #     support_support: 0.
-
-  # - increment_edge_contractility:
-  #     times: []
-      
-  #     hair_hair: 0.
-  #     support_support: 0.
 
   - void: # this is a void operation, but calling minimization
-      times: []
-      iterations_epilog: 4
-
-      emit_interval: 4
+      times: 
+        start: 1
+        stop: 100000
+        step: 1
 
 
 # --- Dynamics
@@ -98,8 +76,8 @@ minimization: &Minimization
   dt: 0.05
   num_steps: 20
 
-  linetension_fluctuations: 0.01
-  linetension_fluctuations_tau: 24
+  linetension_fluctuations: &dL 0.001
+  linetension_fluctuations_tau: &tau_dL 24
 
   tolerance: 1.e-8
   jiggle_tolerance: 1.e-6
@@ -107,22 +85,22 @@ minimization: &Minimization
   
   max_steps: 15000
 
-  num_repeat: 1
+  num_repeat: *tau_dL
 
 
 # The model for energy minimization
 PCPVertex:
   log_level: info
 
-  initial_jiggle: 1.e-2
+  initial_jiggle: 1.e-4
 
   space: *SPACE
 
   # --- Initialization parameters
   work_function_terms:
   - linetension_fluctuations:
-      amplitude: 0.02
-      timescale: 24
+      amplitude: *dL
+      timescale: *tau_dL
   - area_elasticity:
       elastic_modulus: 1
       preferential_area: 1
@@ -175,7 +153,7 @@ PCPVertex:
         type: interval
         args:
           intervals:
-            - [0, 100, 24]
+            - [0, !expr 20 * 24, 24]
       write_at_equilibrium:
         type: equilibrium_decider
     triggers:
@@ -216,7 +194,7 @@ data_manager:
       args:
         intervals:
           - [0, 10, 1]
-          - [10, 100, 10]
+          - [10, 1000, 5]
   triggers:
     build_once:
       type: once
