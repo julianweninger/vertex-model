@@ -692,6 +692,14 @@ public:
                 )
             );
         }
+        else if (term == "boundary_classifier") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryClassifier<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }        
         else if (term == "boundary_fixed") {
             register_work_function_term(
                 name,
@@ -804,6 +812,7 @@ public:
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
                 " - boundary_bend_elastic\n"
+                " - boundary_classifier\n"
                 " - boundary_fixed\n"
                 " - boundary_fixed_partial\n"
                 " - boundary_stripe_potential\n"

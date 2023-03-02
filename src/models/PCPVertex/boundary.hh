@@ -327,6 +327,10 @@ protected:
     }
 
     Quadrant get_quadrant (const std::shared_ptr<Vertex>& vertex) const {
+        if (not this->_am.is_boundary(vertex)) {
+            return Quadrant::none;
+        }
+
         SpaceVec pos = this->_am.position_of(vertex);
 
         if (fabs(_curvature) < 1.e-8) {
@@ -974,6 +978,230 @@ public:
         if (get_as<bool>("deform_plastic", cfg, false)) {
             deform_plastic(tmp_curvature);
         }
+    }
+};
+
+
+/// @brief  Classifies the boundary edges to 4 quadrants
+/// @tparam Model 
+/** Classifier the boundary edges to types BoundaryClassifier::Quadrant.
+ * 
+ *  Initially, the boundaries are identified by the center point of each 
+ *  boundary edge and the distance to the extreme extents of the tissue in
+ *  x, y calculated. In order, top, bottom, right, and left, the edges
+ *  are classified if they are within a certain distance of each boundary.
+ * 
+ *  In every update, boundary edges with type Quadrant::none are updated to 
+ *  the quadrant of the edge that precedes it in anti-clockwise orientation.
+ *  Note, that initially unassigned boundary edges will eventually inherit a
+ *  classification by this update.
+ * 
+ *  Note, for best results, initialise this work function in a state of a
+ *  rectangular tissue.
+ * 
+ *  Arguments:
+ *      - `from_top`: Distance from maximum coordinate in y
+ *      - `from_bottom`: Distance from minimum coordinate in y
+ *      - `from_right`: Distance from maximum coordinate in x
+ *      - `from_left`: Distance from minimum coordinate in x
+*/
+template <typename Model>
+class BoundaryClassifier : public WorkFunctionTerm<Model>
+{
+    using Base = WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Model::Edge;
+
+    using Cell = typename Model::Cell;
+
+public:
+    enum Quadrant {
+        none=0,
+        top=1,
+        right=2,
+        bottom=3,
+        left=4
+    };
+
+protected:
+    /// The name of the parameter where the classification is stored
+    const std::string _classifier;
+
+public:
+    BoundaryClassifier (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _classifier(name + "_boundary_class")
+    {
+
+        double min_x = std::numeric_limits<double>::max();
+        double max_x = std::numeric_limits<double>::min();
+        double min_y = std::numeric_limits<double>::max();
+        double max_y = std::numeric_limits<double>::min();
+        for (const auto& edge : this->_am.edges()) {
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            SpaceVec pos = 0.5 * (  this->_am.position_of(a) 
+                                  + this->_am.position_of(b));
+
+            min_x = std::min(min_x, pos[0]);
+            max_x = std::max(max_x, pos[0]);
+            min_y = std::min(min_y, pos[1]);
+            max_y = std::max(max_y, pos[1]);
+        }
+
+        double top = get_as<double>("from_top", cfg);
+        double bottom = get_as<double>("from_bottom", cfg);
+        double right = get_as<double>("from_right", cfg);
+        double left = get_as<double>("from_left", cfg);
+
+        for (const auto& edge : this->_am.edges()) {
+            const auto& a = edge->custom_links().a;
+            const auto& b = edge->custom_links().b;
+
+            SpaceVec pos = 0.5 * (  this->_am.position_of(a) 
+                                  + this->_am.position_of(b));
+
+            if (not this->_am.is_1_cell_boundary_edge(edge)) {
+                edge->state.register_parameter(_classifier, Quadrant::none);
+            }
+            else if (pos[1] - 1.e-8 > max_y - top) {
+                edge->state.register_parameter(_classifier, Quadrant::top);
+            }
+            else if (pos[1] + 1.e-8 < min_y + bottom) {
+                edge->state.register_parameter(_classifier, Quadrant::bottom);
+            }
+            else if (pos[0] - 1.e-8 > max_x - right) {
+                edge->state.register_parameter(_classifier, Quadrant::right);
+            }
+            else if (pos[0] + 1.e-8 < min_x + left) {
+                edge->state.register_parameter(_classifier, Quadrant::left);
+            }
+            else {
+                edge->state.register_parameter(_classifier, Quadrant::none);
+            }
+        }
+
+        for (std::size_t i = 0; i < 5; i++) {
+            this->update(0.);
+        }
+
+        // for (const auto& edge : this->_am.edges()) {
+        //     auto [ca, cb] = this->_am.adjoints_of(edge);
+
+        //     if (ca and cb) {
+        //         // bulk
+        //         edge->state.register_parameter(_classifier, 0);
+        //         continue;
+        //     }
+
+        //     if (not ca) { std::swap(ca, cb); }
+
+        //     SpaceVec displ({0., 1.});
+        //     for (const auto& [e, flip] : ca->custom_links().edges) {
+        //         if (e == edge) {
+        //             displ = this->_am.displacement(edge, flip);
+        //             break;
+        //         }
+        //     }
+
+        //     double angle = atan2(displ[1], displ[0]) / M_PI * 180;
+        //     double crit_angle = get_as<double>("separation_angle", cfg);
+        //     if (fabs(angle) > 90 + crit_angle) {
+        //         // left oriented junction (top)
+        //         edge->state.register_parameter(_classifier, Quadrant::top);
+        //     }
+        //     else if (angle > 90 - crit_angle) {
+        //         // top oriented junction (right)
+        //         edge->state.register_parameter(_classifier, Quadrant::right);
+        //     }
+        //     else if (angle > -90 + crit_angle) {
+        //         // right oriented junction (bottom)
+        //         edge->state.register_parameter(_classifier, Quadrant::bottom);
+        //     }
+        //     else {
+        //         // down oriented junction (left)
+        //         edge->state.register_parameter(_classifier, Quadrant::left);
+        //     }
+        // }
+    }
+
+    ~BoundaryClassifier() {
+        for (const auto& vertex : this->_am.vertices()) {
+            vertex->state.unregister_parameter(_classifier);
+        }
+        for (const auto& edge : this->_am.edges()) {
+            edge->state.unregister_parameter(_classifier);
+        }
+    }
+
+    void compute_and_set_forces () final { }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        return 0.;
+    }
+
+    void update ([[maybe_unused]] double dt) final {
+        for (const auto& edge : this->_am.edges()) {
+            if (not edge->state.has_parameter(_classifier)) {
+                edge->state.register_parameter(_classifier, 0);
+            }
+        }
+
+        const auto edges = this->_am.get_boundary_edges();
+        
+        // every new junction inherits its quadrant from the previous junction
+        // where junctions are order anti-clockwise along the boundary
+        const auto& [edge, flip] = edges.back();
+        Quadrant q = (Quadrant)(edge->state.get_parameter(_classifier) + .5);        
+        for (const auto& [edge, flip] : edges) {
+            Quadrant _q = (Quadrant)(edge->state.get_parameter(_classifier)+.5);
+
+            if (_q == 0) {
+                _q = q;
+            }
+
+            edge->state.update_parameter(_classifier, _q);
+            
+            q = _q;
+        }
+    }
+
+    void update_parameters ([[maybe_unused]] const DataIO::Config& cfg) final
+    {
+        return;
+    }
+
+    std::vector<std::string> write_task_edge_properties_names () const final {
+        return std::vector<std::string>({
+            "boundary_class"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_properties () const final {
+        std::vector<double> contractilities({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(edge->state.get_parameter(_classifier));
+        }
+        return std::vector<std::vector<double>>({contractilities});
+    }
+
+    Quadrant get_class (const std::shared_ptr<Edge>& edge) const {
+        return (Quadrant)(edge->state.get_parameter(_classifier)+.5);
     }
 };
 
