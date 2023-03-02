@@ -434,10 +434,6 @@ public:
      *      -# tracking of variables
      */
     void perform_step () {
-        for (const auto& [name, term] : _work_function_terms) {
-            term->update(this->_dt);
-        }
-
         if (_dt > 1.e-10) {
             if (_space->get_curvature() > 1.e-8) {
                 throw std::runtime_error(fmt::format("Cannot perform step with "
@@ -447,11 +443,15 @@ public:
             
             perform_transitions(_enable_transitions);
 
+            for (const auto& [name, term] : _work_function_terms) {
+                term->update(this->_dt);
+            }
+
             steepest_gradient_step();
         }
         else {
             this->_log->debug(
-                "Skipping update on vertex positions with dt = {} < 0.",
+                "Skipping update with dt = {} < 0.",
                 _dt
             );
         }
@@ -692,6 +692,14 @@ public:
                 )
             );
         }
+        else if (term == "boundary_classifier") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryClassifier<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }        
         else if (term == "boundary_fixed") {
             register_work_function_term(
                 name,
@@ -804,6 +812,7 @@ public:
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
                 " - boundary_bend_elastic\n"
+                " - boundary_classifier\n"
                 " - boundary_fixed\n"
                 " - boundary_fixed_partial\n"
                 " - boundary_stripe_potential\n"
