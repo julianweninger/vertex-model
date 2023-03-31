@@ -5,8 +5,8 @@ single_universe:
     seed: 0
     
 _definitions:
-  T_eq: &T_eq 200
-  T_eq_long: &T_eq_long 800
+  T_eq: &T_eq 100
+  T_eq_long: &T_eq_long 300    # 800
 
   enabled: false
   hue: &HUE dL
@@ -21,7 +21,7 @@ _definitions:
         # - 0.02
         # - 0.03
         # - 0.04
-        - 0.06
+        # - 0.06
     HC_area: !sweep
       default: 2
       values:
@@ -33,7 +33,10 @@ _definitions:
         # - 3.0
     Gamma: !sweep
       default: 0
-      values: [0., 0.4, 0.8]
+      values: 
+        # - 0.
+        - 0.1
+        # - 0.2
       order: 1
     rho: !sweep
       default: 0.2
@@ -71,7 +74,7 @@ _definitions:
         # - 0.02
         # - 0.03
         # - 0.04
-        - 0.06
+        # - 0.06
 
 
 # The energy at uniform t distances
@@ -466,8 +469,7 @@ HH_contacts_vs_dL: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
-
+          - .sel: [!dag_prev , {property: num_neighbors__self}]
           - .coords: [!dag_prev , time]
           - create_mask: [!dag_prev , '>=', *T_eq_long]
           - .where: [!dag_node -3, !dag_prev ]

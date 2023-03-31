@@ -312,6 +312,11 @@ private:
                         )
                     );
                 }
+                else if (name == "simple_shear") {
+                    _operations.push_back(
+                        build_simple_shear(name, op_cfg, _minimization_params)
+                    );
+                }
                 else if (name == "unregister_work_function_term") {
                     _operations.push_back(
                         build_unregister_work_function_term(
@@ -346,6 +351,7 @@ private:
                         "- proliferate\n"
                         "- proliferate_generations\n"
                         "- register_work_function_term\n"
+                        "- simple_shear\n"
                         "- unregister_work_function_term\n"
                         "- update_work_function_term\n"
                         "- void\n"

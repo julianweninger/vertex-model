@@ -70,7 +70,17 @@ def test_run_and_eval_cfgs(cfg_name):
             }
         },
         'evaluate_shear_thinning': {
-            'num_steps': 1
+            'num_steps': 1,
+            'PCPTopology': {
+                'initialisation': {
+                    '1_by_proliferation': {
+                        'enabled': True,
+                        'num_generations': 1,
+                        'iterations_prolog': 1,
+                        'minimization': {'num_repeat': 24}
+                    }
+                },
+            }
         },
         'increment_area_graded': {
             'num_steps': 1

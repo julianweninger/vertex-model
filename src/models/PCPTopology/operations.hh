@@ -540,6 +540,50 @@ OperationBundle build_proliferate_generations (
     return std::make_pair(operation, params);
 }
 
+/// A simple shear model
+/** Move all boundary vertices in a simple shear way:
+ *  \f$ dx = const * y \f$
+ * 
+ *  The following parameter are extracted from cfg 
+ *  (besides those passed to `OperationParams`):
+ *      - `shear_velocity` (double): The additional skew per operation call
+ *      - `absolute_shear_velocity` (bool): Whether the additional skew is 
+ *              absolute value on the length of the domain or 
+ *              relative per unit length.
+ *      - `deform_plastic` (bool): Whether the cells are deformed according
+ *              to the shear deformation.
+ * 
+ *  See PCPVertex::skew_domain for further information.
+ */
+OperationBundle build_simple_shear (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    using SpaceVec = PCPVertex::SpaceVec;
+
+    OperationParams params(name, cfg, default_minim_params);
+
+    SpaceVec v0 = get_as_SpaceVec<2>("shear_velocity", cfg);
+    bool absolute = get_as<bool>("absolute_shear_velocity", cfg);
+    bool deform_plastic = get_as<bool>("deform_plastic", cfg);
+
+    Operation operation = [v0, absolute, deform_plastic](
+            PCPVertex& vertex_model
+    )
+    {
+        const auto& space = vertex_model.get_space();
+
+        SpaceVec skew = space->get_skew();
+        SpaceVec domain = space->get_domain_size();
+
+        skew += v0;
+
+        vertex_model.skew_domain(v0, absolute, deform_plastic);
+    };
+
+    return std::make_pair(operation, params);
+}
+
 
 } // namespace OperationCollection
 } // namespace PCPVertex
