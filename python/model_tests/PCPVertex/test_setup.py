@@ -21,7 +21,8 @@ mtc = ModelTest("PCPVertex", test_file=__file__)
 # Tests -----------------------------------------------------------------------
 def test_output():
     # Create a Multiverse using the configuration for the original equations
-    mv, dm = mtc.create_run_load(from_cfg="test.yml")
+    mv, dm = mtc.create_run_load(from_cfg="test.yml", 
+                                 parameter_space=dict(num_steps=3))
 
     data = dm['multiverse'][0]['data']['PCPVertex']
 
