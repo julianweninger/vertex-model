@@ -13,8 +13,12 @@ _definitions:
   subspace_slice: &subspace_slice
     Gamma: !sweep
       default: 0
-      values: [0, 0.1, 0.2]
+      values: 
+        - 0
+        - 0.1
+        # - 0.2
       order: 1
+
     rho: !sweep
       default: 0.2
       values: 
@@ -47,7 +51,10 @@ _definitions:
       order: 0
     Gamma: !sweep
       default: 0
-      values: [0, 0.1, 0.2]
+      values: 
+        - 0
+        - 0.1
+        # - 0.2
       order: 1
 
 

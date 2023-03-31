@@ -1,7 +1,7 @@
 ---
 perform_sweep: true
 paths:
-  model_note: evaluation_diffusion__area_incremented
+  model_note: default__evaluation_diffusion__area_incremented
 
 worker_manager:
   nonzero_exit_handling: warn_all
@@ -70,7 +70,7 @@ parameter_space:
             values: 
               - 0.
               - 0.1
-              - 0.2
+              # - 0.2
             order: 2
           parameters:
             contractility: !coupled-sweep
@@ -80,7 +80,7 @@ parameter_space:
               values:
               - [[ 0.0 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
               - [[ 0.1 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
-              - [[ 0.2 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
+              # - [[ 0.2 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
           minimization:
             mode: manual
       # END differentiation
@@ -107,7 +107,11 @@ parameter_space:
             linetension_fluctuations: !sweep
               name: dL
               default: 0.
-              values: [0.01, 0.02, 0.03, 0.04]
+              values: 
+                - 0.01
+                - 0.02
+                - 0.03
+                - 0.04
       
       # Minimize the energy using different fluctuation intensities
       - void:
@@ -151,10 +155,6 @@ parameter_space:
             - [0., 0., 0.]
             - [0., 0., 0.]
 
-      agent_manager:
-        cell_manager:
-          agent_params:
-            shape_index_preferential: 3.8
       T1_barrier: 1.e-2
       T1_probability: 1.
       T1_timeout: 12
@@ -172,20 +172,6 @@ parameter_space:
           Vertices: &position {active: false}
           Cells: *position
           Edges: *position
-
-    NotchDelta:
-      data_manager:
-        deciders: {write_always: {type: always}}
-        triggers: {build_once: {type: once}}
-        tasks:
-          Density_progenitor: &density_ND
-            active: false
-            trigger: build_once
-            decider: write_always
-          Density_hair: *density_ND
-          Density_support: *density_ND
-          Density_rosettes: *density_ND
-          Density_time: *density_ND
 
     data_manager:
       deciders:

@@ -2286,6 +2286,36 @@ public:
 };
 
 
+/// @brief The area elasticity of a cell with heterotypic target values
+/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
+ *  cell area  \f$ A_\alpha \f$..
+ * 
+ *  Parameters:
+ *      - `contractility`: the elastic modulus \f$ k \f$
+ *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
+ *              at which cell is pressure free.
+ *      - `method` (str): The method how to set the heterotypic values for
+ *              preferential area \f$ A^{(0)} \f$. Available:
+ *          - `set_heterotypic`: Set \f$ A^{(0)} \f$ by cell type.
+ *              Additional parameters:
+ *              - `preferential_areas` (vector<double>): The values for 
+ *                  \f$ A^{(0)} \f$ by type.
+ * 
+ *          - `set_uniform`: Sets all values of \f$ A^{(0)} \f$ indepentent of 
+ *              cell type.
+ *              Additional parameters:
+ *                  - `preferential_area` (double): The new \f$ A^{(0)} \f$ for
+ *                      all cells.
+ * 
+ *          - `increment_heterotypic`: Increments \f$ A^{(0)} \f$ by cell type.
+ *              Additional parameters:
+ *              - `increments` (vector<double>): Incremental values per 
+ *                      cell type.
+ *              - `restrain_types` (vector<uint>): Which types are compensating
+ *                      area change. If not empty, the cells of these types 
+ *                      change in \f$ A^{(0)} \f$ such that total 
+ *                      \f$ \sum A^{(0)}_i = const \f$.
+ */
 template <typename Model>
 class AreaElasticityHeterotypic : public AreaElasticity<Model> 
 {
@@ -2335,9 +2365,9 @@ private:
                 }
 
                 if (cnt_restrain == 0 and fabs(area_change) > 1.e-8) {
-                    throw std::runtime_error(fmt::format("Heterotypic increment of "
-                        "preferential area with restrain on types failed, "
-                        "because no cells with that type!"));
+                    throw std::runtime_error(fmt::format("Heterotypic "
+                        "increment of preferential area with restrain on types "
+                        "failed, because no cells with that type!"));
                 }
 
                 area_change /= cnt_restrain;
@@ -2397,10 +2427,13 @@ private:
 
 
 public:
+    /// @brief  Updates the parameters
+    /// @param cfg The configuration forwarded to 
+    ///            AreaElasticityHeterotypic::setup_preferential_area
     void update_parameters (const DataIO::Config& cfg) override {
         if (cfg["area_elasticity"]) {
             DataIO::Config _cfg{};
-            _cfg["area_elasticit"] = cfg["area_elasticity"];
+            _cfg["area_elasticity"] = cfg["area_elasticity"];
             Base::update_parameters(_cfg);
         }
         

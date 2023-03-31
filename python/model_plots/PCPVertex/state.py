@@ -137,8 +137,9 @@ def cellular_structure(
     """Performs a plot of the cells, edges and vertices
     
     Args:
-        dm (DataManager): The data manager from which to retrieve the data
-        uni (int): The universe to use
+        data: dict containing the required data. 
+            Required keys: 'Vertices', 'Edges', 'Cells', 'periodic', 'Lx', 'Ly'.
+            Optional keys: 'skew_x', 'skew_y', 'curvature'.
         hlpr (PlotHelper): The PlotHelper
         datapath (str): Path to the cell manager's data
         cfgpath (str): Path to the vertex model's configuration
@@ -276,17 +277,17 @@ def cellular_structure(
                 domain_size_max_y = Ly
             
             # periodic skewed boundary condition
-            if "skew_x" in e_data.attrs:
-                skew_x = e_data.attrs["skew_x"][0]
+            if 'skew_x' in data:
+                skew_x = data['skew_x'].sel(time=time)
             else:
                 skew_x = 0.
-            if "skew_y" in e_data.attrs:
-                skew_y = e_data.attrs["skew_y"][0]
+            if 'skew_y' in data:
+                skew_y = data['skew_y'].sel(time=time)
             else:
                 skew_y = 0.
-            if "curvature" in e_data.attrs:
-                curvature = e_data.attrs["curvature"][0]
-            else: 
+            if 'curvature' in data:
+                curvature = data['curvature'].sel(time=time)
+            else:
                 curvature = 0.
             max_theta = Lx / 2. * curvature
 
@@ -712,16 +713,16 @@ def cellular_structure(
 
                 if skew_x > 1.e-12:
                     hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
-                                    linestyle=':')
-                elif skew_x < 1.e-12:
+                                    linestyle=':', linewidth=0.2)
+                elif skew_x < -1.e-12:
                     hlpr.ax.axvline(x=Lx-skew_x, ymax = 0.5 / Ly, c='gray',
-                                    linestyle=':')
+                                    linestyle=':', linewidth=0.2)
                 if skew_y > 1.e-12:                    
                     hlpr.ax.axhline(y=skew_y, xmin=1. - 0.5 / Lx, c='gray',
-                                    linestyle=':')
-                elif skew_y < 1.e-12:                    
+                                    linestyle=':', linewidth=0.2)
+                elif skew_y < -1.e-12:                    
                     hlpr.ax.axhline(y=skew_y, xmax = 0.5 / Lx, c='gray', 
-                                    linestyle=':')
+                                    linestyle=':', linewidth=0.2)
 
 
             else:

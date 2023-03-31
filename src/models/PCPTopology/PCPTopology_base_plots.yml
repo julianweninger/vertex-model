@@ -797,6 +797,24 @@ cellular_structure:
       - call_lambda:
         - "lambda d: xr.DataArray([d[t].attrs['Ly'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
         - !dag_prev
+    skew_x:
+      path: data/PCPTopology/Edges
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['skew_x'][0] if 'skew_x' in d[t].attrs else 0. for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    skew_y:
+      path: data/PCPTopology/Edges
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['skew_y'][0] if 'skew_y' in d[t].attrs else 0. for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    curvature:
+      path: data/PCPTopology/Edges
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['curvature'][0] if 'curvature' in d[t].attrs else 0. for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
 
   plot_vertices: false
   cell_center_marker_kwargs:
