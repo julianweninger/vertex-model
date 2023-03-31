@@ -24,6 +24,7 @@
 #include "work_function.hh"
 
 #include "operations.hh"
+#include "operations_differentiation.hh"
 
 // coupled models
 #include "../NotchDelta/NotchDelta.hh"
@@ -304,13 +305,6 @@ private:
                                 _minimization_params,
                                 _log, _monitor_mngr));
                 }
-                else if (name == "update_work_function_term") {
-                    _operations.push_back(
-                        build_update_work_function_term(
-                            name, op_cfg, _minimization_params
-                        )
-                    );
-                }
                 else if (name == "register_work_function_term") {
                     _operations.push_back(
                         build_register_work_function_term(
@@ -321,6 +315,13 @@ private:
                 else if (name == "unregister_work_function_term") {
                     _operations.push_back(
                         build_unregister_work_function_term(
+                            name, op_cfg, _minimization_params
+                        )
+                    );
+                }
+                else if (name == "update_work_function_term") {
+                    _operations.push_back(
+                        build_update_work_function_term(
                             name, op_cfg, _minimization_params
                         )
                     );
@@ -344,148 +345,12 @@ private:
                         "- minimize_cell_contacts\n"
                         "- proliferate\n"
                         "- proliferate_generations\n"
-                        "- update_work_function_term\n"
                         "- register_work_function_term\n"
                         "- unregister_work_function_term\n"
+                        "- update_work_function_term\n"
                         "- void\n"
-                        // "- bending_box_bc\n"
-                        // "- brownian_noise\n"
-                        // "- enable_transitions\n"
-                        // "- fix_boundary\n"
-                        // "- increment_area\n"
-                        // "- increment_area_gradient\n"
-                        // "- increment_cell_contractility\n"
-                        // "- increment_domain\n"
-                        // "- increment_edge_contractility\n"
-                        // "- increment_linetension\n"
-                        // "- increment_shape_index\n"
-                        // "- initialise_stripe_boundary\n"
-                        // "- increment_stripe_width\n"
-                        // "- increment_stripe_curvature\n"
-                        // "- iterate_pcp\n"
-                        // "- pure_shear\n"
-                        // "- relax_area\n"
-                        // "- set_area\n"
-                        // "- update_boundary_parameter\n"
-                        // "- set_torque\n"
-                        // "- simple_shear\n"
                     ));
                 }
-                // else if (name == "pure_shear") {
-                //     _operations.push_back(
-                //         build_pure_shear(name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "relax_area") {
-                //     _operations.push_back(
-                //         build_relax_area(name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "set_area") {
-                //     _operations.push_back(
-                //         build_set_area(name, op_cfg,
-                //                        _minimization_params));
-                // }
-                // else if (name == "update_boundary_parameter") {
-                //     _operations.push_back(
-                //         build_update_boundary_parameter(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "set_torque") {
-                //     _operations.push_back(
-                //         build_set_torque(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "simple_shear") {
-                //     _operations.push_back(
-                //         build_simple_shear(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "bending_box_bc") {
-                //     _operations.push_back(
-                //         build_bending_box_bc(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "brownian_noise") {
-                //     _operations.push_back(
-                //         build_brownian_noise(name, op_cfg, _minimization_params,
-                //                              _log, _monitor_mngr));
-                // }
-                // else if (name == "enable_transitions") {
-                //     _operations.push_back(
-                //         build_enable_transitions(
-                //             name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "fix_boundary") {
-                //     _operations.push_back(
-                //         build_fix_boundary(name, op_cfg, _minimization_params));
-                // }
-                // else if (name == "increment_area") {
-                //     _operations.push_back(
-                //         build_increment_area(name, op_cfg,
-                //                              _minimization_params));
-                // }
-                // else if (name == "increment_area_gradient") {
-                //     _operations.push_back(
-                //         build_increment_area_gradient(name, op_cfg,
-                //                                       _minimization_params));
-                // }
-                // else if (name == "relax_SC_area") {
-                //     _operations.push_back(
-                //         build_relax_SC_area(name, op_cfg,
-                //                                       _minimization_params));
-                // }
-                // else if (name == "increment_cell_contractility") {
-                //     _operations.push_back(
-                //         build_increment_cell_contractility(name, op_cfg,
-                //             _minimization_params));
-                // }
-                // else if (name == "increment_edge_contractility") {
-                //     _operations.push_back(
-                //         build_increment_edge_contractility(name, op_cfg,
-                //             _minimization_params));
-                // }
-                // else if (name == "increment_linetension") {
-                //     _operations.push_back(
-                //         build_increment_linetension(name, op_cfg,
-                //                                     _minimization_params));
-                // }
-                // else if (name == "increment_shape_index") {
-                //     _operations.push_back(
-                //         build_increment_shape_index(name, op_cfg,
-                //                                     _minimization_params));
-                // }
-                // else if (name == "initialise_stripe_boundary") {
-                //     _operations.push_back(
-                //         build_initialise_stripe_boundary(name, op_cfg,
-                //             _minimization_params));
-                // }
-                // else if (name == "increment_stripe_width") {
-                //     if (_vertex_model.get_space()->periodic) {
-                //         throw std::runtime_error("Cannot build operation "
-                //             "convergence and extension in periodic space!");
-                //     }
-                //     _operations.push_back(
-                //         build_increment_stripe_width(name, op_cfg,
-                //                                      _minimization_params,
-                //                                      _log, _monitor_mngr));
-                // }
-                // else if (name == "increment_stripe_curvature") {
-                //     _operations.push_back(
-                //         build_increment_stripe_curvature(name, op_cfg,
-                //             _minimization_params));
-                // }
-                // else if (name == "increment_domain") {
-                //     _operations.push_back(
-                //         build_increment_domain(name, op_cfg,
-                //                                _minimization_params));
-                // }
-                // else if (name == "iterate_pcp") {
-                //     this->setup_pcp(
-                //             get_as<Config>("PlanarCellPolarity", op_cfg, {}));
-                //     _operations.push_back(
-                //         build_iterate_pcp(name, op_cfg, _minimization_params,
-                //                 _pcp, _pcp_prolog, _log,
-                //                 _monitor_mngr));
-                // }
 
                 const auto& params = std::get<1>(_operations.back());
                 auto estimate = params.get_num_minimizations(this->_time_max);
