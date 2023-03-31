@@ -81,6 +81,12 @@ continuous_cellular_structure:
       path: data/PCPTopology/PCPVertex/Vertices
     Ly:
       path: data/PCPTopology/PCPVertex/Vertices
+    skew_x:
+      path: data/PCPTopology/PCPVertex/Vertices
+    skew_y:
+      path: data/PCPTopology/PCPVertex/Vertices
+    curvature:
+      path: data/PCPTopology/PCPVertex/Vertices
 
 
 
