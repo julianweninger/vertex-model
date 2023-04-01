@@ -1,31 +1,21 @@
 ---
 perform_sweep: true
 paths:
-  model_note: default__experiment__increment_area
+  model_note: default__increment_area_graded
 
 worker_manager:
   nonzero_exit_handling: warn_all
     
 parameter_space:
-  direction: !sweep
-    default: forward
-    values:
-      - forward
-      # - backward
-  num_steps: !coupled-sweep
-    target_name: direction
-    default: 20000
-    values: 
-       - 20000
-      #  - 4000
+  num_steps: 20000
 
   seed: !sweep
     default: 42
-    range: [1]
+    range: [8]
     order: -1
 
   PCPTopology:
-    log_level: info
+    log_level: debug
 
     # --- Dynamics
     # Minimization parameter
@@ -41,10 +31,10 @@ parameter_space:
     # -- Initialisation
     initialisation:
       1_by_proliferation:
-        num_generations: 3
+        num_generations: 1
         minimization_between_generations: ~
         minimization:
-          num_repeat: 240
+          num_repeat: !expr 24 * 10
 
     #  --- The sequence of operations ---------------------------------
     operations:
@@ -79,6 +69,34 @@ parameter_space:
           type: 1
           neutral_probability: 0.2
       
+      # # Eliminate HC-HC contacts
+      # - update_work_function_term:
+      #     times: []
+      #     iterations_prolog: 1
+      #     name: linetension_heterotypic
+      #     parameters:
+      #       linetension: [[0., 0., 0.],
+      #                     [0., 2., 0.],
+      #                     [0., 0., 0.]]
+      # - update_work_function_term:
+      #     times: []
+      #     iterations_prolog: 1
+      #     name: linetension_heterotypic
+      #     parameters:
+      #       linetension:
+      #         - [0., 0., 0.]
+      #         - [0., 4., 0.]
+      #         - [0., 0., 0.]
+      # - update_work_function_term:
+      #     times: []
+      #     iterations_prolog: 1
+      #     name: linetension_heterotypic
+      #     parameters:
+      #       linetension:
+      #         - [0., 0., 0.]
+      #         - [0., 1000., 0.]
+      #         - [0., 0., 0.]
+
       - update_work_function_term:
           times: []
           iterations_prolog: 1
@@ -87,9 +105,9 @@ parameter_space:
             name: Gamma
             default: 0.
             values: 
-              - 0.
+              # - 0.
               - 0.1
-              - 0.2
+              # - 0.2
             order: 2
           parameters:
             contractility: !coupled-sweep
@@ -97,35 +115,45 @@ parameter_space:
               name: contractility
               default: [[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]]
               values:
-              - [[ 0.0 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
+              # - [[ 0.0 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
               - [[ 0.1 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
-              - [[ 0.2 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
+              # - [[ 0.2 , 0., 0.], [0., 0., 0.], [0., 0., 0.]]
           minimization:
             linetension_fluctuations: !coupled-sweep &dL_coupled
               target_name: Gamma
               name: dL
               default: 0.
               values: 
-                - 0.02
+                # - 0.02
                 - 0.03
-                - 0.04
+                # - 0.04
+            num_repeat: !expr 24 * 10
       # END differentiation
       
       - update_work_function_term:
+          times: 
+            start: 1
+            stop: 10001
+            step: 20
+          name: area_elasticity_gradient
+          parameters:
+            relax_types: [0]
+            increment_areas: 
+              - [0., 0.]
+              - [0.2, -0.1]
+          minimization:
+            mode: manual
+      - void:
           times:
             start: 1
-            stop: 100000
+            stop: 10001
             step: 1
-          name: area_elasticity_heterotypic
-          parameters:
-            method: increment_heterotypic
-            increments: [0., !expr 2.e-4]
-            restrain_types: [0]
           minimization:
             linetension_fluctuations: !coupled-sweep
               <<: *dL_coupled
               name: dL_
-
+        
+  
     # --- The solver
     PCPVertex:
       log_level: warning
@@ -134,13 +162,23 @@ parameter_space:
       - linetension_fluctuations:
           amplitude: 0.02
           timescale: 24
-      - area_elasticity_heterotypic:
+      - area_elasticity_gradient:
           elastic_modulus: 1
           preferential_area: 1
-          method: set_uniform
+          manhatten_distance: 1
+          min_area: 0.15
+          relaxation_time: 20
+          num_types: 2
+          relax_types: []
       - cell_contractility:
           contractility: 1.
           preferential_shape: 3.72
+      - linetension_heterotypic:
+          boundary_type: 2
+          linetension:
+            - [0., 0., 0.]
+            - [0., 1., 0.]
+            - [0., 0., 0.]
       - edge_contractility_heterotypic:
           boundary_type: 2
           contractility:
@@ -148,11 +186,17 @@ parameter_space:
             - [0., 0., 0.]
             - [0., 0., 0.]
 
-
-      T1_barrier: 1.e-2
+      T1_barrier: 0
       T1_probability: 1.
-      T1_timeout: 12
+      T1_timeout: 12100
       T1_threshold: 0.06
+
+      agent_manager:
+        setup_params:
+          hexagonal:
+            lattice_rows: 4
+            lattice_columns: 32
+
               
       # continuous data manager
       data_manager:
@@ -196,7 +240,7 @@ parameter_space:
           type: interval
           args:
             intervals:
-              - [0, 20001, 10]
+              - [0, 20001, 5]
       triggers:
         build_interval: *interval
       tasks:

@@ -50,7 +50,7 @@ _definitions:
     import_and_call:
     args: [model_plots.PCPTopology.data_ops, map_directional_time, !dag_prev ]
 
-  BP_data_path: &BP_data_path '~/ownCloud/Institution/Collaboration_NCBS_UNIGE/data/HCA-Actn4/summary_cells.csv'
+  BP_data_path: &BP_data_path '~/ownCloud/Institution/Collaboration_NCBS_UNIGE/data/summary_cells.csv'
 
 
 
@@ -354,16 +354,6 @@ area_mapped/neighbors_w_data: !pspace
 
 
   to_plot:
-    - function: sns.lineplot
-      data: !dag_result all_cells
-      label: all cells
-      color: grey
-      errorbar: ~
-    - function: sns.lineplot
-      data: !dag_result support_cells
-      label: support cells
-      color: royalblue
-      errorbar: sd
     - function: sns.lineplot
       data: !dag_result hair_cells
       label: hair cells
@@ -983,6 +973,14 @@ cell_properties/area: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
+      errorbar: ~
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      errorbar: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      color: gray
       errorbar: sd
   select_and_combine:
     fields:
