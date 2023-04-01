@@ -401,15 +401,9 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         );
 
         std::string name = "area_elasticity_heterotypic";
-        Config wft_cfg = get_as<Config>(
-            name, 
-            cfg
-        );
+        Config wft_cfg = get_as<Config>(name, cfg);
         std::string term_name = get_as<std::string>("term", wft_cfg, name);
-
-        
         model.register_work_function_term(term_name, name, wft_cfg);
-
         auto term_fct = model.get_work_function_term(name);
 
         std::function<void(std::vector<double>,double)> test_cell_areas =
@@ -427,24 +421,126 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         name = "area_elasticity_heterotypic__set_heterotypic";
         model.get_logger()->info("Updating WF ({})", name);
-        Config update_cfg = get_as<Config>(name, cfg);
         term_fct->update_parameters(wft_cfg);
-        term_fct->update_parameters(update_cfg);
+        term_fct->update_parameters(get_as<Config>(name, cfg));
         test_cell_areas(std::vector<double>({1.1, 0.9}), precision);
 
         name = "area_elasticity_heterotypic__incr_heterotypic";
         model.get_logger()->info("Updating WF ({})", name);
-        update_cfg = get_as<Config>(name, cfg);
         term_fct->update_parameters(wft_cfg);
-        term_fct->update_parameters(update_cfg);
+        term_fct->update_parameters(get_as<Config>(name, cfg));
         test_cell_areas(std::vector<double>({1.1, 0.9}), precision);
 
         name = "area_elasticity_heterotypic__incr_heterotypic__restrain";
         model.get_logger()->info("Updating WF ({})", name);
-        update_cfg = get_as<Config>(name, cfg);
         term_fct->update_parameters(wft_cfg);
-        term_fct->update_parameters(update_cfg);
+        term_fct->update_parameters(get_as<Config>(name, cfg));
         test_cell_areas(std::vector<double>({1.1, 0.9}), precision);
+    }
+    
+    BOOST_AUTO_TEST_CASE (test_update_area_elasticity_gradient)
+    {
+        Fixture<Case::periodic> fixture;
+        auto& model = fixture.vertex_model;
+        model.prolog();
+
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+
+        std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
+        std::size_t cnt_1 = 0;
+        while(cnt_1 != cells.size() / 3) {
+            auto c_id = distr(*model.get_rng());
+            if (cells[c_id]->state.type == 0) {
+                cells[c_id]->state.type = 1;
+                cnt_1++;
+            }
+        }
+        BOOST_TEST(cnt_1 == cells.size() / 3);
+
+        Config cfg = get_as<Config>(
+            "test_update_area_elasticity_gradient", 
+            fixture.wf_terms
+        );
+
+        std::string name = "area_elasticity_gradient";
+        Config wft_cfg = get_as<Config>(name, cfg);
+        std::string term_name = get_as<std::string>("term", wft_cfg, name);
+
+        model.register_work_function_term(term_name, name, wft_cfg);
+        auto term_fct = model.get_work_function_term(name);
+
+        for (const auto& cell : cells) {
+            BOOST_CHECK_CLOSE(cell->state.area_preferential, 1., 1.e-10);
+        }
+
+        name = "area_elasticity_gradient__increase";
+        for (std::size_t it = 1; it <= 3; it++) {
+            model.get_logger()->info("Updating WF ({})", name);
+            term_fct->update_parameters(get_as<Config>(name, cfg));
+            double max = std::numeric_limits<double>::min();
+            double min = std::numeric_limits<double>::max();
+            double grad_mean = 0.;
+            double max_ = std::numeric_limits<double>::min();
+            double min_ = std::numeric_limits<double>::max();
+            double global_mean = 0.;
+            double mean = 1.;
+            std::size_t cnt = 0;
+            for (const auto& cell : cells) {
+                BOOST_TEST(cell->state.area_preferential > 0.1999999999);
+                global_mean += cell->state.area_preferential;
+                if (cell->state.type == 0) {
+                    max = std::max(max, cell->state.area_preferential);
+                    min = std::min(min, cell->state.area_preferential);
+                    grad_mean += cell->state.area_preferential;
+                    cnt++;
+                }
+                else {
+                    max_ = std::max(max_, cell->state.area_preferential);
+                    min_ = std::min(min_, cell->state.area_preferential);
+                }
+            }
+            BOOST_CHECK_CLOSE(global_mean / double(cells.size()), 
+                              mean + 0.05 * cnt / double(cells.size()),
+                              0.5);
+            BOOST_CHECK_CLOSE(max, 1. + it * 0.2, 0.001);
+            BOOST_CHECK_CLOSE(min, 1 - it * 0.1, 0.001);
+            BOOST_CHECK_CLOSE(grad_mean / double(cnt), 1. + it * 0.05, 1);
+            if (it == 1) {
+                BOOST_CHECK_CLOSE(max_, 1., 1.e-10);
+                BOOST_CHECK_CLOSE(min_, 1., 1.e-10);
+            }
+
+            // update to relax total area
+            for (std::size_t i = 0; i < 1000; i++) {
+                term_fct->update(0.);
+            }
+            max = std::numeric_limits<double>::min();
+            min = std::numeric_limits<double>::max();
+            grad_mean = 0.;
+            global_mean = 0.;
+            max_ = std::numeric_limits<double>::min();
+            min_ = std::numeric_limits<double>::max();
+            for (const auto& cell : cells) {
+                BOOST_TEST(cell->state.area_preferential > 0.1999999999);
+                global_mean += cell->state.area_preferential;
+                if (cell->state.type == 0) {
+                    max = std::max(max, cell->state.area_preferential);
+                    min = std::min(min, cell->state.area_preferential);
+                    grad_mean += cell->state.area_preferential;
+                }
+                else {
+                    max_ = std::max(max_, cell->state.area_preferential);
+                    min_ = std::min(min_, cell->state.area_preferential);
+                }
+            }
+            BOOST_CHECK_CLOSE(global_mean / double(cells.size()), 1., 1);
+            BOOST_CHECK_CLOSE(max, 1. + it * 0.2, 0.001);
+            BOOST_CHECK_CLOSE(min, 1 - it * 0.1, 0.001);
+            BOOST_CHECK_CLOSE(grad_mean / double(cnt), 1. + it * 0.05, 1);
+
+            mean = global_mean / double(cells.size());
+        }
     }
     
     BOOST_AUTO_TEST_CASE (test_update_edge_contractility_polar)

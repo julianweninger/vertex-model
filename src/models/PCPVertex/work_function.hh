@@ -2441,6 +2441,219 @@ public:
     }
 };
 
+
+/// @brief The area elasticity with target values that follow a gradient
+/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
+ *  cell area  \f$ A_\alpha \f$.
+ *  The values of \f$ A^{(0)}\f$ follow a sinusoidal gradient. Over the length
+ *  of the domain, \f$ A^{(0)}\f$ changes from `left` to `right` and back to 
+ *  `left` with a \$ \cos(x)^2 \f$ profile.
+ * 
+ *  Parameters:
+ *      - `contractility`: the elastic modulus \f$ k \f$
+ *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
+ *              at which cell is pressure free.
+ *      - `relaxation_time` (double): Over which timescale the area of non-
+ *              regulated types relaxes to keep total area constant.
+ *      - `relax_types` (list[int]): The cell types that are relaxed
+ *      - `num_types` (int): The number of total cell types
+ *      - `min_area` (double): The minium preferential area of a cell
+ *      - `manhatten_distance` (int): The distance over which cells adapt.
+ *          Distance is given as manhatten-distance, i.e. direct neighbours
+ *          have distance 1. See also EntitiesManager::neighbors_of.
+ */
+template <typename Model>
+class AreaElasticityGradient : public AreaElasticity<Model> 
+{
+public:
+    using SpaceVec = typename Model::SpaceVec;
+
+    using Base = AreaElasticity<Model>;
+
+    using Cell = typename Base::Cell;
+
+private:
+    std::vector<std::pair<double, double>> _regulate_gradient;
+
+    std::unordered_set<std::size_t> _relax_types;
+
+    std::size_t _distance;
+
+    double _min_area;
+
+    double _tau;
+
+
+    double reference_area () const {
+        auto [space_min, space_max] = this->_am.get_extent();
+
+        return ((space_max[0] - space_min[0]) * (space_max[1] - space_min[1])
+                / this->_am.cells().size());
+    }
+
+    void regulate_gradient () {
+        auto [space_min, space_max] = this->_am.get_extent();
+        double L = (space_min[0] - space_max[0]);
+
+        for (const auto& cell : this->_am.cells()) {
+            if (cell->state.type >= _regulate_gradient.size()
+                or std::find(
+                        _relax_types.begin(), _relax_types.end(), 
+                        cell->state.type
+                   ) != _relax_types.end()
+            )
+            {
+                continue;
+            }
+
+            SpaceVec pos = this->_am.barycenter_of(cell);
+            double x = (pos[0] - space_min[0]) / L;
+
+            const auto& [left, right] = _regulate_gradient[cell->state.type];
+            cell->state.area_preferential = (
+                (left - right) * std::pow(cos(x*M_PI), 2) + right
+            );
+        }
+    }
+
+    void relax_cells () {
+        if (_relax_types.size() == 0) {
+            return;
+        }
+
+        std::map<std::shared_ptr<Cell>, double> targets({});
+        for (const auto& cell : this->_am.cells()) {
+            auto find = std::find(_relax_types.begin(), _relax_types.end(),
+                                  cell->state.type);
+            if (find == _relax_types.end()) {
+                continue;
+            }
+
+            const auto& neighbors = this->_am.neighbors_of(cell, _distance);
+            
+            std::size_t N_tot = neighbors.size() + 1;
+            std::size_t N = 1;
+            double average_area_tot = cell->state.area_preferential;
+            double average_area = cell->state.area_preferential;
+            for (const auto& n : neighbors) {
+                average_area_tot += n->state.area_preferential;
+                
+                auto find = std::find(_relax_types.begin(), _relax_types.end(),
+                                      n->state.type);
+                if (find != _relax_types.end()) {
+                    average_area += n->state.area_preferential;
+                    N++;
+                }
+            }
+            average_area_tot /= static_cast<double>(N_tot);
+            average_area /= static_cast<double>(N);
+
+            auto A = cell->state.area_preferential;
+            double dA = (average_area_tot/reference_area() - 1.) * A;
+            double A_target = A - dA / _tau;
+            A_target += (average_area - A) / _tau;
+
+            targets[cell] = std::max(A_target, _min_area);
+        }
+
+        for (const auto& [cell, A_target] : targets) {
+            double dA = A_target - cell->state.area_preferential;
+            cell->state.area_preferential += dA;
+        }
+    }
+
+public:
+    AreaElasticityGradient (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _regulate_gradient({}),
+        _relax_types({}),
+        _distance(get_as<std::size_t>("manhatten_distance", cfg)),
+        _min_area(get_as<double>("min_area", cfg)),
+        _tau(get_as<double>("relaxation_time", cfg))
+    {
+        if (not this->_am.get_space()->periodic) {
+            throw std::runtime_error(fmt::format("Cannot initialise WF "
+                "AreaElasticityHeterotypic ({}) with method "
+                "'regulate_graded_heterotypic' in non-periodic space!",
+                this->_name));
+        }
+
+        for (std::size_t i = 0; i < get_as<double>("num_types", cfg); i++) {
+            _regulate_gradient.push_back(std::make_pair(reference_area(),
+                                                        reference_area()));
+        }
+
+        auto relax_types = get_as<std::vector<std::size_t>>("relax_types", cfg);
+        _relax_types = std::unordered_set<std::size_t>(relax_types.begin(),
+                                                       relax_types.end());
+    }
+
+    /// @brief  Updates the parameters
+    /// @param cfg The configuration forwarded to 
+    ///            AreaElasticityHeterotypic::update_preferential_area
+    /** Additional parameters in cfg:
+     *      - `increment_areas` (list[(double, double)]): The incremental values
+     *          for left and right values of gradient per cell type.
+     * 
+    */
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["area_elasticity"]) {
+            DataIO::Config _cfg{};
+            _cfg["area_elasticity"] = cfg["area_elasticity"];
+            Base::update_parameters(_cfg);
+        }
+
+        std::size_t num = get_as<double>("num_types", cfg,
+                                         _regulate_gradient.size());
+        for (std::size_t i = _regulate_gradient.size(); i < num; i++) {
+            _regulate_gradient.push_back(std::make_pair(reference_area(),
+                                                        reference_area()));
+        }
+        
+        if (cfg["increment_areas"]) {
+            auto increments = get_as<std::vector<std::pair<double, double>>>(
+                "increment_areas", cfg);
+
+            if (increments.size() > num) {
+                throw std::runtime_error(fmt::format("Too many values provided "
+                    "in update_parameters of WF AreaElasticityGradient. "
+                    "Provided {} values, but `num_types` is {}!",
+                    increments.size(), num));
+            }
+
+            for (std::size_t i = 0; i < increments.size(); i++) {
+                const auto& [left, right] = increments[i];
+                const auto& [_left, _right] = _regulate_gradient[i];
+                _regulate_gradient[i] = std::make_pair(
+                    _left + left,
+                    _right + right
+                );
+                std::cout << _left << " " << _right << std::endl;
+            }
+
+            regulate_gradient();
+        }
+        if (cfg["relax_types"]) {
+            auto relax_types = get_as<std::vector<std::size_t>>("relax_types",
+                                                                cfg);
+
+            _relax_types = std::unordered_set<std::size_t>(relax_types.begin(),
+                                                           relax_types.end());
+        }
+
+    }
+
+    void update ([[maybe_unused]] double dt) override {
+        regulate_gradient();
+        relax_cells();
+    }
+};
+
 } // namespace WorkFunction
 } // namespace PCPVertex
 } // namespace Models

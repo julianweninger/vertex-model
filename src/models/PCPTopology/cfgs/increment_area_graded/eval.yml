@@ -8,32 +8,21 @@ _definitions:
   enabled: false
   hue: &HUE Gamma
   subspace_slice: &subspace_slice
+    seed: 1
     Gamma: !sweep
       default: 0.
       values: 
         # - 0.
-        # - 0.1
+        - 0.1
         # - 0.2
-        - 0.4
+        # - 0.4
         # - 0.6
         # - 0.8
-    HC_sep: !sweep
-      default: false
-      values: 
-        # - true
-        - false
-      order: -1
 
-  Gamma_best_fit: &Gamma_best_fit 0.4
+  Gamma_best_fit: &Gamma_best_fit 0.1
 
   hue_2: &HUE_2 ~
-  subspace_slice_2: &subspace_slice_2
-    HC_sep: !sweep
-      default: false
-      values: 
-        # - true
-        - false
-      order: -1
+  subspace_slice_2: &subspace_slice_2 ~
 
 
   timepoint_spatial: &TIMEPOINT_SPATIAL 8000
@@ -216,7 +205,6 @@ cells_spatial:
           - *TIME_SPATIAL
           - .rename: [!dag_prev , cell_types]
     subspace: *subspace_slice
-
       
   transform:
     - call_lambda:
@@ -227,7 +215,6 @@ cells_spatial:
     - .squeeze: [!dag_prev ]
       tag: x
 
-
     - call_lambda:
       args: 
         - "lambda d, *, args: d.stack(*args)"
@@ -235,7 +222,6 @@ cells_spatial:
       kwargs: {args: [{ids: [seed, id]}]}
     - .squeeze: [!dag_prev ]
     - .assign_coords: [!dag_prev , {x: !dag_tag x}]
-
     - call_lambda:
       args: 
         - "lambda d, *, args: d.sortby(*args)"
@@ -243,28 +229,12 @@ cells_spatial:
       kwargs: {args: [x]}
     - .swap_dims: [!dag_prev , {ids: x}]
     - .dropna: [!dag_prev , x]
-    - create_mask: [!dag_prev , ==, 1]
+      tag: cell_type
+
+    - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
-
-
-    - call_lambda:
-      args: 
-        - "lambda d, *, args: d.stack(*args)"
-        - !dag_tag _cell_type
-      kwargs: {args: [{ids: [seed, id]}]}
-    - .squeeze: [!dag_prev ]
-    - .assign_coords: [!dag_prev , {x: !dag_tag x}]
-
-    - call_lambda:
-      args: 
-        - "lambda d, *, args: d.sortby(*args)"
-        - !dag_prev
-      kwargs: {args: [x]}
-    - .swap_dims: [!dag_prev , {ids: x}]
-    - .dropna: [!dag_prev , x]
-    - create_mask: [!dag_prev , ==, 2]
+    - create_mask: [!dag_tag cell_type, ==, 0]
       tag: _support_cells
-
 
     - call_lambda:
       args: 
@@ -273,7 +243,6 @@ cells_spatial:
       kwargs: {args: [{ids: [seed, id]}]}
     - .squeeze: [!dag_prev ]
     - .assign_coords: [!dag_prev , {x: !dag_tag x}]
-
     - call_lambda:
       args: 
         - "lambda d, *, args: d.sortby(*args)"
@@ -283,9 +252,8 @@ cells_spatial:
     - .dropna: [!dag_prev , x]
       tag: property
 
-
     - .rolling:
-      args: [!dag_tag property, {x: &Rolling_all 60}]
+      args: [!dag_tag property, {x: &Rolling_all 10}]
       kwargs: {center: True}
     - .mean: [!dag_prev , x]
     - .dropna: [!dag_prev , x]
@@ -294,11 +262,10 @@ cells_spatial:
     - callattr: [!dag_prev , reset_index]
       tag: all_cells
 
-
     - .where: [!dag_tag property , !dag_tag _hair_cells]
     - .dropna: [!dag_prev , x]
     - .rolling:
-      args: [!dag_prev , {x: &Rolling_HC 15}]
+      args: [!dag_prev , {x: &Rolling_HC 5}]
       kwargs: {center: True}
     - .mean: [!dag_prev , x]
       tag: hair_cells_xr
@@ -310,7 +277,7 @@ cells_spatial:
     - .where: [!dag_tag property , !dag_tag _support_cells]
     - .dropna: [!dag_prev , x]
     - .rolling:
-      args: [!dag_prev , {x: &Rolling_SC 40}]
+      args: [!dag_prev , {x: &Rolling_SC 5}]
       kwargs: {center: True}
     - .mean: [!dag_prev , x]
     - import_and_call:
@@ -319,7 +286,6 @@ cells_spatial:
       tag: support_cells
 
   x: x
-  y: area
 
   helpers:
     set_labels:
@@ -362,9 +328,9 @@ cells_spatial/area_pref: !pspace
 
   y: area_preferential
 
-  # helpers:
-  #   set_limits:
-  #     y: [0., 5.5]
+  helpers:
+    set_limits:
+      y: [0., 5.5]
 
 cells_spatial/pressure: !pspace
   based_on: cells_spatial
@@ -411,7 +377,7 @@ cells_spatial/HC_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_prev , {property: num_neighbors__self}]
           - *TIME_SPATIAL
           - .rename: [!dag_prev , num_hair_neighbors]
 
@@ -508,12 +474,6 @@ cell_properties: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      errorbar: sd
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      errorbar: sd
-    - function: sns.lineplot
-      data: !dag_result support_cells
       errorbar: sd
 
   select_and_combine:
@@ -634,7 +594,7 @@ cell_properties/HH_neighbors: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: num_hair_neighbors}]
+          - .sel: [!dag_prev , {property: num_neighbors__self}]
           - .rename: [!dag_prev , num_hair_neighbors]
   y: num_hair_neighbors
   to_plot: 
@@ -684,6 +644,18 @@ cell_segmentation:
   based_on:
     - cellular_structure
     - single_universe
+  # universes: all
+  cell_center_marker_kwargs:
+    colors: ['white', 'r']
+    s: 2
 
-  cell_marker_size: 10
+  # select:
+  #   property:
+  #     path: data/PCPTopology/Cells
+  #     transform:
+  #       - .sel: [!dag_prev , {property: area_preferential}]
+  #       - .rename: [!dag_prev , Cell type]
+
+
+
   
