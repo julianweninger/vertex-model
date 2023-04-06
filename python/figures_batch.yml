@@ -2671,7 +2671,249 @@ tasks:
               figsize: [!expr 5.90, !expr 5.90 / 3 * 2]
 
 
-    Increment_area_graded__rheology:
+    Rheology__simple_shear:
+      enabled: false
+
+      run_dir: 220512-142449_job57749569_evaluation_rheology__incremented_area
+
+      plots_cfg:
+        cell_segmentation:
+          enabled: false
+          based_on:
+            - cellular_structure
+            - single_universe
+          file_ext: svg
+
+        cell_segmentation__shear_low_fluctuations:
+          based_on: cell_segmentation
+          universes:
+            rho: [0.2]
+            HC_area: [1]
+            dL: [0.02]
+            Gamma: [0.4]
+          
+          cell_center_marker_kwargs:
+            s: 10
+            colors: ['white', 'red', 'white']
+
+        cell_segmentation__shear_normal_fluctuations:
+          based_on: cell_segmentation
+          universes:
+            rho: [0.2]
+            HC_area: [1]
+            dL: [0.06]
+            Gamma: [0.4]
+          
+          cell_center_marker_kwargs:
+            s: 10
+            colors: ['white', 'red', 'white']
+
+        cell_segmentation__shear_high_fluctuations:
+          based_on: cell_segmentation
+          universes:
+            rho: [0.2]
+            HC_area: [1]
+            dL: [0.14]
+            Gamma: [0.4]
+          
+          cell_center_marker_kwargs:
+            s: 10
+            colors: ['white', 'red', 'white']
+
+        rheology_elongation: !pspace
+          based_on: shape_vs_dL
+          to_plot: 
+            - function: sns.lineplot
+              data: !dag_result hair_cells
+              errorbar: sd
+              color: red
+          select_and_combine:
+            allow_missing_or_failing: silent
+            fields:
+              _property:
+                path: data/PCPTopology/Cells
+                transform:
+                  - .sel: [!dag_node -1, {property: q_x}]
+                  - .sel: [!dag_node -2, {property: q_y}]
+                  - call_lambda:
+                    - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+                    - !dag_node -2
+                    - !dag_node -1
+                  - .rename: [!dag_prev , elongation]
+
+                  - .coords: [!dag_prev , time]
+                  - create_mask: [!dag_prev , '>=', 1500]
+                  - .where: [!dag_node -3, !dag_prev ]
+                  - .mean: [!dag_prev , time]
+                  - .rename: [!dag_prev , elongation]
+            subspace: 
+              HC_area: 1.
+              Gamma: !sweep
+                default: 0.4
+                values: [0.4, 0., 0.8]
+              rho: 0.2
+              vxx: 0.005
+
+          y: elongation
+          hue: ~
+
+          helpers:
+            set_labels:
+              x: Fluctuation amplitude
+              y: Cell elongation
+            set_limits:
+              x: [0., 0.14]
+              y: [0, 0.5]
+            set_ticks:
+              x: 
+                major: [0., 0.04, 0.08, 0.12]
+                minor: [0.02, 0.06, 0.10, 0.14]
+              y: 
+                major: [0., 0.25, 0.5]
+                minor: [0.125, 0.375]
+            setup_figure:
+              figsize: [!expr 5.90 / 3, !expr 5.90 / 3 * 2 / 3]
+
+        rheology_HH_contacts: !pspace
+          based_on: rheology_elongation
+
+          select_and_combine:
+            fields:
+              _property:
+                path: data/PCPTopology/Cells
+                transform:
+                  - .sel: [!dag_prev , {property: num_hair_neighbors}]
+
+                  - .coords: [!dag_prev , time]
+                  - create_mask: [!dag_prev , '>=', 1500]
+                  - .where: [!dag_node -3, !dag_prev ]
+                  - .mean: [!dag_prev , time]
+                  - .rename: [!dag_prev , num_hair_neighbors]
+
+          y: num_hair_neighbors
+
+          helpers:
+            set_labels:
+              y: HC-HC contacts
+            set_limits:
+              y: [0, 1]
+            set_ticks:
+              y: 
+                major: [0., 0.5, 1]
+                minor: [0.25, 0.75]
+
+        rheology_HH_contacts__homogeneous:
+          based_on: rheology_HH_contacts
+          select_and_combine:
+            subspace: 
+              Gamma: 0
+
+          helpers:
+            set_limits:
+              y: [0, 2]
+            set_ticks:
+              y: 
+                major: [0., 1, 2]
+                minor: [0.5, 1.5]
+
+
+    Rheology__diffusion:
+      enabled: false
+
+      run_dir: 220510-145939_job57691250_evaluation_diffusion
+
+      plots_cfg:
+        diffusion_constant: !pspace
+          based_on:
+            - .plot.multiplot
+            - multiverse
+
+          select_and_combine:
+            allow_missing_or_failing: silent
+            fields:
+              _displacement:
+                path: data/PCPTopology/Cells
+                transform:
+                  - import_and_call:
+                    args: 
+                      - model_plots.PCPTopology.data_ops
+                      - displacement
+                      - !dag_node -1
+                      - property
+                      - [x, y]
+                  - .rename: [!dag_prev , displacement]
+            subspace:
+              rho: !sweep
+                default: 0.2
+                order: 0
+                values: [0.2, 0.26, 0.1]
+
+          transform:
+            - pass: [!dag_tag _displacement]
+            - import_and_call:
+              args: [model_plots.PCPTopology.data_ops, stack, !dag_prev ,
+                    {ids: [seed, id]}]
+              tag: displacement
+
+            # the time coordinates
+            - .coords: [!dag_tag displacement, time]
+              tag: time
+            - create_mask: [!dag_prev , ">=", 80]
+              tag: equilibrium_short
+            - create_mask: [!dag_tag time, ">=", 800]
+              tag: equilibrium
+
+            # square displacement
+            - pow: [!dag_tag displacement, 2]
+            - .sum: [!dag_prev , property]
+              kwargs: {skipna: False}
+            - .rename: [!dag_prev , square_displ]
+              tag: square_displ_xr
+
+            # diffusion
+            - div: [!dag_tag square_displ_xr, !dag_tag time]
+            - div: [!dag_prev , 2]
+            - .rename: [!dag_prev , diffusion]
+              tag: diffusion_xr
+            - .where: [!dag_prev , !dag_tag equilibrium]
+            - .mean: [!dag_prev , time]
+            - import_and_call:
+              args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+            - import_and_call:
+              args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+            - callattr: [!dag_prev , reset_index]
+              tag: diffusion_const
+            - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
+            - .mean: [!dag_prev , time]
+            - import_and_call:
+              args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+            - import_and_call:
+              args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+            - callattr: [!dag_prev , reset_index]
+              tag: diffusion_const_short
+
+          x: dL
+          hue: Gamma
+          y: diffusion
+
+          to_plot: 
+          - function: sns.lineplot
+            data: !dag_result diffusion_const
+          - function: sns.lineplot
+            data: !dag_result diffusion_const_short
+            linestyle: ':'
+
+          helpers:
+            set_labels:
+              x: Fluctuation amplitude
+              y: Diffusion constant [$A_0 / \tau_\lambda$]
+            set_scales:
+              y: log
+            set_limits: 
+              y: [1.e-5, 0.25]
+
+
+    Increment_area_graded:
       enabled: False
       
       run_dir: 220720-153510_job59013884_experiment__area_graded
