@@ -158,6 +158,57 @@ def groupby_bins(HC, *, bins: int, **kwargs):
 
     kwargs["labels"] = np.linspace(HC.x.min(), HC.x.max(), bins, endpoint=False)
     return HC.groupby_bins("x", bins=bins, **kwargs)
+
+def spatial_binning(x: xr.DataArray,
+                    data: xr.DataArray,
+                    co_data: xr.DataArray=None,
+                    *, bins: int):
+    """Group spatial system into bins by their x-axis
+    
+    x: the coordinates along x-axis
+    data: The data to be grouped
+    co_data (optional): A second set of data
+    bins (int): The number of bins
+    """
+    _bins = np.linspace(0.5 / bins, 1. - 0.5 / bins, bins)
+
+    x = to_dataframe(x)
+
+    data = to_dataframe(data)
+    data['x'] = x['x']
+    data = data.dropna(subset='x')
+
+    data['x_bins'] = data['x'].apply(
+        lambda x: _bins[min(int(np.floor(x * _bins.size)), _bins.size-1)]
+    )
+
+    if co_data is not None:
+        __co_data = to_dataframe(co_data)
+        data[co_data.name] = __co_data[co_data.name]
+    
+
+    result = None
+    for time in data.time.unique():
+        frame = data.loc[data['time'] == time]
+
+        __result = frame.groupby(by='x_bins').mean()
+        __result = __result.reset_index()
+        __result['time'] = time
+
+        if result is None:
+            result = __result
+        else:
+            result = pd.concat([result, __result])
+    
+    result = result.drop(columns='id')
+    if 'seed' in result.columns:
+        result = result.drop(columns='seed')
+
+    if co_data is not None:
+        return result.sort_values(co_data.name).reset_index()
+
+    else:
+        return result.reset_index()
     
 
 def map_stage(data: xr.DataArray, area: xr.DataArray, *,

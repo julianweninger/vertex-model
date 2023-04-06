@@ -2483,7 +2483,7 @@ private:
 
     double _tau;
 
-
+    /// Calculates the available area per cell for pressure free BC
     double reference_area () const {
         auto [space_min, space_max] = this->_am.get_extent();
 
@@ -2491,6 +2491,7 @@ private:
                 / this->_am.cells().size());
     }
 
+    /// Update the preferential area of regulated cells
     void regulate_gradient () {
         auto [space_min, space_max] = this->_am.get_extent();
         double L = (space_min[0] - space_max[0]);
@@ -2516,6 +2517,7 @@ private:
         }
     }
 
+    /// Update the preferential area of relaxing cells
     void relax_cells () {
         if (_relax_types.size() == 0) {
             return;
@@ -2633,7 +2635,6 @@ public:
                     _left + left,
                     _right + right
                 );
-                std::cout << _left << " " << _right << std::endl;
             }
 
             regulate_gradient();
