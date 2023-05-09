@@ -503,10 +503,7 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         _vertices_tmp.end()
     );
 
-    double current_energy = 0.;
-    if (T1_barrier > 1.e-12) {
-        current_energy = get_energy(vertices_tmp, edges_tmp, cells);
-    }
+    double current_energy = get_energy(vertices_tmp, edges_tmp, cells);
     // WARN agents are not yet removed at this point!
     //      Any component if get_energy that works globally on the agent
     //      container must be dealt with care!
@@ -654,16 +651,13 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
         _vertices_tmp.end()
     );
 
-    double new_energy = 0.;
-    if (T1_barrier > 1.e-12) {
-        new_energy = get_energy(vertices_tmp, edges_tmp, cells);
-    }
+    double new_energy = get_energy(vertices_tmp, edges_tmp, cells);
     // WARN agents are not yet removed at this point!
     //      Any component if get_energy that works globally on the agent
     //      container must be dealt with care!
 
     double probability = exp(-(new_energy - current_energy)/T1_barrier);
-    if (T1_barrier > 1.e-12 and random_number > probability)
+    if (random_number > probability)
     {
         this->_log->debug("Aborting T1 transition, because energy increased by "
                 "{} .. The probability to do this T1 transition is {}.",
@@ -694,7 +688,7 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
 
         return false;
     }
-    else if (T1_barrier > 1.e-12 and new_energy >= current_energy) {
+    else if (new_energy >= current_energy) {
         this->_log->debug("This T1 transition increases energy by {}, but "
             "given the parameter 'T1_barrier'={} the probability is {} do "
             "perform this transition non the less.",
