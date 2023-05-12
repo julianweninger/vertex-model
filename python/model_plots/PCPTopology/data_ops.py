@@ -191,7 +191,7 @@ def spatial_binning(x: xr.DataArray,
     for time in data.time.unique():
         frame = data.loc[data['time'] == time]
 
-        __result = frame.groupby(by='x_bins').mean()
+        __result = frame._get_numeric_data().groupby(by='x_bins').mean()
         __result = __result.reset_index()
         __result['time'] = time
 
