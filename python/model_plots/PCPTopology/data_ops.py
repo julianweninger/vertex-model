@@ -162,7 +162,7 @@ def groupby_bins(HC, *, bins: int, **kwargs):
 def spatial_binning(x: xr.DataArray,
                     data: xr.DataArray,
                     co_data: xr.DataArray=None,
-                    *, bins: int):
+                    *, bins: int, range=[0, 1]):
     """Group spatial system into bins by their x-axis
     
     x: the coordinates along x-axis
@@ -170,7 +170,7 @@ def spatial_binning(x: xr.DataArray,
     co_data (optional): A second set of data
     bins (int): The number of bins
     """
-    _bins = np.linspace(0.5 / bins, 1. - 0.5 / bins, bins)
+    _bins = np.linspace(range[0] + 0.5 / bins, range[1] - 0.5 / bins, bins)
 
     x = to_dataframe(x)
 
@@ -191,7 +191,7 @@ def spatial_binning(x: xr.DataArray,
     for time in data.time.unique():
         frame = data.loc[data['time'] == time]
 
-        __result = frame.groupby(by='x_bins').mean()
+        __result = frame._get_numeric_data().groupby(by='x_bins').mean()
         __result = __result.reset_index()
         __result['time'] = time
 

@@ -44,6 +44,21 @@ def test_run_and_eval_cfgs(cfg_name):
         }
     })
     debug_params=dict({
+        'area_graded': {
+            'num_steps': 1,
+            'PCPTopology': {
+                'PCPVertex': {
+                    'agent_manager': {
+                        'setup_params': {
+                            'hexagonal': {
+                                'lattice_rows': 6,
+                                'lattice_columns': 8
+                            }
+                        }
+                    }
+                }
+            }
+        },
         'asymmetries': {
             'num_steps': 1,
             'PCPTopology': {
@@ -81,9 +96,6 @@ def test_run_and_eval_cfgs(cfg_name):
                     }
                 },
             }
-        },
-        'increment_area_graded': {
-            'num_steps': 1
         },
         'heterogeneities_and_polarity': {
             'PCPTopology': {
