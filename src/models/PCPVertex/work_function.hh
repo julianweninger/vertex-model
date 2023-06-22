@@ -1436,6 +1436,8 @@ class EdgeContractilityPolar : public WorkFunctionTerm<Model>
 
     using Cell = typename Base::Cell;
 
+    using RNG = typename Model::Base::RNG;
+
     typedef std::vector< std::vector<double> > stdmat;
 
 private:
@@ -1465,6 +1467,24 @@ private:
 
     /// The damping factor for energy minimization
     double _gamma;
+
+    /// Polarity fluctuation parameter
+    /** Parameter fluctuations are implemented as Ornstein-Uhlenbeck process
+     * 
+     *  \f$  \frac{dp_{mn}}{dt} = - \frac{1}{\tau_p}
+     *      (p_{mn}(t) - \Lambda_0)
+     *      + \Delta p \sqrt{2 / \tau_p} \Theta_{mn}(t)
+     *  \f$
+     * 
+     *  with the first value \f$ \tau \f$ and the second value
+     *  \f$ \Delta p \f$.
+     */
+    std::pair<double, double> _fluctuations;
+
+    const std::shared_ptr<RNG> _rng;
+
+    /// A [0,1]-range normal distribution
+    std::normal_distribution<double> _normal_distr;
 
     /// How many iterations to perform per update step
     std::size_t _num_steps;
@@ -1599,6 +1619,12 @@ public:
             get_as<std::vector<std::size_t>>("exclude_cell_types", cfg)
         )),
         _gamma(get_as<double>("gamma", cfg)),
+        _fluctuations(std::make_pair(
+            get_as<double>("polarity_fluctuations_tau", cfg),
+            get_as<double>("polarity_fluctuations", cfg)
+        )),
+        _rng(model.get_rng()),
+        _normal_distr(0., 1.),
         _num_steps(get_as<std::size_t>("num_steps", cfg))
     {
         if (cfg["origin"]) {
@@ -1742,7 +1768,7 @@ public:
     }
 
     /// The update step, i.e. one minimization step
-    void perform_step () {
+    void perform_step (double dt) {
         for (const auto& cell : this->_am.cells()) {
             if (_exclude_types.find(cell->state.type) != _exclude_types.end()) {
                 continue;
@@ -1764,14 +1790,17 @@ public:
                             arma::dot(displ,
                                       SpaceVec({cos(polarity), sin(polarity)}));
             }
+
+            const auto& [tau, Dp] = _fluctuations;
+            double rn = Dp *sqrt(2. * dt / tau) * _normal_distr(*_rng);
             
-            update_polarity(cell, polarity - dE_dp * _gamma);
+            update_polarity(cell, polarity - dE_dp * _gamma + rn);
         }
     }
 
     void update([[maybe_unused]] double dt) {
         for (std::size_t i = 0; i < _num_steps; i++) {
-            perform_step();
+            perform_step(dt);
         }
     }
 
@@ -1788,6 +1817,13 @@ public:
         _curvature = get_as<double>("curvature", cfg, _curvature);
 
         _gamma = get_as<double>("gamma", cfg, _gamma);
+
+        _fluctuations = std::make_pair(
+            get_as<double>("polarity_fluctuations_tau", cfg, 
+                           std::get<0>(_fluctuations)),
+            get_as<double>("polarity_fluctuations", cfg,
+                           std::get<1>(_fluctuations))
+        ),
         _num_steps = get_as<std::size_t>("num_steps", cfg, _num_steps);
     }
 
