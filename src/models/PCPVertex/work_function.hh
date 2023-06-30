@@ -1571,7 +1571,7 @@ private:
             double polarity = get_polarity(cell);
 
             // The vector to align to is 90 deg rotated to polarity of cell
-            SpaceVec align_to({-sin(polarity), cos(polarity)});
+            SpaceVec align_to({sin(polarity), -cos(polarity)});
 
             // the modulation factor
             modulation += (arma::dot(displ/length, align_to) + 1.) / 2.;
@@ -1704,7 +1704,7 @@ public:
 
                 double polarity = get_polarity(cell);
 
-                SpaceVec align_to({-sin(polarity), cos(polarity)});
+                SpaceVec align_to({sin(polarity), -cos(polarity)});
 
                 SpaceVec T1 = -(arma::dot(displ/length, align_to) + 1)/2.*displ;
                 SpaceVec T2 = -0.25 * length * align_to;
@@ -1760,8 +1760,9 @@ public:
                 double length = arma::norm(displ);
 
                 double k = get_contractility(edge);
-                dE_dp -= 0.25 * k * length * (  displ[0] * cos(polarity)
-                                              + displ[1] * sin(polarity));
+                dE_dp += 0.25 * k * std::pow(length, 2) * 
+                            arma::dot(displ,
+                                      SpaceVec({cos(polarity), sin(polarity)}));
             }
             
             update_polarity(cell, polarity - dE_dp * _gamma);

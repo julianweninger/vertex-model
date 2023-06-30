@@ -199,6 +199,8 @@ parameter_space:
 
             gamma: 20
             num_steps: 100
+            polarity_fluctuations_tau: 1
+            polarity_fluctuations: 0.
           
           minimization:
             mode: manual
