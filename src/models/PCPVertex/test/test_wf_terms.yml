@@ -97,6 +97,8 @@ test_work_function_terms:
     num_steps: 5
     setup: uniform
     exclude_cell_types: [0]
+    polarity_fluctuations_tau: 1
+    polarity_fluctuations: 0.
 
     test_precision: 5.e-3
 - edge_contractility_polar:
@@ -116,6 +118,8 @@ test_work_function_terms:
     curvature: 0.01
     setup: uniform
     exclude_cell_types: [0]
+    polarity_fluctuations_tau: 1
+    polarity_fluctuations: 0.
 
     test_precision: 5.e-3
 
@@ -301,4 +305,6 @@ test_update_edge_contractility_polar:
     num_steps: 1
     setup: uniform
     exclude_cell_types: [0]
+    polarity_fluctuations_tau: 1
+    polarity_fluctuations: 0.
   

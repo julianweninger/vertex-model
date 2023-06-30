@@ -438,6 +438,7 @@ public:
                 * "real" coordinates */
             a = ref + _space->displacement(ref, a);
             b = ref + _space->displacement(ref, b);
+            ref = a;
 
             area += a[0] * b[1] - b[0] * a[1];
         }
@@ -500,23 +501,24 @@ public:
 
         // define a reference in space
         auto [e, flip] = boundary.front();
-        std::shared_ptr<Vertex> reference;
-        if (not flip) { reference = e->custom_links().a; }
-        else { reference = e->custom_links().b; }
+        SpaceVec ref;
+        if (not flip) { ref = position_of(e->custom_links().a); }
+        else { ref = position_of(e->custom_links().b); }
 
         double area = 0.;
         SpaceVec center(arma::fill::zeros);
         for (const auto& [e, flip] : boundary) {
+            SpaceVec a = position_of(e->custom_links().a);
+            SpaceVec b = position_of(e->custom_links().b);
+
+            if (flip) { std::swap(a, b); }
+
             // define the vertices positions relative to the reference
-            /* this is important in periodic space to calculate with "real"
-             * coordinates */
-            auto _a = e->custom_links().a;
-            auto _b = e->custom_links().b;
-
-            if (flip) { std::swap(_a, _b); }
-
-            SpaceVec a = position_of(reference) + displacement(reference, _a);
-            SpaceVec b = position_of(reference) + displacement(reference, _b);
+            /* this is important in periodic space to calculate with 
+                * "real" coordinates */
+            a = ref + _space->displacement(ref, a);
+            b = ref + _space->displacement(ref, b);
+            ref = a; 
 
             double da = a[0] * b[1] - b[0] * a[1];
             area += da;
