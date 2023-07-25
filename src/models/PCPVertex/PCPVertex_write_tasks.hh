@@ -273,15 +273,19 @@ auto cells_adaptor = std::make_tuple(
         hex_order.reserve(cells.size());
         std::vector<float> hex_order_corr;
         hex_order_corr.reserve(cells.size());
+        std::vector<float> hex_order_N;
+        hex_order_N.reserve(cells.size());
         for (const auto& cell : cells) {
-            const auto [hex, hex_corr] = am.hexatic_order_of(
-                cell, cell->state.type, 2
+            const auto [hex, hex_corr, hex_N] = am.hexatic_order_of(
+                cell, cell->state.type, 2, cell->state.type
             );
             hex_order.push_back(hex);
             hex_order_corr.push_back(hex_corr);
+            hex_order_N.push_back(hex_N);
         }
         dataset->write(hex_order);
         dataset->write(hex_order_corr);
+        dataset->write(hex_order_N);
 
         // // write cell polarity wrt curved x axis
         // dataset->write(cells.begin(), cells.end(),
@@ -343,7 +347,7 @@ auto cells_adaptor = std::make_tuple(
 
     // builder function
     [](auto& group, auto& m) -> decltype(auto) {
-        std::size_t cnt = 13;
+        std::size_t cnt = 14;
         for (const auto& [name, term] : m.get_work_function_terms()) {
             cnt += term->write_task_cell_properties_names().size();
         }
@@ -369,6 +373,7 @@ auto cells_adaptor = std::make_tuple(
             "num_neighbors__self",
             "hexatic_order",
             "hexatic_order__corr",
+            "hexatic_order__N",
             "q_x",
             "q_y",
             "is_boundary"

@@ -690,21 +690,61 @@ public:
                                     subset_neighbors.end());
     }
 
-    /// Hexatic order of a cell
-    /** Returns the hexatic and the corrected hexatic order. 
-     *  Correction rescales the position of next neighbour HC from an elongated
-     *  arrangement to a circular configuration.
+    /// The neighboring cells to a cell of type and manhatten distance. 
+    /** \param cell     The considered cell
+     *  \param type     The type of cells forming the returned subset
+     *  \param distance Manhatten distance, calculated across all cell types
+     *  \param dead_end_type    The type of cells that are not further iterated
      */
-    std::pair<double, double> hexatic_order_of (
-        const std::shared_ptr<Cell>& cell,
+    AgentContainer<Cell> neighbors_of_type(
+            const std::shared_ptr<Cell>& cell,
             const std::size_t& type,
-            const std::size_t& distance=1
-    ) const 
+            const std::size_t& distance,
+            const std::size_t& dead_end_type
+    ) const
     {
-        const auto neighbors = neighbors_of_type(cell, type, distance);
+        const auto _neighbors = neighbors_of(cell);
+        std::unordered_set<std::shared_ptr<Cell>> neighbors(_neighbors.begin(),
+                                                            _neighbors.end());
+
+        for (std::size_t d = 1; d < distance; d++) {
+            AgentContainer<Cell> tmp(neighbors.begin(), neighbors.end());
+            for (const auto& nb : tmp) {
+                if (nb->state.type != dead_end_type) {
+                    auto nnbs = neighbors_of(nb);
+                    for (const auto& nnb : nnbs) {
+                        if (nnb != nullptr) {
+                            neighbors.insert(nnb);
+                        }
+                    }
+                }
+            }
+        }
+
+        neighbors.erase(cell);
+        neighbors.erase(nullptr);
+        std::set<std::shared_ptr<Cell>> subset_neighbors;
+
+        for (const auto & nb : neighbors) {
+            if (nb->state.type == type)
+            {
+                subset_neighbors.insert(nb);
+            }
+        }
+        subset_neighbors.erase(nullptr);
+
+        return AgentContainer<Cell>(subset_neighbors.begin(),
+                                    subset_neighbors.end());
+    }
+
+    std::tuple<double, double, std::size_t> hexatic_order_of(
+        const std::shared_ptr<Cell>& cell,
+        const AgentContainer<Cell>& neighbors
+    ) const
+    {
         
         if (neighbors.size() < 3) {
-            return std::make_pair(0., 0.);
+            return std::make_tuple(0., 0., neighbors.size());
         }
         
         SpaceVec center = this->barycenter_of(cell);
@@ -756,9 +796,42 @@ public:
             }
         );
 
-        std::complex<double> N(neighbors.size());
-        return std::make_pair(std::norm(hex_order / N),
-                              std::norm(hex_order_corr / N));
+        auto N(neighbors.size());
+        return std::make_tuple(std::sqrt(std::norm(hex_order)) / N,
+                               std::sqrt(std::norm(hex_order_corr)) / N,
+                               N);
+    }
+
+    /// Hexatic order of a cell
+    /** Returns the hexatic and the corrected hexatic order. 
+     *  Correction rescales the position of next neighbour HC from an elongated
+     *  arrangement to a circular configuration.
+     */
+    auto hexatic_order_of (
+        const std::shared_ptr<Cell>& cell
+    ) const 
+    {
+        const auto neighbors = neighbors_of(cell);
+
+        return hexatic_order_of(cell, neighbors);
+    }
+
+    /// Hexatic order of a cell
+    /** Returns the hexatic and the corrected hexatic order. 
+     *  Correction rescales the position of next neighbour HC from an elongated
+     *  arrangement to a circular configuration.
+     */
+    auto hexatic_order_of (
+        const std::shared_ptr<Cell>& cell,
+            const std::size_t& type,
+            const std::size_t& distance,
+            const std::size_t& dead_end_type
+    ) const 
+    {
+        const auto neighbors = neighbors_of_type(cell, type, distance,
+                                                 dead_end_type);
+
+        return hexatic_order_of(cell, neighbors);
     }
 
     // see transitions.hh
