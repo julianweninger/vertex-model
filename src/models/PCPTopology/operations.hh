@@ -601,12 +601,6 @@ OperationBundle build_pure_shear (
         for (const auto& cell : cells) {
             max_A0 = std::max(max_A0, cell->state.area_preferential);
         }
-        double L = 2 * sqrt(max_A0 / M_PI); // diameter of a cell
-
-        if (Lx < 3 * L or Ly < 3 * L) {
-            throw std::runtime_error("Cannot apply `pure shear` operation as "
-                "the shorter tissue axis does not fit 3 diameters of a cell!");
-        }
 
         vertex_model.stretch_domain(SpaceVec({Lx, Ly}) - domain,
                                     false, false, false,
