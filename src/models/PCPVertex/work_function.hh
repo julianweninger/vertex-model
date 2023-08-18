@@ -2648,13 +2648,7 @@ private:
 
     double _tau;
 
-    /// Calculates the available area per cell for pressure free BC
-    double reference_area () const {
-        auto [space_min, space_max] = this->_am.get_extent();
-
-        return ((space_max[0] - space_min[0]) * (space_max[1] - space_min[1])
-                / this->_am.cells().size());
-    }
+    double _reference_area;
 
     /// Update the preferential area of regulated cells
     void regulate_gradient () {
@@ -2676,9 +2670,16 @@ private:
             double x = (pos[0] - space_min[0]) / L;
 
             const auto& [left, right] = _regulate_gradient[cell->state.type];
-            cell->state.area_preferential = (
-                (left - right) * std::pow(cos(x*M_PI), 2) + right
-            );
+            if (this->_am.get_space()->periodic) {
+                cell->state.area_preferential = (
+                    (left - right) * std::pow(cos(x * M_PI), 2) + right
+                );
+            }
+            else {
+                cell->state.area_preferential = (
+                    (left - right) * std::pow(cos(x * M_PI / 2), 2) + right
+                );
+            }
         }
     }
 
@@ -2716,7 +2717,7 @@ private:
             average_area /= static_cast<double>(N);
 
             auto A = cell->state.area_preferential;
-            double dA = (average_area_tot/reference_area() - 1.) * A;
+            double dA = (average_area_tot/_reference_area - 1.) * A;
             double A_target = A - dA / _tau;
             A_target += (average_area - A) / _tau;
 
@@ -2741,18 +2742,12 @@ public:
         _relax_types({}),
         _distance(get_as<std::size_t>("manhatten_distance", cfg)),
         _min_area(get_as<double>("min_area", cfg)),
-        _tau(get_as<double>("relaxation_time", cfg))
+        _tau(get_as<double>("relaxation_time", cfg)),
+        _reference_area(get_as<double>("preferential_area", cfg))
     {
-        if (not this->_am.get_space()->periodic) {
-            throw std::runtime_error(fmt::format("Cannot initialise WF "
-                "AreaElasticityHeterotypic ({}) with method "
-                "'regulate_graded_heterotypic' in non-periodic space!",
-                this->_name));
-        }
-
         for (std::size_t i = 0; i < get_as<double>("num_types", cfg); i++) {
-            _regulate_gradient.push_back(std::make_pair(reference_area(),
-                                                        reference_area()));
+            _regulate_gradient.push_back(std::make_pair(_reference_area,
+                                                        _reference_area));
         }
 
         auto relax_types = get_as<std::vector<std::size_t>>("relax_types", cfg);
@@ -2778,8 +2773,8 @@ public:
         std::size_t num = get_as<double>("num_types", cfg,
                                          _regulate_gradient.size());
         for (std::size_t i = _regulate_gradient.size(); i < num; i++) {
-            _regulate_gradient.push_back(std::make_pair(reference_area(),
-                                                        reference_area()));
+            _regulate_gradient.push_back(std::make_pair(_reference_area,
+                                                        _reference_area));
         }
         
         if (cfg["increment_areas"]) {
