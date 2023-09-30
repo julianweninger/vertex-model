@@ -34,6 +34,10 @@ select.uni.continuous_energy_terms:
 _energy:
   based_on:
     - .plot.multiplot
+    
+  to_plot:
+  - function: sns.lineplot
+    data: !dag_result energy
 
   x: time
   y: energy
@@ -50,9 +54,6 @@ energy:
     - _energy
     - select.uni.energy_terms
 
-  to_plot:
-  - function: sns.lineplot
-    data: !dag_result energy
 
 select.uni.transitions:
   select:
