@@ -7,6 +7,8 @@ import time
 
 import pytest
 
+import numpy as np
+
 from utopya.tools import recursive_update
 from utopya.testtools import ModelTest
 
@@ -187,3 +189,43 @@ def test_disabled_plots():
             # "equilibrium_cellular_structure__hexatic_order"
         ]
     )
+
+
+
+def test_initialisation():
+    # Create a Multiverse using the configuration for the original equations
+    mv, dm = mtc.create_run_load(from_cfg="test_configs__initialisation.yml",
+                                 perform_sweep=True)
+    
+    for uni in dm['multiverse']:
+        data = dm['multiverse'][uni]['data']['PCPTopology']
+        cells = data['Cells'].sel(time=0).rename('cells')
+        coords_x = cells.sel(property='x')
+        coords_y = cells.sel(property='y')
+        mask_centre = (
+            (coords_x >= coords_x.mean()-2) & (coords_x <= coords_x.mean()+2) & 
+            (coords_y >= coords_y.mean()-2) & (coords_y <= coords_y.mean()+2) &
+            (cells.sel(property='cell_type') == 0)
+        )
+        SCs = cells.where(mask_centre, drop=True).rename('SCs')
+
+        num_HC_nbs = SCs.sel(property='num_neighbors') - SCs.sel(property='num_neighbors__self')
+        assert (num_HC_nbs > 0).all()
+
+
+        HC_structure = dm['multiverse'][uni]['cfg']['PCPTopology']['PCPVertex']\
+                         ['agent_manager']['setup_params']['hexagonal']\
+                         ['HC_structure']
+        
+        if int(HC_structure[-1]) == 2:
+            assert (num_HC_nbs == 3).all()
+        elif int(HC_structure[-1]) == 3:
+            assert (num_HC_nbs == 2).all()
+        elif int(HC_structure[-1]) == 4:
+            assert ((num_HC_nbs == 2) | (num_HC_nbs == 1) | np.isnan(num_HC_nbs)).all()
+        elif int(HC_structure[-1]) == 5:
+            assert ((num_HC_nbs == 2) | (num_HC_nbs == 1) | np.isnan(num_HC_nbs)).all()
+        elif int(HC_structure[-1]) == 6:
+            assert (num_HC_nbs == 1).all()
+        else:
+            raise RuntimeError("Unknown ratio {}".format(HC_structure[-1]))
