@@ -1,0 +1,53 @@
+---
+perform_sweep: True
+
+parameter_space:
+  num_steps: 0
+
+  PCPTopology:
+    model_name: PCPTopology
+
+    space:
+      periodic: !sweep
+        default: False
+        values: 
+          - False
+          - True
+        order: 1
+    
+    initialisation:
+      0_add_noise:
+        enabled: true
+      
+      1_by_proliferation:
+        enabled: false
+
+    PCPVertex:
+      space: 
+        periodic: !coupled-sweep
+          target_name: periodic
+          name: PCPVertex_periodic
+
+      agent_manager:
+        setup_params:
+          hexagonal:
+            HC_structure: !sweep
+              default: ratio_1_to_3
+              values: 
+                - ratio_1_to_2
+                - ratio_1_to_3
+                - ratio_1_to_4
+                - ratio_1_to_5
+                - ratio_1_to_6
+              order: 0
+            lattice_rows: 12
+            lattice_columns: 12
+            offset: !sweep
+              default: 0
+              values:
+                - 0
+                - 1
+                - 2
+              order: 11
+            allow_defects: true
+      

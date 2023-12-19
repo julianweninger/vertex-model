@@ -359,16 +359,26 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         this->_log->info("Initialising HC in '{}' structure ...",
                          structure_str);
 
+        bool allow_defects = false;
+        if (this->_space->periodic) {
+            allow_defects = get_as<bool>("allow_defects", cfg);
+        }
+        std::size_t offset = 0;
+        if (not this->_space->periodic) {
+            offset = get_as<std::size_t>("offset", cfg);
+        }
+
         if (structure_str == "ratio_1_to_2") {
-            if (_space->periodic and num_columns % 3 != 0) {
+            if (    not allow_defects and _space->periodic 
+                and num_columns % 3 != 0) {
                 throw std::invalid_argument(fmt::format(
                     "Failed to set up HC structure '{}' on a hexagonal lattice "
                     "with {} columns. Columns needs to be a multiple of 3!",
                     structure_str, num_columns
                 ));
             }
-            for (std::size_t row = 0; row < num_rows; row++) {
-                for (std::size_t col = 0; col < num_columns; col++) {
+            for (std::size_t row = offset; row < num_rows - offset; row++) {
+                for (std::size_t col = offset; col < num_columns - offset; col++) {
                     auto id = row * num_columns + col;
                     if (   (row % 2 == 0 and col % 3 == 0)
                         or (row % 2 == 1 and col % 3 == 1))
@@ -379,8 +389,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
         }
         else if (structure_str == "ratio_1_to_3") {
-            for (std::size_t row = 0; row < num_rows; row++) {
-                for (std::size_t col = 0; col < num_columns; col++) {
+            for (std::size_t row = offset; row < num_rows - offset; row++) {
+                for (std::size_t col = offset; col < num_columns - offset; col++) {
                     auto id = row * num_columns + col;
                     if (row % 2 == 0 and col % 2 == 0) {
                         this->cells()[id]->state.type += 1;
@@ -389,15 +399,16 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
         }
         else if (structure_str == "ratio_1_to_4") {
-            if (_space->periodic and num_columns % 5 != 0) {
+            if (    not allow_defects and _space->periodic 
+                and num_columns % 5 != 0) {
                 throw std::invalid_argument(fmt::format(
                     "Failed to set up HC structure '{}' on a hexagonal lattice "
                     "with {} columns. Columns needs to be a multiple of 5!",
                     structure_str, num_columns
                 ));
             }
-            for (std::size_t row = 0; row < num_rows; row++) {
-                for (std::size_t col = 0; col < num_columns; col++) {
+            for (std::size_t row = offset; row < num_rows - offset; row++) {
+                for (std::size_t col = offset; col < num_columns - offset; col++) {
                     auto id = row * num_columns + col;
                     if (   (row % 2 == 0 and col % 5 == 0)
                         or (row % 2 == 1 and col % 5 == 2)) {
@@ -407,7 +418,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
         }
         else if (structure_str == "ratio_1_to_5") {
-            if (    _space->periodic
+            if (    not allow_defects and _space->periodic
                 and (num_columns % 3 != 0 or num_rows % 4 != 0)) {
                 throw std::invalid_argument(fmt::format(
                     "Failed to set up HC structure '{}' on a hexagonal lattice "
@@ -416,8 +427,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                     structure_str, num_columns, num_rows
                 ));
             }
-            for (std::size_t row = 0; row < num_rows; row++) {
-                for (std::size_t col = 0; col < num_columns; col++) {
+            for (std::size_t row = offset; row < num_rows - offset; row++) {
+                for (std::size_t col = offset; col < num_columns - offset; col++) {
                     auto id = row * num_columns + col;
                     if (row % 2 == 0 and col % 3 == (row % 6) / 2)
                     {
@@ -427,7 +438,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             }
         }
         else if (structure_str == "ratio_1_to_6") {
-            if (    _space->periodic
+            if (    not allow_defects and _space->periodic
                 and (num_columns % 14 != 0 or num_rows % 14 != 0)) {
                 throw std::invalid_argument(fmt::format(
                     "Failed to set up HC structure '{}' on a hexagonal lattice "
@@ -441,8 +452,8 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
                     int row = 2 * m + n;
                     int col = 4 * n + m + row / 2;
 
-                    if (    row >= 0 and row < int(num_rows)
-                        and col >= 0 and col < int(num_columns))
+                    if (    row >= int(offset) and row < int(num_rows - offset)
+                        and col >= int(offset) and col < int(num_columns - offset))
                     {
                         auto id = row * num_columns + col;
                         this->cells()[id]->state.type += 1;
