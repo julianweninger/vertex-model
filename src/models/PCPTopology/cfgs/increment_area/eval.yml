@@ -973,7 +973,6 @@ cell_properties/area: !pspace
   to_plot: 
     - function: sns.lineplot
       data: !dag_result all_cells
-      errorbar: ~
     - function: sns.lineplot
       data: !dag_result hair_cells
       color: red

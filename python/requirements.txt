@@ -3,4 +3,4 @@
 # the registration of model tests.
 
 dantro>=0.18
-seaborn>=0.12
+seaborn>=0.13

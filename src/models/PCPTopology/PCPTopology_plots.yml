@@ -305,11 +305,9 @@ pressure:
       transform:
         - .sel: [!dag_prev , {term: area_elasticity__pressure}]
         - .rename: [!dag_prev , pressure]
+        
   y: pressure
   x: time
-  helpers:
-    set_labels:
-      y: pressure
 
 tension:
   based_on:
@@ -340,7 +338,6 @@ tension:
 
   x: time
   y: tension
-  hue: term
 
 
 # --- Equilibrium cellular structures -----------------------------------------

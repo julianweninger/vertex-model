@@ -120,8 +120,6 @@ _diffusion:
     - .rename: [!dag_prev , square_displ]
       tag: square_displ_xr
     - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , id]
-    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: square_displacement
 
@@ -131,16 +129,12 @@ _diffusion:
     - .rename: [!dag_prev , diffusion]
       tag: diffusion_xr
     - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , id]
-    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: diffusion
 
     # sqrt of square displacement
     - pow: [!dag_tag square_displ_xr, 0.5]
     - .rename: [!dag_prev , distance]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , id]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: distance
@@ -263,7 +257,7 @@ select_cells_properties:
       path: data/PCPTopology/Cells
       transform:
         - create_mask:
-          args: [!dag_tag __cell_type, ==, 2]
+          args: [!dag_tag __cell_type, '!=', 1]
     
     
   transform:
@@ -381,8 +375,6 @@ select_cells_properties_mv:
     - .squeeze: [!dag_prev ]
       tag: property
     - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
-    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: all_cells
 
@@ -394,7 +386,7 @@ select_cells_properties_mv:
       tag: cell_type
     - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
-    - create_mask: [!dag_tag cell_type, ==, 2]
+    - create_mask: [!dag_tag cell_type, '!=', 1]
       tag: _support_cells
 
     # mask for bulk cells
@@ -408,16 +400,12 @@ select_cells_properties_mv:
 
     # the data for hair cells
     - .where: [!dag_tag property, !dag_tag _hair_cells]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
       tag: hair_cells_xarray
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hair_cells
     # the data for support cells
     - .where: [!dag_tag property, !dag_tag _support_cells]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
       tag: support_cells_xarray
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
@@ -426,21 +414,15 @@ select_cells_properties_mv:
     # the data for bulk cells
     - .where: [!dag_tag property, !dag_tag _is_bulk]
     - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
-    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: all_cells_bulk
       
     - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
     - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
-    - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: hair_cells_bulk
       
     - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
-    - import_and_call:
-      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
     - import_and_call:
       args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
       tag: support_cells_bulk
@@ -469,7 +451,7 @@ select_cells_properties_mv.xy_data:
       tag: cell_type
     - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
-    - create_mask: [!dag_tag cell_type, ==, 2]
+    - create_mask: [!dag_tag cell_type, '!=', 1]
       tag: _support_cells
 
     # mask for bulk cells
@@ -532,7 +514,7 @@ select_cells_properties_mv.map_stage:
       tag: cell_type
     - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
-    - create_mask: [!dag_tag cell_type, ==, 2]
+    - create_mask: [!dag_tag cell_type, '!=', 1]
       tag: _support_cells
 
     # stack the seeds
@@ -777,7 +759,6 @@ cellular_structure:
     #   transform:
     #     - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
     #     - .rename: [!dag_prev , Cell type]
-    #     - print: [!dag_prev ]
 
     periodic: 
       path: cfg/PCPTopology
