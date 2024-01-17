@@ -31,7 +31,10 @@ def reindex(d: xr.DataArray, *a, **k):
 
 def dropna(d: xr.DataArray, *a, **k):
     """Forward to xarray.DataArray.dropna"""
-    return d.dropna(*a, **k)
+    kwargs = dict(**k)
+    if not 'how' in kwargs.keys():
+        kwargs['how'] = 'all'
+    return d.dropna(*a, **kwargs)
 
 def drop_duplicates(d: xr.DataArray, *a, **k):
     """Forward to xarray.DataArray.drop_duplicates"""
