@@ -1,0 +1,170 @@
+# A minimal configuration to do cell proliferation 
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+perform_sweep: true
+paths:
+  model_note: default__columnar_graded_contractility
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+
+parameter_space:
+  num_steps: 50
+
+  seed: !sweep
+    default: 0
+    range: [1]
+    order: !expr -np.inf
+
+  PCPTopology:
+    space: &Space
+      extent: [1.0, 1.0]
+      periodic: false
+    initialisation:
+      0_add_noise:
+        enabled: false
+      1_by_proliferation:
+        enabled: false
+        num_generations: 0
+        
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.01  # this was evaluated in the previous test to be a good dt
+      num_steps: 100
+      jiggle_intensity: 0.
+      linetension_fluctuations: &dL 0.00001
+      linetension_fluctuations_tau: &tau_dL 24
+      num_repeat: 1
+      
+    operations:
+      # Differentiate hair and support cells
+      - differentiate_domain:
+          times: []
+          iterations_prolog: 1
+          method: fraction
+          relative_heights: [1]
+          relative_widths: 
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+            - !expr 1/21
+
+            - !expr 1/21
+          minimization:
+            mode: manual
+
+      # END differentiation
+      - void:
+          iterations_prolog: 0
+          times: []
+
+      - void:
+          times:
+            start: 1
+            stop: 100000
+            step: 1
+
+    PCPVertex:
+      log_level: warning
+      space: *Space
+      agent_manager:
+        setup_method: column
+        setup_params:
+          column:
+            num_cells: &num_cells 21
+      initial_jiggle: 0.00001
+
+      T1_threshold: 0.
+      T1_probability: 0.
+      enable_T1_transitions: False
+
+      work_function_terms:
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1.0
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 4.
+      # fluctuations
+      - linetension_fluctuations:
+          amplitude: *dL
+          timescale: *tau_dL
+      # heterogeneity
+      - edge_contractility_heterotypic_boundary:
+          Gamma: !sweep
+            name: max_contractility
+            default: 1
+            values: [0.1, 0.2, 0.5, 1.]
+          apical_contractility: !coupled-sweep
+            target_name: max_contractility
+            name: apical_contractility
+            default: [0]
+            values:
+            - [0.1, 0.095, 0.09, 0.085, 0.08, 0.075, 0.07, 0.065, 0.06, 0.055, 0.05, 0.045, 0.04, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01, 0.005, 0.0]
+            - [0.2, 0.19, 0.18, 0.17, 0.16, 0.15, 0.14, 0.13, 0.12, 0.11, 0.1, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01, 0.0]
+            - [0.5, 0.475, 0.45, 0.425, 0.4, 0.375, 0.35, 0.325, 0.3, 0.275, 0.25, 0.225, 0.2, 0.175, 0.15, 0.125, 0.1, 0.075, 0.05, 0.025, 0.0]
+            - [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.0]
+          basal_contractility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                0.0]
+
+      # BC
+      - boundary_stripe_potential:
+          elastic_constant: 71.
+          stretch: true
+          width: *num_cells
+          height: 1
+          deform_plastic: false
+          skip_quadrants: [2, 7]
+
+      - boundary_fixed_partial:
+          fix: true
+          from_right: 0.5
+          from_left: 0.5
+
+
+    data_manager:
+      deciders:
+        write_interval: &Interval
+          type: interval
+          args:
+            intervals:
+              - [0, 5, 1]
+              - [5, 20, 2]
+              - [20, 50, 5]
+              - [50, 100, 10]
+              - [100, 200, 20]
+              - [200, 500, 50]
+              - [500, 1000, 100]
+              - [1000, 2000, 200]
+              - [2000, 5000, 500]
+              - [5000, 10000, 1000]
+              - [10000, 20000, 2000]
+              - [20000, 50000, 5000]
+              - [50000, 100001, 10000]
+      triggers:
+        build_interval: *Interval

@@ -1,0 +1,212 @@
+# The evaluation of default_proliferation_minimal
+---    
+_definitions:
+  enabled: false
+
+  hue: &HUE max_contractility
+
+  subspace_slice: &subspace_slice
+    max_contractility: !sweep
+      default: 0
+      values: 
+        - 0.1
+        - 0.2
+        - 0.5
+        - 1.0
+
+  time_min: &TIME_MIN ~
+  time_max: &TIME_MAX ~
+
+# modify style parameter
+my_style:
+  enabled: false
+    
+universe:
+  enabled: false
+  based_on:
+    - universe
+    - my_style
+
+single_universe:
+  enabled: False
+  based_on: universe
+  universes:
+    seed: 0
+
+multiverse:
+  enabled: false
+  based_on:
+    - multiverse
+    - my_style
+
+
+# -----------------------------------------------------------------------------
+
+
+# universe examples
+energy:
+  based_on: 
+    - energy
+    - single_universe
+
+
+# Cell properties from cell data ----------------------------------------------
+cell_properties: !pspace
+  based_on:
+    - .plot.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  enabled: false
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      color: grey
+      errorbar: sd
+  select_and_combine:
+    subspace: *subspace_slice
+
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: all_cells
+  x: time
+  helpers:
+    set_labels:
+      x: time [$\tau_\lambda$]
+    set_limits:
+      x: [*TIME_MIN, *TIME_MAX]
+
+
+cell_properties/area: !pspace
+  based_on: cell_properties
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+
+  y: area
+
+  helpers:
+    set_labels:
+      y: $\langle area \rangle$
+    set_limits:
+      y: [0.9, 1.1]
+
+cell_properties/shape: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+    set_limits:
+      y: [3.72, 4.3]
+
+
+cell_properties/width: !pspace
+  based_on: cell_properties
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: x}]
+          - call_lambda:
+            - "lambda x: 0.5 * ((x.shift(id=-1) - x.shift(id=1))**2)**0.5"
+            - !dag_prev
+          - .rename: [!dag_prev , width]
+
+  x: time
+  y: width
+
+  helpers:
+    set_labels:
+      y: $\langle width \rangle [\sqrt{A_0}]$
+
+
+cell_properties/height: !pspace
+  based_on: cell_properties
+
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: y}]
+          - mul: [!dag_prev , 2]
+          - .rename: [!dag_prev , width]
+
+  x: time
+  y: width
+
+  helpers:
+    set_labels:
+      y: $\langle height \rangle [\sqrt{A_0}]$
+      
+
+# --- Cell segmentation ------------------------------------------------------
+cell_segmentation:
+  based_on:
+    - cellular_structure
+    - single_universe
+    - my_style
+
+  file_ext: svg
+  
+  select:
+    edge_property:
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_node -1, {property: edge_contractility_heterotypic_boundary__contractility}]
+
+  quiver_kwargs:
+    cmap: cool
+
+  cell_center_marker_kwargs:
+    s: 10
+    colors: 
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+      - 'white'
+
+      - 'white'
