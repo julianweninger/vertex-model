@@ -942,7 +942,12 @@ public:
         if (not this->_am.is_boundary(vertex)) {
             return 0.;
         }
-        if (not _stretch and is_inner_quadrant(get_quadrant(vertex))) {
+        const auto quadrant = get_quadrant(vertex);
+        if (not _stretch and is_inner_quadrant(quadrant)) {
+            return 0.;
+        }
+
+        if (_skip_quadrants.find(quadrant) != _skip_quadrants.end()) {
             return 0.;
         }
 
