@@ -118,13 +118,18 @@ parameter_space:
           elastic_modulus: 1
           preferential_volume: 1
           tissue_height: 1
+          height_parameter_name: height
       - edge_contractility:
-          contractility: 0.04
+          contractility: 0.5
       - linetension_heterotypic:
           boundary_type: 2
           linetension:
-            - [0.12, 0.12]
-            - [0.12, !expr 0.12 + 10.]
+            - [0., 0.]
+            - [0., !expr 0. + 10.]
+      - surface_tension:
+          surface_tension: -0.1
+          VolumeElasticity_term: volume_elasticity
+          height_parameter_name: height
       # - edge_contractility_heterotypic:
       #     boundary_type: 1
       #     contractility:

@@ -814,6 +814,14 @@ public:
                 )
             );
         }
+        else if (term == "surface_tension") {
+            register_work_function_term(
+                name,
+                std::make_shared<SurfaceTension<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "volume_elasticity") {
             register_work_function_term(
                 name,
