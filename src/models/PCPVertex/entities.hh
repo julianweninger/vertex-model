@@ -220,6 +220,7 @@ public:
     :
         _parameters({}),
         type(get_as<std::size_t>("type", cfg, 0)),
+        area_preferential(1),
         remove(false)
     { }
   

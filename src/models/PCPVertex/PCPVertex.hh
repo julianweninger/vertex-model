@@ -25,6 +25,7 @@
 #include "utils.hh"
 
 #include "work_function.hh"
+#include "work_function_2Dplus.hh"
 #include "minimization.hh"
 #include "boundary.hh"
 
@@ -660,6 +661,7 @@ public:
             const Config& params
     ) {
         using namespace WorkFunction;
+        using namespace WorkFunction2Dplus;
 
         this->_log->debug("Registering work-function term '{}' ('{}') from "
                           "configuration ...",
@@ -812,6 +814,14 @@ public:
                 )
             );
         }
+        else if (term == "volume_elasticity") {
+            register_work_function_term(
+                name,
+                std::make_shared<VolumeElasticity<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else {
             throw std::runtime_error(fmt::format(
                 "No term `{}` known in PCPVertex namespace. "
@@ -835,6 +845,7 @@ public:
                 " - linetension_fluctuations\n"
                 " - linetension_heterotypic\n"
                 " - shape_elasticity\n"
+                " - volume_elasticity\n"
                 "", term
             ));
         }

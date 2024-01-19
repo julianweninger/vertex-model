@@ -1,0 +1,254 @@
+---
+single_universe:
+  enabled: False
+  universes:
+    seed: 0
+    
+_definitions:
+  enabled: false
+  hue: &HUE Gamma
+  subspace_slice: &subspace_slice
+    Gamma: !sweep
+      default: 0.
+      values: [0.]
+
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+      order: 0
+
+  Gamma_best_fit: &Gamma_best_fit 0.4
+
+  hue_2: &HUE_2 rho
+  subspace_slice_2: &subspace_slice_2
+
+    rho: !sweep
+      default: 0.2
+      values: 
+        - 0.2
+      order: 0
+
+  BP_data_path: &BP_data_path '~/ownCloud/Institution/Collaboration_NCBS_UNIGE/data/summary_cells.csv'
+
+
+
+# The energy at uniform t distances
+energy:
+  based_on: [energy, single_universe]
+
+# The energy at uniform numerical step distances
+energy_continuous:
+  based_on: [energy, single_universe]
+  model_name: PCPTopology/PCPVertex
+  enabled: False
+
+# Number of T1 and T2 transitions
+transitions:
+  based_on: [transitions, single_universe]
+
+transitions_cumulated:
+  based_on: [transitions, single_universe]
+  enabled: False
+  cumsum_transitions: true
+
+
+
+# The average cell area
+cell_properties: !pspace
+  based_on:
+    - .plot.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  enabled: False
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      errorbar: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      color: gray
+      errorbar: sd
+  select_and_combine:
+    subspace: *subspace_slice
+
+  x: time
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+
+
+# The average cell area
+cell_properties/area: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+
+  y: area
+  helpers:
+    set_labels:
+      y: average area
+
+# The average cell shape
+cell_properties/shape: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+    set_limits:
+      y: [3.72, 4.4]
+
+cell_properties/elongation: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: q_x}]
+          - .sel: [!dag_node -2, {property: q_y}]
+          - call_lambda:
+            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , elongation]
+  y: elongation
+  helpers:
+    set_labels:
+      y: average elongation
+
+# The average cell geometry
+cell_properties/neighbors: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .rename: [!dag_prev , num_neighbors]
+  y: num_neighbors
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [3, 10]
+
+cell_properties/coordination: !pspace
+  based_on: cell_properties/neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      errorbar: sd
+
+cell_properties/subordination: !pspace
+  based_on: cell_properties/neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      errorbar: sd
+
+cell_properties/HH_neighbors: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: cell_type}]
+          - .sel: [!dag_node -2, {property: num_neighbors}]
+          - .sel: [!dag_node -3, {property: num_neighbors__self}]
+          - call_lambda:
+            - "lambda type, nbs, _nbs: xr.where(type == 1, _nbs, nbs - _nbs)"
+            - !dag_node -3
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      errorbar: sd
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [0, 4]
+
+
+edge_properties/min_length: !pspace
+  enabled: False
+  based_on:
+    - .plot.multiplot
+    - multiverse
+    - select_edges_properties_mv
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_edges
+      errorbar: sd
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Edges
+        transform:
+          - .sel: [!dag_prev , {property: length}]
+          - .min: [!dag_prev , id]
+          - .expand_dims: [!dag_prev , id]
+          - .rename: [!dag_prev , length]
+    subspace: *subspace_slice
+
+  x: time
+  y: length
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+      y: average area
+
+
+# A 2D representation of the cells by their edges
+cell_segmentation:
+  based_on:
+    - cellular_structure
+    - single_universe
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_node -1, {property: volume_elasticity__height}]
+        - .rename: [!dag_prev , Height]
+cell_segmentation__volume:
+  based_on:
+    - cellular_structure
+    - single_universe
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_node -1, {property: volume_elasticity__volume}]
+        - .rename: [!dag_prev , Volume]
+
