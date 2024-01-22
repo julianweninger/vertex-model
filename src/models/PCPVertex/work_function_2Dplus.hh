@@ -72,6 +72,9 @@ protected:
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height;
 
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height_derivative;
+
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
@@ -86,16 +89,19 @@ public:
         _preferential_volume(get_as<double>("preferential_volume", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
+        _height_derivative(_height + "_derivative"),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg))
     {
         for (const auto& cell : this->_am.cells()) {
             cell->state.register_parameter(_height, _tissue_height);
+            cell->state.register_parameter(_height_derivative, 0.);
         }
     }
 
     ~VolumeElasticity () {
         for (const auto& cell : this->_am.cells()) {
             cell->state.unregister_parameter(_height);
+            cell->state.unregister_parameter(_height_derivative);
         }
     }
 
@@ -103,7 +109,20 @@ public:
         for (const auto& cell : this->_am.cells()) {
             const double& H = cell->state.get_parameter(_height);
 
+            // dW/dA_cell
             double pressure = compute_pressure(cell);
+
+            double area = 0.;
+            double dH = 0.;
+            double N = cell->custom_links().edges.size();
+            if (cell->state.type == 1) {
+                area += this->_am.area_of(cell);
+                dH += _elastic_modulus
+                      * (volume_of(cell) - _preferential_volume)
+                      / std::pow(_preferential_volume, 2)
+                      * area;
+            }
+
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 SpaceVec displ = this->_am.displacement(edge);
                 auto [c, n] = this->_am.template adjoints_of<true>(edge);
@@ -114,24 +133,53 @@ public:
                     std::swap(c, n);
                 }
 
-                double factor = H;
-                double h = n->state.get_parameter(_height);
-                if (not has_basal_contact(h)) {
-                    double p = compute_pressure(n);
-                    factor += p * (_tissue_height - h)
-                              / this->_am.neighbors_of(n).size();
+                if (cell->state.type == 1) {
+                    dH -= _elastic_modulus
+                          * (volume_of(n) - _preferential_volume)
+                          / std::pow(_preferential_volume, 2)
+                          * area / N;
                 }
-                SpaceVec force = - pressure * factor * normal / 2.;
+
+                // calculate force
+                SpaceVec force = - pressure / 2. * normal;
                 
                 edge->custom_links().a->state.add_force(force);
                 edge->custom_links().b->state.add_force(force);
             }
+
+            if (cell->state.type == 1) {
+                dH += cell->state.get_parameter(_height_derivative);
+                cell->state.update_parameter(_height_derivative, dH);
+            }
         }
     }
 
+    /// @brief The derivative of W to area of this cell
+    /// @param cell 
+    /// @return apical pressure
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        return _elastic_modulus * (volume_of(cell) - 1.)
-                / std::pow(_preferential_volume, 2);
+        const double& H = cell->state.get_parameter(_height);
+        double P = _elastic_modulus * H 
+                   * (volume_of(cell) - _preferential_volume)
+                   / std::pow(_preferential_volume, 2);
+
+        // consider how changes in A impact Volume of neighbor
+        if (not has_basal_contact(H)) {
+            std::size_t N = cell->custom_links().edges.size();
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto [c, n] = this->_am.template adjoints_of<true>(edge);                
+                if (flip) {
+                    std::swap(c, n);
+                }
+                P += _elastic_modulus 
+                     * (volume_of(n) - _preferential_volume) 
+                     / std::pow(_preferential_volume, 2) 
+                     * (_tissue_height - H) / N;
+            }
+
+        }
+
+        return P;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
@@ -150,6 +198,22 @@ public:
             energy += compute_energy(cell);
         }
         return energy;
+    }
+
+    void update (double dt) final {
+        for (const auto& cell : this->_am.cells()) {
+            if (cell->state.type != 1) {
+                continue;
+            }
+
+            double H = cell->state.get_parameter(_height);
+            double dH = cell->state.get_parameter(_height_derivative);
+            cell->state.update_parameter(
+                _height,
+                std::max(std::min(H - dt * dH, _tissue_height), 0.)
+            );
+            cell->state.update_parameter(_height_derivative, 0.);
+        }
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
@@ -226,6 +290,8 @@ protected:
 
     const std::string _cell_height;
 
+    const std::string _cell_height_derivative;
+
     double apical_height_of (const std::shared_ptr<Edge>& edge) const {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
         return std::min(
@@ -245,7 +311,8 @@ public:
         _surface_tension(get_as<double>("surface_tension", cfg)),
         _cell_height(get_as<std::string>("VolumeElasticity_term", cfg) 
                      + "_"
-                     + get_as<std::string>("height_parameter_name", cfg))
+                     + get_as<std::string>("height_parameter_name", cfg)),
+        _cell_height_derivative(_cell_height + "_derivative")
     { }
 
     void compute_and_set_forces () final {
@@ -259,6 +326,14 @@ public:
 
             a->state.add_force(+ _surface_tension * director * H);
             b->state.add_force(- _surface_tension * director * H);
+
+            auto [ca, cb] = this->_am.adjoints_of(edge);
+            if (cb->state.type == 1) { std::swap(ca, cb); }
+            if (ca->state.type == 1) {
+                auto dH = ca->state.get_parameter(_cell_height_derivative);
+                dH += _surface_tension * arma::norm(displ);
+                ca->state.update_parameter(_cell_height_derivative, dH);
+            }
         }
     }
 

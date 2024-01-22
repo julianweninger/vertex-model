@@ -6,11 +6,11 @@ single_universe:
     
 _definitions:
   enabled: false
-  hue: &HUE Gamma
+  hue: &HUE ~
   subspace_slice: &subspace_slice
     Gamma: !sweep
       default: 0.
-      values: [0.]
+      linspace: [0., 1.4, 8]
 
     rho: !sweep
       default: 0.2
@@ -98,6 +98,39 @@ cell_properties/area: !pspace
   helpers:
     set_labels:
       y: average area
+
+# The average cell area
+cell_properties/height: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: volume_elasticity__height}]
+          - .rename: [!dag_prev , height]
+
+  y: height
+  helpers:
+    set_labels:
+      y: average height
+
+
+# The average cell area
+cell_properties/volume: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: volume_elasticity__volume}]
+          - .rename: [!dag_prev , volume]
+
+  y: volume
+  helpers:
+    set_labels:
+      y: average volume
 
 # The average cell shape
 cell_properties/shape: !pspace
@@ -233,6 +266,10 @@ cell_segmentation:
   based_on:
     - cellular_structure
     - single_universe
+  enabled: false
+
+cell_segmentation__height:
+  based_on: cell_segmentation
 
   select:
     property:
@@ -240,10 +277,17 @@ cell_segmentation:
       transform:
         - .sel: [!dag_node -1, {property: volume_elasticity__height}]
         - .rename: [!dag_prev , Height]
+
+
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: 0.
+    vmax: 1.
+    cmap: cool
+  
+
 cell_segmentation__volume:
-  based_on:
-    - cellular_structure
-    - single_universe
+  based_on: cell_segmentation
 
   select:
     property:
@@ -251,4 +295,3 @@ cell_segmentation__volume:
       transform:
         - .sel: [!dag_node -1, {property: volume_elasticity__volume}]
         - .rename: [!dag_prev , Volume]
-
