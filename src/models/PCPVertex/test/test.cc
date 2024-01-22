@@ -307,6 +307,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 cumulated_energy += fabs(term_function->compute_energy());
                 test_skipped = false;
 
+                term_function->test_constraints(model.get_logger());
+
                 std::uniform_real_distribution<double> uniform_distr(0, 2*M_PI);
                 std::size_t steps = 200;
 
@@ -352,6 +354,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
                     am.move_to(vertex, v_pos0);
                 }
+
+                term_function->test_constraints(model.get_logger());
             }
 
             if (not test_skipped){
@@ -594,6 +598,73 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         BOOST_TEST(model.get_energy() - energy < -1.e-12);
         BOOST_CHECK_CLOSE(model.get_energy() - energy, dE, precision);
+    }
+    
+    BOOST_AUTO_TEST_CASE (test_update_volume_elasticity)
+    {
+        const double precision = 1.e-6;
+
+        Fixture<Case::periodic> fixture;
+        auto& model = fixture.vertex_model;
+        const auto& logger = model.get_logger();
+        model.prolog();
+
+        // erase all work function terms
+        while (model.get_work_function_terms().size() > 0) {
+            auto [name, term] = *model.get_work_function_terms().begin();
+            model.erase_work_function_term(name);
+        }
+
+
+        const auto& am = model.get_am();
+        const auto& cells = am.cells();
+
+        Config cfg = get_as<Config>(
+            "test_update_volume_elasticity", 
+            fixture.wf_terms
+        );
+
+        std::string name = "volume_elasticity";
+        Config wft_cfg = get_as<Config>(name, cfg);
+        std::string term_name = get_as<std::string>("term", wft_cfg, name);
+        model.register_work_function_term(term_name, name, wft_cfg);
+        auto term_fct = model.get_work_function_term(name);
+
+        BOOST_TEST(term_fct->test_constraints(logger));
+
+        const auto& cell = cells[cells.size() / 2];
+        cell->state.type = 1;
+
+        std::string _height = term_fct->get_name() 
+            + "_" + get_as<std::string>("height_parameter_name", wft_cfg);
+        std::string _height_derivative = _height + "_derivative";
+
+        double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+
+        double integral = 0.;
+        for (std::size_t i = 0; i < 100; i++) {
+            cell->state.update_parameter(_height_derivative, 0.);
+            term_fct->compute_and_set_forces();
+
+            double dW_dH = cell->state.get_parameter(_height_derivative);
+
+            double tmp_H = cell->state.get_parameter(_height);
+            cell->state.update_parameter(_height, tmp_H - 0.1 / 100.);
+
+            double dH = cell->state.get_parameter(_height) - tmp_H;
+            cell->state.update_parameter(_height_derivative, 0.);
+            term_fct->compute_and_set_forces();
+            double mean_deriv = 0.5 *(dW_dH + cell->state.get_parameter(_height_derivative));
+
+            integral += mean_deriv * dH;
+        }
+
+        double E1 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+        BOOST_CHECK_CLOSE(E1 - E0, integral, precision);
+
+        BOOST_TEST(term_fct->test_constraints(logger));
+
+
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_periodic)

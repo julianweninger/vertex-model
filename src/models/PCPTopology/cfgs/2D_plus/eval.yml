@@ -10,7 +10,10 @@ _definitions:
   subspace_slice: &subspace_slice
     Gamma: !sweep
       default: 0.
-      linspace: [0., 1.4, 8]
+      # linspace: [0., 1.4, 8]
+      values: 
+        - 0.
+        - 1.
 
     rho: !sweep
       default: 0.2

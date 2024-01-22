@@ -46,6 +46,9 @@ def test_run_and_eval_cfgs(cfg_name):
         }
     })
     debug_params=dict({
+        '2D_plus': {
+            'num_steps': 1
+        },
         'area_graded': {
             'num_steps': 1,
             'PCPTopology': {

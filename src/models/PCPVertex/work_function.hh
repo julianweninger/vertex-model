@@ -99,6 +99,12 @@ public:
 
     virtual void update_parameters (const DataIO::Config& cfg) = 0;
 
+    virtual bool test_constraints 
+    ([[maybe_unused]] const std::shared_ptr<spdlog::logger>& logger) const 
+    {
+        return true;
+    }
+
 
     const std::string& get_name () const {
         return _name;

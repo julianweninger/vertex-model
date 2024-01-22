@@ -260,6 +260,17 @@ test_work_function_terms:
     elasticity: 0.5
     boundary: periodic
 
+- volume_elasticity:
+    elastic_modulus: 1
+    preferential_volume: 1
+    tissue_height: 1
+    height_parameter_name: height
+    disable_height_development: true
+    skip_test_cases:
+      - columnar
+      - columnar-periodic
+      - non-periodic
+
 test_update_area_elasticity_heterotypic:
   area_elasticity_heterotypic:
     term: area_elasticity_heterotypic
@@ -307,4 +318,11 @@ test_update_edge_contractility_polar:
     exclude_cell_types: [0]
     polarity_fluctuations_tau: 1
     polarity_fluctuations: 0.
+
+test_update_volume_elasticity:
+  volume_elasticity:
+      elastic_modulus: 1
+      preferential_volume: 1
+      tissue_height: 1
+      height_parameter_name: height
   

@@ -26,8 +26,12 @@ public:
     /// @brief Check whether cell has a basal contact
     /// @param height The height of considered cell
     /// @return Whether cell has a basal contact
-    inline bool has_basal_contact(const double& height) const {
-        return fabs(height - _tissue_height) < 1.e-8;
+    bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
+        return has_basal_contact(cell->state.get_parameter(_height));
+    }
+
+    inline double height_of (const std::shared_ptr<Cell>& cell) const {
+        return cell->state.get_parameter(_height);
     }
 
     /// @brief The volume of a cell
@@ -39,7 +43,7 @@ public:
      *  @return Volume of cell
      */
     double volume_of (const std::shared_ptr<Cell>& cell) const {
-        const double& height = cell->state.get_parameter(_height);
+        const double height = cell->state.get_parameter(_height);
         const double area = this->_am.area_of(cell);
 
         // It is columnar itself, so no neighbour contributions
@@ -50,7 +54,7 @@ public:
         // check neighbours for basal detachment
         double volume = area * height;
         for (const auto& n : this->_am.neighbors_of(cell)) {
-            const double& h = n->state.get_parameter(_height);
+            const double h = n->state.get_parameter(_height);
             // if neighbour has basal contact, does not contribute
             if (has_basal_contact(h)) {
                 continue;
@@ -78,6 +82,15 @@ protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
+    bool _enable_height_development;
+    
+    /// @brief Check whether cell has a basal contact
+    /// @param height The height of considered cell
+    /// @return Whether cell has a basal contact
+    inline bool has_basal_contact(const double& height) const {
+        return fabs(height - _tissue_height) < 1.e-8;
+    }
+
 public:
     VolumeElasticity (
         std::string name,
@@ -90,7 +103,9 @@ public:
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg))
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
+        _enable_height_development(not get_as<bool>("disable_height_development",
+                                   cfg, false))
     {
         for (const auto& cell : this->_am.cells()) {
             cell->state.register_parameter(_height, _tissue_height);
@@ -107,9 +122,6 @@ public:
 
     void compute_and_set_forces () final {
         for (const auto& cell : this->_am.cells()) {
-            const double& H = cell->state.get_parameter(_height);
-
-            // dW/dA_cell
             double pressure = compute_pressure(cell);
 
             double area = 0.;
@@ -158,8 +170,8 @@ public:
     /// @param cell 
     /// @return apical pressure
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const double& H = cell->state.get_parameter(_height);
-        double P = _elastic_modulus * H 
+        const double H = cell->state.get_parameter(_height);
+        double P = _elastic_modulus * H
                    * (volume_of(cell) - _preferential_volume)
                    / std::pow(_preferential_volume, 2);
 
@@ -206,12 +218,14 @@ public:
                 continue;
             }
 
-            double H = cell->state.get_parameter(_height);
-            double dH = cell->state.get_parameter(_height_derivative);
-            cell->state.update_parameter(
-                _height,
-                std::max(std::min(H - dt * dH, _tissue_height), 0.)
-            );
+            if (_enable_height_development) {
+                double H = cell->state.get_parameter(_height);
+                double dH = cell->state.get_parameter(_height_derivative);
+                cell->state.update_parameter(
+                    _height,
+                    std::max(std::min(H - dt * dH, _tissue_height), 0.)
+                );
+            }
             cell->state.update_parameter(_height_derivative, 0.);
         }
     }
@@ -219,9 +233,116 @@ public:
     void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-        _tissue_height = get_as<double>("tissue_height", cfg, _tissue_height);
+        double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
+        if (fabs(tmp - _tissue_height) > 1.e-8) {
+            _tissue_height = tmp;
+            for (const auto& cell : this->_am.cells()) {
+                if (cell->state.type != 1) {
+                    cell->state.update_parameter(_height, _tissue_height);
+
+                }
+            }
+        }
         _preferential_volume = get_as<double>("preferential_volume", cfg, 
                                               _preferential_volume);
+
+        _enable_height_development = not get_as<bool>(
+            "disable_height_development",
+            cfg, 
+            not _enable_height_development
+        );
+    }
+
+    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) const override {
+        bool PASS_TEST = Base::test_constraints(logger);
+        logger->debug("Testing constraints of WF term {} ...", this->_name);
+
+
+        logger->debug("   Testing height constraint ...");
+        bool test_height = true;
+        for (const auto& cell : this->_am.cells()) {
+            double height = cell->state.get_parameter(_height);
+            if (height > _tissue_height + 1.e-8) {
+                test_height = false;
+                logger->error("Cell {} (height: {}) exceeds the tissue height "
+                              "({})!",
+                              cell->id(), height, _tissue_height);
+            }
+            if (height < -1.e-8) {
+                test_height = false;
+                logger->error("Cell {} has negative hight (height: {} < 0)!",
+                              cell->id(), height);
+            }
+        }
+        if (test_height) {
+            logger->debug("   Height constraint is fulfilled.");
+        }
+        else {
+            PASS_TEST = false;
+            logger->error("  Test of height constraint failed! ");
+        }
+
+
+        logger->debug("   Testing volume constraint ...");
+        double tot_volume = 0.;
+        for (const auto& cell : this->_am.cells()) {
+            tot_volume += volume_of(cell);
+        }
+        const std::size_t N = this->_am.cells().size();
+        bool test_volume = fabs(tot_volume - N * _preferential_volume) < 1.e-8;
+        if (test_volume) {
+            logger->debug("   Volume constraint is fulfilled.");
+        }
+        else {
+            PASS_TEST = false;
+            logger->error("  Test of volume constraint failed! "
+                          "Total volume was {}, expected volume was {}. "
+                          "Difference exceeds {}.",
+                          tot_volume, N * _preferential_volume, 1.e-8);
+        }
+
+
+        logger->debug("   Testing neighborhood constraint ...");
+        bool test_neighborhood = true;
+        for (const auto& cell : this->_am.cells()) {
+            if (has_basal_contact(cell)) {
+                continue;
+            }
+            for (const auto& n : this->_am.neighbors_of(cell)) {
+                if (not has_basal_contact(n)) {
+                    test_neighborhood = false;
+                    logger->error("   Cell {} without basal contact neighbors "
+                                  "cell {}, both without basal contact! "
+                                  "Cell {} has height {} and cell {} has "
+                                  "height {} at a tissue height of {}!",
+                                  cell->id(), n->id(),
+                                  cell->id(), height_of(cell),
+                                  n->id(), height_of(n),
+                                  _tissue_height);
+                }
+            }
+        }
+        if (test_neighborhood) {
+            logger->debug("   Neighborhood constraint is fulfilled.");
+        }
+        else {
+            PASS_TEST = false;
+            logger->error("   Test of neighborhood constraint failed! A cell "
+                          "without basal contacts neighbors a cell without "
+                          "basal contact!");
+        }
+
+
+
+        if (PASS_TEST) {
+            logger->debug("All tests of constraints of WF term {} passed.",
+                          this->_name);
+        }
+        else {
+            logger->error("Test of constraints of WF term {} FAILED!",
+                          this->_name);
+        }
+        return PASS_TEST;
     }
 
     std::vector<std::string> write_task_cell_properties_names () const final {
