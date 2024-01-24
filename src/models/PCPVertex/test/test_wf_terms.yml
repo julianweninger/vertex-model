@@ -29,6 +29,8 @@ test_work_function_terms:
 - cell_contractility:
     contractility: 0.5
     preferential_shape: 3.76
+- perimeter_contractility:
+    contractility: 0.5
 - shape_elasticity:
     elastic_modulus: 0.5
     preferential_shape_index: 3.76

@@ -806,6 +806,14 @@ public:
                 )
             );
         }
+        else if (term == "perimeter_contractility") {
+            register_work_function_term(
+                name,
+                std::make_shared<PerimeterContractility<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "shape_elasticity") {
             register_work_function_term(
                 name,
@@ -851,6 +859,7 @@ public:
                 " - edge_contractility_polar\n"
                 " - linetension\n"
                 " - linetension_fluctuations\n"
+                " - perimeter_contractility\n"
                 " - linetension_heterotypic\n"
                 " - shape_elasticity\n"
                 " - volume_elasticity\n"
