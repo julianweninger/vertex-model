@@ -59,8 +59,7 @@ public:
             if (has_basal_contact(h)) {
                 continue;
             }
-            const double a = this->_am.area_of(n);
-            volume += a * (1.-h) / this->_am.neighbors_of(n).size();
+            volume += this->_am.area_of(n) * (1.-h) / num_basal_neighbors(n);
         }
 
         return volume;
@@ -89,6 +88,17 @@ protected:
     /// @return Whether cell has a basal contact
     inline bool has_basal_contact(const double& height) const {
         return fabs(height - _tissue_height) < 1.e-8;
+    }
+
+    /// @brief The number of neighbors that have basal contact
+    /// @param cell 
+    /// @return The number of neighbors that have basal contact
+    std::size_t num_basal_neighbors (const std::shared_ptr<Cell>& cell) const {
+        std::size_t cnt = 0;
+        for (const auto& n : this->_am.neighbors_of(cell)) {
+            cnt += has_basal_contact(n);
+        }
+        return cnt;
     }
 
 public:
@@ -126,13 +136,17 @@ public:
 
             double area = 0.;
             double dH = 0.;
-            double N = cell->custom_links().edges.size();
+            std::size_t N_div = 0;
             if (cell->state.type == 1) {
                 area += this->_am.area_of(cell);
                 dH += _elastic_modulus
                       * (volume_of(cell) - _preferential_volume)
                       / std::pow(_preferential_volume, 2)
                       * area;
+                N_div = num_basal_neighbors(cell);
+                if (N_div == 0) {
+                    dH -= 1.e4;
+                }
             }
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
@@ -145,11 +159,11 @@ public:
                     std::swap(c, n);
                 }
 
-                if (cell->state.type == 1) {
+                if (cell->state.type == 1 and has_basal_contact(n)) {
                     dH -= _elastic_modulus
                           * (volume_of(n) - _preferential_volume)
                           / std::pow(_preferential_volume, 2)
-                          * area / N;
+                          * area / N_div;
                 }
 
                 // calculate force
@@ -177,16 +191,18 @@ public:
 
         // consider how changes in A impact Volume of neighbor
         if (not has_basal_contact(H)) {
-            std::size_t N = cell->custom_links().edges.size();
+            std::size_t N_div = num_basal_neighbors(cell);
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.template adjoints_of<true>(edge);                
                 if (flip) {
                     std::swap(c, n);
                 }
-                P += _elastic_modulus 
-                     * (volume_of(n) - _preferential_volume) 
-                     / std::pow(_preferential_volume, 2) 
-                     * (_tissue_height - H) / N;
+                if (has_basal_contact(n)) {
+                    P += _elastic_modulus 
+                         * (volume_of(n) - _preferential_volume) 
+                         / std::pow(_preferential_volume, 2) 
+                         * (_tissue_height - H) / N_div;
+                }
             }
 
         }
@@ -300,38 +316,6 @@ public:
                           "Difference exceeds {}.",
                           tot_volume, N * _preferential_volume, 1.e-8);
         }
-
-
-        logger->debug("   Testing neighborhood constraint ...");
-        bool test_neighborhood = true;
-        for (const auto& cell : this->_am.cells()) {
-            if (has_basal_contact(cell)) {
-                continue;
-            }
-            for (const auto& n : this->_am.neighbors_of(cell)) {
-                if (not has_basal_contact(n)) {
-                    test_neighborhood = false;
-                    logger->error("   Cell {} without basal contact neighbors "
-                                  "cell {}, both without basal contact! "
-                                  "Cell {} has height {} and cell {} has "
-                                  "height {} at a tissue height of {}!",
-                                  cell->id(), n->id(),
-                                  cell->id(), height_of(cell),
-                                  n->id(), height_of(n),
-                                  _tissue_height);
-                }
-            }
-        }
-        if (test_neighborhood) {
-            logger->debug("   Neighborhood constraint is fulfilled.");
-        }
-        else {
-            PASS_TEST = false;
-            logger->error("   Test of neighborhood constraint failed! A cell "
-                          "without basal contacts neighbors a cell without "
-                          "basal contact!");
-        }
-
 
 
         if (PASS_TEST) {

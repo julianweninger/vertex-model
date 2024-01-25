@@ -630,14 +630,26 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         model.register_work_function_term(term_name, name, wft_cfg);
         auto term_fct = model.get_work_function_term(name);
 
-        BOOST_TEST(term_fct->test_constraints(logger));
-
-        const auto& cell = cells[cells.size() / 2];
-        cell->state.type = 1;
-
         std::string _height = term_fct->get_name() 
             + "_" + get_as<std::string>("height_parameter_name", wft_cfg);
         std::string _height_derivative = _height + "_derivative";
+
+        BOOST_TEST(term_fct->test_constraints(logger));
+
+
+        const auto& cell = cells[cells.size() / 2];
+        cell->state.type = 1;
+        cell->state.update_parameter(_height, 0.7);
+        const auto nb = am.neighbors_of(cell)[0];
+
+        nb->state.type = 1;
+        nb->state.update_parameter(_height, 0.95);
+
+        BOOST_TEST(term_fct->test_constraints(logger));
+
+        cell->state.update_parameter(_height, 0.99);
+        BOOST_TEST(term_fct->test_constraints(logger));
+
 
         double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
 
