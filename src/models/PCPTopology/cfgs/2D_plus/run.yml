@@ -21,8 +21,8 @@ parameter_space:
     # Minimization parameter
     minimization:
       update_scheme: steepest_gradient
-      dt: 0.01  # this was evaluated in the previous test to be a good dt
-      num_steps: 100
+      dt: 0.05  # this was evaluated in the previous test to be a good dt
+      num_steps: 20
       jiggle_intensity: 0.
       linetension_fluctuations: &dL 0.01
       linetension_fluctuations_tau: &tau_dL 24
@@ -54,8 +54,8 @@ parameter_space:
             name: rho
             default: 0.26
             values:
-              - 0.2
-              # - 0.26
+              # - 0.2
+              - 0.26
               # - 0.1
           method: fraction
           distribution: !coupled-sweep
@@ -63,19 +63,9 @@ parameter_space:
             name: distribution
             default: [0.8, 0.2]
             values:
-              - [0.80, 0.20]
-              # - [0.74, 0.26]
+              # - [0.80, 0.20]
+              - [0.74, 0.26]
               # - [0.90, 0.10]
-          minimization:
-            mode: manual
-
-      # disperse them as much as possible
-      - minimize_cell_contacts:
-          times: []
-          iterations_prolog: 1
-          num_steps: 6000
-          type: 1
-          neutral_probability: 0.2
           minimization:
             mode: manual
       
@@ -145,15 +135,15 @@ parameter_space:
           elastic_modulus: 1
           preferential_volume: 1
           tissue_height: 1
+          minimum_height: 0
           height_parameter_name: height
-      - edge_contractility:
-          # contractility: 0.04
-          contractility: 0.5
-      - linetension_heterotypic:
-          boundary_type: 2
-          linetension:
-            - [0., 0.]
-            - [0., !expr 0. + 10.]
+      - perimeter_contractility:
+          contractility: 0.09
+      # - linetension_heterotypic:
+      #     boundary_type: 2
+      #     linetension:
+      #       - [0., 0.]
+      #       - [0., !expr 0. + 10.]
       - surface_tension:
           # surface_tension: 0.06
           surface_tension: -0.1

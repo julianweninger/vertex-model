@@ -72,6 +72,9 @@ protected:
     /// @brief The height of the tissue, defining a maximum height for every cell
     double _tissue_height;
 
+    /// @brief Minimum value for cell height
+    double _minimum_height;
+
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height;
 
@@ -111,6 +114,7 @@ public:
         Base(name, cfg, model),
         _preferential_volume(get_as<double>("preferential_volume", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
+        _minimum_height(get_as<double>("minimum_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
@@ -239,7 +243,10 @@ public:
                 double dH = cell->state.get_parameter(_height_derivative);
                 cell->state.update_parameter(
                     _height,
-                    std::max(std::min(H - dt * dH, _tissue_height), 0.)
+                    std::max(
+                        std::min(H - dt * dH, _tissue_height), 
+                        _minimum_height
+                    )
                 );
             }
             cell->state.update_parameter(_height_derivative, 0.);
@@ -247,8 +254,8 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
-        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
-                                          _elastic_modulus);
+        _preferential_volume = get_as<double>("preferential_volume", cfg, 
+                                              _preferential_volume);
         double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
         if (fabs(tmp - _tissue_height) > 1.e-8) {
             _tissue_height = tmp;
@@ -259,8 +266,9 @@ public:
                 }
             }
         }
-        _preferential_volume = get_as<double>("preferential_volume", cfg, 
-                                              _preferential_volume);
+        _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
+        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
+                                          _elastic_modulus);
 
         _enable_height_development = not get_as<bool>(
             "disable_height_development",

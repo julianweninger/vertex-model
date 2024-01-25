@@ -15,22 +15,10 @@ _definitions:
         - 0.
         - 1.
 
-    rho: !sweep
-      default: 0.2
-      values: 
-        - 0.2
-      order: 0
-
   Gamma_best_fit: &Gamma_best_fit 0.4
 
   hue_2: &HUE_2 rho
-  subspace_slice_2: &subspace_slice_2
-
-    rho: !sweep
-      default: 0.2
-      values: 
-        - 0.2
-      order: 0
+  subspace_slice_2: &subspace_slice_2 ~
 
   BP_data_path: &BP_data_path '~/ownCloud/Institution/Collaboration_NCBS_UNIGE/data/summary_cells.csv'
 
@@ -76,6 +64,7 @@ cell_properties: !pspace
       color: gray
       errorbar: sd
   select_and_combine:
+    allow_missing_or_failing: silent
     subspace: *subspace_slice
 
   x: time

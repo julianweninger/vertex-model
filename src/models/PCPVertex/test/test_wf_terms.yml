@@ -266,6 +266,7 @@ test_work_function_terms:
     elastic_modulus: 1
     preferential_volume: 1
     tissue_height: 1
+    minimum_height: 0
     height_parameter_name: height
     disable_height_development: true
     skip_test_cases:
@@ -326,5 +327,6 @@ test_update_volume_elasticity:
       elastic_modulus: 1
       preferential_volume: 1
       tissue_height: 1
+      minimum_height: 0
       height_parameter_name: height
   
