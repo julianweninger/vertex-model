@@ -118,6 +118,7 @@ public:
         for (const auto& cell : this->_am.cells()) {
             cell->state.register_parameter(_height, _tissue_height);
             cell->state.register_parameter(_height_derivative, 0.);
+            cell->state.register_parameter(_height_derivative + "_monitor", 0.);
         }
     }
 
@@ -125,6 +126,7 @@ public:
         for (const auto& cell : this->_am.cells()) {
             cell->state.unregister_parameter(_height);
             cell->state.unregister_parameter(_height_derivative);
+            cell->state.unregister_parameter(_height_derivative + "_monitor");
         }
     }
 
@@ -240,6 +242,10 @@ public:
                     std::min(H - dt * _gamma * dH, _tissue_height), 
                     _minimum_height
                 )
+            );
+            cell->state.update_parameter(
+                _height_derivative + "_monitor", 
+                cell->state.get_parameter(_height_derivative)
             );
             cell->state.update_parameter(_height_derivative, 0.);
         }
@@ -357,22 +363,26 @@ public:
     std::vector<std::string> write_task_cell_energies_names () const final {
         return std::vector<std::string>({
             "energy",
-            "pressure"
+            "pressure",
+            "extrusiveness"
         });
     }
 
     std::vector<std::vector<double>> write_cell_energies () const final {
         std::vector<double> energies({});
         std::vector<double> pressures({});
+        std::vector<double> dHs({});
         
         for (const auto& cell : this->_am.cells()) {
             energies.push_back(compute_energy(cell));
             pressures.push_back(compute_pressure(cell));
+            dHs.push_back(-1. * cell->state.get_parameter(_height_derivative + "_monitor"));
         }
 
         return std::vector<std::vector<double>>({
             energies,
-            pressures
+            pressures,
+            dHs
         });
     }
 };
