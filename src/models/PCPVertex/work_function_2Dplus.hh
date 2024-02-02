@@ -251,6 +251,8 @@ public:
         double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
         if (fabs(tmp - _tissue_height) > 1.e-8) {
             _tissue_height = tmp;
+            this->_am.get_logger()->debug("Setting height of cells excluding "
+                "type 1 to {}", _tissue_height);
             for (const auto& cell : this->_am.cells()) {
                 if (cell->state.type != 1) {
                     cell->state.update_parameter(_height, _tissue_height);
@@ -258,6 +260,15 @@ public:
                 }
             }
         }
+        if (cfg["set_height"]) {
+            auto height = get_as<double>("set_height", cfg);
+            this->_am.get_logger()->debug("Setting height of cells with type 1 "
+                "to {}", height);
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.update_parameter(_height, height);
+            }
+        }
+
         _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
