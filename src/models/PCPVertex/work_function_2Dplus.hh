@@ -85,6 +85,8 @@ protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
+    /// @brief  Damping factor for hight development additional to dt
+    double _gamma;
 
     /// @brief The number of neighbors that have basal contact
     /// @param cell 
@@ -110,7 +112,8 @@ public:
         _minimum_height(get_as<double>("minimum_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg))
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
+        _gamma(get_as<double>("gamma", cfg))
     {
         for (const auto& cell : this->_am.cells()) {
             cell->state.register_parameter(_height, _tissue_height);
@@ -259,6 +262,7 @@ public:
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
 
+        _gamma = get_as<double>("gamma", cfg, _gamma);
     }
 
     bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) const override {
