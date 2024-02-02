@@ -27,7 +27,7 @@ public:
     /// @param height The height of considered cell
     /// @return Whether cell has a basal contact
     bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
-        return has_basal_contact(cell->state.get_parameter(_height));
+        return cell->state.type != 1;
     }
 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
@@ -47,19 +47,20 @@ public:
         const double area = this->_am.area_of(cell);
 
         // It is columnar itself, so no neighbour contributions
-        if (not has_basal_contact(height)) {
+        if (not has_basal_contact(cell)) {
             return area * height;
         }
 
         // check neighbours for basal detachment
         double volume = area * height;
         for (const auto& n : this->_am.neighbors_of(cell)) {
-            const double h = n->state.get_parameter(_height);
             // if neighbour has basal contact, does not contribute
-            if (has_basal_contact(h)) {
+            if (has_basal_contact(n)) {
                 continue;
             }
-            volume += this->_am.area_of(n) * (1.-h) / num_basal_neighbors(n);
+            volume += this->_am.area_of(n)
+                      * (_tissue_height - n->state.get_parameter(_height)) 
+                      / num_basal_neighbors(n);
         }
 
         return volume;
@@ -84,14 +85,6 @@ protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
-    bool _enable_height_development;
-    
-    /// @brief Check whether cell has a basal contact
-    /// @param height The height of considered cell
-    /// @return Whether cell has a basal contact
-    inline bool has_basal_contact(const double& height) const {
-        return fabs(height - _tissue_height) < 1.e-8;
-    }
 
     /// @brief The number of neighbors that have basal contact
     /// @param cell 
@@ -117,9 +110,7 @@ public:
         _minimum_height(get_as<double>("minimum_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
-        _enable_height_development(not get_as<bool>("disable_height_development",
-                                   cfg, false))
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg))
     {
         for (const auto& cell : this->_am.cells()) {
             cell->state.register_parameter(_height, _tissue_height);
@@ -194,7 +185,7 @@ public:
                    / std::pow(_preferential_volume, 2);
 
         // consider how changes in A impact Volume of neighbor
-        if (not has_basal_contact(H)) {
+        if (not has_basal_contact(cell)) {
             std::size_t N_div = num_basal_neighbors(cell);
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.template adjoints_of<true>(edge);                
@@ -238,17 +229,15 @@ public:
                 continue;
             }
 
-            if (_enable_height_development) {
-                double H = cell->state.get_parameter(_height);
-                double dH = cell->state.get_parameter(_height_derivative);
-                cell->state.update_parameter(
-                    _height,
-                    std::max(
-                        std::min(H - dt * dH, _tissue_height), 
-                        _minimum_height
-                    )
-                );
-            }
+            double H = cell->state.get_parameter(_height);
+            double dH = cell->state.get_parameter(_height_derivative);
+            cell->state.update_parameter(
+                _height,
+                std::max(
+                    std::min(H - dt * _gamma * dH, _tissue_height), 
+                    _minimum_height
+                )
+            );
             cell->state.update_parameter(_height_derivative, 0.);
         }
     }
@@ -270,11 +259,6 @@ public:
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
 
-        _enable_height_development = not get_as<bool>(
-            "disable_height_development",
-            cfg, 
-            not _enable_height_development
-        );
     }
 
     bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) const override {
