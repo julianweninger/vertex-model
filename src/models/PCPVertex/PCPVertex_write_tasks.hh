@@ -424,16 +424,16 @@ auto edges_adaptor = std::make_tuple(
         const auto& edges = am.edges();
         dataset->write(edges.begin(), edges.end(),
                     [](const auto& edge) {
-                        return static_cast<float>(edge->custom_links().a->id());
+                        return static_cast<double>(edge->custom_links().a->id());
                     });
         dataset->write(edges.begin(), edges.end(),
                     [](const auto& edge) {
-                        return static_cast<float>(edge->custom_links().b->id());
+                        return static_cast<double>(edge->custom_links().b->id());
                     });
         
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
-                           return static_cast<float>(am.length_of(edge));
+                           return static_cast<double>(am.length_of(edge));
                        });        
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
@@ -444,42 +444,42 @@ auto edges_adaptor = std::make_tuple(
                             // nematic angle in [0, pi / 2]
                            double angle = std::acos(arma::dot(displ, axis));
 
-                           return static_cast<float>(angle);
+                           return static_cast<double>(angle);
                        });
                        
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
-                           if (a == nullptr) { return static_cast<float>(-1); }
-                           return static_cast<float>(a->id());
+                           if (a == nullptr) { return static_cast<double>(-1); }
+                           return static_cast<double>(a->id());
                        });
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
-                           if (b == nullptr) { return static_cast<float>(-1); }
-                           return static_cast<float>(b->id());
+                           if (b == nullptr) { return static_cast<double>(-1); }
+                           return static_cast<double>(b->id());
                        });
                        
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
-                           if (a == nullptr) { return static_cast<float>(-1); }
-                           return static_cast<float>(a->state.type);
+                           if (a == nullptr) { return static_cast<double>(-1); }
+                           return static_cast<double>(a->state.type);
                        });
         dataset->write(edges.begin(), edges.end(),
                        [am](const auto& edge) {
                            auto [a, b] = am.template adjoints_of<true>(edge);
 
-                           if (b == nullptr) { return static_cast<float>(-1); }
-                           return static_cast<float>(b->state.type);
+                           if (b == nullptr) { return static_cast<double>(-1); }
+                           return static_cast<double>(b->state.type);
                        });
 
         for (const auto& [name, term] : model.get_work_function_terms()) {
             for (const auto& data : term->write_edge_properties()) {
-                dataset->write(std::vector<float>(data.begin(), data.end()));
+                dataset->write(std::vector<double>(data.begin(), data.end()));
             }
         }
     },
