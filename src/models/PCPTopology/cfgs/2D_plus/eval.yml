@@ -6,14 +6,18 @@ single_universe:
     
 _definitions:
   enabled: false
-  hue: &HUE ~
+  hue: &HUE Gamma
   subspace_slice: &subspace_slice
-    Gamma: !sweep
-      default: 0.
-      # linspace: [0., 1.4, 8]
+    # Gamma: !sweep
+    #   default: 0.
+    #   values: 
+    #     - &Gamma_0 0.
+    #     - &Gamma_10 0.1
+    rho: !sweep
+      default: 0.2
       values: 
-        - 0.
-        - 1.
+        - 0.2
+        # - 0.26
 
   Gamma_best_fit: &Gamma_best_fit 0.4
 
@@ -54,14 +58,8 @@ cell_properties: !pspace
   enabled: False
   to_plot: 
     - function: sns.lineplot
-      data: !dag_result all_cells
-    - function: sns.lineplot
       data: !dag_result hair_cells
       color: red
-      errorbar: sd
-    - function: sns.lineplot
-      data: !dag_result support_cells
-      color: gray
       errorbar: sd
   select_and_combine:
     allow_missing_or_failing: silent
@@ -91,9 +89,42 @@ cell_properties/area: !pspace
     set_labels:
       y: average area
 
+
+# The average cell area
+cell_properties/area__max: !pspace
+  based_on: cell_properties/area
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      estimator: max
+
+  y: area
+  helpers:
+    set_labels:
+      y: area variance
+
+
+# The average cell area
+cell_properties/area__median: !pspace
+  based_on: cell_properties/area
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      estimator: median
+
+  y: area
+  helpers:
+    set_labels:
+      y: area variance
+
 # The average cell area
 cell_properties/height: !pspace
   based_on: cell_properties
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
   select_and_combine:
     fields:
       _property:
@@ -106,6 +137,50 @@ cell_properties/height: !pspace
   helpers:
     set_labels:
       y: average height
+    set_limits: 
+      y: [0., 1]
+
+# The average cell area
+cell_properties/height_max: !pspace
+  based_on: cell_properties/height
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      estimator: max
+
+  y: height
+  helpers:
+    set_labels:
+      y: max HC height
+
+# The average cell area
+cell_properties/height_median: !pspace
+  based_on: cell_properties/height
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      estimator: median
+
+  y: height
+  helpers:
+    set_labels:
+      y: max HC height
+
+
+cell_properties/extrusiveness: !pspace
+  based_on: cell_properties
+  to_plot:
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cell_energies
+        transform:
+          - .sel: [!dag_prev , {term: volume_elasticity__extrusiveness}]
+          - .rename: [!dag_prev , extrusiveness]
+
+  y: extrusiveness
 
 
 # The average cell area
@@ -127,6 +202,7 @@ cell_properties/volume: !pspace
 # The average cell shape
 cell_properties/shape: !pspace
   based_on: cell_properties
+  enabled: False
   select_and_combine:
     fields:
       _property:
@@ -146,6 +222,7 @@ cell_properties/shape: !pspace
 
 cell_properties/elongation: !pspace
   based_on: cell_properties
+  enabled: False
   select_and_combine:
     fields:
       _property:
@@ -166,6 +243,7 @@ cell_properties/elongation: !pspace
 # The average cell geometry
 cell_properties/neighbors: !pspace
   based_on: cell_properties
+  enabled: False
   select_and_combine:
     fields:
       _property:
@@ -189,6 +267,7 @@ cell_properties/coordination: !pspace
 
 cell_properties/subordination: !pspace
   based_on: cell_properties/neighbors
+  enabled: False
   to_plot: 
     - function: sns.lineplot
       data: !dag_result support_cells
@@ -268,18 +347,22 @@ cell_segmentation__height:
       path: data/PCPTopology/Cells
       transform:
         - .sel: [!dag_node -1, {property: volume_elasticity__height}]
+        - .sel: [!dag_node -2, {property: cell_type}]
+        - create_mask: [!dag_prev , ==, 1]
+        - .where: [!dag_node -3, !dag_node -1]
         - .rename: [!dag_prev , Height]
 
 
   property_interpolation_plot_kwargs:
     interpolation: nearest
-    vmin: 0.
+    vmin: 0.25
     vmax: 1.
     cmap: cool
   
 
 cell_segmentation__volume:
   based_on: cell_segmentation
+  enabled: False
 
   select:
     property:
@@ -287,3 +370,9 @@ cell_segmentation__volume:
       transform:
         - .sel: [!dag_node -1, {property: volume_elasticity__volume}]
         - .rename: [!dag_prev , Volume]
+
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: 0.5
+    vmax: 1.5
+    cmap: seismic

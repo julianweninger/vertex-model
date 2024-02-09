@@ -266,9 +266,9 @@ test_work_function_terms:
     elastic_modulus: 1
     preferential_volume: 1
     tissue_height: 1
-    minimum_height: 0
+    minimum_height: 0.2
     height_parameter_name: height
-    disable_height_development: true
+    gamma: 0.05
     skip_test_cases:
       - columnar
       - columnar-periodic
@@ -324,9 +324,10 @@ test_update_edge_contractility_polar:
 
 test_update_volume_elasticity:
   volume_elasticity:
-      elastic_modulus: 1
-      preferential_volume: 1
-      tissue_height: 1
-      minimum_height: 0
+      elastic_modulus: 1.
+      preferential_volume: 1.
+      tissue_height: 1.
+      minimum_height: 0.2
       height_parameter_name: height
+      gamma: 0.05
   

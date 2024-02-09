@@ -67,6 +67,9 @@ public:
     }
 
 protected:
+    /// @brief  Elastic constant associated with volume elasticity
+    double _elastic_modulus;
+
     /// @brief The target volume for a cell at which there is no pressure
     double _preferential_volume;
 
@@ -81,9 +84,6 @@ protected:
 
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height_derivative;
-
-    /// @brief  Elastic constant associated with volume elasticity
-    double _elastic_modulus;
 
     /// @brief  Damping factor for hight development additional to dt
     double _gamma;
@@ -107,12 +107,12 @@ public:
     )
     :
         Base(name, cfg, model),
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _preferential_volume(get_as<double>("preferential_volume", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _minimum_height(get_as<double>("minimum_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _gamma(get_as<double>("gamma", cfg))
     {
         for (const auto& cell : this->_am.cells()) {
