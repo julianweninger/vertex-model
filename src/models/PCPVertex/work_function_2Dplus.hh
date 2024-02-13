@@ -8,7 +8,32 @@ namespace PCPVertex {
 namespace WorkFunction2Dplus {
 
 /// @brief The volume elasticity of a cell
-/** TODO */
+/** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)\f$, an elastic penalty on 
+ *  cell volume  \f$ V_\alpha \f$.
+ *  
+ *  Cell volume is calculated from a columnar model, using cell apical area and 
+ *  a cell height variable H. In this columnar model, cells of type 1 can detach
+ *  basally, with \f$ H < H_{tissue} \f$. This basal space is filled up by 
+ *  neighboring cells of other types, having a columnar core and basal 
+ *  extensions.
+ *  
+ *  The variables \f$ H_\alpha \f$ develop according to the derivative 
+ *  \f$ \frac{dH_\alpha}{dt} = - \gamma \frac{dE}{dH_\alpha} \f$.
+ * 
+ *  Parameters:
+ *      - `elastic_modulus`: the elastic modulus \f$ k \f$
+ *      - `preferential_volume`: the preferential volume \f$ V^{(0)} \f$
+ *      - `tissue_height`: The height of cells of type other than 1, also used
+ *              for initialisation for \f$ H_\alpha \f$.
+ *      - `minimum_height`: The minimum value for \f$ H_\alpha \f$. 
+ *      - `height_parameter_name`: Name used for the height variable in 
+ *              properties of the cell. Can be accessed by other terms. 
+ *              The derivative \f$ H_\alpha^\prime \f$ is saved as 
+ *              <height_parameter_name>_derivative. Additive contributions from
+ *              terms are considered during update.
+ *      - `gamma`: The damping factor for H temporal development, additional 
+ *              to numeric step size
+ */
 template <typename Model>
 class VolumeElasticity : public WorkFunction::WorkFunctionTerm<Model>
 {
@@ -227,7 +252,8 @@ public:
         }
         return energy;
     }
-
+    
+    /// Performs the update of \f$ H_\alpha \f$
     void update (double dt) final {
         for (const auto& cell : this->_am.cells()) {
             if (cell->state.type != 1) {
@@ -317,8 +343,9 @@ public:
         for (const auto& cell : this->_am.cells()) {
             tot_volume += volume_of(cell);
         }
-        const std::size_t N = this->_am.cells().size();
-        bool test_volume = fabs(tot_volume - N * _preferential_volume) < 1.e-8;
+        SpaceVec domain = this->_am.get_space()->get_domain_size();
+        double area = domain[0] * domain[1];
+        bool test_volume = fabs(tot_volume - area * _tissue_height) < 1.e-8;
         if (test_volume) {
             logger->debug("   Volume constraint is fulfilled.");
         }
@@ -327,7 +354,7 @@ public:
             logger->error("  Test of volume constraint failed! "
                           "Total volume was {}, expected volume was {}. "
                           "Difference exceeds {}.",
-                          tot_volume, N * _preferential_volume, 1.e-8);
+                          tot_volume, area * _tissue_height, 1.e-8);
         }
 
 
@@ -388,11 +415,16 @@ public:
 };
 
 
-/// @brief The linetension term
-/** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
+/// @brief The surface-tension term
+/** \f$ E_{i,j} = \Lambda l_{i,j} H_[i,j} \f$, a term linear in edge surface.
+ * 
+ *  Edge surface is calculated in the geometry proposed in `VolumeElasticity`.
  * 
  *  Parameters:
- *      - `linetension`: the tension \f$ k \f$
+ *      - `surface_tension`: the tension \f$ \Lambda \f$
+ *      - `VolumeElasticity_term`: The name of the VolumeElasticity term
+ *              performing the update of H
+ *      - `height_parameter_name`: The name of the H variable of cells.
  */
 template <typename Model>
 class SurfaceTension : public WorkFunction::WorkFunctionTerm<Model>
@@ -408,12 +440,16 @@ class SurfaceTension : public WorkFunction::WorkFunctionTerm<Model>
     using Cell = typename Base::Cell;
 
 protected:
+    /// The surface tension \f$ \Lambda \f$
     double _surface_tension;
 
+    /// Variable name of cell height \f$ H \f$ stored in parameters of cell
     const std::string _cell_height;
 
+    /// Variable name of cell height derivative \f$ H' \f$ in cell parameters
     const std::string _cell_height_derivative;
 
+    /// The height of a junction up to the base of neighbouring cells
     double apical_height_of (const std::shared_ptr<Edge>& edge) const {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
         return std::min(
@@ -450,7 +486,12 @@ public:
             b->state.add_force(- _surface_tension * director * H);
 
             auto [ca, cb] = this->_am.adjoints_of(edge);
-            if (cb->state.type == 1) { std::swap(ca, cb); }
+            if (  cb->state.get_parameter(_cell_height) 
+                < ca->state.get_parameter(_cell_height))
+            {
+                std::swap(ca, cb);
+            }
+
             if (ca->state.type == 1) {
                 auto dH = ca->state.get_parameter(_cell_height_derivative);
                 dH += _surface_tension * arma::norm(displ);
