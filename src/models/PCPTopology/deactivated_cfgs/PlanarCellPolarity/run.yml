@@ -95,14 +95,6 @@ parameter_space:
                   minimization: {mode: manual}
                 }
               }
-            # - {
-            #     bending_box_bc: {                  
-            #       times: *TIMES,
-            #       increment_curvature: 2.e-5,
-            #       deform_plastic: True,
-            #       minimization: {mode: manual}
-            #     }
-            #   }
               
       - iterate_pcp: &iterate_pcp
           times: *TIMES

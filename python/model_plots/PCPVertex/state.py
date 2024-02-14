@@ -139,7 +139,7 @@ def cellular_structure(
     Args:
         data: dict containing the required data. 
             Required keys: 'Vertices', 'Edges', 'Cells', 'periodic', 'Lx', 'Ly'.
-            Optional keys: 'skew_x', 'skew_y', 'curvature'.
+            Optional keys: 'skew_x', 'skew_y'.
         hlpr (PlotHelper): The PlotHelper
         datapath (str): Path to the cell manager's data
         cfgpath (str): Path to the vertex model's configuration
@@ -285,11 +285,6 @@ def cellular_structure(
                 skew_y = data['skew_y'].sel(time=time)
             else:
                 skew_y = 0.
-            if 'curvature' in data:
-                curvature = data['curvature'].sel(time=time)
-            else:
-                curvature = 0.
-            max_theta = Lx / 2. * curvature
 
 
             ### plot vertices
@@ -334,18 +329,6 @@ def cellular_structure(
             vertex_a = e_data.sel(property="vertex_a").dropna(dim='id').astype(int)
             vertex_b = e_data.sel(property="vertex_b").dropna(dim='id').astype(int)
 
-            # for id in vertex_a.squeeze().data:
-            #     if not id in v_data.id:
-            #         e_data = e_data.where(e_data!=id, drop=True)
-            # for id in vertex_b.squeeze().data:
-            #     if not id in v_data.id:
-            #         e_data = e_data.where(e_data!=id, drop=True)
-            #     # print(v_data.sel(id=vertex_a))
-            # e_data = e_data.dropna(dim='id')
-
-            # vertex_a = e_data.sel(property="vertex_a").dropna(dim='id').astype(int)
-            # vertex_b = e_data.sel(property="vertex_b").dropna(dim='id').astype(int)
-
             # the coordinates of vertices a and b in the set of edges
             ax = v_data.sel(id=vertex_a, property='x')
             ay = v_data.sel(id=vertex_a, property='y')
@@ -362,45 +345,17 @@ def cellular_structure(
                 if not data['periodic']:
                     return bx - ax, by - ay
                 
-                if abs(curvature) < 1.e-12:
-                    dx = bx - ax
-                    dy = by - ay
+                dx = bx - ax
+                dy = by - ay
 
-                    add_skew_x = - np.round(dy/Ly) * skew_x
-                    add_skew_y = - np.round(dx/Lx) * skew_y
+                add_skew_x = - np.round(dy/Ly) * skew_x
+                add_skew_y = - np.round(dx/Lx) * skew_y
 
-                    dx = bx + add_skew_x - ax
-                    dy = by + add_skew_y - ay
+                dx = bx + add_skew_x - ax
+                dy = by + add_skew_y - ay
 
-                    return (dx - np.round(dx/Lx) * Lx,
-                            dy - np.round(dy/Ly) * Ly)
-
-                R = 1. / curvature
-                _ax = ax - Lx / 2.
-                _ay = ay - Ly / 2. + R
-                _bx = bx - Lx / 2.
-                _by = by - Ly / 2. + R
-                
-                a_rho = (_ax**2 + _ay**2)**0.5
-                a_theta = np.arctan2(_ax, _ay)
-                b_rho = (_bx**2 + _by**2)**0.5
-                b_theta = np.arctan2(_bx, _by)
-                
-                # skew
-                skew_theta = skew_x * curvature
-                add_skew_rho = -np.round((b_theta - a_theta)/2/max_theta)*skew_y
-                add_skew_theta = -np.round((b_rho - a_rho) / Ly) * skew_theta
-
-                # curvature
-                b_theta += add_skew_theta - np.round((b_theta-a_theta)/2./max_theta)*2*max_theta
-                b_rho += add_skew_rho - np.round((b_rho - a_rho) / Ly) * Ly
-
-                _ax += Lx / 2.
-                _ay += Ly / 2. - R
-                _bx = b_rho * np.sin(b_theta) + Lx / 2.
-                _by = b_rho * np.cos(b_theta) + Ly / 2. - R
-
-                return _bx - ax, _by - ay
+                return (dx - np.round(dx/Lx) * Lx,
+                        dy - np.round(dy/Ly) * Ly)
 
             dx, dy = displacement(ax, ay, bx, by)
 
@@ -488,27 +443,7 @@ def cellular_structure(
             quiver_and_colors(ax, ay, dx, dy, colorbar=True)
 
             ### plot duplicates of periodic edges
-            if data['periodic'] and curvature < 1.e-12:
-                length = max(skew_x, skew_y) + 1 + 1.e-6
-
-                # plot periodic copies of the domain
-                for i in range(1, int(np.ceil(length / Lx) + 1)):
-                    quiver_and_colors(ax + skew_x, ay + Ly, dx, dy)
-                    quiver_and_colors(ax - skew_x, ay - Ly, dx, dy)
-                    quiver_and_colors(ax + i * Lx, ay + i * skew_y, dx, dy)
-                    quiver_and_colors(ax - i * Lx, ay - i * skew_y, dx, dy)
-
-                    quiver_and_colors(ax + i * Lx + skew_x, 
-                                      ay + Ly + i * skew_y, dx, dy)
-                    quiver_and_colors(ax - i * Lx + skew_x, 
-                                      ay + Ly - i * skew_y, dx, dy)
-                    quiver_and_colors(ax - i * Lx - skew_x, 
-                                      ay - Ly - i * skew_y, dx, dy)
-                    quiver_and_colors(ax + i * Lx - skew_x, 
-                                      ay - Ly + i * skew_y, dx, dy)
-
-            ### plot duplicates of periodic edges
-            elif data['periodic']:
+            if data['periodic']:
                 mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
                 # NOTE bitwise or
 
@@ -531,40 +466,10 @@ def cellular_structure(
                 _by = by.where(mask)
 
                 # rotate corners
-                if abs(curvature) < 1.e-12:
-                    _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
-                    _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
-                    _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
-                    _by -= (2. * np.round(_by / Ly) - 1.) * Ly
-                else:
-                    R = 1. / curvature
-                    _ax = _ax - Lx / 2.
-                    _ay = _ay - Ly / 2. + R
-                    _bx = _bx - Lx / 2.
-                    _by = _by - Ly / 2. + R
-                    
-                    a_rho = (_ax**2 + _ay**2)**0.5
-                    a_theta = np.arctan2(_ay, _ax)
-                    b_rho = (_bx**2 + _by**2)**0.5
-                    b_theta = np.arctan2(_by, _bx)
-                    
-                    # skew
-                    skew_theta = skew_x * curvature
-                    a_theta -= (a_rho - R) / abs(a_rho - R) * skew_theta
-                    b_theta -= (b_rho - R) / abs(b_rho - R) * skew_theta
-
-                    # rotate corners
-                    a_rho -= (a_rho - R) / abs(a_rho - R) * Ly
-                    b_rho -= (b_rho - R) / abs(b_rho - R) * Ly
-
-                    _ax *= 0.
-                    _ax += a_rho * np.sin(a_theta) + Lx / 2.
-                    _ay *= 0.
-                    _ay += a_rho * np.cos(a_theta) + Ly / 2. - R
-                    _bx *= 0.
-                    _bx += b_rho * np.sin(b_theta) + Lx / 2.
-                    _by *= 0.
-                    _by += b_rho * np.cos(b_theta) + Ly / 2. - R
+                _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
+                _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
+                _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
+                _by -= (2. * np.round(_by / Ly) - 1.) * Ly
                 
                 
                 quiver_and_colors(_ax, _ay, dx, dy,
@@ -670,46 +575,7 @@ def cellular_structure(
                                x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
 
             if (data['periodic']):
-                if abs(curvature) > 1.e-12:        
-                    R = 1. / curvature
-                    Ox = Lx / 2.
-                    Oy = Ly / 2. - R
-                    
-                    if max_theta < m.pi/2. - 0.2:
-                        hlpr.provide_defaults('set_limits', 
-                            x=((R + Ly/2.) * np.sin(-max_theta)+Lx/2,
-                            (R + Ly/2.) * np.sin( max_theta)+Lx/2),
-                            y=((R - Ly/2.) * np.cos(-max_theta) - R + Ly/2,
-                                Oy + R + Ly/2.))
-                    else:
-                        hlpr.provide_defaults('set_limits', 
-                            x=(-(R + Ly/2.) + Lx/2, (R + Ly/2.) + Lx/2),
-                            y=( (R + Ly/2.) * np.cos(-max_theta) - R + Ly/2,
-                                Oy + R + Ly/2.))
-                    
-                    if max_theta < m.pi-0.1:
-                        hlpr.ax.quiver(Ox, Oy,
-                                    (R + Ly / 2.) * np.sin( max_theta),
-                                    (R + Ly / 2.) * np.cos( max_theta),
-                                    headlength=0., headaxislength=0.,
-                                    headwidth=0., scale=1, scale_units='xy',
-                                    color='black')
-                        hlpr.ax.quiver(Ox, Oy,
-                                    (R + Ly / 2.) * np.sin(-max_theta),
-                                    (R + Ly / 2.) * np.cos(-max_theta),
-                                    headlength=0., headaxislength=0.,
-                                    headwidth=0., scale=1, scale_units='xy',
-                                    color='black')
-                    circle_inner = plt.Circle((Ox, Oy), R - Ly / 2.,
-                                              edgecolor='black', fill=False)
-                    circle_outer = plt.Circle((Ox, Oy), R + Ly / 2.,
-                                              edgecolor='black', fill=False)
-
-                    hlpr.ax.add_patch(circle_inner)
-                    hlpr.ax.add_patch(circle_outer)
-                else:
-                    hlpr.provide_defaults('set_limits', x=(0, Lx), y=(0, Ly))
-
+                hlpr.provide_defaults('set_limits', x=(0, Lx), y=(0, Ly))
 
                 if skew_x > 1.e-12:
                     hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',

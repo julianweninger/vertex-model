@@ -104,18 +104,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_Space, Fixture)
         BOOST_CHECK_CLOSE(intersection.at(1), 0.14, precision);
         BOOST_TEST(success);
     }
-
-    BOOST_AUTO_TEST_CASE(test_curved_periodic_bc)
-    {
-        // test the transformation
-        space_periodic.set_curvature(0.02);
-        SpaceVec pos({0.1, 0.1});
-        auto [rho, theta] = space_periodic.transform_radial(pos);
-        SpaceVec _pos = space_periodic.transform_cartesian(rho, theta);
-        BOOST_CHECK_CLOSE(_pos[0], pos[0], 1.e-4);
-        BOOST_CHECK_CLOSE(_pos[1], pos[1], 1.e-4);
-    }
-
     BOOST_AUTO_TEST_CASE(test_skewed_periodic_bc)
     {
         space_periodic.set_domain_size(SpaceVec({10., 10.}));
