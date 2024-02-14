@@ -287,31 +287,6 @@ auto cells_adaptor = std::make_tuple(
         dataset->write(hex_order_corr);
         dataset->write(hex_order_N);
 
-        // // write cell polarity wrt curved x axis
-        // dataset->write(cells.begin(), cells.end(),
-        //                [model](const auto& cell) {
-        //                     double curvature = model.get_curvature_boundary();
-        //                     if (fabs(curvature) < 1.e-8) {
-        //                         double pol = cell->state.polarity();
-        //                         return static_cast<float>(pol);
-        //                     }
-
-        //                     if (model.get_space()->periodic) {
-        //                         throw std::runtime_error("Not implemented "
-        //                             "cell polarity in curved periodic BC.");
-        //                     }
-
-        //                     SpaceVec origin({0., -1./curvature});
-
-        //                     const auto& am = model.get_am();
-        //                     SpaceVec pos = am.barycenter_of(cell) - origin;
-
-        //                     double theta = std::atan2(pos[0], pos[1]);
-
-        //                     double pol = cell->state.polarity(theta);
-        //                     return static_cast<float>(pol);
-        //                });
-
         std::vector<SpaceVec> qs;
         std::transform(cells.begin(), cells.end(), std::back_inserter(qs),
                        [am](const auto& c) {
@@ -534,11 +509,9 @@ auto edges_adaptor = std::make_tuple(
 
 
         const SpaceVec skew = model.get_space()->get_skew();
-        const double curvature = model.get_space()->get_curvature();
 
         hdfdataset->add_attribute("skew_x", skew[0]);
         hdfdataset->add_attribute("skew_y", skew[1]);
-        hdfdataset->add_attribute("curvature", curvature);
     }     
 ); // end edge link adaptor
 

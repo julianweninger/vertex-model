@@ -414,15 +414,6 @@ public:
     double stretch_domain(SpaceVec stretch, bool compensate,
         bool fix_hc_area, bool fix_sc_area, bool deform_plastic);
     SpaceVec skew_domain(SpaceVec add_skew, bool absolute, bool deform_plastic);
-    
-    void curve_boundary(double add_curvature, bool deform_plastic);
-    double get_curvature_boundary() const {
-        if (_space->periodic) {
-            return _space->get_curvature();
-        }
-        return 0.;
-    }
-
 
     // .. Simulation Control ..................................................
     void init_minimization ();
@@ -436,12 +427,6 @@ public:
      */
     void perform_step () {
         if (_dt > 1.e-10) {
-            if (_space->get_curvature() > 1.e-8) {
-                throw std::runtime_error(fmt::format("Cannot perform step with "
-                    "curved periodic boundary conditions. Curvature {} > 0",
-                    _space->get_curvature()));
-            }
-            
             perform_transitions(_enable_transitions);
 
             for (const auto& [name, term] : _work_function_terms) {

@@ -909,10 +909,6 @@ public:
         return _pcp->pcp_polarity(cell);
     }
 
-    double get_curvature_boundary() const {
-        return _vertex_model.get_curvature_boundary();
-    }
-
     auto fix_number_work_function_terms() {
         return _vertex_model.fix_number_work_function_terms();
     }
