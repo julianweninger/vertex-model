@@ -99,6 +99,12 @@ public:
 
     virtual void update_parameters (const DataIO::Config& cfg) = 0;
 
+    virtual bool test_constraints 
+    ([[maybe_unused]] const std::shared_ptr<spdlog::logger>& logger) const 
+    {
+        return true;
+    }
+
 
     const std::string& get_name () const {
         return _name;
@@ -1888,7 +1894,7 @@ public:
 };
 
 /// @brief The cell contractility
-/** \f$ E_\alpha = k (P_\alpha / (\sqrt{A_\alpha^{(0)}} P^{(0)}) - 1)^2\f$, 
+/** \f$ E_\alpha = 1/ 2k (P_\alpha / (\sqrt{A_\alpha^{(0)}} P^{(0)}) - 1)^2\f$, 
  *  an elastic penalty on perimeter length \f$ P_\alpha \f$.
  * 
  *  Parameters:
@@ -1986,6 +1992,128 @@ public:
         _contractility = get_as<double>("contractility", cfg, _contractility);
         _preferential_shape = get_as<double>("preferential_shape", cfg,
                                              _preferential_shape);
+    }
+
+
+    std::vector<std::string> write_task_edge_energies_names () const final {
+        return std::vector<std::string>({
+            "tension"
+        });
+    }
+
+    std::vector<std::vector<double>> write_edge_energies () const final {
+        std::vector<double> tensions({});
+        
+        for (const auto& edge : this->_am.edges()) {
+            tensions.push_back(compute_tension(edge));
+        }
+
+        return std::vector<std::vector<double>>({
+            tensions
+        });
+    }
+
+    std::vector<std::string> write_task_cell_energies_names () const final {
+        return std::vector<std::string>({
+            "energy"
+        });
+    }
+
+    std::vector<std::vector<double>> write_cell_energies () const final {
+        std::vector<double> energies({});
+        
+        for (const auto& cell : this->_am.cells()) {
+            energies.push_back(compute_energy(cell));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies
+        });
+    }
+};
+
+/// @brief The cell's perimeter contractility
+/** \f$ E_\alpha = 1/2 k P_\alpha^2\f$, a contractility of the cell's perimeter.
+ * 
+ *  Parameters:
+ *      - `contractility`: the elastic modulus \f$ k \f$
+ */
+template <typename Model>
+class PerimeterContractility : public WorkFunctionTerm<Model>
+{
+public:
+    using Base = WorkFunctionTerm<Model>;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+private:
+    double _contractility;
+
+public:
+    PerimeterContractility (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(get_as<double>("contractility", cfg))
+    { }
+
+    void compute_and_set_forces () final {
+        for (const auto& cell : this->_am.cells()) {
+            double tension = _contractility * this->_am.perimeter_of(cell);
+
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                SpaceVec director = this->_am.displacement(edge);
+                director /= arma::norm(director);
+
+                edge->custom_links().a->state.add_force(+ tension * director);
+                edge->custom_links().b->state.add_force(- tension * director);
+            }
+        }
+    }
+
+    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
+        const auto& [c1, c2] = this->_am.adjoints_of(edge);
+
+        double T = 0.;
+        if (c1) {
+            T += _contractility * this->_am.perimeter_of(c1);
+        }
+        if (c2) {
+            T += _contractility * this->_am.perimeter_of(c2);
+        }
+
+        return T;
+    }
+
+    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
+        return 0.5 * _contractility * std::pow(this->_am.perimeter_of(cell), 2);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& cell : cells) {
+            energy += compute_energy(cell);
+        }
+        return energy;
+    }
+
+
+    void update_parameters (const DataIO::Config& cfg) final {
+        _contractility = get_as<double>("contractility", cfg, _contractility);
     }
 
 

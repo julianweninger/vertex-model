@@ -596,9 +596,9 @@ def cellular_structure(
                     else:
                         prop_data = prop_data.assign_coords({'x': x, 'y': y})
 
-                # perform the interpolation
-                if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
-                    prop_data.data[0] += 1.e-10
+                # # perform the interpolation
+                # if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
+                #     prop_data.data[0] = prop_data.data[0] + 1.e-10
 
                 min_x = floor(domain_size_min_x)
                 max_x = ceil(domain_size_max_x)

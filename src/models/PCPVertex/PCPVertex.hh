@@ -25,6 +25,7 @@
 #include "utils.hh"
 
 #include "work_function.hh"
+#include "work_function_2Dplus.hh"
 #include "minimization.hh"
 #include "boundary.hh"
 
@@ -660,6 +661,7 @@ public:
             const Config& params
     ) {
         using namespace WorkFunction;
+        using namespace WorkFunction2Dplus;
 
         this->_log->debug("Registering work-function term '{}' ('{}') from "
                           "configuration ...",
@@ -804,10 +806,34 @@ public:
                 )
             );
         }
+        else if (term == "perimeter_contractility") {
+            register_work_function_term(
+                name,
+                std::make_shared<PerimeterContractility<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "shape_elasticity") {
             register_work_function_term(
                 name,
                 std::make_shared<ShapeElasticity<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "surface_tension") {
+            register_work_function_term(
+                name,
+                std::make_shared<SurfaceTension<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "volume_elasticity") {
+            register_work_function_term(
+                name,
+                std::make_shared<VolumeElasticity<PCPVertex>>(
                     name, params, *this
                 )
             );
@@ -833,8 +859,10 @@ public:
                 " - edge_contractility_polar\n"
                 " - linetension\n"
                 " - linetension_fluctuations\n"
+                " - perimeter_contractility\n"
                 " - linetension_heterotypic\n"
                 " - shape_elasticity\n"
+                " - volume_elasticity\n"
                 "", term
             ));
         }

@@ -209,6 +209,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     BOOST_AUTO_TEST_CASE_TEMPLATE (test_WF_terms, F, Fixtures)
     {
         std::size_t test_term_index = 0;
+        // iterate the list of WF terms using test_term_index
         while (true) {
             F fixture;
             auto& model = fixture.vertex_model;
@@ -303,9 +304,28 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 BOOST_TEST_MESSAGE("Work function term: " << name);
                 model.register_work_function_term(term_name, name, params);
 
+                // register required WF terms
+                auto required_WFs = get_as<std::vector<Config>>(
+                    "required_WF_terms", params, {});
+                for (Config __params : required_WFs) {
+                    auto __term_name = get_as<std::string>("term", __params);
+                    auto __name = get_as<std::string>(
+                        "name", __params, __term_name
+                    );
+                    BOOST_TEST_MESSAGE(
+                        "  Registering additional Work function term: "
+                        "" << __name
+                    );
+                    model.register_work_function_term(
+                        __term_name, __name, __params
+                    );
+                }
+
                 const auto& term_function = model.get_work_function_term(name);
                 cumulated_energy += fabs(term_function->compute_energy());
                 test_skipped = false;
+
+                BOOST_TEST(term_function->test_constraints(model.get_logger()));
 
                 std::uniform_real_distribution<double> uniform_distr(0, 2*M_PI);
                 std::size_t steps = 200;
@@ -352,6 +372,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
                     am.move_to(vertex, v_pos0);
                 }
+
+                BOOST_TEST(term_function->test_constraints(model.get_logger()));
             }
 
             if (not test_skipped){
@@ -368,7 +390,6 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                     or (cumulated_energy >= std::numeric_limits<double>::min())
                 );
                 BOOST_TEST(test_non_zero);
-                    
             }
         }
     }
@@ -594,6 +615,170 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
         BOOST_TEST(model.get_energy() - energy < -1.e-12);
         BOOST_CHECK_CLOSE(model.get_energy() - energy, dE, precision);
+    }
+    
+    BOOST_AUTO_TEST_CASE (test_update_2D_plus)
+    {
+        const double _precision = 1.e-6;
+
+        std::size_t test_term_index = 0;
+
+        // iterate the list of WF terms using test_term_index
+        while (true) {
+
+            Fixture<Case::periodic> fixture;
+            auto& model = fixture.vertex_model;
+            const auto& logger = model.get_logger();
+
+            Config work_function_terms = get_as<Config>(
+                "test_update_2D_plus", 
+                fixture.wf_terms
+            );
+            
+            if (test_term_index >= work_function_terms.size()) {
+                BOOST_TEST_MESSAGE("Done.");
+                break;
+            }
+
+            // this iterates below the level of defined work functions
+            double cumulated_energy = 0.;
+            for (const auto& term_pair : work_function_terms[test_term_index++])
+            {
+                auto term_name = term_pair.first.as<std::string>();
+                auto params = term_pair.second;
+
+                double precision = get_as<double>(
+                    "test_precision", params, _precision
+                );
+
+                const auto& am = model.get_am();
+                const auto& cells = am.cells();
+
+                // minimize the default work function terms
+                model.prolog();
+
+
+                // Differentiate 50 % type 1
+                std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
+                std::size_t cnt_1 = 0;
+                while(cnt_1 != cells.size() / 2) {
+                    auto c_id = distr(*model.get_rng());
+                    if (cells[c_id]->state.type == 0) {
+                        cells[c_id]->state.type = 1;
+                        cnt_1++;
+                    }
+                }
+                BOOST_TEST(cnt_1 == cells.size() / 2);
+                
+                for (std::size_t i = 0; i < 50; i++) {
+                    model.iterate();
+                }
+                
+                // erase all work function terms
+                while (model.get_work_function_terms().size() > 0) {
+                    auto [name, term] = *model.get_work_function_terms().begin();
+                    model.erase_work_function_term(name);
+                }
+
+                // register a single work function term
+                auto name = get_as<std::string>("name", params, term_name);
+                BOOST_TEST_MESSAGE("Work function term: " << name);
+                model.register_work_function_term(term_name, name, params);
+
+                // register required WF terms
+                auto required_WFs = get_as<std::vector<Config>>(
+                    "required_WF_terms", params, {});
+                for (Config __params : required_WFs) {
+                    auto __term_name = get_as<std::string>("term", __params);
+                    auto __name = get_as<std::string>(
+                        "name", __params, __term_name
+                    );
+                    BOOST_TEST_MESSAGE(
+                        "  Registering additional Work function term: "
+                        "" << __name
+                    );
+                    model.register_work_function_term(
+                        __term_name, __name, __params
+                    );
+                }
+
+                const auto& term_fct = model.get_work_function_term(name);
+                cumulated_energy += fabs(term_fct->compute_energy());
+
+                std::string _height = get_as<std::string>(
+                        "VolumeElasticity_term", params, term_fct->get_name()
+                    ) 
+                    + "_" + 
+                    get_as<std::string>(
+                        "height_parameter_name", params
+                    );
+                std::string _height_derivative = _height + "_derivative";
+
+                BOOST_TEST(term_fct->test_constraints(logger));
+
+
+                // test a particular cell to deal well with heights
+                const auto& cell = cells[cells.size() / 2];
+                cell->state.type = 1;
+                cell->state.update_parameter(_height, 0.65);
+                const auto nb = am.neighbors_of(cell)[0];
+
+                nb->state.type = 1;
+                nb->state.update_parameter(_height, 0.6);
+
+                BOOST_TEST(term_fct->test_constraints(logger));
+
+                nb->state.type = 0;
+                nb->state.update_parameter(_height, 0.9);
+                cell->state.update_parameter(_height, 0.699);
+                BOOST_TEST(term_fct->test_constraints(logger));
+
+
+                double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+
+                double integral = 0.;
+                for (std::size_t i = 0; i < 100; i++) {
+                    cell->state.update_parameter(_height_derivative, 0.);
+                    term_fct->compute_and_set_forces();
+
+                    double dW_dH = cell->state.get_parameter(_height_derivative);
+
+                    double tmp_H = cell->state.get_parameter(_height);
+                    cell->state.update_parameter(_height, tmp_H - 0.1 / 100.);
+
+                    double dH = cell->state.get_parameter(_height) - tmp_H;
+                    cell->state.update_parameter(_height_derivative, 0.);
+                    term_fct->compute_and_set_forces();
+                    double mean_deriv = 0.5 * (
+                        dW_dH 
+                        + cell->state.get_parameter(_height_derivative)
+                    );
+
+                    integral += mean_deriv * dH;
+                }
+
+                double E1 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+                BOOST_CHECK_CLOSE(E1 - E0, integral, precision);
+
+                BOOST_TEST(term_fct->test_constraints(logger));
+
+                cell->state.update_parameter(_height, 0.7);
+            }
+
+            // the machine epsilon has to be scaled to the magnitude of the 
+            // values used and multiplied by the desired precision in ULPs 
+            // (units in the last place)
+            bool test_non_zero = (
+                cumulated_energy > std::numeric_limits<double>::epsilon() 
+                                    * cumulated_energy * 10
+            );
+            test_non_zero = (
+                test_non_zero 
+                // unless the result is subnormal
+                or (cumulated_energy >= std::numeric_limits<double>::min())
+            );
+            BOOST_TEST(test_non_zero);
+        }
     }
 
     BOOST_AUTO_TEST_CASE(test_energy_periodic)
