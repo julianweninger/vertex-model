@@ -133,7 +133,22 @@ def test_run_and_eval_cfgs(cfg_name):
         },
         'proliferation_minimal__by_generation': {
             'num_steps': 2
-        }
+        },
+        'proliferation__semi_periodic': {
+            'num_steps': 1,
+            'PCPTopology': {
+                'PCPVertex': {
+                    'agent_manager': {
+                        'setup_params': {
+                            'hexagonal': {
+                                'lattice_rows': 4,
+                                'lattice_columns': 4
+                            }
+                        }
+                    }
+                }
+            }
+        },
     })
 
     cfg_paths = mtc.default_config_sets[cfg_name]

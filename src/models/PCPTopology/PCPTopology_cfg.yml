@@ -195,6 +195,20 @@ data_manager:
         intervals:
           - [0, 10, 1]
           - [10, 1000, 5]
+    write_logspace_interval: &logspace_interval
+      type: interval
+      args:
+        intervals:
+          - [0, 5, 1]
+          - [5, 20, 5]
+          - [20, 100, 10]
+          - [100, 200, 50]
+          - [200, 1000, 100]
+          - [1000, 2000, 200]
+          - [2000, 10000, 1000]
+          - [10000, 20000, 2000]
+          - [20000, 100000, 10000]
+          - [100000, 200000, 20000]
   triggers:
     build_once:
       type: once
@@ -202,6 +216,7 @@ data_manager:
         time: 0
     build_always: {type: always}
     build_interval: *interval
+    build_logspace_interval: *logspace_interval
   
   # these are the datasets written
   tasks:
