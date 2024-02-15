@@ -252,12 +252,12 @@ def cellular_structure(
             domain_size_max_y = Vertices.sel(property="y").max()
         elif semi_periodic_space:
             xs = Vertices.sel(property='x')
-            xs = xr.where(xs > data['Lx'] / 2, -data['Lx'], 0.)
-            Vertices.loc[:, :, 'x'] += xs
+            xs = xr.where(xs > data['Lx'] / 2, xs - data['Lx'], xs)
+            Vertices.loc[:, :, 'x'] = xs - xs.mean()
 
             xs = Cells.sel(property='x')
-            xs = xr.where(xs > data['Lx'] / 2, -data['Lx'], 0.)
-            Cells.loc[:, :, 'x'] += xs
+            xs = xr.where(xs > data['Lx'] / 2, xs-data['Lx'], xs)
+            Cells.loc[:, :, 'x'] = xs - xs.mean()
 
             domain_size_min_x = Vertices.sel(property="x").min()
             domain_size_max_x = Vertices.sel(property="x").max()

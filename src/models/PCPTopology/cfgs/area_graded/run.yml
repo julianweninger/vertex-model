@@ -11,7 +11,7 @@ parameter_space:
 
   seed: !sweep
     default: 42
-    range: [6]
+    range: [1]
     order: -1
 
   PCPTopology:
@@ -31,19 +31,24 @@ parameter_space:
     # -- Initialisation
     initialisation:
       1_by_proliferation:
-        num_generations: 1
-        minimization_between_generations: ~
-        minimization:
-          num_repeat: !expr 24 * 10
+        enabled: false
 
     #  --- The sequence of operations ---------------------------------
     operations:
+      - proliferate:
+          times: []
+          emit_interval: 0
+          iterations_prolog: 16
+
+          num_increases: 0
+          area_threshold: 1.
+
       # Put some markers into the tissue
       - differentiate_random:
           times: []
           iterations_prolog: 1
           method: fraction
-          distribution: [0.74, 0.26]
+          distribution: [0.75, 0.25]
           minimization:
             mode: manual
 
@@ -68,17 +73,7 @@ parameter_space:
             increment_areas: 
               - [0., 0.]
               - [3., -0.5]
-      - register_work_function_term:
-          times: []
-          iterations_prolog: 1
-          term: edge_contractility_heterotypic
-          parameters:
-            boundary_type: 2
-            contractility: 
-              - [0.1, 0., 0.]
-              - [0.0, 0., 0.]
-              - [0.0, 0., 0.]
-          minimization:
+          minimization: 
             mode: manual
       - void:
           times:
@@ -95,11 +90,16 @@ parameter_space:
 
       work_function_terms:
       - linetension_fluctuations:
-          amplitude: 0.02
-          timescale: 24
+          amplitude: 1.e6
+          timescale: 1.e-6
       - area_elasticity_gradient:
           elastic_modulus: 1
           preferential_area: 1
+          plateau_length: 0.3
+          shape: !sweep
+            name: shape
+            default: grad
+            values: [grad, cos, cos2]
           manhatten_distance: 2
           min_area: 0.15
           relaxation_time: 20
@@ -109,7 +109,17 @@ parameter_space:
           contractility: 1.
           preferential_shape: 3.72
       - edge_contractility_heterotypic:
-          register: false
+          boundary_type: 2
+          contractility: 
+            - [0.04, 0., 0.]
+            - [0.0 , 0., 0.]
+            - [0.0 , 0., 0.]
+      - linetension_heterotypic:
+          boundary_type: 2
+          linetension:
+            - [0.02, 0.  , 0.1]
+            - [0.  , 0.  , 0.1]
+            - [0.1, 0.1, 0.1]
 
       T1_barrier: 0
       T1_probability: 1.
@@ -117,11 +127,13 @@ parameter_space:
       T1_threshold: 0.06
 
       agent_manager:
+        setup_method: hexagonal
         setup_params:
-          hexagonal:
-            lattice_rows: 8
-            lattice_columns: 24
-
+          hexagonal: 
+            semi_periodic: True
+            extent_x: 100    # put any value larger than the largest x extent
+            lattice_rows: 16  # NOTE will not expand along y during proliferation
+            lattice_columns: 16
               
       # continuous data manager
       data_manager:

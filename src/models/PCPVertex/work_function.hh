@@ -2638,22 +2638,81 @@ public:
     using Cell = typename Base::Cell;
 
 private:
+    /// The maximum and minimum value of the cos^2 profile
     std::vector<std::pair<double, double>> _regulate_gradient;
 
+    /// Relative length of the plateau inserted at the minimum of cos^2
+    double _plateau_length;
+
+    /// List of types that are not regulated and are relaxed instead
     std::unordered_set<std::size_t> _relax_types;
 
+    /// Manhatten distance in relaxation
     std::size_t _distance;
 
+    /// Minimum area of a cell
     double _min_area;
 
+    /// Time scale of relaxation
     double _tau;
 
+    /// The targeted average area
     double _reference_area;
+
+    const enum Shape {
+        grad,
+        cos,
+        cos2
+    } _shape;
 
     /// Update the preferential area of regulated cells
     void regulate_gradient () {
-        auto [space_min, space_max] = this->_am.get_extent();
-        double L = (space_min[0] - space_max[0]);
+        std::function<double(double, double, double)> A0;
+        if (_shape == Shape::grad) {
+            A0 = [this](double x, double left, double right) {
+                x /= 1. - this->_plateau_length;
+                x = std::min(x, 1.);
+                return left + (right - left) * x;
+            };
+        }
+        else if (_shape == Shape::cos) {
+            A0 = [this](double x, double left, double right) {
+                x /= 1. - _plateau_length;
+                x = std::min(x, 1.);
+                return (left - right) * (1 + std::cos(x * M_PI))/ 2 + right;
+            };
+        }
+        else if (_shape == Shape::cos2) {
+            A0 = [this](double x, double left, double right) {
+                x = std::min(x, 1.-x);
+                x /= 1 - _plateau_length / 2.;
+                x = std::min(x, 0.5);
+                return (left - right) * std::pow(std::cos(x * M_PI), 2) + right;
+            };
+        }
+        else {
+            throw std::runtime_error(fmt::format(
+                "Not Implemented shape ({}) in AreaElasticityGradient!",
+                _shape
+            ));
+        }
+        
+
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = std::numeric_limits<double>::min();
+
+        const auto& space = this->_am.get_space();
+        double __Lx = space->get_domain_size()[0];
+        for (const auto& v : this->_am.vertices()) {
+            double x = this->_am.position_of(v)[0];
+            if (space->periodic) {
+                x -= std::round(x/__Lx) * __Lx;
+            }
+            x_min = std::min(x_min, x);
+            x_max = std::max(x_max, x);
+        }
+        double L = (x_max - x_min);
+
 
         for (const auto& cell : this->_am.cells()) {
             if (cell->state.type >= _regulate_gradient.size()
@@ -2666,20 +2725,15 @@ private:
                 continue;
             }
 
-            SpaceVec pos = this->_am.barycenter_of(cell);
-            double x = (pos[0] - space_min[0]) / L;
+            double x = this->_am.barycenter_of(cell)[0];
+            if (space->periodic) {
+                x -= std::round(x/__Lx) * __Lx;
+            }
+            x -= x_min;
+            x /= L;
 
             const auto& [left, right] = _regulate_gradient[cell->state.type];
-            if (this->_am.get_space()->periodic) {
-                cell->state.area_preferential = (
-                    (left - right) * std::pow(cos(x * M_PI), 2) + right
-                );
-            }
-            else {
-                cell->state.area_preferential = (
-                    (left - right) * std::pow(cos(x * M_PI / 2), 2) + right
-                );
-            }
+            cell->state.area_preferential = A0(x, left, right);
         }
     }
 
@@ -2739,21 +2793,56 @@ public:
     :
         Base(name, cfg, model),
         _regulate_gradient({}),
+        _plateau_length(get_as<double>("plateau_length", cfg)),
         _relax_types({}),
         _distance(get_as<std::size_t>("manhatten_distance", cfg)),
         _min_area(get_as<double>("min_area", cfg)),
         _tau(get_as<double>("relaxation_time", cfg)),
-        _reference_area(get_as<double>("preferential_area", cfg))
+        _reference_area(get_as<double>("preferential_area", cfg)),
+        _shape(setup_shape(cfg))
     {
         for (std::size_t i = 0; i < get_as<double>("num_types", cfg); i++) {
             _regulate_gradient.push_back(std::make_pair(_reference_area,
                                                         _reference_area));
         }
 
+        if (_plateau_length > 1 or _plateau_length < 0) {
+            throw std::runtime_error(fmt::format("In AreaElasticityGradient, "
+                "parameter `plateau_length` must be in [0, 1], but was {}", 
+                _plateau_length));
+        }
+
         auto relax_types = get_as<std::vector<std::size_t>>("relax_types", cfg);
         _relax_types = std::unordered_set<std::size_t>(relax_types.begin(),
                                                        relax_types.end());
     }
+
+private:
+    Shape setup_shape(const Config& cfg){
+        auto shape = get_as<std::string>("shape", cfg);
+        if (shape == "grad" or shape == "gradient") {
+            return Shape::grad;
+        }
+        if (shape == "cos" or shape == "cosinus") {
+            return Shape::cos;
+        }
+        if (shape == "cos2" or shape == "cosinus2" or shape == "cosinus_square")
+        {
+            return Shape::cos2;
+        }
+        throw std::runtime_error(fmt::format(
+            "While setting up the AreaElasticityGradient work-function ('{}'), "
+            "got unknown shape '{}'. Implemented shapes are: \n"
+            " - grad / gradient (a linear gradient)\n",
+            " - cos / cosinus (a cosinus shape, discontinuous in periodic space)\n",
+            " - cos2 (a cos^2(x) shape, continuous in periodic space)\n",
+            this->_name,
+            shape
+        ));
+    }
+
+
+public:
 
     /// @brief  Updates the parameters
     /// @param cfg The configuration forwarded to 
@@ -2768,6 +2857,14 @@ public:
             DataIO::Config _cfg{};
             _cfg["area_elasticity"] = cfg["area_elasticity"];
             Base::update_parameters(_cfg);
+        }
+
+        _plateau_length = get_as<double>("plateau_length", cfg,
+                                              _plateau_length);
+        if (_plateau_length > 1 or _plateau_length < 0) {
+            throw std::runtime_error(fmt::format("In AreaElasticityGradient, "
+                "parameter `plateau_length` must be in [0, 1], but was {}", 
+                _plateau_length));
         }
 
         std::size_t num = get_as<double>("num_types", cfg,
