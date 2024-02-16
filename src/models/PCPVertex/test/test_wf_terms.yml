@@ -318,9 +318,33 @@ test_update_area_elasticity_gradient:
     num_types: 2
     min_area: 0.2
     manhatten_distance: 3
+    plateau_length: 0.1
+    shape: grad
+  area_elasticity_gradient_cos:
+    term: area_elasticity_gradient
+    elastic_modulus: 1
+    preferential_area: 1
+    relaxation_time: 20
+    relax_types: [1]
+    num_types: 2
+    min_area: 0.2
+    manhatten_distance: 3
+    plateau_length: 0.1
+    shape: cos
+  area_elasticity_gradient_cos2:
+    term: area_elasticity_gradient
+    elastic_modulus: 1
+    preferential_area: 1
+    relaxation_time: 20
+    relax_types: [1]
+    num_types: 2
+    min_area: 0.2
+    manhatten_distance: 3
+    plateau_length: 0.1
+    shape: cos2
   area_elasticity_gradient__increase:
     increment_areas: 
-      - [0.2, -0.1]
+      - [0.02, -0.01]
       - [0., 0.]
 
 test_update_edge_contractility_polar:

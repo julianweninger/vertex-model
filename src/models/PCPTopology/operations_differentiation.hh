@@ -131,6 +131,8 @@ OperationBundle build_differentiate_Collier (
  *             Sum of widhts needs to be 1.
  *      - `relative_heights` (list of double): The widths of horizontal domains.
  *             Sum of widhts needs to be 1.
+ *      - `specify_types` (list of int): Customized types in order of appearance.
+ *              If not provided, range(N) used.
  */
 OperationBundle build_differentiate_domain (
         std::string name, const Config& cfg,
@@ -140,6 +142,7 @@ OperationBundle build_differentiate_domain (
     
     auto _xs(get_as<std::vector<double>>("relative_widths", cfg));
     auto _ys(get_as<std::vector<double>>("relative_heights", cfg));
+    auto types(get_as<std::vector<double>>("specify_types", cfg, {}));
 
     std::vector<double> xs{};
     std::vector<double> ys{};
@@ -157,11 +160,11 @@ OperationBundle build_differentiate_domain (
 
     if (fabs(sum_x - 1.) + fabs(sum_y - 1.) > 1.e-6) {
         throw std::runtime_error(fmt::format("The sum of `relative_widths` and "
-            "`relative_heights` needs to be 1, but was {} and {}, resp.",
+            "`relative_heights`, respectively, needs to be 1, but was {} and {}, resp.",
             sum_x, sum_y));
     }
 
-    Operation operation = [xs, ys](PCPVertex& vertex_model)
+    Operation operation = [xs, ys, types](PCPVertex& vertex_model)
     {
         using SpaceVec = PCPVertex::SpaceVec;
         
@@ -204,8 +207,19 @@ OperationBundle build_differentiate_domain (
             {
                 type += 1;
             }
-
-            cell->state.type = type;
+            if (types.size() == 0) {
+                cell->state.type = type;
+            }
+            else if (type < types.size()) {
+                cell->state.type = types[type];
+            }
+            else {
+                throw std::runtime_error(fmt::format("Not enough types "
+                    "specified in differentiate domain! "
+                    "{} types were specified as `specify_types'.", 
+                    types.size()
+                ));
+            }
         }
     };
 
@@ -408,6 +422,7 @@ OperationBundle build_differentiate_NotchDelta (
  *      - `fraction` (double): Similar to `probability`, but a fraction of the 
  *              cells is selected for HC differentiation. Resulting HC fraction
  *              is fixed. Number of cells is rounded to next smaller integer.
+ *      - `overwrite` (bool, default: true): Whether non-zero types will be overwritten
  * 
  *  \note The entities properties do not change during differentiation.
  */
@@ -419,6 +434,7 @@ OperationBundle build_differentiate_random (
 
     auto _distribution(get_as<std::vector<double>>("distribution", cfg));
     auto _method(get_as<std::string>("method", cfg));
+    bool overwrite(get_as<bool>("overwrite", cfg, true));
 
 
     std::vector<double> distribution({});
@@ -481,9 +497,20 @@ OperationBundle build_differentiate_random (
     Operation operation;
 
     if (method == Method::Fraction) {
-        operation = [distribution] (PCPVertex& vertex_model)
+        operation = [distribution, overwrite] (PCPVertex& vertex_model)
         {
             auto cells = vertex_model.get_am().cells();
+            if (not overwrite) {
+                cells.erase(
+                    std::remove_if(
+                        cells.begin(), cells.end(), 
+                        [](const auto& cell) {
+                            return cell->state.type != 0;
+                        }
+                    ),
+                    cells.end()
+                );
+            }
             std::shuffle(cells.begin(), cells.end(), *vertex_model.get_rng());
 
             std::size_t type = 0;
@@ -496,11 +523,22 @@ OperationBundle build_differentiate_random (
         };
     }
     else if (method == Method::Probability) {
-        operation = [distribution] (PCPVertex& vertex_model)
+        operation = [distribution, overwrite] (PCPVertex& vertex_model)
         {
             std::uniform_real_distribution<double> prob_distr(0., 1.);
 
-            const auto& cells = vertex_model.get_am().cells();
+            auto cells = vertex_model.get_am().cells();
+            if (not overwrite) {
+                cells.erase(
+                    std::remove_if(
+                        cells.begin(), cells.end(), 
+                        [](const auto& cell) {
+                            return cell->state.type != 0;
+                        }
+                    ),
+                    cells.end()
+                );
+            }
             for (const auto& cell : cells) {
                 double rn = prob_distr(*vertex_model.get_rng());
                 std::size_t type = 0;

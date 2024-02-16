@@ -181,32 +181,6 @@ public:
     const auto& get_layout() const {
         return _layout;
     }
-
-    /// Getter for the extent of the domain
-    /** Returns the rectangle enclosing all vertices in non-periodic BC as the
-     *  lower left and upper right corner positions.
-     */
-    const std::pair<SpaceVec, SpaceVec> get_extent() const {
-        if (_space->periodic) {
-            return std::make_pair(SpaceVec({0, 0}), _space->get_domain_size());
-        }
-
-        double x_min = std::numeric_limits<double>::max();
-        double x_max = std::numeric_limits<double>::min();
-        double y_min = std::numeric_limits<double>::max();
-        double y_max = std::numeric_limits<double>::min();
-
-        for (const auto& v : this->vertices()) {
-            SpaceVec pos = this->position_of(v);
-            x_min = std::min(x_min, pos[0]);
-            x_max = std::max(x_max, pos[0]);
-            y_min = std::min(x_min, pos[1]);
-            y_max = std::max(x_max, pos[1]);
-        }
-
-        return std::make_pair(SpaceVec({x_min, y_min}),
-                              SpaceVec({x_max, y_max}));
-    }
     
     /// Return const reference to the managed vertices
     const auto& vertices () const {

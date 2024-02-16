@@ -75,6 +75,15 @@ namespace Utopia::Models::PCPVertex {
  *              - e_top_right = 3 * ((q+1) + (r+1)*num_cols)
  * 
  *  for additional details see https://www.redblobgames.com/grids/hexagons/
+ * 
+ *  Parameters from configuration:
+ *      - `hexagon_size` (double): The area of a single hexagon
+ *      - `lattice_rows` (uint): Number of rows in hexagon lattice
+ *      - `lattice_columns` (uint): Number of columns in hexagon lattice
+ *      - `semi_periodic` (bool, default: False): Whether to extend space
+ *              along x and do not consider periodicity along that axis.
+ *      - `extent_x` (double, optional): Required with `semi_periodic`. The 
+ *              extent of the domain in x. Choose a value sufficiently large.
  */
 template<class Model>
 void EntitiesManager<Model>::setup_agents_hexagonal_structure (
@@ -86,8 +95,16 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     }
 
     double size = get_as<double>("hexagon_size", cfg);
-    std::size_t num_rows = get_as<int>("lattice_rows", cfg);
-    std::size_t num_columns = get_as<int>("lattice_columns", cfg);
+    std::size_t num_rows = get_as<std::size_t>("lattice_rows", cfg);
+    std::size_t num_columns = get_as<std::size_t>("lattice_columns", cfg);
+    
+    std::function<bool(Config)> setup_semi_periodic_space = [this](Config cfg) {
+        if (not this->get_space()->periodic) {
+            return false;
+        }
+        return get_as<bool>("semi_periodic", cfg, false);
+    };
+    const bool semi_periodic = setup_semi_periodic_space(cfg);
 
     enum HexShape {
         PointyTop,
@@ -139,8 +156,18 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             ));
         }
         
-        _space->set_domain_size(SpaceVec({double(num_columns),
-                                           0.75 * num_rows}) % cell_shape);
+        if (not semi_periodic) {
+            _space->set_domain_size(SpaceVec({double(num_columns),
+                                              0.75 * num_rows}) % cell_shape);
+        }
+        else {
+            _space->set_domain_size(SpaceVec(
+                {
+                    get_as<double>("extent_x", cfg),
+                    0.75 * num_rows
+                }) % cell_shape
+            );
+        }
     }
 
     // Add vertices
@@ -153,6 +180,9 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
     if (not _space->periodic) {
         lim_columns += 1;
         lim_rows += 1;
+    }
+    else if (semi_periodic) {
+        lim_columns += 1;
     }
     for (std::size_t r = 0; r < lim_rows; r += 1) {
         // pair rows
@@ -280,42 +310,53 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
 
     // remove not needed objects
     // in non periodic bc more objects are initialised that needed
-    if (not _space->periodic) {
+    if (not _space->periodic or semi_periodic) {
         // vertices
         AgentContainer<Vertex> vertices_remove;
-        vertices_remove.push_back(vertices[2*(lim_columns - 1) + 1]);
-        if (num_rows % 2 == 1) {
-            vertices_remove.push_back(vertices.back());
-        }
-        else {
-            vertices_remove.push_back(vertices[2*(lim_rows-1)*lim_columns]);
+
+        // remove vertices at vertical boundary
+        if (not semi_periodic) {
+            vertices_remove.push_back(vertices[2*(lim_columns - 1) + 1]);
+            // remove vertices at horizontal boundary
+            if (num_rows % 2 == 1) {
+                vertices_remove.push_back(vertices.back());
+            }
+            else {
+                vertices_remove.push_back(vertices[2*(lim_rows-1)*lim_columns]);
+            }
         }
 
         // edges
         AgentContainer<Edge> edges_remove;
         for (std::size_t r = 0; r < lim_rows; r++) {
             if (r % 2 == 0) {
-                if (r == 0) {
+                if (r == 0 and not semi_periodic) {
+                    // row 0, last cell, bottom left
                     edges_remove.push_back(edges[3*(lim_columns - 1)]);
                 }
-                
+                // last cell of pair rows, bottom right
                 edges_remove.push_back(edges[3*((r+1)*lim_columns - 1) + 1]);
 
-                if (r == lim_rows - 1) {
+                if (r == lim_rows - 1 and not semi_periodic) {
+                    // top row (additional), first cell, bottom left
                     edges_remove.push_back(edges[3*(r*lim_columns)]);
                     for (std::size_t q = 0; q < lim_columns; ++q) {
+                        // top row (additional), all cells, left
                         edges_remove.push_back(
                             edges[3*(q + r*lim_columns) + 2]);
                     }
                 }
             }
             else {
+                // last cell of impair rows, bottom left
                 edges_remove.push_back(edges[3*((r+1)*lim_columns - 1) + 1]);
 
-                if (r == lim_rows - 1) {
+                if (r == lim_rows - 1 and not semi_periodic) {
+                    // top row (additional), first cell, bottom left
                     edges_remove.push_back(edges[3*(lim_rows*lim_columns - 1)]);
 
                     for (std::size_t q = 0; q < lim_columns; ++q) {
+                        // top row (additional), all cell, right
                         edges_remove.push_back(
                             edges[3*(q + r*lim_columns) + 2]);
                     }
@@ -345,10 +386,12 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
             this->remove_edge(e);
         }
 
-        SpaceVec origin = this->barycenter_of(this->get_boundary_edges());
+        if (not semi_periodic) {
+            SpaceVec origin = this->barycenter_of(this->get_boundary_edges());
 
-        for (const auto& v : this->vertices()) {
-            this->move_by(v, -1. * origin);
+            for (const auto& v : this->vertices()) {
+                this->move_by(v, -1. * origin);
+            }
         }
     }
 

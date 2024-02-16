@@ -461,106 +461,114 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     
     BOOST_AUTO_TEST_CASE (test_update_area_elasticity_gradient)
     {
-        Fixture<Case::periodic> fixture;
-        auto& model = fixture.vertex_model;
-        model.prolog();
+        double precision = 5.e-3 * 100;
 
-        const auto& am = model.get_am();
-        const auto& cells = am.cells();
+        for (std::string shape : {"", "_cos", "_cos2"}) {
+            Fixture<Case::periodic> fixture;
+            auto& model = fixture.vertex_model;
+            model.prolog();
 
-        std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
-        std::size_t cnt_1 = 0;
-        while(cnt_1 != cells.size() / 3) {
-            auto c_id = distr(*model.get_rng());
-            if (cells[c_id]->state.type == 0) {
-                cells[c_id]->state.type = 1;
-                cnt_1++;
+            const auto& am = model.get_am();
+            const auto& cells = am.cells();
+
+            std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
+            std::size_t cnt_1 = 0;
+            while(cnt_1 != cells.size() / 3) {
+                auto c_id = distr(*model.get_rng());
+                if (cells[c_id]->state.type == 0) {
+                    cells[c_id]->state.type = 1;
+                    cnt_1++;
+                }
             }
-        }
-        BOOST_TEST(cnt_1 == cells.size() / 3);
+            BOOST_TEST(cnt_1 == cells.size() / 3);
 
-        Config cfg = get_as<Config>(
-            "test_update_area_elasticity_gradient", 
-            fixture.wf_terms
-        );
+            Config cfg = get_as<Config>(
+                "test_update_area_elasticity_gradient", 
+                fixture.wf_terms
+            );
 
-        std::string name = "area_elasticity_gradient";
-        Config wft_cfg = get_as<Config>(name, cfg);
-        std::string term_name = get_as<std::string>("term", wft_cfg, name);
+            std::string name = "area_elasticity_gradient" + shape;
+            Config wft_cfg = get_as<Config>(name, cfg);
+            std::string term_name = get_as<std::string>("term", wft_cfg);
 
-        model.register_work_function_term(term_name, name, wft_cfg);
-        auto term_fct = model.get_work_function_term(name);
+            model.register_work_function_term(term_name, name, wft_cfg);
+            auto term_fct = model.get_work_function_term(name);
 
-        for (const auto& cell : cells) {
-            BOOST_CHECK_CLOSE(cell->state.area_preferential, 1., 1.e-10);
-        }
-
-        name = "area_elasticity_gradient__increase";
-        for (std::size_t it = 1; it <= 3; it++) {
-            model.get_logger()->info("Updating WF ({})", name);
-            term_fct->update_parameters(get_as<Config>(name, cfg));
-            double max = std::numeric_limits<double>::min();
-            double min = std::numeric_limits<double>::max();
-            double grad_mean = 0.;
-            double max_ = std::numeric_limits<double>::min();
-            double min_ = std::numeric_limits<double>::max();
-            double global_mean = 0.;
-            double mean = 1.;
-            std::size_t cnt = 0;
             for (const auto& cell : cells) {
-                BOOST_TEST(cell->state.area_preferential > 0.1999999999);
-                global_mean += cell->state.area_preferential;
-                if (cell->state.type == 0) {
-                    max = std::max(max, cell->state.area_preferential);
-                    min = std::min(min, cell->state.area_preferential);
-                    grad_mean += cell->state.area_preferential;
-                    cnt++;
-                }
-                else {
-                    max_ = std::max(max_, cell->state.area_preferential);
-                    min_ = std::min(min_, cell->state.area_preferential);
-                }
-            }
-            BOOST_CHECK_CLOSE(global_mean / double(cells.size()), 
-                              mean + 0.05 * cnt / double(cells.size()),
-                              0.5);
-            BOOST_CHECK_CLOSE(max, 1. + it * 0.2, 0.001);
-            BOOST_CHECK_CLOSE(min, 1 - it * 0.1, 0.001);
-            BOOST_CHECK_CLOSE(grad_mean / double(cnt), 1. + it * 0.05, 1);
-            if (it == 1) {
-                BOOST_CHECK_CLOSE(max_, 1., 1.e-10);
-                BOOST_CHECK_CLOSE(min_, 1., 1.e-10);
+                BOOST_CHECK_CLOSE(cell->state.area_preferential, 1., 1.e-10);
             }
 
-            // update to relax total area
-            for (std::size_t i = 0; i < 1000; i++) {
-                term_fct->update(0.);
-            }
-            max = std::numeric_limits<double>::min();
-            min = std::numeric_limits<double>::max();
-            grad_mean = 0.;
-            global_mean = 0.;
-            max_ = std::numeric_limits<double>::min();
-            min_ = std::numeric_limits<double>::max();
-            for (const auto& cell : cells) {
-                BOOST_TEST(cell->state.area_preferential > 0.1999999999);
-                global_mean += cell->state.area_preferential;
-                if (cell->state.type == 0) {
-                    max = std::max(max, cell->state.area_preferential);
-                    min = std::min(min, cell->state.area_preferential);
-                    grad_mean += cell->state.area_preferential;
+            name = "area_elasticity_gradient__increase";
+            for (std::size_t it = 1; it <= 3; it++) {
+                model.get_logger()->info("Updating WF ({})", name);
+                term_fct->update_parameters(get_as<Config>(name, cfg));
+                double max_type_0 = std::numeric_limits<double>::min();
+                double min_type_0 = std::numeric_limits<double>::max();
+                double mean_type_0 = 0.;
+                double max_type_1 = std::numeric_limits<double>::min();
+                double min_type_1 = std::numeric_limits<double>::max();
+                double mean_all = 0.;
+                std::size_t cnt = 0;
+                for (const auto& cell : cells) {
+                    BOOST_TEST(cell->state.area_preferential > 0.2 - 1.e-6);
+                    mean_all += cell->state.area_preferential;
+                    if (cell->state.type == 0) {
+                        max_type_0 = std::max(max_type_0, cell->state.area_preferential);
+                        min_type_0 = std::min(min_type_0, cell->state.area_preferential);
+                        mean_type_0 += cell->state.area_preferential;
+                        cnt++;
+                    }
+                    else {
+                        max_type_1 = std::max(max_type_1, cell->state.area_preferential);
+                        min_type_1 = std::min(min_type_1, cell->state.area_preferential);
+                    }
                 }
-                else {
-                    max_ = std::max(max_, cell->state.area_preferential);
-                    min_ = std::min(min_, cell->state.area_preferential);
-                }
-            }
-            BOOST_CHECK_CLOSE(global_mean / double(cells.size()), 1., 1);
-            BOOST_CHECK_CLOSE(max, 1. + it * 0.2, 0.001);
-            BOOST_CHECK_CLOSE(min, 1 - it * 0.1, 0.001);
-            BOOST_CHECK_CLOSE(grad_mean / double(cnt), 1. + it * 0.05, 1);
+                mean_all /= double(cells.size());
+                mean_type_0 /= double(cnt);
 
-            mean = global_mean / double(cells.size());
+                double left = 1. + it * 0.02;
+                double right = 1. - it * 0.01;
+                double expected_type_0 = 0.9 * (left + right) / 2 + 0.1 * right;
+                BOOST_CHECK_CLOSE(max_type_0, left, precision);
+                BOOST_CHECK_CLOSE(min_type_0, right, precision);
+                BOOST_CHECK_CLOSE(mean_type_0, expected_type_0, precision);
+                
+                if (it == 1) {
+                    BOOST_CHECK_CLOSE(max_type_1, 1., 1.e-10);
+                    BOOST_CHECK_CLOSE(min_type_1, 1., 1.e-10);
+                }
+
+                // update to relax total area
+                for (std::size_t i = 0; i < 1000; i++) {
+                    term_fct->update(0.);
+                }
+                mean_all = 0.;
+                max_type_0 = std::numeric_limits<double>::min();
+                min_type_0 = std::numeric_limits<double>::max();
+                mean_type_0 = 0.;
+                max_type_1 = std::numeric_limits<double>::min();
+                min_type_1 = std::numeric_limits<double>::max();
+                for (const auto& cell : cells) {
+                    BOOST_TEST(cell->state.area_preferential > 0.2 - 1.e-6);
+                    mean_all += cell->state.area_preferential;
+                    if (cell->state.type == 0) {
+                        max_type_0 = std::max(max_type_0, cell->state.area_preferential);
+                        min_type_0 = std::min(min_type_0, cell->state.area_preferential);
+                        mean_type_0 += cell->state.area_preferential;
+                    }
+                    else {
+                        max_type_1 = std::max(max_type_1, cell->state.area_preferential);
+                        min_type_1 = std::min(min_type_1, cell->state.area_preferential);
+                    }
+                }
+                mean_all /= double(cells.size());
+                mean_type_0 /= double(cnt);
+
+                BOOST_CHECK_CLOSE(mean_all, 1., precision);
+                BOOST_CHECK_CLOSE(max_type_0, left, precision);
+                BOOST_CHECK_CLOSE(min_type_0, right, precision);
+                BOOST_CHECK_CLOSE(mean_type_0, expected_type_0, precision);
+            }
         }
     }
     

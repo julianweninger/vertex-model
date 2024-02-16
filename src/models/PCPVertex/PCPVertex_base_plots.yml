@@ -200,11 +200,6 @@ cellular_structure:
           - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
           - !dag_node -1
           - !dag_node -2
-        - import_and_call:
-          - model_plots.PCPTopology.data_ops
-          - stack
-          - !dag_prev 
-          - {ids: [id, time]}
     Edges:
       path: data/PCPVertex/Edges
       transform:
@@ -215,11 +210,6 @@ cellular_structure:
           - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
           - !dag_node -1
           - !dag_node -2
-        - import_and_call:
-          - model_plots.PCPTopology.data_ops
-          - stack
-          - !dag_prev 
-          - {ids: [id, time]}
     Cells:
       path: data/PCPVertex/Cells
       transform:
@@ -230,11 +220,6 @@ cellular_structure:
           - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
           - !dag_node -1
           - !dag_node -2
-        - import_and_call:
-          - model_plots.PCPTopology.data_ops
-          - stack
-          - !dag_prev 
-          - {ids: [id, time]}
 
     periodic: 
       path: cfg/PCPVertex

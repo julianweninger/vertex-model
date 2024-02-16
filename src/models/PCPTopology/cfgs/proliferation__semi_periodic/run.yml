@@ -1,0 +1,79 @@
+# A minimal configuration to do cell proliferation 
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run PCPTopology src/models/PCPTopology/cfgs/<choose>/run.yml \
+#          --plots-cfg src/models/PCPTopology/cfgs/<choose>/eval.yml
+#
+# The content of this file is used to update the corresponding entries in
+# ../PCPTopology_cfg.yml
+---
+paths:
+  model_note: default_proliferation_semi_periodic
+
+parameter_space:
+  seed: 0
+  num_steps: 3
+
+  PCPTopology:
+    initialisation:
+      1_by_proliferation:
+        enabled: false
+
+    space: &space
+      periodic: true
+
+    operations:
+      - proliferate:
+          times:
+            start: 1
+            stop: 1001
+            step: 1
+          emit_interval: 0
+
+          num_increases: 0
+          area_threshold: 1.
+
+
+    PCPVertex:
+      log_level: warn
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: !expr 1.e6
+          timescale: !expr 1.e-6
+      - area_elasticity:
+          elastic_modulus: 1
+          preferential_area: 1
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      - linetension_heterotypic:
+          boundary_type: 2
+          linetension:
+            - [0., 0., 1.]
+            - [0., 0., 1.]
+            - [1., 1., 1.]
+      
+
+      space: *space
+
+      agent_manager:
+        setup_method: hexagonal
+        setup_params:
+          hexagonal: 
+            semi_periodic: true
+            extent_x: 100    # put any value larger than the largest x extent
+            lattice_rows: 8  # NOTE will not expand along y during proliferation
+            lattice_columns: 8
+
+
+
+
+    data_manager:
+      tasks:
+        Vertices: &agents_equilibrium
+          active: true
+          trigger: build_logspace_interval
+          decider: write_logspace_interval
+        Cells: *agents_equilibrium
+        Edges: *agents_equilibrium

@@ -133,6 +133,7 @@ def cellular_structure(
     vector_property_kwargs: dict=None,
     vector_property_is_nematic: bool=False,
     set_limits: dict=None,
+    semi_periodic_space: bool=False,
 ):
     """Performs a plot of the cells, edges and vertices
     
@@ -239,52 +240,67 @@ def cellular_structure(
         domain_size_min_y = 0.
         domain_size_max_y = 0.
 
+
+        Vertices = data['Vertices'].transpose('id', 'time', 'property')
+        Edges = data['Edges'].transpose('id', 'time', 'property')
+        Cells = data['Cells'].transpose('id', 'time', 'property')
+
         if (not data['periodic']):
-            domain_size_min_x =  1000000.
-            domain_size_max_x = -1000000.
-            domain_size_min_y =  1000000.
-            domain_size_max_y = -1000000.
-            domain_size_min_x = min(
-                domain_size_min_x,
-                data['Vertices'].sel(property="x").min())
-            domain_size_max_x = max(
-                domain_size_max_x,
-                data['Vertices'].sel(property="x").max())
-            domain_size_min_y = min(
-                domain_size_min_y,
-                data['Vertices'].sel(property="y").min())
-            domain_size_max_y = max(
-                domain_size_max_y,
-                data['Vertices'].sel(property="y").max())
+            domain_size_min_x = Vertices.sel(property="x").min()
+            domain_size_max_x = Vertices.sel(property="x").max()
+            domain_size_min_y = Vertices.sel(property="y").min()
+            domain_size_max_y = Vertices.sel(property="y").max()
+        elif semi_periodic_space:
+            xs = Vertices.sel(property='x')
+            xs = xr.where(xs > data['Lx'] / 2, xs - data['Lx'], xs)
+            Vertices.loc[:, :, 'x'] = xs - xs.mean()
+
+            xs = Cells.sel(property='x')
+            xs = xr.where(xs > data['Lx'] / 2, xs-data['Lx'], xs)
+            Cells.loc[:, :, 'x'] = xs - xs.mean()
+
+            domain_size_min_x = Vertices.sel(property="x").min()
+            domain_size_max_x = Vertices.sel(property="x").max()
+            domain_size_min_y = Vertices.sel(property="y").min()
+            domain_size_max_y = Vertices.sel(property="y").max()
 
         if select_times is not None:
             times = select_times
         else:
-            times = np.unique(data['Vertices'].coords['time'])
+            times = np.unique(Vertices.coords['time'])
 
         for time in times:
             hlpr.fig.clear()
             hlpr.ax.set_aspect('auto')
 
-            v_data = data['Vertices'].sel(time=time)
-            e_data = data['Edges'].sel(time=time)
-            c_data = data['Cells'].sel(time=time)
+            v_data = Vertices.sel(time=time).dropna(dim='id')
+            e_data = Edges.sel(time=time).dropna(dim='id')
+            c_data = Cells.sel(time=time).dropna(dim='id')
 
             Lx = data['Lx'].sel(time=time).data
             Ly = data['Ly'].sel(time=time).data
-            if data['periodic']:
+            if data['periodic'] and not semi_periodic_space:
                 domain_size_max_x = Lx
                 domain_size_max_y = Ly
             
             # periodic skewed boundary condition
             if 'skew_x' in data:
-                skew_x = data['skew_x'].sel(time=time)
+                skew_x = data['skew_x'].sel(time=time).data
             else:
                 skew_x = 0.
             if 'skew_y' in data:
-                skew_y = data['skew_y'].sel(time=time)
+                skew_y = data['skew_y'].sel(time=time).data
             else:
                 skew_y = 0.
+
+
+            if not semi_periodic_space:
+                L = plot_excess_length
+            else: 
+                L = max(
+                    abs(np.nanmin(v_data.sel(property="x").data)),
+                    plot_excess_length
+                )
 
 
             ### plot vertices
@@ -292,34 +308,35 @@ def cellular_structure(
                 hlpr.ax.scatter(v_data.sel(property="x"),
                                 v_data.sel(property="y"),
                                 c="black")
+                
                 if data['periodic']:
-                    ax = v_data.sel(property="x")
-                    ay = v_data.sel(property="y")
-                    l = plot_excess_length
-                    hlpr.ax.scatter(np.where(ax < l, ax, np.nan) + Lx,
+                    ax = v_data.sel(property="x").data
+                    ay = v_data.sel(property="y").data
+
+                    hlpr.ax.scatter(np.where(ax < L, ax, np.nan) + Lx,
                                     ay + skew_y,
                                     c="grey")
-                    hlpr.ax.scatter(np.where(ax > Lx - l, ax, np.nan) - Lx,
+                    hlpr.ax.scatter(np.where(ax > Lx - L, ax, np.nan) - Lx,
                                     ay - skew_y,
                                     c="grey")
-                    hlpr.ax.scatter(np.where(ay < l, ax, np.nan) + skew_x,
+                    hlpr.ax.scatter(np.where(ay < L, ax, np.nan) + skew_x,
                                     ay + Ly,
                                     c="grey")
-                    hlpr.ax.scatter(np.where(ay > Ly - l, ax, np.nan) - skew_x,
+                    hlpr.ax.scatter(np.where(ay > Ly - L, ax, np.nan) - skew_x,
                                     ay - Ly,
                                     c="grey")
 
-                    hlpr.ax.scatter(np.where(ax < l, ax, np.nan) + Lx + skew_x,
-                                    np.where(ay < l, ay, np.nan) + Ly + skew_y,
+                    hlpr.ax.scatter(np.where(ax < L, ax, np.nan) + Lx + skew_x,
+                                    np.where(ay < L, ay, np.nan) + Ly + skew_y,
                                     c="grey")
-                    hlpr.ax.scatter(np.where(ax>Lx-l, ax, np.nan) - Lx + skew_x,
-                                    np.where(ay < l, ay, np.nan) + Ly - skew_y,
+                    hlpr.ax.scatter(np.where(ax>Lx-L, ax, np.nan) - Lx + skew_x,
+                                    np.where(ay < L, ay, np.nan) + Ly - skew_y,
                                     c="grey")
-                    hlpr.ax.scatter(np.where(ax>Lx-l, ax, np.nan) - Lx - skew_x,
-                                    np.where(ay>Ly-l, ay, np.nan) - Ly - skew_y,
+                    hlpr.ax.scatter(np.where(ax>Lx-L, ax, np.nan) - Lx - skew_x,
+                                    np.where(ay>Ly-L, ay, np.nan) - Ly - skew_y,
                                     c="grey")
-                    hlpr.ax.scatter(np.where(ax < l, ax, np.nan) + Lx - skew_x,
-                                    np.where(ay>Ly-l, ay, np.nan) - Ly + skew_y,
+                    hlpr.ax.scatter(np.where(ax < L, ax, np.nan) + Lx - skew_x,
+                                    np.where(ay>Ly-L, ay, np.nan) - Ly + skew_y,
                                     c="grey")
 
 
@@ -362,10 +379,10 @@ def cellular_structure(
             def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
                 if data['periodic']:
                     # only plot within box + excess length
-                    x = xr.where(x > -2 * plot_excess_length, x, np.nan)
-                    x = xr.where(x < Lx + 2 * plot_excess_length, x, np.nan)
-                    y = xr.where(y > -2 * plot_excess_length, y, np.nan)
-                    y = xr.where(y < Ly + 2 * plot_excess_length, y, np.nan)
+                    x = xr.where(x > -2 * L, x, np.nan)
+                    x = xr.where(x < Lx + 2 * L, x, np.nan)
+                    y = xr.where(y > -2 * L, y, np.nan)
+                    y = xr.where(y < Ly + 2 * L, y, np.nan)
 
                 quiver_args = [x, y, dx, dy]
                 _quiver_kwargs = dict(headlength=0., headaxislength=0.,
@@ -574,30 +591,32 @@ def cellular_structure(
             hlpr.provide_defaults('set_labels',
                                x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
 
-            if (data['periodic']):
-                hlpr.provide_defaults('set_limits', x=(0, Lx), y=(0, Ly))
-
-                if skew_x > 1.e-12:
-                    hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
-                                    linestyle=':', linewidth=0.2)
-                elif skew_x < -1.e-12:
-                    hlpr.ax.axvline(x=Lx-skew_x, ymax = 0.5 / Ly, c='gray',
-                                    linestyle=':', linewidth=0.2)
-                if skew_y > 1.e-12:                    
-                    hlpr.ax.axhline(y=skew_y, xmin=1. - 0.5 / Lx, c='gray',
-                                    linestyle=':', linewidth=0.2)
-                elif skew_y < -1.e-12:                    
-                    hlpr.ax.axhline(y=skew_y, xmax = 0.5 / Lx, c='gray', 
-                                    linestyle=':', linewidth=0.2)
-
+            
+            if set_limits is not None:
+                __set_limits = set_limits.copy()
+                __set_limits['x'] = __set_limits.get(
+                    'x', (domain_size_min_x, domain_size_max_x))
+                __set_limits['y'] = __set_limits.get(
+                    'y', (domain_size_min_y, domain_size_max_y))
+                hlpr.provide_defaults('set_limits', **__set_limits)
 
             else:
                 hlpr.provide_defaults('set_limits',
                                       x=(domain_size_min_x, domain_size_max_x),
                                       y=(domain_size_min_y, domain_size_max_y))
-            
-            if set_limits is not None:
-                hlpr.provide_defaults('set_limits', **set_limits)
+
+            if skew_x > 1.e-12:
+                hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
+                                linestyle=':', linewidth=0.2)
+            elif skew_x < -1.e-12:
+                hlpr.ax.axvline(x=Lx-skew_x, ymax = 0.5 / Ly, c='gray',
+                                linestyle=':', linewidth=0.2)
+            if skew_y > 1.e-12:                    
+                hlpr.ax.axhline(y=skew_y, xmin=1. - 0.5 / Lx, c='gray',
+                                linestyle=':', linewidth=0.2)
+            elif skew_y < -1.e-12:                    
+                hlpr.ax.axhline(y=skew_y, xmax = 0.5 / Lx, c='gray', 
+                                linestyle=':', linewidth=0.2)
             
             hlpr.ax.set_aspect('equal')
 

@@ -305,6 +305,11 @@ private:
                                 _minimization_params,
                                 _log, _monitor_mngr));
                 }
+                else if (name == "pure_shear") {
+                    _operations.push_back(
+                        build_pure_shear(name, op_cfg, _minimization_params)
+                    );
+                }
                 else if (name == "register_work_function_term") {
                     _operations.push_back(
                         build_register_work_function_term(
@@ -350,6 +355,7 @@ private:
                         "- minimize_cell_contacts\n"
                         "- proliferate\n"
                         "- proliferate_generations\n"
+                        "- pure_shear\n"
                         "- register_work_function_term\n"
                         "- simple_shear\n"
                         "- unregister_work_function_term\n"
