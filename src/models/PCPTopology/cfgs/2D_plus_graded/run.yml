@@ -1,0 +1,221 @@
+---
+perform_sweep: true
+paths:
+  model_note: default__2d_plus__graded
+
+worker_manager:
+  nonzero_exit_handling: warn_all
+    
+parameter_space:
+  num_steps: 200
+
+  BC: !sweep
+    default: periodic
+    values:
+      - periodic
+      - semi_periodic
+      - open
+
+  seed: !sweep
+    default: 42
+    range: [1]
+    order: -1
+
+  PCPTopology:
+    log_level: info
+    
+    space: &space 
+      periodic: !coupled-sweep
+        target_name: BC
+        default: true
+        values: 
+          - True
+          - True
+          - False
+
+    # --- Dynamics
+    # Minimization parameter
+    minimization:
+      update_scheme: steepest_gradient
+      dt: 0.01
+      num_steps: 100
+      jiggle_intensity: 0.
+      linetension_fluctuations: &dL 0.001
+      linetension_fluctuations_tau: &tau_dL 24
+      num_repeat: *tau_dL
+
+    # -- Initialisation
+    initialisation:
+      0_add_noise:
+        enabled: False
+      1_by_proliferation:
+        enabled: false
+
+    #  --- The sequence of operations ---------------------------------
+    operations:
+      # - proliferate:
+      #     times: []
+      #     emit_interval: 0
+      #     iterations_prolog: !expr 16
+
+      #     num_increases: 0
+      #     area_threshold: 1.
+
+      # Put some markers into the tissue
+      - differentiate_random:
+          times: []
+          iterations_prolog: 1
+          rho: !sweep
+            name: rho
+            default: 0.26
+            values:
+              # - &Rho20 0.2
+              - &Rho25 0.25
+              # - &Rho26 0.26
+              # - &Rho10 0.1
+          method: fraction
+          distribution: !coupled-sweep
+            target_name: rho
+            name: distribution
+            default: [0.8, 0.2]
+            values:
+              # - [0.80, *Rho20]
+              - [0.75, *Rho25]
+              # - [0.74, *Rho26]
+              # - [0.90, *Rho10]
+          minimization:
+            mode: manual
+
+      - void:
+          times: []
+          iterations_prolog: 0
+      
+      - update_work_function_term:
+          times: []
+          iterations_prolog: 1
+          name: edge_contractility_heterotypic_graded
+          parameters:
+            Gamma: &Gamma -0.04
+            gradient_contractility:
+              - [*Gamma, 0.  , *Gamma]
+              - [0.    , 0.  , 0.    ]
+              - [*Gamma, 0.  , 0.    ]
+            # NOTE in absolute units
+
+          minimization:
+            mode: manual
+      # END differentiation
+
+      - void:
+          times:
+            start: 1
+            stop: 100000
+            step: 1
+
+    # --- The solver
+    PCPVertex:
+      log_level: debug
+
+      space: *space
+
+      work_function_terms:
+      - linetension_fluctuations:
+          amplitude: 1.e6
+          timescale: 1.e-6
+      - volume_elasticity:
+          elastic_modulus: 1
+          preferential_volume: 1
+          tissue_height: 1
+          minimum_height: 0.25
+          gamma: !expr 1. / 20
+          height_parameter_name: height
+      - perimeter_contractility:
+          contractility: 0.005
+      - surface_tension:
+          surface_tension: -0.01
+          VolumeElasticity_term: volume_elasticity
+          height_parameter_name: height
+      - edge_contractility_heterotypic_graded:
+          boundary_type: 2
+          contractility: 
+            - [0.04, 0., 0.04]
+            - [0.0 , 0., 0.  ]
+            - [0.04, 0., 0.  ]
+          gradient_contractility:
+            - [0., 0., 0.]
+            - [0., 0., 0.]
+            - [0., 0., 0.]
+      - linetension_heterotypic:
+          boundary_type: 2
+          linetension:
+            - [0.02, 0.  , 0.03]
+            - [0.  , 0.  , 0.01]
+            - [0.03, 0.01, 0.01]
+
+      agent_manager:
+        setup_params:
+          hexagonal:
+            lattice_columns: 6
+            lattice_rows: 6
+            semi_periodic: !coupled-sweep
+              target_name: BC
+              default: true
+              values: 
+                - False
+                - True
+                - False
+            extent_x: 100    # put any value larger than the largest x extent
+
+      T1_barrier: 1.e-2
+      T1_probability: 1.
+      T1_timeout: 12
+      T1_threshold: 0.06
+              
+      # continuous data manager
+      data_manager:
+        deciders:
+          write_energy:
+            type: interval
+            args: 
+              intervals:
+                - [0, 1000000000, 320]
+        tasks:
+          Energy: &energy_continuous
+            decider: write_energy
+            active: false
+          Energy_time: *energy_continuous
+          Transitions: *energy_continuous
+          Interface_length: {active: false}
+
+          Vertices: &position {active: false}
+          Cells: *position
+          Edges: *position
+
+    NotchDelta:
+      data_manager:
+        deciders: {write_always: {type: always}}
+        triggers: {build_once: {type: once}}
+        tasks:
+          Density_progenitor: &density_ND
+            active: false
+            trigger: build_once
+            decider: write_always
+          Density_hair: *density_ND
+          Density_support: *density_ND
+          Density_rosettes: *density_ND
+          Density_time: *density_ND
+
+
+    # --- Data Manager -------------------------------------------------
+    data_manager:
+      tasks:
+        Vertices: &agents_equilibrium
+          active: true
+          trigger: build_logspace_interval
+          decider: write_logspace_interval
+        Cells: *agents_equilibrium
+        Edges: *agents_equilibrium
+        Cell_energies: *agents_equilibrium
+        Edge_energies: *agents_equilibrium
+        
+        Interface_length: {active: false}

@@ -617,14 +617,12 @@ public:
 };
 
 
-/// @brief The edge contractility term
-/** \f$ E_{i,j} = k l_{i,j}^2\f$, a term quadratic in edge length \f$ l \f$.
- * 
- *  Parameters:
- *      - `contractility`: the contractility \f$ k \f$
+/// @brief The edge contractility term's base class
+/** \f$ E_{i,j} = \Gamma l_{i,j}^2\f$, a term quadratic in edge length with 
+ *  contractility parameter \f$ \Gamma \f$.
  */
 template <typename Model>
-class EdgeContractility : public WorkFunctionTerm<Model>
+class EdgeContractilityBase : public WorkFunctionTerm<Model>
 {
 public:
     using Base = WorkFunctionTerm<Model>;
@@ -636,20 +634,20 @@ public:
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
-private:
-    double _contractility;
+
+protected:
+    /// The contractility of a particular edge
+    virtual double get_contractility(const std::shared_ptr<Edge>& edge) const=0;
 
 public:
-    EdgeContractility (
+    EdgeContractilityBase (
         std::string name,
         const DataIO::Config& cfg,
         const Model& model
     )
     :
-        Base(name, cfg, model),
-        _contractility(get_as<double>("contractility", cfg))
+        Base(name, cfg, model)
     { }
-
 
     void compute_and_set_forces () final {
         for (const auto& edge : this->_am.edges()) {
@@ -658,17 +656,22 @@ public:
             const auto& a = edge->custom_links().a;
             const auto& b = edge->custom_links().b;
 
-            a->state.add_force(+ _contractility * displ);
-            b->state.add_force(- _contractility * displ);
+            double contract = get_contractility(edge);
+
+            a->state.add_force(+ contract * displ);
+            b->state.add_force(- contract * displ);
         }
     }
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return _contractility * this->_am.length_of(edge);
+        return get_contractility(edge) * this->_am.length_of(edge);
     }
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        return 0.5 * _contractility * std::pow(this->_am.length_of(edge), 2);
+        return (
+              0.5 * get_contractility(edge) 
+            * std::pow(this->_am.length_of(edge), 2)
+        );
     }
 
     double compute_energy (
@@ -684,20 +687,29 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) final {
-        _contractility = get_as<double>("contractility", cfg, _contractility);
-
+    std::vector<std::string> write_task_edge_properties_names () const override
+    {
+        return std::vector<std::string>({
+            "contractility"
+        });
     }
 
+    std::vector<std::vector<double>> write_edge_properties () const override {
+        std::vector<double> contractilities({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(get_contractility(edge));
+        }
+        return std::vector<std::vector<double>>({contractilities});
+    }
 
-    std::vector<std::string> write_task_edge_energies_names () const final {
+    std::vector<std::string> write_task_edge_energies_names () const override {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const final {
+    std::vector<std::vector<double>> write_edge_energies () const override {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -713,6 +725,49 @@ public:
     }
 };
 
+
+
+/// @brief A uniform-homotypic edge contractility term
+/** 
+ *  Parameters:
+ *      - `contractility`: the contractility \f$ \Gamma \f$
+ */
+template <typename Model>
+class EdgeContractility : public EdgeContractilityBase<Model>
+{
+public:
+    using Base = EdgeContractilityBase<Model>;
+
+    using Edge = typename Base::Edge;
+
+private:
+    /// @brief  The contractility parameter
+    double _contractility;
+
+protected:
+    inline double 
+    get_contractility([[maybe_unused]] const std::shared_ptr<Edge>& edge)
+    const override 
+    {
+        return _contractility;
+    }
+
+public:
+    EdgeContractility (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(get_as<double>("contractility", cfg))
+    { }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        _contractility = get_as<double>("contractility", cfg, _contractility);
+    }
+};
+
 /// @brief The edge contractility term with heterotypic values
 /** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
  * 
@@ -723,26 +778,24 @@ public:
  *      - `boundary_type`: To which value a boundary cell is mapped.
  */
 template <typename Model>
-class EdgeContractilityHeterotypic : public WorkFunctionTerm<Model>
+class EdgeContractilityHeterotypic : public EdgeContractilityBase<Model>
 {
-    using Base = WorkFunctionTerm<Model>;
-
-    using SpaceVec = typename Base::SpaceVec;
-
-    using Vertex = typename Base::Vertex;
+public:
+    using Base = EdgeContractilityBase<Model>;
 
     using Edge = typename Base::Edge;
 
-    using Cell = typename Base::Cell;
-
     typedef std::vector< std::vector<double> > stdmat;
 
-private:
+protected:
+    /// The cell-type dependent contractility
     arma::mat _contractility;
 
+    /// A cell-type index associated with the boundary
     std::size_t _boundary_type;
 
-    const double& get_contractility (const std::shared_ptr<Edge>& edge) const {
+    double get_contractility (const std::shared_ptr<Edge>& edge) const override
+    {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
         std::size_t type_a, type_b;
         if (ca) { type_a = ca->state.type; }
@@ -778,44 +831,7 @@ public:
         _boundary_type(get_as<std::size_t>("boundary_type", cfg))
     { }
 
-    void compute_and_set_forces () final {
-        for (const auto& edge : this->_am.edges()) {
-            SpaceVec displ = this->_am.displacement(edge);
-
-            const auto& a = edge->custom_links().a;
-            const auto& b = edge->custom_links().b;
-
-            a->state.add_force(+ get_contractility(edge) * displ);
-            b->state.add_force(- get_contractility(edge) * displ);
-        }
-    }
-
-    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return get_contractility(edge) * this->_am.length_of(edge);
-    }
-
-    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        return (
-            0.5
-            * get_contractility(edge)
-            * std::pow(this->_am.length_of(edge), 2)
-        );
-    }
-
-    double compute_energy (
-        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
-        const AgentContainer<Edge>& edges,
-        [[maybe_unused]] const AgentContainer<Cell>& cells
-    ) const final
-    {
-        double energy = 0.;
-        for (const auto& edge : edges) {
-            energy += compute_energy(edge);
-        }
-        return energy;
-    }
-
-    void update_parameters (const DataIO::Config& cfg) final {
+    void update_parameters (const DataIO::Config& cfg) override {
         if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
@@ -824,44 +840,217 @@ public:
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
     }
+};
+
+/// Heterotypic edge contractility with additional spatial gradient
+/** \f$ \Gamma = \Gamma_0 + x * \Gamma_1 \f$, where x is the x-coordinate of 
+ *  the edge's center relative to the half-point of the domain in x. 
+ *  \Gamma_0 gives the mean contractility and \Gamma_1 the difference between
+ *  hight (left) and low (right) contractility.
+ *  
+ * Parameters:
+ *      - `contractility`: The mean contractility \f$ \Gamma_0^{i,j} \f$ 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side.
+ *      - `gradient_contractility`: The gradient in contractility 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side. In relative units, i.e. for x = Lx, 
+ *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
+ *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+*/
+template <typename Model>
+class EdgeContractilityHeterotypicGraded : public EdgeContractilityBase<Model> {
+public:
+    using Base = EdgeContractilityBase<Model>;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+protected:
+    /// The name of the edge's contractility property
+    std::string _contractility_param;
+
+    /// The cell-type dependent contractility
+    arma::mat _contractility;
+
+    /// The cell-type dependent spatial gradient in contractility
+    arma::mat _gradient_contractility;
+
+    /// A cell-type index associated with the boundary
+    std::size_t _boundary_type;
 
 
-
-
-    std::vector<std::string> write_task_edge_properties_names () const final {
-        return std::vector<std::string>({
-            "contractility"
-        });
-    }
-
-    std::vector<std::vector<double>> write_edge_properties () const final {
-        std::vector<double> contractilities({});
-        for (const auto& edge : this->_am.edges()) {
-            contractilities.push_back(get_contractility(edge));
+protected:
+    double get_contractility (const std::shared_ptr<Edge>& edge) const override 
+    {
+        if (not edge->state.has_parameter(_contractility_param)) {
+            edge->state.register_parameter(_contractility_param, 0.);
+            this->update_contractility(edge, this->get_domain_info());
         }
-        return std::vector<std::vector<double>>({contractilities});
+        return edge->state.get_parameter(_contractility_param);
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const final {
-        return std::vector<std::string>({
-            "energy",
-            "tension"
-        });
-    }
+private:
+    std::pair<double, double> get_domain_info () const {
+        // Establish domain size
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = std::numeric_limits<double>::min();
 
-    std::vector<std::vector<double>> write_edge_energies () const final {
-        std::vector<double> energies({});
-        std::vector<double> tensions({});
-        
-        for (const auto& edge : this->_am.edges()) {
-            energies.push_back(compute_energy(edge));
-            tensions.push_back(compute_tension(edge));
+        const auto& space = this->_am.get_space();
+        double __Lx = space->get_domain_size()[0];
+        for (const auto& v : this->_am.vertices()) {
+            double x = this->_am.position_of(v)[0];
+            if (space->periodic) {
+                x -= std::round(x/__Lx) * __Lx;
+            }
+            x_min = std::min(x_min, x);
+            x_max = std::max(x_max, x);
+        }
+        double L = (x_max - x_min);
+
+        if (space->periodic and L > 0.9 * __Lx) {
+            L = __Lx;
         }
 
-        return std::vector<std::vector<double>>({
-            energies,
-            tensions
-        });
+        double origin = x_min + L/2.;
+
+        return std::make_pair(origin, L);
+    }
+
+    void update_contractility
+    (
+        const std::shared_ptr<Edge>& edge,
+        std::pair<double, double> domain_info
+    )
+    const
+    {
+        auto [origin, L] = domain_info;
+
+        double x = (
+            this->_am.position_of(edge->custom_links().a)[0] + 
+            0.5 * this->_am.displacement(edge)[0]
+        );
+        double __Lx = this->_am.get_space()->get_domain_size()[0];
+        if (this->_am.get_space()->periodic) {
+            if (L > 0.9 * __Lx) {
+                // periodic space
+                x -= origin;
+                x -= std::round(x/__Lx) * __Lx;
+                x = -(2 * std::abs(x) - __Lx / 2.);
+            }
+            else {
+                // semi-periodic space
+                x -= std::round(x/__Lx) * __Lx;
+                x -= origin;
+            }
+        }
+        else {
+            // non-periodic space
+            x -= origin;
+        }
+        x /= L;
+
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        std::size_t type_a, type_b;
+        if (ca) { type_a = ca->state.type; }
+        else { type_a = this->_boundary_type; }
+        if (cb) { type_b = cb->state.type; }
+        else { type_b = this->_boundary_type; }
+
+        if (std::max(type_a, type_b) > std::min(this->_contractility.n_rows,
+                                                _gradient_contractility.n_rows))
+        {
+            std::cout << this->_contractility << std::endl;
+            std::cout << _gradient_contractility << std::endl;
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityHeterotypicGraded, no parameter registered "
+                "for cells of type {}. Parameters for {} / {} types registered.",
+                std::max(type_a, type_b),
+                this->_contractility.n_rows,
+                _gradient_contractility.n_rows
+            ));
+        }
+
+        // NOTE x in [-0.5, 0.5]
+        edge->state.update_parameter(
+            _contractility_param,
+            (  this->_contractility.at(type_a, type_b) 
+                + x * _gradient_contractility.at(type_a, type_b))
+        );
+    }
+
+    void update_contractility () {
+        auto domain_info = get_domain_info();
+
+        // update contractility
+        for (const auto& edge : this->_am.edges()) {
+            update_contractility(edge, domain_info);
+        }
+    }
+
+public:
+    EdgeContractilityHeterotypicGraded (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility_param(name + "__contractility"),
+        _contractility(setup_symmetric_matrix(
+            get_as<stdmat>("contractility", cfg))),
+        _gradient_contractility(setup_symmetric_matrix(
+            get_as<stdmat>("gradient_contractility", cfg))),
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg))
+    {
+        for (const auto& edge : this->_am.edges()) {
+            edge->state.register_parameter(_contractility_param, 0.);
+        }
+        update_contractility();
+    }
+
+    ~EdgeContractilityHeterotypicGraded() {
+        for (const auto& edge : this->_am.edges()) {
+            edge->state.unregister_parameter(_contractility_param);
+        }
+    }
+
+    void update ([[maybe_unused]] double dt) override {
+        update_contractility();
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["contractility"]) {
+            _contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "contractility", cfg
+            ));
+
+            update_contractility();
+        }
+
+        if (cfg["gradient_contractility"]) {
+            _gradient_contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "gradient_contractility", cfg
+            ));
+
+            update_contractility();
+        }
+
+        _boundary_type = get_as<std::size_t>(
+            "boundary_type", cfg, _boundary_type
+        );
     }
 };
 
@@ -878,29 +1067,28 @@ public:
  *              types.
  */
 template <typename Model>
-class EdgeContractilityHeterotypicBoundary : public WorkFunctionTerm<Model>
+class EdgeContractilityHeterotypicBoundary : public EdgeContractilityBase<Model>
 {
-    using Base = WorkFunctionTerm<Model>;
+    using Base = EdgeContractilityBase<Model>;
 
     using SpaceVec = typename Base::SpaceVec;
-
-    using Vertex = typename Base::Vertex;
 
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
 
-    typedef std::vector< std::vector<double> > stdmat;
-
 private:
+    /// Apical contractility per cell-type
     std::vector<double> _apical_contractility;
 
+    /// Basal contractility per cell-type
     std::vector<double> _basal_contractility;
 
     /// The entry whether none (0) / basal (1) / apical (2)
     std::string _classification;
 
-    double get_contractility (const std::shared_ptr<Edge>& edge) const {
+    double get_contractility (const std::shared_ptr<Edge>& edge) const override
+    {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
 
         std::size_t type;
@@ -1021,46 +1209,6 @@ public:
         }
     }
 
-    void compute_and_set_forces () final {
-        for (const auto& edge : this->_am.edges()) {
-            double k = get_contractility(edge);
-            if (fabs(k) < 1.e-10) {
-                continue;
-            }
-
-            SpaceVec displ = this->_am.displacement(edge);
-
-            const auto& a = edge->custom_links().a;
-            const auto& b = edge->custom_links().b;
-
-            a->state.add_force(+ k * displ);
-            b->state.add_force(- k * displ);
-        }
-    }
-
-    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return get_contractility(edge) * this->_am.length_of(edge);
-    }
-
-    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        double k = get_contractility(edge);
-        if (fabs(k) < 1.e-10) { return 0.; }
-        return 0.5 * k * std::pow(this->_am.length_of(edge), 2);
-    }
-
-    double compute_energy (
-        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
-        const AgentContainer<Edge>& edges,
-        [[maybe_unused]] const AgentContainer<Cell>& cells
-    ) const final
-    {
-        double energy = 0.;
-        for (const auto& edge : edges) {
-            energy += compute_energy(edge);
-        }
-        return energy;
-    }
-
     void update_parameters (const DataIO::Config& cfg) final {
         _apical_contractility = get_as<std::vector<double>>(
             "apical_contractility", cfg);
@@ -1068,48 +1216,26 @@ public:
             "basal_contractility", cfg);
     }
 
-
-
-
-    std::vector<std::string> write_task_edge_properties_names () const final {
+    std::vector<std::string> write_task_edge_properties_names () const override 
+    {
         return std::vector<std::string>({
             "contractility",
             "classification"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const final {
+    std::vector<std::vector<double>> write_edge_properties () const override {
         std::vector<double> contractilities({});
         std::vector<double> classifications({});
         for (const auto& edge : this->_am.edges()) {
             contractilities.push_back(get_contractility(edge));
-            classifications.push_back(edge->state.get_parameter(_classification));
+            classifications.push_back(
+                edge->state.get_parameter(_classification)
+            );
         }
         return std::vector<std::vector<double>>({
             contractilities,
             classifications
-        });
-    }
-
-    std::vector<std::string> write_task_edge_energies_names () const final {
-        return std::vector<std::string>({
-            "energy",
-            "tension"
-        });
-    }
-
-    std::vector<std::vector<double>> write_edge_energies () const final {
-        std::vector<double> energies({});
-        std::vector<double> tensions({});
-        
-        for (const auto& edge : this->_am.edges()) {
-            energies.push_back(compute_energy(edge));
-            tensions.push_back(compute_tension(edge));
-        }
-
-        return std::vector<std::vector<double>>({
-            energies,
-            tensions
         });
     }
 };

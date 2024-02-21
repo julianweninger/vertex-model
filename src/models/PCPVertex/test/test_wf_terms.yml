@@ -54,6 +54,19 @@ test_work_function_terms:
       - [0.10, 0.20, 0.01]
       - [0.01, 0.01, 0]
     boundary_type: 2
+- edge_contractility_heterotypic_graded:
+    contractility: 
+      - [0.04, 0.02, 0.04]
+      - [0.02, 0.01, 0.03]
+      - [0.04, 0.03, 0.  ]
+    gradient_contractility:
+      - [-0.04, 0.02, -0.04]
+      - [0.02, 0.01, 0.03]
+      - [-0.04, 0.03, 0.]
+    boundary_type: 2
+    skip_test_cases:
+      - columnar-periodic
+      - columnar
 - edge_contractility_heterotypic_boundary:
     apical_contractility: [0.05, 0.10]
     basal_contractility: [0.02, 0.01]
