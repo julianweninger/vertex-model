@@ -2454,17 +2454,16 @@ public:
     }
 };
 
-/// @brief The area elasticity of a cell
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
- *  cell area  \f$ A_\alpha \f$..
+/// @brief The base class of area elasticity of a cell
+/** \f$ E_\alpha = k/2 (A_\alpha / A^{(0)} - 1)^2\f$, an elastic penalty on 
+ *  cell area  \f$ A_\alpha \f$ deviating from a target value f$ A^{(0)} \f$.
+ *  Requires a derived class defining the target value A0.
  * 
  *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free.
+ *      - `elastic_modulus`: the elastic modulus \f$ k \f$
  */
 template <typename Model>
-class AreaElasticity : public WorkFunctionTerm<Model>
+class AreaElasticityBase : public WorkFunctionTerm<Model>
 {
 public:
     using Base = WorkFunctionTerm<Model>;
@@ -2480,8 +2479,10 @@ public:
 protected:
     double _elastic_modulus;
 
+    virtual double preferential_area(const std::shared_ptr<Cell>& cell) const=0;
+
 public:
-    AreaElasticity (
+    AreaElasticityBase (
         std::string name,
         const DataIO::Config& cfg,
         const Model& model
@@ -2489,13 +2490,7 @@ public:
     :
         Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg))
-    {
-        double A0 = get_as<double>("preferential_area", cfg);
-
-        for (const auto& cell : this->_am.cells()) {
-            cell->state.area_preferential = A0;
-        }
-    }
+    { }
 
     void compute_and_set_forces () final {
         for (const auto& cell : this->_am.cells()) {
@@ -2516,12 +2511,12 @@ public:
     }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = cell->state.area_preferential;
+        const double& A0 = preferential_area(cell);
         return _elastic_modulus * (this->_am.area_of(cell) / A0 - 1.) / A0;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = cell->state.area_preferential;
+        const double& A0 = preferential_area(cell);
         const double A = this->_am.area_of(cell);
         return 0.5 * _elastic_modulus * std::pow(A / A0 - 1, 2);
     }
@@ -2542,14 +2537,6 @@ public:
     void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-
-        if (cfg["preferential_area"]) {                
-            double A0 = get_as<double>("preferential_area", cfg);
-
-            for (const auto& cell : this->_am.cells()) {
-                cell->state.area_preferential = A0;
-            }
-        }
     }
     
 
@@ -2576,15 +2563,64 @@ public:
     }
 };
 
+/** An area elasticity with uniform target area
+ *  Derived from AreaElasticityBase with a uniform target area.
+ *
+ *  NOTE Relies on cell state variable `area_preferential` and hence cannot be
+ *      combined with other AreaElasticity terms also relying on that variable.
+ *
+ *  Parameters:
+ *      - `preferential_area`: the target value A0.
+ */
+template <typename Model>
+class AreaElasticity : public AreaElasticityBase<Model> {
+public:
+    using Base = AreaElasticityBase<Model>;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        return cell->state.area_preferential;
+    }
+
+public: 
+    AreaElasticity (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model)
+    {
+        double A0 = get_as<double>("preferential_area", cfg);
+
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.area_preferential = A0;
+        }
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["preferential_area"]) {                
+            double A0 = get_as<double>("preferential_area", cfg);
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0;
+            }
+        }
+
+        Base::update_parameters(cfg);
+    }
+};
+
 
 /// @brief The area elasticity of a cell with heterotypic target values
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
- *  cell area  \f$ A_\alpha \f$..
+/** Derived from AreaElasticityBase with a target area dependent on cell type. 
+ *
+ *  NOTE Relies on cell state variable `area_preferential` and hence cannot be
+ *      combined with other AreaElasticity terms also relying on that variable.
  * 
  *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free.
  *      - `method` (str): The method how to set the heterotypic values for
  *              preferential area \f$ A^{(0)} \f$. Available:
  *          - `set_heterotypic`: Set \f$ A^{(0)} \f$ by cell type.
@@ -2608,12 +2644,17 @@ public:
  *                      \f$ \sum A^{(0)}_i = const \f$.
  */
 template <typename Model>
-class AreaElasticityHeterotypic : public AreaElasticity<Model> 
+class AreaElasticityHeterotypic : public AreaElasticityBase<Model> 
 {
 public:
-    using Base = AreaElasticity<Model>;
+    using Base = AreaElasticityBase<Model>;
 
     using Cell = typename Base::Cell;
+
+protected:
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        return cell->state.area_preferential;
+    }
 
 public:
     AreaElasticityHeterotypic (
@@ -2722,28 +2763,22 @@ public:
     /// @param cfg The configuration forwarded to 
     ///            AreaElasticityHeterotypic::setup_preferential_area
     void update_parameters (const DataIO::Config& cfg) override {
-        if (cfg["area_elasticity"]) {
-            DataIO::Config _cfg{};
-            _cfg["area_elasticity"] = cfg["area_elasticity"];
-            Base::update_parameters(_cfg);
-        }
-        
         setup_preferential_area(cfg);
+        Base::update_parameters(cfg);
     }
 };
 
 
 /// @brief The area elasticity with target values that follow a gradient
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
- *  cell area  \f$ A_\alpha \f$.
+/** Derived from AreaElasticityBase with a target area dependent on cell type.
  *  The values of \f$ A^{(0)}\f$ follow a sinusoidal gradient. Over the length
  *  of the domain, \f$ A^{(0)}\f$ changes from `left` to `right` and back to 
  *  `left` with a \$ \cos(x)^2 \f$ profile.
+ *
+ *  NOTE Relies on cell state variable `area_preferential` and hence cannot be
+ *      combined with other AreaElasticity terms also relying on that variable.
  * 
  *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free.
  *      - `relaxation_time` (double): Over which timescale the area of non-
  *              regulated types relaxes to keep total area constant.
  *      - `relax_types` (list[int]): The cell types that are relaxed
@@ -2754,14 +2789,19 @@ public:
  *          have distance 1. See also EntitiesManager::neighbors_of.
  */
 template <typename Model>
-class AreaElasticityGradient : public AreaElasticity<Model> 
+class AreaElasticityGradient : public AreaElasticityBase<Model> 
 {
 public:
     using SpaceVec = typename Model::SpaceVec;
 
-    using Base = AreaElasticity<Model>;
+    using Base = AreaElasticityBase<Model>;
 
     using Cell = typename Base::Cell;
+
+protected:
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        return cell->state.area_preferential;
+    }
 
 private:
     /// The maximum and minimum value of the cos^2 profile
@@ -3030,11 +3070,66 @@ public:
                                                            relax_types.end());
         }
 
+        Base::update_parameters(cfg);
     }
 
     void update ([[maybe_unused]] double dt) override {
         regulate_gradient();
         relax_cells();
+    }
+};
+
+
+/// @brief The area elasticity of a cell to prevent extrusion
+/** An area elasticity (see AreaElasticityBase), where A0 = A_min if A < A_min
+ *  and A otherwise. It therefore only is non-zero for A < A_min, preventing
+ *  further reduction of A.
+ *
+ *  NOTE This derived class does NOT rely on cell state variable 
+ *      `area_preferential` and can be combined with other AreaElasticity terms.
+ * 
+ *  Parameters:
+ *      - `area_minimum`: The minimal area, below which area elasticity is 
+ *              applied.
+ */
+template <typename Model>
+class AreaElasticityMinimum : public AreaElasticityBase<Model> 
+{
+public:
+    using Base = AreaElasticityBase<Model>;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    double _minimum_area;
+
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        double A = this->_am.area_of(cell);
+        if (A < _minimum_area) {
+            return _minimum_area;
+        }
+        return A;
+    }
+
+public:
+    AreaElasticityMinimum (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _minimum_area(get_as<double>("minimum_area", cfg))
+    { }
+
+    
+    /// @brief  Updates the parameters
+    /// @param cfg The configuration forwarded to 
+    ///            AreaElasticityHeterotypic::setup_preferential_area
+    void update_parameters (const DataIO::Config& cfg) override {
+        _minimum_area = get_as<double>("minimum_area", cfg, _minimum_area);
+
+        Base::update_parameters(cfg);
     }
 };
 

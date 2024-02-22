@@ -679,6 +679,14 @@ public:
                 )
             );
         }
+        else if (term == "area_elasticity_minimum") {
+            register_work_function_term(
+                name,
+                std::make_shared<AreaElasticityMinimum<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "boundary_bend_elastic") {
             register_work_function_term(
                 name,
@@ -839,6 +847,7 @@ public:
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
                 " - area_elasticity_gradient\n"
+                " - area_elasticity_minimum\n"
                 " - boundary_bend_elastic\n"
                 " - boundary_classifier\n"
                 " - boundary_fixed\n"
