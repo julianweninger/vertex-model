@@ -1,0 +1,647 @@
+---
+single_universe:
+  enabled: False
+  universes:
+    seed: 0
+    
+_definitions:
+  enabled: false
+  hue: &HUE ~
+  subspace_slice: &subspace_slice
+    Gamma: !sweep
+      default: 0
+      values: &GammaValues
+        - 0.00
+        # - 0.03
+        - 0.06
+        # - 0.09
+        - 0.12
+        # - 0.18
+        - 0.24
+        # - 0.30
+    Lambda: !sweep
+      default: 0
+      values: &LambdaValues
+        - 0.00
+        # - 0.01
+        - 0.02
+        # - 0.03
+        - 0.04
+        # - 0.05
+    
+    rho: !sweep
+      default: 0.2
+      values: 
+        # - 0.1
+        # - 0.2
+        - 0.25
+        # - 0.26
+      order: 0
+
+  hue_2: &HUE_2 Lambda
+  subspace_slice_2: &subspace_slice_2 ~
+
+
+
+# The energy at uniform t distances
+energy:
+  based_on: [energy, single_universe]
+  enabled: false
+
+# The energy at uniform numerical step distances
+energy_continuous:
+  based_on: [energy, single_universe]
+  enabled: false
+  model_name: PCPTopology/PCPVertex
+
+# Number of T1 and T2 transitions
+transitions:
+  based_on: [transitions, single_universe]
+  enabled: false
+
+transitions_cumulated:
+  based_on: [transitions, single_universe]
+  enabled: false
+  cumsum_transitions: true
+
+
+# effective diffusion
+diffusion: !pspace
+  based_on: diffusion_mv
+  enabled: False
+  select_and_combine:
+    subspace: *subspace_slice
+  hue: *HUE
+  helpers:
+    set_limits:
+      y: [0, 0.3]
+
+# Displacement, i.e. MSD**0.5
+displacement: !pspace
+  based_on: diffusion
+  enabled: False
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result distance
+    y: distance
+
+  helpers:
+    set_labels:
+      y: $\sqrt{MSD}$
+    set_limits:
+      y: [0, 16]
+
+diffusion_constant: !pspace
+  based_on:
+    - .plot.multiplot
+    - multiverse
+  enabled: False
+
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _displacement:
+        path: data/PCPTopology/Cells
+        transform:
+          - import_and_call:
+            args: 
+              - model_plots.PCPTopology.data_ops
+              - displacement
+              - !dag_node -1
+              - property
+              - [x, y]
+          - .rename: [!dag_prev , displacement]
+    subspace: *subspace_slice_2
+  transform:
+    - pass: [!dag_tag _displacement]
+    - .squeeze: [!dag_prev ]
+      tag: displacement
+
+    # the time coordinates
+    - .coords: [!dag_tag displacement, time]
+      tag: time
+    - create_mask: [!dag_prev , ">=", 120]
+      tag: equilibrium_short
+    - create_mask: [!dag_tag time, ">=", 800]
+      tag: equilibrium
+
+    # square displacement
+    - pow: [!dag_tag displacement, 2]
+    - .sum: [!dag_prev , property]
+      kwargs: {skipna: False}
+    - .rename: [!dag_prev , square_displ]
+      tag: square_displ_xr
+
+    # diffusion
+    - div: [!dag_tag square_displ_xr, !dag_tag time]
+    - div: [!dag_prev , 2]
+    - .rename: [!dag_prev , diffusion]
+      tag: diffusion_xr
+    - .where: [!dag_prev , !dag_tag equilibrium]
+    - .mean: [!dag_prev , time]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion_const
+    - .where: [!dag_tag diffusion_xr, !dag_tag equilibrium_short]
+    - .mean: [!dag_prev , time]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - callattr: [!dag_prev , reset_index]
+      tag: diffusion_const_short
+
+  x: *HUE
+  hue: *HUE_2
+  y: diffusion
+
+  to_plot: 
+  - function: sns.lineplot
+    data: !dag_result diffusion_const
+  - function: sns.lineplot
+    data: !dag_result diffusion_const_short
+    linestyle: ':'
+
+  helpers:
+    set_labels:
+      y: diffusion constant [$A_0^2 / \tau_\lambda$]
+    set_scales:
+      y: log
+    set_limits: 
+      y: [1.e-5, 0.25]
+
+# The average cell area
+cell_properties: !pspace
+  based_on:
+    - .plot.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  enabled: False
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      errorbar: ~
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      errorbar: sd
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      color: gray
+      errorbar: sd
+  select_and_combine:
+    allow_missing_or_failing: silent
+    subspace: *subspace_slice
+
+  x: time
+  hue: *HUE
+
+  helpers:
+    set_labels:
+      x: time
+
+cell_properties/area: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+  y: area
+  helpers:
+    set_labels:
+      y: cell area
+    set_limits:
+      y: [0, 3]
+
+cell_properties/neighbors: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .rename: [!dag_prev , num_neighbors]
+  y: num_neighbors
+  helpers:
+    set_labels:
+      y: average neighbors
+    set_limits:
+      y: [3, 10]
+    set_hv_lines:
+      hlines:
+        - pos: 5.16
+        - pos: 6.18
+
+cell_properties/HH_neighbors: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors__self}]
+          - .rename: [!dag_prev , num_hair_neighbors]
+  y: num_hair_neighbors
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      errorbar: sd
+  helpers:
+    set_labels:
+      y: HC-HC contacts
+    set_limits:
+      y: [0, 3]
+
+cell_properties/hexatic_order: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: hexatic_order__corr}]
+          - .rename: [!dag_prev , hexatic_order]
+  y: hexatic_order
+  helpers:
+    set_labels:
+      y: hexatic order
+    set_limits:
+      y: [0, 1]
+
+cell_properties/shape: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+    set_limits:
+      y: [3.72, 4.4]
+
+cell_properties/elongation: !pspace
+  based_on: cell_properties
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_node -1, {property: q_x}]
+          - .sel: [!dag_node -2, {property: q_y}]
+          - call_lambda:
+            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
+            - !dag_node -2
+            - !dag_node -1
+          - .rename: [!dag_prev , elongation]
+  y: elongation
+  helpers:
+    set_labels:
+      y: average elongation
+
+
+bifurcation/HC_neighbors: !pspace
+  based_on:
+    - .plot.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: !slice [700, 1000]}]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , value]
+      # the type of the cells
+      _cell_type:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev ,{property: cell_type}]
+          - .sel: [!dag_prev , {time: 0}]
+          - .rename: [!dag_prev , cell_types]
+
+      _is_boundary:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: is_boundary}]
+          - .sel: [!dag_prev , {time: 0}]
+          - .rename: [!dag_prev , is_boundary]
+    subspace: 
+      <<: *subspace_slice
+      Gamma: *GammaValues
+      seed: 0
+    
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs: {how: all}
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: all_cells
+
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, 1]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, '!=', 1]
+      tag: _support_cells
+
+    # mask for bulk cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - create_mask: [!dag_prev , <, 0.5] # not boundary
+    - .rename: [!dag_prev , is_bulk]
+      tag: _is_bulk
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs:
+        how: all
+    - .mean: [!dag_prev , ids]
+    - print: [!dag_prev ]
+      tag: hair_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - print: [!dag_prev ]
+    - call_lambda:
+      - "lambda data, idx, col, val: data.pivot(index=idx, columns=col, values=val)"
+      - !dag_prev
+      - 'Gamma'
+      - 'Lambda'
+      - 'value'
+    - print: [!dag_prev ]
+      tag: hair_cells
+
+  to_plot: 
+    - function: sns.heatmap
+      data: !dag_result hair_cells
+
+bifurcation/HC_neighbors_fit: !pspace
+  based_on: bifurcation/HC_neighbors
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: !slice [700, 1000]}]
+          - .mean: [!dag_prev , time]
+          - sub: [!dag_prev , 5.16]
+          - .rename: [!dag_prev , value]
+  vmin: -0.2
+  vmax:  0.2
+  cmap: seismic
+
+bifurcation/HC_neighbors_shift: !pspace
+  based_on: bifurcation/HC_neighbors
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: !slice [700, 1000]}]
+          - .mean: [!dag_prev , time]
+          - sub: [!dag_prev , 6]
+          - .rename: [!dag_prev , value]
+  vmin: -1.2
+  vmax:  1.2
+  cmap: seismic
+
+bifurcation/HH_neighbors: !pspace
+  based_on: bifurcation/HC_neighbors
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors__self}]
+          - .sel: [!dag_prev , {time: !slice [700, 1000]}]
+          - .mean: [!dag_prev , time]
+          - .rename: [!dag_prev , value]
+  vmin: 0
+  vmax: 0.4
+  cmap: magma
+
+bifurcation/score: !pspace
+  based_on: bifurcation/HC_neighbors
+  select_and_combine:
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors__self}]
+          - .sel: [!dag_prev , {time: !slice [700, 1000]}]
+          - .mean: [!dag_prev , time]
+          - .sel: [!dag_node -4 , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: !slice [700, 1000]}]
+          - .mean: [!dag_prev , time]
+          - call_lambda:
+            - "lambda nbs, HH_nbs: ((nbs - 5.16)**2 + (HH_nbs > 0.05))**0.5"
+            - !dag_node -1
+            - !dag_node -4
+          - .rename: [!dag_prev , value]
+          # - print: [!dag_prev ]
+  vmin: 0
+  vmax: 0.4
+  cmap: magma
+
+histplot: !pspace
+  based_on: 
+    - .plot.multiplot
+    - multiverse
+    - select_cells_properties_mv
+  enabled: False
+
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _property:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: num_neighbors}]
+          - .sel: [!dag_prev , {time: 0}]
+          - .drop_vars: [!dag_prev , property]
+          - .rename: [!dag_prev , num_neighbors]
+      # the type of the cells
+      _cell_type:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev ,{property: cell_type}]
+          - .sel: [!dag_prev , {time: 0}]
+          - .drop_vars: [!dag_prev , property]
+          - .rename: [!dag_prev , cell_types]
+
+      _is_boundary:
+        path: data/PCPTopology/Cells
+        transform:
+          - .sel: [!dag_prev , {property: is_boundary}]
+          - .sel: [!dag_prev , {time: 0}]
+          - .rename: [!dag_prev , is_boundary]
+    subspace: 
+      <<: *subspace_slice
+      seed: 0
+
+
+  transform:
+    - call_lambda:
+      - "lambda data: data.data.flatten()[0]"
+      - !dag_tag _hair_cell_type
+      tag: hair_cell_type
+    - call_lambda:
+      - "lambda data: data.data.flatten()[0]"
+      - !dag_tag _support_cell_type
+      tag: support_cell_type
+
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs: {how: all}
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - print: [!dag_prev ]
+      tag: all_cells
+
+    # a mask to select only hair / support cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _cell_type,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: cell_type
+    - create_mask: [!dag_tag cell_type, ==, !dag_tag hair_cell_type]
+      tag: _hair_cells
+    - create_mask: [!dag_tag cell_type, ==, !dag_tag support_cell_type]
+      tag: _support_cells
+
+    - xr.Dataset:
+        data_vars: 
+          num_neighbours: !dag_tag property
+          cell_type: !dag_tag cell_type
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+    - print: [!dag_prev ]
+      tag: data
+
+    # mask for bulk cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _is_boundary,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+    - create_mask: [!dag_prev , <, 0.5] # not boundary
+    - .rename: [!dag_prev , is_bulk]
+      tag: _is_bulk
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs:
+        how: all
+      tag: hair_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: hair_cells
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs:
+        how: all
+      tag: support_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: support_cells
+    
+    # the data for bulk cells
+    - .where: [!dag_tag property, !dag_tag _is_bulk]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs:
+        how: all
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: all_cells_bulk
+      
+    - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs:
+        how: all
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: hair_cells_bulk
+      
+    - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, dropna, !dag_prev , ids]
+      kwargs:
+        how: all
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: support_cells_bulk
+
+  x: num_neighbours
+  discrete: true
+  binrange: [3, 10]
+    
+  to_plot:
+    - function: sns.histplot
+      data: !dag_result data
+      hue: cell_type
+      palette: [gray, red]
+      multiple: stack
+      stat: probability
+      common_norm: True
+      legend: False
+    # - function: sns.histplot
+    #   data: !dag_result hair_cells
+    #   color: red
+
+  helpers:
+    set_limits: 
+      x: [2.5, 10.5]
+    set_ticks:
+      x: 
+        major: [4, 6, 8, 10]
+        minor: [3, 5, 7, 9]
+
+
+
+# A 2D representation of the cells by their edges
+cell_segmentation:
+  based_on:
+    - cellular_structure
+    - single_universe
