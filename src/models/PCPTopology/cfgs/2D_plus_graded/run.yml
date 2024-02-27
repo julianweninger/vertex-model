@@ -53,36 +53,20 @@ parameter_space:
 
     #  --- The sequence of operations ---------------------------------
     operations:
-      # - proliferate:
-      #     times: []
-      #     emit_interval: 0
-      #     iterations_prolog: !expr 16
+      - proliferate:
+          times: []
+          emit_interval: 0
+          iterations_prolog: 4
 
-      #     num_increases: 0
-      #     area_threshold: 1.
+          num_increases: 0
+          area_threshold: 1.
 
       # Put some markers into the tissue
       - differentiate_random:
           times: []
           iterations_prolog: 1
-          rho: !sweep
-            name: rho
-            default: 0.26
-            values:
-              # - &Rho20 0.2
-              - &Rho25 0.25
-              # - &Rho26 0.26
-              # - &Rho10 0.1
           method: fraction
-          distribution: !coupled-sweep
-            target_name: rho
-            name: distribution
-            default: [0.8, 0.2]
-            values:
-              # - [0.80, *Rho20]
-              - [0.75, *Rho25]
-              # - [0.74, *Rho26]
-              # - [0.90, *Rho10]
+          distribution: [0.74, 0.26]
           minimization:
             mode: manual
 
@@ -95,11 +79,21 @@ parameter_space:
           iterations_prolog: 1
           name: edge_contractility_heterotypic_graded
           parameters:
-            Gamma: &Gamma -0.04
+            Gamma: &Gamma_ -0.08
             gradient_contractility:
-              - [*Gamma, 0.  , *Gamma]
-              - [0.    , 0.  , 0.    ]
-              - [*Gamma, 0.  , 0.    ]
+              - [*Gamma_, 0.  , *Gamma_]
+              - [0.     , 0.  , 0.     ]
+              - [*Gamma_, 0.  , 0.     ]
+
+          minimization:
+            mode: manual
+
+      - update_work_function_term:
+          times: []
+          iterations_prolog: 1
+          name: volume_elasticity
+          parameters:
+            gamma: !expr 1. / (24 * 20)
             # NOTE in absolute units
 
           minimization:
@@ -127,7 +121,7 @@ parameter_space:
           preferential_volume: 1
           tissue_height: 1
           minimum_height: 0.25
-          gamma: !expr 1. / 20
+          gamma: 0.  # Disable for proliferation
           height_parameter_name: height
       - perimeter_contractility:
           contractility: 0.005
@@ -137,10 +131,11 @@ parameter_space:
           height_parameter_name: height
       - edge_contractility_heterotypic_graded:
           boundary_type: 2
+          Gamma: &Gamma 0.06
           contractility: 
-            - [0.04, 0., 0.04]
-            - [0.0 , 0., 0.  ]
-            - [0.04, 0., 0.  ]
+            - [*Gamma, 0., *Gamma]
+            - [0.0   , 0., 0.    ]
+            - [*Gamma, 0., 0.    ]
           gradient_contractility:
             - [0., 0., 0.]
             - [0., 0., 0.]
@@ -148,9 +143,9 @@ parameter_space:
       - linetension_heterotypic:
           boundary_type: 2
           linetension:
-            - [0.02, 0.  , 0.03]
-            - [0.  , 0.  , 0.01]
-            - [0.03, 0.01, 0.01]
+            - [0.005, 0.  , 0.05]
+            - [0.   , 0.  , 0.01]
+            - [0.05 , 0.01, 1.e6]
 
       agent_manager:
         setup_params:

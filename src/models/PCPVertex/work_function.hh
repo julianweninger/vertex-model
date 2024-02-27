@@ -854,7 +854,7 @@ public:
  *              matrix. The i,j coordinates map to the type of cell on left and 
  *              right side.
  *      - `gradient_contractility`: The gradient in contractility 
- *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
  *              dependent on the cell types adjacent to a junction. A symmetric 
  *              matrix. The i,j coordinates map to the type of cell on left and 
  *              right side. In relative units, i.e. for x = Lx, 
