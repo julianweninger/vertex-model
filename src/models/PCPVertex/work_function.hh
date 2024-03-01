@@ -891,17 +891,26 @@ protected:
     std::size_t _boundary_type;
 
 
+private:
+    /// The origin and length (horizontal) of the domain
+    std::pair<double, double> _domain_info;
+
+
 protected:
     double get_contractility (const std::shared_ptr<Edge>& edge) const override 
     {
         if (not edge->state.has_parameter(_contractility_param)) {
             edge->state.register_parameter(_contractility_param, 0.);
-            this->update_contractility(edge, this->get_domain_info());
+            this->update_contractility(edge);
         }
         return edge->state.get_parameter(_contractility_param);
     }
 
 private:
+    /// Caluclate the origin and length of the domain
+    /** Based on the vertex positions and periodicity of space.
+     *  It deals with open, semi-periodic and periodic BC.
+     */
     std::pair<double, double> get_domain_info () const {
         // Establish domain size
         double x_min = std::numeric_limits<double>::max();
@@ -928,14 +937,10 @@ private:
         return std::make_pair(origin, L);
     }
 
-    void update_contractility
-    (
-        const std::shared_ptr<Edge>& edge,
-        std::pair<double, double> domain_info
-    )
-    const
-    {
-        auto [origin, L] = domain_info;
+    /// @brief  Update the contractility parameter of an edge
+    /// @param edge 
+    void update_contractility (const std::shared_ptr<Edge>& edge) const {
+        auto [origin, L] = _domain_info;
 
         double x = (
             this->_am.position_of(edge->custom_links().a)[0] + 
@@ -991,12 +996,15 @@ private:
         );
     }
 
+    /// Update all edge contractility parameters
+    /** Also updates domain info (origin and length)
+     */
     void update_contractility () {
-        auto domain_info = get_domain_info();
+        _domain_info = get_domain_info();
 
         // update contractility
         for (const auto& edge : this->_am.edges()) {
-            update_contractility(edge, domain_info);
+            update_contractility(edge);
         }
     }
 
@@ -1013,7 +1021,8 @@ public:
             get_as<stdmat>("contractility", cfg))),
         _gradient_contractility(setup_symmetric_matrix(
             get_as<stdmat>("gradient_contractility", cfg))),
-        _boundary_type(get_as<std::size_t>("boundary_type", cfg))
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg)),
+        _domain_info(get_domain_info())
     {
         for (const auto& edge : this->_am.edges()) {
             edge->state.register_parameter(_contractility_param, 0.);
