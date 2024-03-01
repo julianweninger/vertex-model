@@ -202,13 +202,14 @@ public:
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 SpaceVec displ = this->_am.displacement(edge);
-                auto [c, n] = this->_am.template adjoints_of<true>(edge);
                 
                 SpaceVec normal({displ[1], -displ[0]});
                 if (flip) {
                     normal *= -1;
-                    std::swap(c, n);
                 }
+
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
 
                 if (cell->state.type == 1 and n and has_basal_contact(n)) {
                     dH -= _elastic_modulus
@@ -330,7 +331,9 @@ public:
         _gamma = get_as<double>("gamma", cfg, _gamma);
     }
 
-    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) const override {
+    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) 
+    const override 
+    {
         bool PASS_TEST = Base::test_constraints(logger);
         logger->debug("Testing constraints of WF term {} ...", this->_name);
 
