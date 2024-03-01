@@ -340,7 +340,7 @@ area_mapped: !pspace
         - *TIME_SPATIAL
         - .rename: [!dag_node -1, x]
         - call_lambda:
-          - 'lambda x: 1. - np.abs(x / x.max() - 0.5) * 2'
+          - 'lambda x: 1. - 2 * np.abs((x-x.min())/(x.max()-x.min()) - 0.5)'
           - !dag_node -1
     subspace: *subspace_slice
   
