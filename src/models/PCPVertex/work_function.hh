@@ -278,7 +278,8 @@ public:
 
 
 arma::mat setup_symmetric_matrix (
-    const std::vector<std::vector<double>>& values) 
+    const std::vector<std::vector<double>>& values
+)
 {
     // If the mask is empty, just return the default cost
     if (values.size() == 0){
@@ -863,7 +864,10 @@ public:
  *      - `boundary_type`: To which value a boundary cell is mapped.
 */
 template <typename Model>
-class EdgeContractilityHeterotypicGraded : public EdgeContractilityBase<Model> {
+class EdgeContractilityHeterotypicSpatialBase
+: 
+    public EdgeContractilityBase<Model> 
+{
 public:
     using Base = EdgeContractilityBase<Model>;
 
@@ -875,28 +879,17 @@ public:
 
     using SpaceVec = typename Base::SpaceVec;
 
-    typedef std::vector< std::vector<double> > stdmat;
-
 protected:
     /// The name of the edge's contractility property
     std::string _contractility_param;
 
-    /// The cell-type dependent contractility
-    arma::mat _contractility;
-
-    /// The cell-type dependent spatial gradient in contractility
-    arma::mat _gradient_contractility;
-
     /// A cell-type index associated with the boundary
     std::size_t _boundary_type;
 
-
-private:
     /// The origin and length (horizontal) of the domain
-    std::pair<double, double> _domain_info;
+    std::pair<SpaceVec, SpaceVec> _domain_info;
 
 
-protected:
     double get_contractility (const std::shared_ptr<Edge>& edge) const override 
     {
         if (not edge->state.has_parameter(_contractility_param)) {
@@ -906,65 +899,91 @@ protected:
         return edge->state.get_parameter(_contractility_param);
     }
 
+    virtual double contractility_at(
+        [[maybe_unused]] const SpaceVec& rpos,
+        [[maybe_unused]] std::size_t type_a,
+        [[maybe_unused]] std::size_t type_b
+    ) 
+    const {
+        return 0.;
+    };
+
 private:
     /// Caluclate the origin and length of the domain
     /** Based on the vertex positions and periodicity of space.
      *  It deals with open, semi-periodic and periodic BC.
      */
-    std::pair<double, double> get_domain_info () const {
+    std::pair<SpaceVec, SpaceVec> get_domain_info () const {
         // Establish domain size
         double x_min = std::numeric_limits<double>::max();
         double x_max = std::numeric_limits<double>::min();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = std::numeric_limits<double>::min();
 
         const auto& space = this->_am.get_space();
-        double __Lx = space->get_domain_size()[0];
+        SpaceVec domain = space->get_domain_size();
         for (const auto& v : this->_am.vertices()) {
-            double x = this->_am.position_of(v)[0];
+            SpaceVec pos = this->_am.position_of(v);
             if (space->periodic) {
-                x -= std::round(x/__Lx) * __Lx;
+                // for semi-periodic space
+                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
             }
-            x_min = std::min(x_min, x);
-            x_max = std::max(x_max, x);
+            x_min = std::min(x_min, pos[0]);
+            x_max = std::max(x_max, pos[0]);
+            y_min = std::min(y_min, pos[1]);
+            y_max = std::max(y_max, pos[1]);
         }
-        double L = (x_max - x_min);
+        double Lx = (x_max - x_min);
+        double Ly = (y_max - y_min);
 
-        if (space->periodic and L > 0.9 * __Lx) {
-            L = __Lx;
+        if (space->periodic) {
+            if (Lx > 0.9 * domain[0]) {
+                // is not semi-periodic space
+                Lx = domain[0];
+            }
+            Ly = domain[1];
         }
 
-        double origin = x_min + L/2.;
-
-        return std::make_pair(origin, L);
+        return std::make_pair(
+            SpaceVec({x_min + Lx/2., y_min + Ly/2.}), // origin at center
+            SpaceVec({Lx, Ly})  // extent
+        );
     }
 
     /// @brief  Update the contractility parameter of an edge
     /// @param edge 
-    void update_contractility (const std::shared_ptr<Edge>& edge) const {
-        auto [origin, L] = _domain_info;
+    void update_contractility (const std::shared_ptr<Edge>& edge) const { 
+        SpaceVec origin = std::get<0>(_domain_info);
+        SpaceVec extent = std::get<1>(_domain_info);
 
-        double x = (
-            this->_am.position_of(edge->custom_links().a)[0] + 
-            0.5 * this->_am.displacement(edge)[0]
+        SpaceVec pos = (
+            this->_am.position_of(edge->custom_links().a) + 
+            0.5 * this->_am.displacement(edge)
         );
-        double __Lx = this->_am.get_space()->get_domain_size()[0];
         if (this->_am.get_space()->periodic) {
-            if (L > 0.9 * __Lx) {
+            SpaceVec domain = this->_am.get_space()->get_domain_size();
+            if (extent[0] > 0.9 * domain[0]) {
                 // periodic space
-                x -= origin;
-                x -= std::round(x/__Lx) * __Lx;
-                x = -(2 * std::abs(x) - __Lx / 2.);
+                pos -= origin;
+                pos -= arma::round(pos/domain) % domain;
+                pos = -(2 * arma::abs(pos) - domain / 2.);
             }
             else {
                 // semi-periodic space
-                x -= std::round(x/__Lx) * __Lx;
-                x -= origin;
+                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
+                pos[0] -= origin[0];
+
+                // y is periodic
+                pos[1] -= origin[1];
+                pos[1] -= std::round(pos[1]/domain[1]) * domain[1];
+                pos[1] = -(2 * std::abs(pos[1]) - domain[1] / 2.);
             }
         }
         else {
             // non-periodic space
-            x -= origin;
+            pos -= origin;
         }
-        x /= L;
+        SpaceVec rpos = pos / extent;
 
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
         std::size_t type_a, type_b;
@@ -973,26 +992,10 @@ private:
         if (cb) { type_b = cb->state.type; }
         else { type_b = this->_boundary_type; }
 
-        if (std::max(type_a, type_b) > std::min(this->_contractility.n_rows,
-                                                _gradient_contractility.n_rows))
-        {
-            std::cout << this->_contractility << std::endl;
-            std::cout << _gradient_contractility << std::endl;
-
-            throw std::runtime_error(fmt::format(
-                "In WF-term EdgeContractilityHeterotypicGraded, no parameter registered "
-                "for cells of type {}. Parameters for {} / {} types registered.",
-                std::max(type_a, type_b),
-                this->_contractility.n_rows,
-                _gradient_contractility.n_rows
-            ));
-        }
-
-        // NOTE x in [-0.5, 0.5]
+        // NOTE rpos in [-0.5, 0.5] for x and y
         edge->state.update_parameter(
             _contractility_param,
-            (  this->_contractility.at(type_a, type_b) 
-                + x * _gradient_contractility.at(type_a, type_b))
+            this->contractility_at(rpos, type_a, type_b)
         );
     }
 
@@ -1009,7 +1012,7 @@ private:
     }
 
 public:
-    EdgeContractilityHeterotypicGraded (
+    EdgeContractilityHeterotypicSpatialBase (
         std::string name,
         const DataIO::Config& cfg,
         const Model& model
@@ -1017,10 +1020,6 @@ public:
     :
         Base(name, cfg, model),
         _contractility_param(name + "__contractility"),
-        _contractility(setup_symmetric_matrix(
-            get_as<stdmat>("contractility", cfg))),
-        _gradient_contractility(setup_symmetric_matrix(
-            get_as<stdmat>("gradient_contractility", cfg))),
         _boundary_type(get_as<std::size_t>("boundary_type", cfg)),
         _domain_info(get_domain_info())
     {
@@ -1030,7 +1029,7 @@ public:
         update_contractility();
     }
 
-    ~EdgeContractilityHeterotypicGraded() {
+    ~EdgeContractilityHeterotypicSpatialBase() {
         for (const auto& edge : this->_am.edges()) {
             edge->state.unregister_parameter(_contractility_param);
         }
@@ -1041,25 +1040,111 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
+        _boundary_type = get_as<std::size_t>(
+            "boundary_type", cfg, _boundary_type
+        );
+        update_contractility();
+    }
+};
+
+/// Heterotypic edge contractility with additional spatial gradient
+/** \f$ \Gamma = \Gamma_0 + x * \Gamma_1 \f$, where x is the x-coordinate of 
+ *  the edge's center relative to the half-point of the domain in x. 
+ *  \Gamma_0 gives the mean contractility and \Gamma_1 the difference between
+ *  hight (left) and low (right) contractility.
+ *  
+ * Parameters:
+ *      - `contractility`: The mean contractility \f$ \Gamma_0^{i,j} \f$ 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side.
+ *      - `gradient_contractility`: The gradient in contractility 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side. In relative units, i.e. for x = Lx, 
+ *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
+ *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+*/
+template <typename Model>
+class EdgeContractilityHeterotypicGraded 
+: 
+    public EdgeContractilityHeterotypicSpatialBase<Model>
+{
+public:
+    using Base = EdgeContractilityHeterotypicSpatialBase<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+protected:
+    /// The cell-type dependent contractility
+    arma::mat _contractility;
+
+    /// The cell-type dependent spatial gradient in contractility
+    arma::mat _gradient_contractility;
+    
+    double contractility_at(
+        const SpaceVec& rpos,
+        std::size_t type_a,
+        std::size_t type_b
+    ) 
+    const override 
+    {
+        #if UTOPIA_DEBUG
+            std::size_t N = std::min(
+                this->_contractility.n_rows,
+                this->_gradient_contractility.n_rows
+            );
+            if (std::max(type_a, type_b) > N) {
+                std::cout << this->_contractility << std::endl;
+                std::cout << this->_gradient_contractility << std::endl;
+
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicGraded, no "
+                    "parameter registered for cells of type {}. Parameters "
+                    "for {} / {} types registered.",
+                    std::max(type_a, type_b),
+                    this->_contractility.n_rows,
+                    this->_gradient_contractility.n_rows
+                ));
+            }
+        #endif
+
+        return (_contractility.at(type_a, type_b) 
+                + rpos[0] * _gradient_contractility.at(type_a, type_b));
+    }
+
+public:
+    EdgeContractilityHeterotypicGraded (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_symmetric_matrix(
+            get_as<stdmat>("contractility", cfg))),
+        _gradient_contractility(setup_symmetric_matrix(
+            get_as<stdmat>("gradient_contractility", cfg)))
+    { }
+
+    void update_parameters (const DataIO::Config& cfg) override {
         if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
             ));
-
-            update_contractility();
         }
 
         if (cfg["gradient_contractility"]) {
             _gradient_contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "gradient_contractility", cfg
             ));
-
-            update_contractility();
         }
-
-        _boundary_type = get_as<std::size_t>(
-            "boundary_type", cfg, _boundary_type
-        );
+        
+        Base::update_parameters(cfg);
     }
 };
 
