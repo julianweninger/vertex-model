@@ -1148,6 +1148,185 @@ public:
     }
 };
 
+/// Heterotypic edge contractility with additional spatial gradient
+/** \f$ \Gamma = \Gamma_0 + x * \Gamma_1 \f$, where x is the x-coordinate of 
+ *  the edge's center relative to the half-point of the domain in x. 
+ *  \Gamma_0 gives the mean contractility and \Gamma_1 the difference between
+ *  hight (left) and low (right) contractility.
+ *  
+ * Parameters:
+ *      - `contractility`: The mean contractility \f$ \Gamma_0^{i,j} \f$ 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side.
+ *      - `gradient_contractility`: The gradient in contractility 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side. In relative units, i.e. for x = Lx, 
+ *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
+ *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+*/
+template <typename Model>
+class EdgeContractilityHeterotypicGradedMulti
+: 
+    public EdgeContractilityHeterotypicSpatialBase<Model> 
+{
+public:
+    using Base = EdgeContractilityHeterotypicSpatialBase<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+protected:
+    /// The cell-type dependent contractility
+    std::vector<arma::mat> _contractility;
+
+    /// The cell-type dependent spatial gradient in contractility
+    std::vector<arma::mat> _gradient_contractility;
+    
+    double contractility_at(
+        const SpaceVec& rpos,
+        std::size_t type_a,
+        std::size_t type_b
+    ) 
+    const override 
+    {
+        double N = _contractility.size();
+        double x = rpos[0] + 0.5;
+        std::size_t block = std::floor(x * N);
+        block = std::min(block, static_cast<std::size_t>(N - 1));
+
+        arma::mat contractility = _contractility[block];
+        arma::mat gradient_contractility = _gradient_contractility[block];
+
+        #if UTOPIA_DEBUG
+            std::size_t N = std::min(
+                contractility.n_rows,
+                gradient_contractility.n_rows
+            );
+            if (std::max(type_a, type_b) > N) {
+                std::cout << contractility << std::endl;
+                std::cout << gradient_contractility << std::endl;
+
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicGraded, no "
+                    "parameter registered for cells of type {}. Parameters "
+                    "for {} / {} types registered.",
+                    std::max(type_a, type_b),
+                    contractility.n_rows,
+                    gradient_contractility.n_rows
+                ));
+            }
+        #endif
+        
+        // find the relative position within block
+        double min = double(block) / N;
+        double max = (block + 1.) / N;
+        x -= min;
+        x /= (max - min);
+        x -= 0.5;
+
+        return (
+            contractility.at(type_a, type_b) 
+            + x * gradient_contractility.at(type_a, type_b)
+        );
+    }
+
+    std::vector<arma::mat> setup_matrices(const std::vector<stdmat>& vecc) {
+        std::vector<arma::mat> vecm{};
+        std::size_t N = 0;
+        for (const stdmat& __stdmat : vecc) {
+            vecm.push_back(setup_symmetric_matrix(__stdmat));
+            if (vecm.size() == 1) {
+                N = vecm[0].n_rows;
+            }
+            else if (vecm.back().n_rows != N ) {
+                std::cout << "Contractility matrices:\n";
+                for (const arma::mat& matrix : vecm) {
+                    std::cout << matrix << std::endl;
+                }
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicGradedMulti, "
+                    "list-entry {} of contractility- or "
+                    "contractility-gradient-matrices (see above) did not have "
+                    "the same dimensionality as previous matrices ({} vs {})!",
+                    vecm.size(),
+                    N,
+                    vecm.back().n_rows
+                ));
+            }
+        }
+        return vecm;
+    }
+
+    void validate_matrices() const {
+        if (_contractility.size() != _gradient_contractility.size()) {
+            std::cout << "Contractility matrices:\n";
+            for (const arma::mat& matrix : _contractility) {
+                std::cout << matrix << std::endl;
+            }
+
+            std::cout << std::endl << "Contractility-gradient matrices:\n";
+            for (const arma::mat& matrix : _gradient_contractility) {
+                std::cout << matrix << std::endl;
+            }
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityHeterotypicGradedMulti, list "
+                "of contractility- and contractility-gradient-matrices "
+                "(see above) did not have the same number of entries "
+                "({} and {})!",
+                _contractility.size(),
+                _gradient_contractility.size()
+            ));
+        }
+        if (_contractility.size() == 0) {
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityHeterotypicGradedMulti, list "
+                "of contractility- and contractility-gradient-matrices "
+                "were empty!"
+            ));
+        }
+    }
+
+public:
+    EdgeContractilityHeterotypicGradedMulti (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_matrices(
+            get_as<std::vector<stdmat>>("contractility", cfg))),
+        _gradient_contractility(setup_matrices(
+            get_as<std::vector<stdmat>>("gradient_contractility", cfg)))
+    {
+        validate_matrices();
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["contractility"]) {
+            _contractility = setup_matrices(
+                get_as<std::vector<stdmat>>("contractility", cfg)
+            );
+        }
+
+        if (cfg["gradient_contractility"]) {
+            _gradient_contractility = setup_matrices(
+                get_as<std::vector<stdmat>>("gradient_contractility", cfg)
+            );
+        }
+
+        validate_matrices();
+        
+        Base::update_parameters(cfg);
+    }
+};
+
 
 /// @brief The edge contractility term to apical and basal boundary
 /** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.

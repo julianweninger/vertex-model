@@ -759,6 +759,16 @@ public:
                 )
             );
         }
+        else if (term == "edge_contractility_heterotypic_graded_multi") {
+            register_work_function_term(
+                name,
+                std::make_shared<
+                    EdgeContractilityHeterotypicGradedMulti<PCPVertex>
+                >(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "edge_contractility_heterotypic_boundary") {
             register_work_function_term(
                 name,
@@ -857,6 +867,7 @@ public:
                 " - edge_contractility\n"
                 " - edge_contractility_heterotypic\n"
                 " - edge_contractility_heterotypic_graded\n"
+                " - edge_contractility_heterotypic_graded_multi\n"
                 " - edge_contractility_heterotypic_boundary\n"
                 " - edge_contractility_axial\n"
                 " - edge_contractility_polar\n"
