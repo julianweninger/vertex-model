@@ -719,6 +719,14 @@ public:
                 )
             );
         }
+        else if (term == "boundary_stripe_potential_pure_shear") {
+            register_work_function_term(
+                name,
+                std::make_shared<BoundaryStripePotentialPureShear<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "cell_contractility") {
             register_work_function_term(
                 name,

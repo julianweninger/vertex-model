@@ -228,6 +228,20 @@ test_work_function_terms:
     stretch: true
     deform_plastic: false
 
+- boundary_stripe_potential:
+    name: boundary_stripe_potential__shear
+    skip_test_cases:
+      - periodic
+      - columnar-periodic
+      - columnar
+    elastic_constant: 1.
+    height: 7.
+    width: 7.
+    origin: [0, 0]
+    stretch: true
+    deform_plastic: true
+    pure_shear_velocity: 1.e-3
+
 - boundary_bend_elastic:
     name: boundary_bend_elastic__open
     skip_test_cases:

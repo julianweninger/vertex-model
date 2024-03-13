@@ -968,7 +968,7 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) final {
+    void update_parameters (const DataIO::Config& cfg) override {
         _elastic_constant = get_as<double>("elastic_constant", cfg,
                                            _elastic_constant);
         _width = get_as<double>("width", cfg, _width);
@@ -983,6 +983,86 @@ public:
         if (get_as<bool>("deform_plastic", cfg, false)) {
             deform_plastic(tmp_curvature);
         }
+    }
+};
+
+/// @brief  BoundaryStripePotential with pure shear variation of domain size
+/// @tparam Model 
+/** Width and height of the BoundaryStripePotential are changed with a pure 
+ *  shear velocity, conserving total domain area.
+ * 
+ *  Arguments:
+ *      - `pure_shear_velocity` (double): The pure shear velocity vxx.
+ *      - `width` (double): Width of the domain. Cannot be updated.
+ *      - `height` (double): Height of the domain. Cannot be updated.
+ *      - `curvature` (double, fixed value: 0): Restricted to zero curvature
+ *              compared to BoundaryStripePotential.
+*/
+template <typename Model>
+class BoundaryStripePotentialPureShear : public BoundaryStripePotential<Model>
+{
+    using Base = BoundaryStripePotential<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+protected:
+    /// @brief The pure shear velocity v_xx
+    /** In units of model time */
+    double _pure_shear_velocity;
+
+    /// The cumulative pure shear
+    double _cum_pure_shear;
+
+    /// @brief  The domain width at t = 0
+    const double _original_width;
+
+    /// @brief  The domain width at t = 0.
+    const double _original_height;
+
+public:
+    BoundaryStripePotentialPureShear (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _pure_shear_velocity(get_as<double>("pure_shear_velocity", cfg)),
+        _cum_pure_shear(0.),
+        _original_width(this->_width),
+        _original_height(this->_height)
+    {
+        if (fabs(this->_curvature) > 1.e-6) {
+            throw std::runtime_error("Cannot operate "
+                "BoundaryStripePotentialPureShear WF with non zero curvature!"
+            );
+        }
+    }
+
+    void update (double dt) override {
+        _cum_pure_shear += _pure_shear_velocity * dt;
+        this->_width = _original_width * exp(_cum_pure_shear);
+        this->_height = _original_height * exp(-_cum_pure_shear);
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["width"] or cfg["height"]) {
+            throw std::runtime_error("Cannot update width or height in "
+                "BoundaryStripePotentialPureShear WF! Please use the "
+                "pure_shear_velocity to do so."
+            );
+        }
+
+        Base::update_parameters(cfg);
+        if (fabs(this->_curvature) > 1.e-6) {
+            throw std::runtime_error("Cannot operate "
+                "BoundaryStripePotentialPureShear WF with non zero curvature!"
+            );
+        }
+
+        _pure_shear_velocity = get_as<double>(
+            "pure_shear_velocity", cfg, _pure_shear_velocity
+        );
     }
 };
 

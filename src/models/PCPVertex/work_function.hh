@@ -2582,10 +2582,11 @@ private:
         else {
             throw std::runtime_error(fmt::format("Unknown method '{}' to "
                 "set preferential area in AreaElasticity! Choose one of the "
-                "following", method,
+                "following:"
                 "- increment_heterotypic\n"
                 "- set_heterotypic\n"
-                "- set_uniform\n"
+                "- set_uniform\n",
+                method
             ));
         }
     }
