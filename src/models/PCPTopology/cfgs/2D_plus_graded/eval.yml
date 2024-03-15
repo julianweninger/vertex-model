@@ -757,5 +757,5 @@ cell_segmentation__contractility:
     edge_property:
       path: data/PCPTopology/Edges
       transform:
-        - .sel: [!dag_node -1, {property: edge_contractility_heterotypic_graded__contractility}]
+        - .sel: [!dag_node -1, {property: edge_contractility__contractility}]
         - .rename: [!dag_prev , contractility]

@@ -890,7 +890,7 @@ protected:
     std::pair<SpaceVec, SpaceVec> _domain_info;
 
 
-    double get_contractility (const std::shared_ptr<Edge>& edge) const override 
+    double get_contractility (const std::shared_ptr<Edge>& edge) const final 
     {
         if (not edge->state.has_parameter(_contractility_param)) {
             edge->state.register_parameter(_contractility_param, 0.);
@@ -899,16 +899,13 @@ protected:
         return edge->state.get_parameter(_contractility_param);
     }
 
-    virtual double contractility_at(
-        [[maybe_unused]] const SpaceVec& rpos,
-        [[maybe_unused]] std::size_t type_a,
-        [[maybe_unused]] std::size_t type_b
+    virtual double contractility_at (
+        const SpaceVec& rpos,
+        std::size_t type_a,
+        std::size_t type_b
     ) 
-    const {
-        return 0.;
-    };
+    const = 0;
 
-private:
     /// Caluclate the origin and length of the domain
     /** Based on the vertex positions and periodicity of space.
      *  It deals with open, semi-periodic and periodic BC.
@@ -995,7 +992,7 @@ private:
         // NOTE rpos in [-0.5, 0.5] for x and y
         edge->state.update_parameter(
             _contractility_param,
-            this->contractility_at(rpos, type_a, type_b)
+            contractility_at(rpos, type_a, type_b)
         );
     }
 
@@ -1026,7 +1023,6 @@ public:
         for (const auto& edge : this->_am.edges()) {
             edge->state.register_parameter(_contractility_param, 0.);
         }
-        update_contractility();
     }
 
     ~EdgeContractilityHeterotypicSpatialBase() {
@@ -1129,7 +1125,9 @@ public:
             get_as<stdmat>("contractility", cfg))),
         _gradient_contractility(setup_symmetric_matrix(
             get_as<stdmat>("gradient_contractility", cfg)))
-    { }
+    {
+        this->update_contractility();
+    }
 
     void update_parameters (const DataIO::Config& cfg) override {
         if (cfg["contractility"]) {
@@ -1203,11 +1201,11 @@ protected:
         arma::mat gradient_contractility = _gradient_contractility[block];
 
         #if UTOPIA_DEBUG
-            std::size_t N = std::min(
+            std::size_t n = std::min(
                 contractility.n_rows,
                 gradient_contractility.n_rows
             );
-            if (std::max(type_a, type_b) > N) {
+            if (std::max(type_a, type_b) > n) {
                 std::cout << contractility << std::endl;
                 std::cout << gradient_contractility << std::endl;
 
@@ -1306,6 +1304,7 @@ public:
             get_as<std::vector<stdmat>>("gradient_contractility", cfg)))
     {
         validate_matrices();
+        this->update_contractility();
     }
 
     void update_parameters (const DataIO::Config& cfg) override {

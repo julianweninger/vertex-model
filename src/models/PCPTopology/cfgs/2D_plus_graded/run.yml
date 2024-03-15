@@ -77,13 +77,41 @@ parameter_space:
       - update_work_function_term:
           times: []
           iterations_prolog: 1
-          name: edge_contractility_heterotypic_graded
+          name: edge_contractility
           parameters:
             Gamma: &Gamma_ -0.08
+            contractility: 
+              - [
+                  [0.12, 0.  , 0.12],
+                  [0.0 , 0.  , 0.  ],
+                  [0.12, 0.  , 0.  ]
+                ]
+              - [
+                  [0.08, 0., 0.08],
+                  [0.0 , 0., 0.  ],
+                  [0.08, 0., 0.  ]
+                ]
+              - [
+                  [0.04, 0., 0.04],
+                  [0.0 , 0., 0.  ],
+                  [0.04, 0., 0.  ]
+                ]
             gradient_contractility:
-              - [*Gamma_, 0.  , *Gamma_]
-              - [0.     , 0.  , 0.     ]
-              - [*Gamma_, 0.  , 0.     ]
+              - [
+                  [0., 0., 0.],
+                  [0., 0., 0.],
+                  [0., 0., 0.]
+                ]
+              - [
+                  [-0.08, 0., -0.08],
+                  [ 0.  , 0.,  0.  ],
+                  [-0.08, 0.,  0.  ]
+                ]
+              - [
+                  [0., 0., 0.],
+                  [0., 0., 0.],
+                  [0., 0., 0.]
+                ]
 
           minimization:
             mode: manual
@@ -129,17 +157,22 @@ parameter_space:
           surface_tension: -0.01
           VolumeElasticity_term: volume_elasticity
           height_parameter_name: height
-      - edge_contractility_heterotypic_graded:
+      - edge_contractility_heterotypic_graded_multi:
+          name: edge_contractility
           boundary_type: 2
           Gamma: &Gamma 0.06
-          contractility: 
+          contractility:
+          - 
             - [*Gamma, 0., *Gamma]
             - [0.0   , 0., 0.    ]
             - [*Gamma, 0., 0.    ]
-          gradient_contractility:
-            - [0., 0., 0.]
-            - [0., 0., 0.]
-            - [0., 0., 0.]
+
+          gradient_contractility: 
+            - 
+              - [0., 0., 0.]
+              - [0., 0., 0.]
+              - [0., 0., 0.]
+
       - linetension_heterotypic:
           boundary_type: 2
           linetension:
