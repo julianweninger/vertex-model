@@ -278,7 +278,8 @@ public:
 
 
 arma::mat setup_symmetric_matrix (
-    const std::vector<std::vector<double>>& values) 
+    const std::vector<std::vector<double>>& values
+)
 {
     // If the mask is empty, just return the default cost
     if (values.size() == 0){
@@ -617,14 +618,12 @@ public:
 };
 
 
-/// @brief The edge contractility term
-/** \f$ E_{i,j} = k l_{i,j}^2\f$, a term quadratic in edge length \f$ l \f$.
- * 
- *  Parameters:
- *      - `contractility`: the contractility \f$ k \f$
+/// @brief The edge contractility term's base class
+/** \f$ E_{i,j} = \Gamma l_{i,j}^2\f$, a term quadratic in edge length with 
+ *  contractility parameter \f$ \Gamma \f$.
  */
 template <typename Model>
-class EdgeContractility : public WorkFunctionTerm<Model>
+class EdgeContractilityBase : public WorkFunctionTerm<Model>
 {
 public:
     using Base = WorkFunctionTerm<Model>;
@@ -636,20 +635,20 @@ public:
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
-private:
-    double _contractility;
+
+protected:
+    /// The contractility of a particular edge
+    virtual double get_contractility(const std::shared_ptr<Edge>& edge) const=0;
 
 public:
-    EdgeContractility (
+    EdgeContractilityBase (
         std::string name,
         const DataIO::Config& cfg,
         const Model& model
     )
     :
-        Base(name, cfg, model),
-        _contractility(get_as<double>("contractility", cfg))
+        Base(name, cfg, model)
     { }
-
 
     void compute_and_set_forces () final {
         for (const auto& edge : this->_am.edges()) {
@@ -658,17 +657,22 @@ public:
             const auto& a = edge->custom_links().a;
             const auto& b = edge->custom_links().b;
 
-            a->state.add_force(+ _contractility * displ);
-            b->state.add_force(- _contractility * displ);
+            double contract = get_contractility(edge);
+
+            a->state.add_force(+ contract * displ);
+            b->state.add_force(- contract * displ);
         }
     }
 
     double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return _contractility * this->_am.length_of(edge);
+        return get_contractility(edge) * this->_am.length_of(edge);
     }
 
     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        return 0.5 * _contractility * std::pow(this->_am.length_of(edge), 2);
+        return (
+              0.5 * get_contractility(edge) 
+            * std::pow(this->_am.length_of(edge), 2)
+        );
     }
 
     double compute_energy (
@@ -684,20 +688,29 @@ public:
         return energy;
     }
 
-    void update_parameters (const DataIO::Config& cfg) final {
-        _contractility = get_as<double>("contractility", cfg, _contractility);
-
+    std::vector<std::string> write_task_edge_properties_names () const override
+    {
+        return std::vector<std::string>({
+            "contractility"
+        });
     }
 
+    std::vector<std::vector<double>> write_edge_properties () const override {
+        std::vector<double> contractilities({});
+        for (const auto& edge : this->_am.edges()) {
+            contractilities.push_back(get_contractility(edge));
+        }
+        return std::vector<std::vector<double>>({contractilities});
+    }
 
-    std::vector<std::string> write_task_edge_energies_names () const final {
+    std::vector<std::string> write_task_edge_energies_names () const override {
         return std::vector<std::string>({
             "energy",
             "tension"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const final {
+    std::vector<std::vector<double>> write_edge_energies () const override {
         std::vector<double> energies({});
         std::vector<double> tensions({});
         
@@ -713,6 +726,49 @@ public:
     }
 };
 
+
+
+/// @brief A uniform-homotypic edge contractility term
+/** 
+ *  Parameters:
+ *      - `contractility`: the contractility \f$ \Gamma \f$
+ */
+template <typename Model>
+class EdgeContractility : public EdgeContractilityBase<Model>
+{
+public:
+    using Base = EdgeContractilityBase<Model>;
+
+    using Edge = typename Base::Edge;
+
+private:
+    /// @brief  The contractility parameter
+    double _contractility;
+
+protected:
+    inline double 
+    get_contractility([[maybe_unused]] const std::shared_ptr<Edge>& edge)
+    const override 
+    {
+        return _contractility;
+    }
+
+public:
+    EdgeContractility (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(get_as<double>("contractility", cfg))
+    { }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        _contractility = get_as<double>("contractility", cfg, _contractility);
+    }
+};
+
 /// @brief The edge contractility term with heterotypic values
 /** \f$ E_{i,j} = k l_{i,j}\f$, a term linear in edge length \f$ l \f$.
  * 
@@ -723,26 +779,24 @@ public:
  *      - `boundary_type`: To which value a boundary cell is mapped.
  */
 template <typename Model>
-class EdgeContractilityHeterotypic : public WorkFunctionTerm<Model>
+class EdgeContractilityHeterotypic : public EdgeContractilityBase<Model>
 {
-    using Base = WorkFunctionTerm<Model>;
-
-    using SpaceVec = typename Base::SpaceVec;
-
-    using Vertex = typename Base::Vertex;
+public:
+    using Base = EdgeContractilityBase<Model>;
 
     using Edge = typename Base::Edge;
 
-    using Cell = typename Base::Cell;
-
     typedef std::vector< std::vector<double> > stdmat;
 
-private:
+protected:
+    /// The cell-type dependent contractility
     arma::mat _contractility;
 
+    /// A cell-type index associated with the boundary
     std::size_t _boundary_type;
 
-    const double& get_contractility (const std::shared_ptr<Edge>& edge) const {
+    double get_contractility (const std::shared_ptr<Edge>& edge) const override
+    {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
         std::size_t type_a, type_b;
         if (ca) { type_a = ca->state.type; }
@@ -778,44 +832,7 @@ public:
         _boundary_type(get_as<std::size_t>("boundary_type", cfg))
     { }
 
-    void compute_and_set_forces () final {
-        for (const auto& edge : this->_am.edges()) {
-            SpaceVec displ = this->_am.displacement(edge);
-
-            const auto& a = edge->custom_links().a;
-            const auto& b = edge->custom_links().b;
-
-            a->state.add_force(+ get_contractility(edge) * displ);
-            b->state.add_force(- get_contractility(edge) * displ);
-        }
-    }
-
-    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return get_contractility(edge) * this->_am.length_of(edge);
-    }
-
-    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        return (
-            0.5
-            * get_contractility(edge)
-            * std::pow(this->_am.length_of(edge), 2)
-        );
-    }
-
-    double compute_energy (
-        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
-        const AgentContainer<Edge>& edges,
-        [[maybe_unused]] const AgentContainer<Cell>& cells
-    ) const final
-    {
-        double energy = 0.;
-        for (const auto& edge : edges) {
-            energy += compute_energy(edge);
-        }
-        return energy;
-    }
-
-    void update_parameters (const DataIO::Config& cfg) final {
+    void update_parameters (const DataIO::Config& cfg) override {
         if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
@@ -824,44 +841,488 @@ public:
         _boundary_type = get_as<std::size_t>(
             "boundary_type", cfg, _boundary_type);
     }
+};
+
+/// Heterotypic edge contractility with additional spatial gradient
+/** \f$ \Gamma = \Gamma_0 + x * \Gamma_1 \f$, where x is the x-coordinate of 
+ *  the edge's center relative to the half-point of the domain in x. 
+ *  \Gamma_0 gives the mean contractility and \Gamma_1 the difference between
+ *  hight (left) and low (right) contractility.
+ *  
+ * Parameters:
+ *      - `contractility`: The mean contractility \f$ \Gamma_0^{i,j} \f$ 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side.
+ *      - `gradient_contractility`: The gradient in contractility 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side. In relative units, i.e. for x = Lx, 
+ *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
+ *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+*/
+template <typename Model>
+class EdgeContractilityHeterotypicSpatialBase
+: 
+    public EdgeContractilityBase<Model> 
+{
+public:
+    using Base = EdgeContractilityBase<Model>;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+protected:
+    /// The name of the edge's contractility property
+    std::string _contractility_param;
+
+    /// A cell-type index associated with the boundary
+    std::size_t _boundary_type;
+
+    /// The origin and length (horizontal) of the domain
+    std::pair<SpaceVec, SpaceVec> _domain_info;
 
 
-
-
-    std::vector<std::string> write_task_edge_properties_names () const final {
-        return std::vector<std::string>({
-            "contractility"
-        });
-    }
-
-    std::vector<std::vector<double>> write_edge_properties () const final {
-        std::vector<double> contractilities({});
-        for (const auto& edge : this->_am.edges()) {
-            contractilities.push_back(get_contractility(edge));
+    double get_contractility (const std::shared_ptr<Edge>& edge) const final 
+    {
+        if (not edge->state.has_parameter(_contractility_param)) {
+            edge->state.register_parameter(_contractility_param, 0.);
+            this->update_contractility(edge);
         }
-        return std::vector<std::vector<double>>({contractilities});
+        return edge->state.get_parameter(_contractility_param);
     }
 
-    std::vector<std::string> write_task_edge_energies_names () const final {
-        return std::vector<std::string>({
-            "energy",
-            "tension"
-        });
+    virtual double contractility_at (
+        const SpaceVec& rpos,
+        std::size_t type_a,
+        std::size_t type_b
+    ) 
+    const = 0;
+
+    /// Caluclate the origin and length of the domain
+    /** Based on the vertex positions and periodicity of space.
+     *  It deals with open, semi-periodic and periodic BC.
+     */
+    std::pair<SpaceVec, SpaceVec> get_domain_info () const {
+        // Establish domain size
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = std::numeric_limits<double>::min();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = std::numeric_limits<double>::min();
+
+        const auto& space = this->_am.get_space();
+        SpaceVec domain = space->get_domain_size();
+        for (const auto& v : this->_am.vertices()) {
+            SpaceVec pos = this->_am.position_of(v);
+            if (space->periodic) {
+                // for semi-periodic space
+                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
+            }
+            x_min = std::min(x_min, pos[0]);
+            x_max = std::max(x_max, pos[0]);
+            y_min = std::min(y_min, pos[1]);
+            y_max = std::max(y_max, pos[1]);
+        }
+        double Lx = (x_max - x_min);
+        double Ly = (y_max - y_min);
+
+        if (space->periodic) {
+            if (Lx > 0.9 * domain[0]) {
+                // is not semi-periodic space
+                Lx = domain[0];
+            }
+            Ly = domain[1];
+        }
+
+        return std::make_pair(
+            SpaceVec({x_min + Lx/2., y_min + Ly/2.}), // origin at center
+            SpaceVec({Lx, Ly})  // extent
+        );
     }
 
-    std::vector<std::vector<double>> write_edge_energies () const final {
-        std::vector<double> energies({});
-        std::vector<double> tensions({});
+    /// @brief  Update the contractility parameter of an edge
+    /// @param edge 
+    void update_contractility (const std::shared_ptr<Edge>& edge) const { 
+        SpaceVec origin = std::get<0>(_domain_info);
+        SpaceVec extent = std::get<1>(_domain_info);
+
+        SpaceVec pos = (
+            this->_am.position_of(edge->custom_links().a) + 
+            0.5 * this->_am.displacement(edge)
+        );
+        if (this->_am.get_space()->periodic) {
+            SpaceVec domain = this->_am.get_space()->get_domain_size();
+            if (extent[0] > 0.9 * domain[0]) {
+                // periodic space
+                pos -= origin;
+                pos -= arma::round(pos/domain) % domain;
+                pos = -(2 * arma::abs(pos) - domain / 2.);
+            }
+            else {
+                // semi-periodic space
+                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
+                pos[0] -= origin[0];
+
+                // y is periodic
+                pos[1] -= origin[1];
+                pos[1] -= std::round(pos[1]/domain[1]) * domain[1];
+                pos[1] = -(2 * std::abs(pos[1]) - domain[1] / 2.);
+            }
+        }
+        else {
+            // non-periodic space
+            pos -= origin;
+        }
+        SpaceVec rpos = pos / extent;
+
+        const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        std::size_t type_a, type_b;
+        if (ca) { type_a = ca->state.type; }
+        else { type_a = this->_boundary_type; }
+        if (cb) { type_b = cb->state.type; }
+        else { type_b = this->_boundary_type; }
+
+        // NOTE rpos in [-0.5, 0.5] for x and y
+        edge->state.update_parameter(
+            _contractility_param,
+            contractility_at(rpos, type_a, type_b)
+        );
+    }
+
+    /// Update all edge contractility parameters
+    /** Also updates domain info (origin and length)
+     */
+    void update_contractility () {
+        _domain_info = get_domain_info();
+
+        // update contractility
+        for (const auto& edge : this->_am.edges()) {
+            update_contractility(edge);
+        }
+    }
+
+public:
+    EdgeContractilityHeterotypicSpatialBase (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility_param(name + "__contractility"),
+        _boundary_type(get_as<std::size_t>("boundary_type", cfg)),
+        _domain_info(get_domain_info())
+    {
+        for (const auto& edge : this->_am.edges()) {
+            edge->state.register_parameter(_contractility_param, 0.);
+        }
+    }
+
+    ~EdgeContractilityHeterotypicSpatialBase() {
+        for (const auto& edge : this->_am.edges()) {
+            edge->state.unregister_parameter(_contractility_param);
+        }
+    }
+
+    void update ([[maybe_unused]] double dt) override {
+        update_contractility();
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        _boundary_type = get_as<std::size_t>(
+            "boundary_type", cfg, _boundary_type
+        );
+        update_contractility();
+    }
+};
+
+/// Heterotypic edge contractility with additional spatial gradient
+/** \f$ \Gamma = \Gamma_0 + x * \Gamma_1 \f$, where x is the x-coordinate of 
+ *  the edge's center relative to the half-point of the domain in x. 
+ *  \Gamma_0 gives the mean contractility and \Gamma_1 the difference between
+ *  hight (left) and low (right) contractility.
+ *  
+ * Parameters:
+ *      - `contractility`: The mean contractility \f$ \Gamma_0^{i,j} \f$ 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side.
+ *      - `gradient_contractility`: The gradient in contractility 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side. In relative units, i.e. for x = Lx, 
+ *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
+ *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+*/
+template <typename Model>
+class EdgeContractilityHeterotypicGraded 
+: 
+    public EdgeContractilityHeterotypicSpatialBase<Model>
+{
+public:
+    using Base = EdgeContractilityHeterotypicSpatialBase<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+protected:
+    /// The cell-type dependent contractility
+    arma::mat _contractility;
+
+    /// The cell-type dependent spatial gradient in contractility
+    arma::mat _gradient_contractility;
+    
+    double contractility_at(
+        const SpaceVec& rpos,
+        std::size_t type_a,
+        std::size_t type_b
+    ) 
+    const override 
+    {
+        #if UTOPIA_DEBUG
+            std::size_t N = std::min(
+                this->_contractility.n_rows,
+                this->_gradient_contractility.n_rows
+            );
+            if (std::max(type_a, type_b) > N) {
+                std::cout << this->_contractility << std::endl;
+                std::cout << this->_gradient_contractility << std::endl;
+
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicGraded, no "
+                    "parameter registered for cells of type {}. Parameters "
+                    "for {} / {} types registered.",
+                    std::max(type_a, type_b),
+                    this->_contractility.n_rows,
+                    this->_gradient_contractility.n_rows
+                ));
+            }
+        #endif
+
+        return (_contractility.at(type_a, type_b) 
+                + rpos[0] * _gradient_contractility.at(type_a, type_b));
+    }
+
+public:
+    EdgeContractilityHeterotypicGraded (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_symmetric_matrix(
+            get_as<stdmat>("contractility", cfg))),
+        _gradient_contractility(setup_symmetric_matrix(
+            get_as<stdmat>("gradient_contractility", cfg)))
+    {
+        this->update_contractility();
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["contractility"]) {
+            _contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "contractility", cfg
+            ));
+        }
+
+        if (cfg["gradient_contractility"]) {
+            _gradient_contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "gradient_contractility", cfg
+            ));
+        }
         
-        for (const auto& edge : this->_am.edges()) {
-            energies.push_back(compute_energy(edge));
-            tensions.push_back(compute_tension(edge));
+        Base::update_parameters(cfg);
+    }
+};
+
+/// Heterotypic edge contractility with additional spatial gradient
+/** \f$ \Gamma = \Gamma_0 + x * \Gamma_1 \f$, where x is the x-coordinate of 
+ *  the edge's center relative to the half-point of the domain in x. 
+ *  \Gamma_0 gives the mean contractility and \Gamma_1 the difference between
+ *  hight (left) and low (right) contractility.
+ *  
+ * Parameters:
+ *      - `contractility`: The mean contractility \f$ \Gamma_0^{i,j} \f$ 
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side.
+ *      - `gradient_contractility`: The gradient in contractility 
+ *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
+ *              dependent on the cell types adjacent to a junction. A symmetric 
+ *              matrix. The i,j coordinates map to the type of cell on left and 
+ *              right side. In relative units, i.e. for x = Lx, 
+ *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
+ *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `boundary_type`: To which value a boundary cell is mapped.
+*/
+template <typename Model>
+class EdgeContractilityHeterotypicGradedMulti
+: 
+    public EdgeContractilityHeterotypicSpatialBase<Model> 
+{
+public:
+    using Base = EdgeContractilityHeterotypicSpatialBase<Model>;
+
+    using SpaceVec = typename Base::SpaceVec;
+
+    typedef std::vector< std::vector<double> > stdmat;
+
+protected:
+    /// The cell-type dependent contractility
+    std::vector<arma::mat> _contractility;
+
+    /// The cell-type dependent spatial gradient in contractility
+    std::vector<arma::mat> _gradient_contractility;
+    
+    double contractility_at(
+        const SpaceVec& rpos,
+        std::size_t type_a,
+        std::size_t type_b
+    ) 
+    const override 
+    {
+        double N = _contractility.size();
+        double x = rpos[0] + 0.5;
+        std::size_t block = std::floor(x * N);
+        block = std::min(block, static_cast<std::size_t>(N - 1));
+
+        arma::mat contractility = _contractility[block];
+        arma::mat gradient_contractility = _gradient_contractility[block];
+
+        #if UTOPIA_DEBUG
+            std::size_t n = std::min(
+                contractility.n_rows,
+                gradient_contractility.n_rows
+            );
+            if (std::max(type_a, type_b) > n) {
+                std::cout << contractility << std::endl;
+                std::cout << gradient_contractility << std::endl;
+
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicGraded, no "
+                    "parameter registered for cells of type {}. Parameters "
+                    "for {} / {} types registered.",
+                    std::max(type_a, type_b),
+                    contractility.n_rows,
+                    gradient_contractility.n_rows
+                ));
+            }
+        #endif
+        
+        // find the relative position within block
+        double min = double(block) / N;
+        double max = (block + 1.) / N;
+        x -= min;
+        x /= (max - min);
+        x -= 0.5;
+
+        return (
+            contractility.at(type_a, type_b) 
+            + x * gradient_contractility.at(type_a, type_b)
+        );
+    }
+
+    std::vector<arma::mat> setup_matrices(const std::vector<stdmat>& vecc) {
+        std::vector<arma::mat> vecm{};
+        std::size_t N = 0;
+        for (const stdmat& __stdmat : vecc) {
+            vecm.push_back(setup_symmetric_matrix(__stdmat));
+            if (vecm.size() == 1) {
+                N = vecm[0].n_rows;
+            }
+            else if (vecm.back().n_rows != N ) {
+                std::cout << "Contractility matrices:\n";
+                for (const arma::mat& matrix : vecm) {
+                    std::cout << matrix << std::endl;
+                }
+                throw std::runtime_error(fmt::format(
+                    "In WF-term EdgeContractilityHeterotypicGradedMulti, "
+                    "list-entry {} of contractility- or "
+                    "contractility-gradient-matrices (see above) did not have "
+                    "the same dimensionality as previous matrices ({} vs {})!",
+                    vecm.size(),
+                    N,
+                    vecm.back().n_rows
+                ));
+            }
+        }
+        return vecm;
+    }
+
+    void validate_matrices() const {
+        if (_contractility.size() != _gradient_contractility.size()) {
+            std::cout << "Contractility matrices:\n";
+            for (const arma::mat& matrix : _contractility) {
+                std::cout << matrix << std::endl;
+            }
+
+            std::cout << std::endl << "Contractility-gradient matrices:\n";
+            for (const arma::mat& matrix : _gradient_contractility) {
+                std::cout << matrix << std::endl;
+            }
+
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityHeterotypicGradedMulti, list "
+                "of contractility- and contractility-gradient-matrices "
+                "(see above) did not have the same number of entries "
+                "({} and {})!",
+                _contractility.size(),
+                _gradient_contractility.size()
+            ));
+        }
+        if (_contractility.size() == 0) {
+            throw std::runtime_error(fmt::format(
+                "In WF-term EdgeContractilityHeterotypicGradedMulti, list "
+                "of contractility- and contractility-gradient-matrices "
+                "were empty!"
+            ));
+        }
+    }
+
+public:
+    EdgeContractilityHeterotypicGradedMulti (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _contractility(setup_matrices(
+            get_as<std::vector<stdmat>>("contractility", cfg))),
+        _gradient_contractility(setup_matrices(
+            get_as<std::vector<stdmat>>("gradient_contractility", cfg)))
+    {
+        validate_matrices();
+        this->update_contractility();
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["contractility"]) {
+            _contractility = setup_matrices(
+                get_as<std::vector<stdmat>>("contractility", cfg)
+            );
         }
 
-        return std::vector<std::vector<double>>({
-            energies,
-            tensions
-        });
+        if (cfg["gradient_contractility"]) {
+            _gradient_contractility = setup_matrices(
+                get_as<std::vector<stdmat>>("gradient_contractility", cfg)
+            );
+        }
+
+        validate_matrices();
+        
+        Base::update_parameters(cfg);
     }
 };
 
@@ -878,29 +1339,28 @@ public:
  *              types.
  */
 template <typename Model>
-class EdgeContractilityHeterotypicBoundary : public WorkFunctionTerm<Model>
+class EdgeContractilityHeterotypicBoundary : public EdgeContractilityBase<Model>
 {
-    using Base = WorkFunctionTerm<Model>;
+    using Base = EdgeContractilityBase<Model>;
 
     using SpaceVec = typename Base::SpaceVec;
-
-    using Vertex = typename Base::Vertex;
 
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
 
-    typedef std::vector< std::vector<double> > stdmat;
-
 private:
+    /// Apical contractility per cell-type
     std::vector<double> _apical_contractility;
 
+    /// Basal contractility per cell-type
     std::vector<double> _basal_contractility;
 
     /// The entry whether none (0) / basal (1) / apical (2)
     std::string _classification;
 
-    double get_contractility (const std::shared_ptr<Edge>& edge) const {
+    double get_contractility (const std::shared_ptr<Edge>& edge) const override
+    {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
 
         std::size_t type;
@@ -1021,46 +1481,6 @@ public:
         }
     }
 
-    void compute_and_set_forces () final {
-        for (const auto& edge : this->_am.edges()) {
-            double k = get_contractility(edge);
-            if (fabs(k) < 1.e-10) {
-                continue;
-            }
-
-            SpaceVec displ = this->_am.displacement(edge);
-
-            const auto& a = edge->custom_links().a;
-            const auto& b = edge->custom_links().b;
-
-            a->state.add_force(+ k * displ);
-            b->state.add_force(- k * displ);
-        }
-    }
-
-    double compute_tension(const std::shared_ptr<Edge>& edge) const final {
-        return get_contractility(edge) * this->_am.length_of(edge);
-    }
-
-    double compute_energy(const std::shared_ptr<Edge>& edge) const final {
-        double k = get_contractility(edge);
-        if (fabs(k) < 1.e-10) { return 0.; }
-        return 0.5 * k * std::pow(this->_am.length_of(edge), 2);
-    }
-
-    double compute_energy (
-        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
-        const AgentContainer<Edge>& edges,
-        [[maybe_unused]] const AgentContainer<Cell>& cells
-    ) const final
-    {
-        double energy = 0.;
-        for (const auto& edge : edges) {
-            energy += compute_energy(edge);
-        }
-        return energy;
-    }
-
     void update_parameters (const DataIO::Config& cfg) final {
         _apical_contractility = get_as<std::vector<double>>(
             "apical_contractility", cfg);
@@ -1068,48 +1488,26 @@ public:
             "basal_contractility", cfg);
     }
 
-
-
-
-    std::vector<std::string> write_task_edge_properties_names () const final {
+    std::vector<std::string> write_task_edge_properties_names () const override 
+    {
         return std::vector<std::string>({
             "contractility",
             "classification"
         });
     }
 
-    std::vector<std::vector<double>> write_edge_properties () const final {
+    std::vector<std::vector<double>> write_edge_properties () const override {
         std::vector<double> contractilities({});
         std::vector<double> classifications({});
         for (const auto& edge : this->_am.edges()) {
             contractilities.push_back(get_contractility(edge));
-            classifications.push_back(edge->state.get_parameter(_classification));
+            classifications.push_back(
+                edge->state.get_parameter(_classification)
+            );
         }
         return std::vector<std::vector<double>>({
             contractilities,
             classifications
-        });
-    }
-
-    std::vector<std::string> write_task_edge_energies_names () const final {
-        return std::vector<std::string>({
-            "energy",
-            "tension"
-        });
-    }
-
-    std::vector<std::vector<double>> write_edge_energies () const final {
-        std::vector<double> energies({});
-        std::vector<double> tensions({});
-        
-        for (const auto& edge : this->_am.edges()) {
-            energies.push_back(compute_energy(edge));
-            tensions.push_back(compute_tension(edge));
-        }
-
-        return std::vector<std::vector<double>>({
-            energies,
-            tensions
         });
     }
 };
@@ -2328,17 +2726,16 @@ public:
     }
 };
 
-/// @brief The area elasticity of a cell
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
- *  cell area  \f$ A_\alpha \f$..
+/// @brief The base class of area elasticity of a cell
+/** \f$ E_\alpha = k/2 (A_\alpha / A^{(0)} - 1)^2\f$, an elastic penalty on 
+ *  cell area  \f$ A_\alpha \f$ deviating from a target value f$ A^{(0)} \f$.
+ *  Requires a derived class defining the target value A0.
  * 
  *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free.
+ *      - `elastic_modulus`: the elastic modulus \f$ k \f$
  */
 template <typename Model>
-class AreaElasticity : public WorkFunctionTerm<Model>
+class AreaElasticityBase : public WorkFunctionTerm<Model>
 {
 public:
     using Base = WorkFunctionTerm<Model>;
@@ -2354,8 +2751,10 @@ public:
 protected:
     double _elastic_modulus;
 
+    virtual double preferential_area(const std::shared_ptr<Cell>& cell) const=0;
+
 public:
-    AreaElasticity (
+    AreaElasticityBase (
         std::string name,
         const DataIO::Config& cfg,
         const Model& model
@@ -2363,13 +2762,7 @@ public:
     :
         Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg))
-    {
-        double A0 = get_as<double>("preferential_area", cfg);
-
-        for (const auto& cell : this->_am.cells()) {
-            cell->state.area_preferential = A0;
-        }
-    }
+    { }
 
     void compute_and_set_forces () final {
         for (const auto& cell : this->_am.cells()) {
@@ -2390,12 +2783,12 @@ public:
     }
 
     double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = cell->state.area_preferential;
+        const double& A0 = preferential_area(cell);
         return _elastic_modulus * (this->_am.area_of(cell) / A0 - 1.) / A0;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const final {
-        const double& A0 = cell->state.area_preferential;
+        const double& A0 = preferential_area(cell);
         const double A = this->_am.area_of(cell);
         return 0.5 * _elastic_modulus * std::pow(A / A0 - 1, 2);
     }
@@ -2416,14 +2809,6 @@ public:
     void update_parameters (const DataIO::Config& cfg) override {
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-
-        if (cfg["preferential_area"]) {                
-            double A0 = get_as<double>("preferential_area", cfg);
-
-            for (const auto& cell : this->_am.cells()) {
-                cell->state.area_preferential = A0;
-            }
-        }
     }
     
 
@@ -2450,15 +2835,64 @@ public:
     }
 };
 
+/** An area elasticity with uniform target area
+ *  Derived from AreaElasticityBase with a uniform target area.
+ *
+ *  NOTE Relies on cell state variable `area_preferential` and hence cannot be
+ *      combined with other AreaElasticity terms also relying on that variable.
+ *
+ *  Parameters:
+ *      - `preferential_area`: the target value A0.
+ */
+template <typename Model>
+class AreaElasticity : public AreaElasticityBase<Model> {
+public:
+    using Base = AreaElasticityBase<Model>;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        return cell->state.area_preferential;
+    }
+
+public: 
+    AreaElasticity (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model)
+    {
+        double A0 = get_as<double>("preferential_area", cfg);
+
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.area_preferential = A0;
+        }
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        if (cfg["preferential_area"]) {                
+            double A0 = get_as<double>("preferential_area", cfg);
+
+            for (const auto& cell : this->_am.cells()) {
+                cell->state.area_preferential = A0;
+            }
+        }
+
+        Base::update_parameters(cfg);
+    }
+};
+
 
 /// @brief The area elasticity of a cell with heterotypic target values
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
- *  cell area  \f$ A_\alpha \f$..
+/** Derived from AreaElasticityBase with a target area dependent on cell type. 
+ *
+ *  NOTE Relies on cell state variable `area_preferential` and hence cannot be
+ *      combined with other AreaElasticity terms also relying on that variable.
  * 
  *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free.
  *      - `method` (str): The method how to set the heterotypic values for
  *              preferential area \f$ A^{(0)} \f$. Available:
  *          - `set_heterotypic`: Set \f$ A^{(0)} \f$ by cell type.
@@ -2482,12 +2916,17 @@ public:
  *                      \f$ \sum A^{(0)}_i = const \f$.
  */
 template <typename Model>
-class AreaElasticityHeterotypic : public AreaElasticity<Model> 
+class AreaElasticityHeterotypic : public AreaElasticityBase<Model> 
 {
 public:
-    using Base = AreaElasticity<Model>;
+    using Base = AreaElasticityBase<Model>;
 
     using Cell = typename Base::Cell;
+
+protected:
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        return cell->state.area_preferential;
+    }
 
 public:
     AreaElasticityHeterotypic (
@@ -2597,28 +3036,22 @@ public:
     /// @param cfg The configuration forwarded to 
     ///            AreaElasticityHeterotypic::setup_preferential_area
     void update_parameters (const DataIO::Config& cfg) override {
-        if (cfg["area_elasticity"]) {
-            DataIO::Config _cfg{};
-            _cfg["area_elasticity"] = cfg["area_elasticity"];
-            Base::update_parameters(_cfg);
-        }
-        
         setup_preferential_area(cfg);
+        Base::update_parameters(cfg);
     }
 };
 
 
 /// @brief The area elasticity with target values that follow a gradient
-/** \f$ E_\alpha = k (A_\alpha / A^{(0)} - 1)\f$, an elastic penalty on 
- *  cell area  \f$ A_\alpha \f$.
+/** Derived from AreaElasticityBase with a target area dependent on cell type.
  *  The values of \f$ A^{(0)}\f$ follow a sinusoidal gradient. Over the length
  *  of the domain, \f$ A^{(0)}\f$ changes from `left` to `right` and back to 
  *  `left` with a \$ \cos(x)^2 \f$ profile.
+ *
+ *  NOTE Relies on cell state variable `area_preferential` and hence cannot be
+ *      combined with other AreaElasticity terms also relying on that variable.
  * 
  *  Parameters:
- *      - `contractility`: the elastic modulus \f$ k \f$
- *      - `preferential_area`: The target area \f$ A^{(0)} \f$ 
- *              at which cell is pressure free.
  *      - `relaxation_time` (double): Over which timescale the area of non-
  *              regulated types relaxes to keep total area constant.
  *      - `relax_types` (list[int]): The cell types that are relaxed
@@ -2629,14 +3062,19 @@ public:
  *          have distance 1. See also EntitiesManager::neighbors_of.
  */
 template <typename Model>
-class AreaElasticityGradient : public AreaElasticity<Model> 
+class AreaElasticityGradient : public AreaElasticityBase<Model> 
 {
 public:
     using SpaceVec = typename Model::SpaceVec;
 
-    using Base = AreaElasticity<Model>;
+    using Base = AreaElasticityBase<Model>;
 
     using Cell = typename Base::Cell;
+
+protected:
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        return cell->state.area_preferential;
+    }
 
 private:
     /// The maximum and minimum value of the cos^2 profile
@@ -2905,11 +3343,66 @@ public:
                                                            relax_types.end());
         }
 
+        Base::update_parameters(cfg);
     }
 
     void update ([[maybe_unused]] double dt) override {
         regulate_gradient();
         relax_cells();
+    }
+};
+
+
+/// @brief The area elasticity of a cell to prevent extrusion
+/** An area elasticity (see AreaElasticityBase), where A0 = A_min if A < A_min
+ *  and A otherwise. It therefore only is non-zero for A < A_min, preventing
+ *  further reduction of A.
+ *
+ *  NOTE This derived class does NOT rely on cell state variable 
+ *      `area_preferential` and can be combined with other AreaElasticity terms.
+ * 
+ *  Parameters:
+ *      - `area_minimum`: The minimal area, below which area elasticity is 
+ *              applied.
+ */
+template <typename Model>
+class AreaElasticityMinimum : public AreaElasticityBase<Model> 
+{
+public:
+    using Base = AreaElasticityBase<Model>;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    double _minimum_area;
+
+    double preferential_area(const std::shared_ptr<Cell>& cell) const final {
+        double A = this->_am.area_of(cell);
+        if (A < _minimum_area) {
+            return _minimum_area;
+        }
+        return A;
+    }
+
+public:
+    AreaElasticityMinimum (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _minimum_area(get_as<double>("minimum_area", cfg))
+    { }
+
+    
+    /// @brief  Updates the parameters
+    /// @param cfg The configuration forwarded to 
+    ///            AreaElasticityHeterotypic::setup_preferential_area
+    void update_parameters (const DataIO::Config& cfg) override {
+        _minimum_area = get_as<double>("minimum_area", cfg, _minimum_area);
+
+        Base::update_parameters(cfg);
     }
 };
 

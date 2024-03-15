@@ -31,6 +31,14 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra")
 #      for example, used in the CI/CD pipeline to add additional flags to DEBUG
 
 
+# Add this compile definition for debug builds, this same logic works for
+# target_compile_options, target_link_options, etc.
+target_compile_definitions(Utopia::utopia INTERFACE
+    $<$<CONFIG:Debug>:
+        UTOPIA_DEBUG=1
+    >
+)
+
 # Create symlinks to the Utopia Python virtual environment
 include(CreateSymlink)
 message(STATUS "Creating symlinks to the Utopia Python virtual environment "

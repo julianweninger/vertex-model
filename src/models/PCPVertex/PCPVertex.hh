@@ -679,6 +679,14 @@ public:
                 )
             );
         }
+        else if (term == "area_elasticity_minimum") {
+            register_work_function_term(
+                name,
+                std::make_shared<AreaElasticityMinimum<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "boundary_bend_elastic") {
             register_work_function_term(
                 name,
@@ -747,6 +755,24 @@ public:
             register_work_function_term(
                 name,
                 std::make_shared<EdgeContractilityHeterotypic<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "edge_contractility_heterotypic_graded") {
+            register_work_function_term(
+                name,
+                std::make_shared<EdgeContractilityHeterotypicGraded<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "edge_contractility_heterotypic_graded_multi") {
+            register_work_function_term(
+                name,
+                std::make_shared<
+                    EdgeContractilityHeterotypicGradedMulti<PCPVertex>
+                >(
                     name, params, *this
                 )
             );
@@ -839,6 +865,7 @@ public:
                 " - area_elasticity\n"
                 " - area_elasticity_heterotypic\n"
                 " - area_elasticity_gradient\n"
+                " - area_elasticity_minimum\n"
                 " - boundary_bend_elastic\n"
                 " - boundary_classifier\n"
                 " - boundary_fixed\n"
@@ -847,6 +874,8 @@ public:
                 " - cell_contractility\n"
                 " - edge_contractility\n"
                 " - edge_contractility_heterotypic\n"
+                " - edge_contractility_heterotypic_graded\n"
+                " - edge_contractility_heterotypic_graded_multi\n"
                 " - edge_contractility_heterotypic_boundary\n"
                 " - edge_contractility_axial\n"
                 " - edge_contractility_polar\n"

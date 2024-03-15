@@ -37,7 +37,7 @@ namespace WorkFunction2Dplus {
 template <typename Model>
 class VolumeElasticity : public WorkFunction::WorkFunctionTerm<Model>
 {
-public:
+protected:
     using Base = WorkFunction::WorkFunctionTerm<Model>;
 
     using SpaceVec = typename Base::AgentManager::SpaceVec;
@@ -47,15 +47,65 @@ public:
     using Edge = typename Base::Edge;
 
     using Cell = typename Base::Cell;
+
+    /// @brief  Elastic constant associated with volume elasticity
+    double _elastic_modulus;
+
+    /// @brief The target volume for a cell at which there is no pressure
+    double _preferential_volume;
+
+    /// @brief The height of the tissue, defining a maximum height for every cell
+    double _tissue_height;
+
+    /// @brief Minimum value for cell height
+    double _minimum_height;
+
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height;
+
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height_derivative;
+
+    /// @brief  Damping factor for hight development additional to dt
+    double _gamma;
     
     /// @brief Check whether cell has a basal contact
     /// @param height The height of considered cell
     /// @return Whether cell has a basal contact
     bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for Basal contact on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                );
+            }
+        #endif
+
         return cell->state.type != 1;
     }
 
+    /// @brief The number of neighbors that have basal contact
+    /// @param cell 
+    /// @return The number of neighbors that have basal contact
+    std::size_t num_basal_neighbors (const std::shared_ptr<Cell>& cell) const {
+        std::size_t cnt = 0;
+        for (const auto& n : this->_am.neighbors_of(cell)) {
+            cnt += has_basal_contact(n);
+        }
+        return cnt;
+    }
+
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for height on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                );
+            }
+        #endif
+
         return cell->state.get_parameter(_height);
     }
 
@@ -68,6 +118,15 @@ public:
      *  @return Volume of cell
      */
     double volume_of (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for Volume on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                );
+            }
+        #endif
+
         const double height = cell->state.get_parameter(_height);
         const double area = this->_am.area_of(cell);
 
@@ -89,39 +148,6 @@ public:
         }
 
         return volume;
-    }
-
-protected:
-    /// @brief  Elastic constant associated with volume elasticity
-    double _elastic_modulus;
-
-    /// @brief The target volume for a cell at which there is no pressure
-    double _preferential_volume;
-
-    /// @brief The height of the tissue, defining a maximum height for every cell
-    double _tissue_height;
-
-    /// @brief Minimum value for cell height
-    double _minimum_height;
-
-    /// @brief  The name of the cell's parameter referring to cell's height
-    const std::string _height;
-
-    /// @brief  The name of the cell's parameter referring to cell's height
-    const std::string _height_derivative;
-
-    /// @brief  Damping factor for hight development additional to dt
-    double _gamma;
-
-    /// @brief The number of neighbors that have basal contact
-    /// @param cell 
-    /// @return The number of neighbors that have basal contact
-    std::size_t num_basal_neighbors (const std::shared_ptr<Cell>& cell) const {
-        std::size_t cnt = 0;
-        for (const auto& n : this->_am.neighbors_of(cell)) {
-            cnt += has_basal_contact(n);
-        }
-        return cnt;
     }
 
 public:
@@ -176,15 +202,16 @@ public:
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 SpaceVec displ = this->_am.displacement(edge);
-                auto [c, n] = this->_am.template adjoints_of<true>(edge);
                 
                 SpaceVec normal({displ[1], -displ[0]});
                 if (flip) {
                     normal *= -1;
-                    std::swap(c, n);
                 }
 
-                if (cell->state.type == 1 and has_basal_contact(n)) {
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
+
+                if (cell->state.type == 1 and n and has_basal_contact(n)) {
                     dH -= _elastic_modulus
                           * (volume_of(n) - _preferential_volume)
                           / std::pow(_preferential_volume, 2)
@@ -217,11 +244,7 @@ public:
         // consider how changes in A impact Volume of neighbor
         if (not has_basal_contact(cell)) {
             std::size_t N_div = num_basal_neighbors(cell);
-            for (const auto& [edge, flip] : cell->custom_links().edges) {
-                auto [c, n] = this->_am.template adjoints_of<true>(edge);                
-                if (flip) {
-                    std::swap(c, n);
-                }
+            for (const auto& n : this->_am.neighbors_of(cell)) {
                 if (has_basal_contact(n)) {
                     P += _elastic_modulus 
                          * (volume_of(n) - _preferential_volume) 
@@ -308,7 +331,9 @@ public:
         _gamma = get_as<double>("gamma", cfg, _gamma);
     }
 
-    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) const override {
+    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) 
+    const override 
+    {
         bool PASS_TEST = Base::test_constraints(logger);
         logger->debug("Testing constraints of WF term {} ...", this->_name);
 
@@ -452,10 +477,13 @@ protected:
     /// The height of a junction up to the base of neighbouring cells
     double apical_height_of (const std::shared_ptr<Edge>& edge) const {
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
-        return std::min(
-            ca->state.get_parameter(_cell_height),
-            cb->state.get_parameter(_cell_height)
-        );
+        
+        double h_a = std::numeric_limits<double>::max();
+        double h_b = std::numeric_limits<double>::max();
+        if (ca) { h_a = ca->state.get_parameter(_cell_height); }
+        if (cb) { h_b = cb->state.get_parameter(_cell_height); }
+
+        return std::min(h_a, h_b);
     }
 
 public:
@@ -486,9 +514,13 @@ public:
             b->state.add_force(- _surface_tension * director * H);
 
             auto [ca, cb] = this->_am.adjoints_of(edge);
-            if (  cb->state.get_parameter(_cell_height) 
-                < ca->state.get_parameter(_cell_height))
-            {
+        
+            double h_a = std::numeric_limits<double>::max();
+            double h_b = std::numeric_limits<double>::max();
+            if (ca) { h_a = ca->state.get_parameter(_cell_height); }
+            if (cb) { h_b = cb->state.get_parameter(_cell_height); }
+            
+            if (h_b < h_a) {
                 std::swap(ca, cb);
             }
 
