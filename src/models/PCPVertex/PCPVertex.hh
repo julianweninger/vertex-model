@@ -825,6 +825,22 @@ public:
                 )
             );
         }
+        else if (term == "height_monitor") {
+            register_work_function_term(
+                name,
+                std::make_shared<HeightMonitor<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "height_setter") {
+            register_work_function_term(
+                name,
+                std::make_shared<HeightSetter<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "perimeter_contractility") {
             register_work_function_term(
                 name,
@@ -883,6 +899,8 @@ public:
                 " - linetension_fluctuations\n"
                 " - perimeter_contractility\n"
                 " - linetension_heterotypic\n"
+                " - height_monitor\n"
+                " - height_setter\n"
                 " - shape_elasticity\n"
                 " - volume_elasticity\n"
                 "", term

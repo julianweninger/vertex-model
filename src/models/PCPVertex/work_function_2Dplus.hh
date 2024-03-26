@@ -440,6 +440,159 @@ public:
 };
 
 
+/** Monitors the mean of the height variable
+ * 
+ *  Parameters:
+ *      - `VolumeElasticity_term`: The name of the VolumeElasticity term
+ *              performing the update of H
+ *      - `height_parameter_name`: The name of the H variable of cells.
+ */
+template <typename Model>
+class HeightMonitor : public WorkFunction::WorkFunctionTerm<Model>
+{
+    using Base = WorkFunction::WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// Variable name of cell height \f$ H \f$ stored in parameters of cell
+    const std::string _height_name;
+
+public:
+    HeightMonitor (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _height_name(get_as<std::string>("VolumeElasticity_term", cfg) 
+                     + "_"
+                     + get_as<std::string>("height_parameter_name", cfg))
+    { }
+
+    void compute_and_set_forces () final {
+        return;
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double height = 0;
+        std::size_t N = 0;
+        for (const auto& cell : cells) {
+            if (cell->state.type != 1) {
+                continue;
+            }
+            height += cell->state.get_parameter(_height_name);
+            N += 1;
+        }
+        if (N > 0) {
+            return height / N;
+        }
+        return 0;
+    }
+
+    void update_parameters ([[maybe_unused]] const DataIO::Config& cfg) final 
+    {}
+};
+
+
+/** Sets the height variable to a (increnting) value
+ * 
+ *  Parameters:
+ *      - `VolumeElasticity_term`: The name of the VolumeElasticity term
+ *              performing the update of H
+ *      - `height_parameter_name`: The name of the H variable of cells.
+ *      - `tissue_height`: Sets the original tissue height (t=0)
+ *      - `increment`: The incremental of tissue height change. 
+                * H = H0 + dH * dt, with dt the numeric step size.
+ */
+template <typename Model>
+class HeightSetter : public WorkFunction::WorkFunctionTerm<Model>
+{
+    using Base = WorkFunction::WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// Variable name of cell height \f$ H \f$ stored in parameters of cell
+    const std::string _height_name;
+
+    /// @brief  The current height to set
+    double _height;
+
+    /// @brief The incremental to height
+    double _increment;
+
+public:
+    HeightSetter (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _height_name(get_as<std::string>("VolumeElasticity_term", cfg) 
+                     + "_"
+                     + get_as<std::string>("height_parameter_name", cfg)),
+        _height(get_as<double>("tissue_height", cfg)),
+        _increment(get_as<double>("increment", cfg))
+    { }
+
+    void compute_and_set_forces () final {
+        return;
+    }
+
+    SpaceVec compute_force(
+        [[maybe_unused]] const std::shared_ptr<Vertex>& vertex
+    ) const final 
+    {
+        return SpaceVec({0., 0.});
+    }
+    
+    /// Performs the update of \f$ H_\alpha \f$
+    void update (double dt) final {
+        for (const auto& cell : this->_am.cells()) {
+            if (cell->state.type != 1) {
+                continue;
+            }
+
+            _height += _increment * dt;
+            cell->state.update_parameter(_height_name, _height);
+        }
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const final
+    {
+        return _height;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) final {
+        _height = get_as<double>("tissue_height", cfg, _height);
+        _increment = get_as<double>("increment", cfg, _increment);
+    }
+};
+
 /// @brief The surface-tension term
 /** \f$ E_{i,j} = \Lambda l_{i,j} H_[i,j} \f$, a term linear in edge surface.
  * 
