@@ -208,7 +208,7 @@ area_mapped/neighbors: !pspace
       tag: cell_type
     - create_mask: [!dag_tag cell_type, ==, 1]
       tag: _hair_cells
-    - create_mask: [!dag_tag cell_type, ==, 2]
+    - create_mask: [!dag_tag cell_type, '!=', 1]
       tag: _support_cells
 
     # stack the seeds

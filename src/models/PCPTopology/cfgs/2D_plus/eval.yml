@@ -19,6 +19,12 @@ _definitions:
         - 0.2
         # - 0.26
 
+  subspace: &subspace
+    <<: *subspace_slice
+    kp: !sweep
+      default: 0.005
+      linspace: [0.005, 0.02, 3]
+
   Gamma_best_fit: &Gamma_best_fit 0.4
 
   hue_2: &HUE_2 rho
