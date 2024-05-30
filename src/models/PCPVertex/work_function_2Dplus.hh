@@ -85,15 +85,21 @@ protected:
         return cell->state.type != 1;
     }
 
-    /// @brief The number of neighbors that have basal contact
+    /// @brief The length ("perimeter") of basal contacts
+    /// excluding neighbours with basal contacts
     /// @param cell 
     /// @return The number of neighbors that have basal contact
-    std::size_t num_basal_neighbors (const std::shared_ptr<Cell>& cell) const {
-        std::size_t cnt = 0;
-        for (const auto& n : this->_am.neighbors_of(cell)) {
-            cnt += has_basal_contact(n);
+    double length_basal_contact (const std::shared_ptr<Cell>& cell) const {
+        double length = 0;
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            auto [c, n] = this->_am.adjoints_of(edge);
+            if (c != cell) { std::swap(c, n); }
+
+            if (has_basal_contact(n)) {
+                length += this->_am.length_of(edge);
+            }
         }
-        return cnt;
+        return length;
     }
 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
@@ -130,21 +136,25 @@ protected:
         const double height = cell->state.get_parameter(_height);
         const double area = this->_am.area_of(cell);
 
+        double volume = area * height;
+
         // It is columnar itself, so no neighbour contributions
         if (not has_basal_contact(cell)) {
-            return area * height;
+            return volume;
         }
 
         // check neighbours for basal detachment
-        double volume = area * height;
-        for (const auto& n : this->_am.neighbors_of(cell)) {
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            auto [c, n] = this->_am.adjoints_of(edge);
+            if (c != cell) { std::swap(c, n); }
+
             // if neighbour has basal contact, does not contribute
             if (has_basal_contact(n)) {
                 continue;
             }
             volume += this->_am.area_of(n)
-                      * (_tissue_height - n->state.get_parameter(_height)) 
-                      / num_basal_neighbors(n);
+                      * (_tissue_height - n->state.get_parameter(_height))
+                      * this->_am.length_of(edge) / length_basal_contact(n);
         }
 
         return volume;
@@ -185,17 +195,18 @@ public:
         for (const auto& cell : this->_am.cells()) {
             double pressure = compute_pressure(cell);
 
+        const double H = cell->state.get_parameter(_height);
             double area = 0.;
             double dH = 0.;
-            std::size_t N_div = 0;
+            double L = 0;
             if (cell->state.type == 1) {
                 area += this->_am.area_of(cell);
                 dH += _elastic_modulus
                       * (volume_of(cell) - _preferential_volume)
                       / std::pow(_preferential_volume, 2)
                       * area;
-                N_div = num_basal_neighbors(cell);
-                if (N_div == 0) {
+                L = length_basal_contact(cell);
+                if (L < 1.e-8) {
                     dH -= 1.e4;
                 }
             }
@@ -215,7 +226,8 @@ public:
                     dH -= _elastic_modulus
                           * (volume_of(n) - _preferential_volume)
                           / std::pow(_preferential_volume, 2)
-                          * area / N_div;
+                          * area
+                          * arma::norm(displ) / L;
                 }
 
                 // calculate force
@@ -223,6 +235,31 @@ public:
                 
                 edge->custom_links().a->state.add_force(force);
                 edge->custom_links().b->state.add_force(force);
+            }
+
+            // The contribution of perimeter and interfaces
+            if (cell->state.type == 1) {
+                for (const auto& [edge, flip] : cell->custom_links().edges) {
+                    auto [c, n] = this->_am.adjoints_of(edge);
+                    if (c != cell) { std::swap(c, n); }
+
+                    SpaceVec displ = this->_am.displacement(edge);
+                    double l = arma::norm(displ);
+
+                    double T = (
+                        _elastic_modulus
+                        * (1. / L - l / std::pow(L, 2))
+                        * area * (_tissue_height - H)
+                        * (volume_of(n) - _preferential_volume)
+                        / std::pow(_preferential_volume, 2)
+                    );
+
+                    const auto& a = edge->custom_links().a;
+                    const auto& b = edge->custom_links().b;
+
+                    a->state.add_force(+ T * displ / l);
+                    b->state.add_force(- T * displ / l);
+                }
             }
 
             if (cell->state.type == 1) {
@@ -240,16 +277,20 @@ public:
         double P = _elastic_modulus * H
                    * (volume_of(cell) - _preferential_volume)
                    / std::pow(_preferential_volume, 2);
-
+        
         // consider how changes in A impact Volume of neighbor
         if (not has_basal_contact(cell)) {
-            std::size_t N_div = num_basal_neighbors(cell);
-            for (const auto& n : this->_am.neighbors_of(cell)) {
+            const double L = length_basal_contact(cell);
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
+
                 if (has_basal_contact(n)) {
                     P += _elastic_modulus 
                          * (volume_of(n) - _preferential_volume) 
                          / std::pow(_preferential_volume, 2) 
-                         * (_tissue_height - H) / N_div;
+                         * (_tissue_height - H) 
+                         * this->_am.length_of(edge) / L;
                 }
             }
 

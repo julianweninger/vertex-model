@@ -108,6 +108,12 @@ parameter_space:
             start: 1
             stop: 100000
             step: 1
+          minimization:
+            linetension_fluctuations: !coupled-sweep
+              target_name: kp
+              name: dL
+              default: 0.016
+              linspace: [0.016, 0.028, 3]
 
     # --- The solver
     PCPVertex:
@@ -122,12 +128,16 @@ parameter_space:
           gamma: !expr 1. / 20
           height_parameter_name: height
       - perimeter_contractility:
-          contractility: 0.005
-      # - linetension_heterotypic:
-      #     boundary_type: 2
-      #     linetension:
-      #       - [0., 0.]
-      #       - [0., !expr 0. + 10.]
+          contractility: !sweep
+            name: kp
+            default: 0.005
+            linspace: [0.005, 0.02, 3]
+      - linetension_heterotypic:
+          boundary_type: 2
+          linetension:
+            - [0.005, 0.  , 0.05]
+            - [0.   , 0.  , 1.00]
+            - [0.05 , 1.  , 0.  ]
       - surface_tension:
           surface_tension: -0.01
           VolumeElasticity_term: volume_elasticity
