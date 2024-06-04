@@ -95,7 +95,7 @@ protected:
             auto [c, n] = this->_am.adjoints_of(edge);
             if (c != cell) { std::swap(c, n); }
 
-            if (has_basal_contact(n)) {
+            if (n and has_basal_contact(n)) {
                 length += this->_am.length_of(edge);
             }
         }
@@ -149,12 +149,11 @@ protected:
             if (c != cell) { std::swap(c, n); }
 
             // if neighbour has basal contact, does not contribute
-            if (has_basal_contact(n)) {
-                continue;
+            if (n and not has_basal_contact(n)) {
+                volume += this->_am.area_of(n)
+                        * (_tissue_height - n->state.get_parameter(_height))
+                        * this->_am.length_of(edge) / length_basal_contact(n);
             }
-            volume += this->_am.area_of(n)
-                      * (_tissue_height - n->state.get_parameter(_height))
-                      * this->_am.length_of(edge) / length_basal_contact(n);
         }
 
         return volume;
@@ -195,7 +194,7 @@ public:
         for (const auto& cell : this->_am.cells()) {
             double pressure = compute_pressure(cell);
 
-        const double H = cell->state.get_parameter(_height);
+            const double H = cell->state.get_parameter(_height);
             double area = 0.;
             double dH = 0.;
             double L = 0;
@@ -207,7 +206,7 @@ public:
                       * area;
                 L = length_basal_contact(cell);
                 if (L < 1.e-8) {
-                    dH -= 1.e4;
+                    throw std::runtime_error("Cell has no basal length!");
                 }
             }
 
@@ -242,13 +241,14 @@ public:
                 for (const auto& [edge, flip] : cell->custom_links().edges) {
                     auto [c, n] = this->_am.adjoints_of(edge);
                     if (c != cell) { std::swap(c, n); }
+                    if (not n) { continue; }
 
                     SpaceVec displ = this->_am.displacement(edge);
                     double l = arma::norm(displ);
 
                     double T = (
                         _elastic_modulus
-                        * (1. / L - l / std::pow(L, 2))
+                        * (1. - l / L) / L
                         * area * (_tissue_height - H)
                         * (volume_of(n) - _preferential_volume)
                         / std::pow(_preferential_volume, 2)
@@ -285,7 +285,7 @@ public:
                 auto [c, n] = this->_am.adjoints_of(edge);
                 if (c != cell) { std::swap(c, n); }
 
-                if (has_basal_contact(n)) {
+                if (n and has_basal_contact(n)) {
                     P += _elastic_modulus 
                          * (volume_of(n) - _preferential_volume) 
                          / std::pow(_preferential_volume, 2) 
@@ -609,12 +609,13 @@ public:
     
     /// Performs the update of \f$ H_\alpha \f$
     void update (double dt) final {
+        _height += _increment * dt;
+        
         for (const auto& cell : this->_am.cells()) {
             if (cell->state.type != 1) {
                 continue;
             }
 
-            _height += _increment * dt;
             cell->state.update_parameter(_height_name, _height);
         }
     }
