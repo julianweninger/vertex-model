@@ -10,6 +10,7 @@ import math
 import numpy as np
 import xarray as xr
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 from utopya.plotting import is_plot_func, PlotHelper
 
@@ -42,7 +43,29 @@ def protein_concentrations_per_cell(*, data: dict, hlpr: PlotHelper,
 
     norm = mpl.colors.Normalize(vmin=(delta.isel(time=-1).min()),
                                 vmax=(delta.isel(time=-1).max()))
-    cmap = mpl.cm.get_cmap(cmap)
+    if cmap is None:
+        cmap = mpl.rcParams["image.cmap"]
+
+    # Get the colormap from the ColormapRegistry
+    try:
+        cmap = mpl.colormaps[cmap]
+    except KeyError as err:
+        _avail = make_columns(
+            sorted(
+                [cm for cm in mpl.colormaps if not cm.endswith("_r")]
+            )
+        )
+        raise ValueError(
+            f"'{cmap}' is not a known colormap name!\n"
+            f"Available named colormaps:\n{_avail}\n"
+            "Additional ways to specify colormaps by name:\n"
+            "  - Add '_r' suffix to the name to reverse it\n"
+            f"  - Add '{SNS_CP_PREFIX}' prefix to define a seaborn "
+            "color palette\n"
+            f"  - Add '{SNS_DIV_PREFIX}' prefix to specify a "
+            "diverging seaborn color map\n\n"
+            "See dantro ColorManager documentation for more."
+        ) from err
 
     for id in delta.id:
         # map the last delta value of this cell to color

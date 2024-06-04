@@ -167,21 +167,24 @@ rosettes_bifurcation:
       # exchange dimension beta with data from hair_density
 
 state_anim:
-  based_on: .ca.state.anim_ffmpeg
+  based_on: 
+    - .creator.universe
+    - .plot.ca
+    - .animation.ffmpeg
 
-  model_name: Collier
+  select:
+    cell_type: data/Collier/CM/Cell_type
+    notch: data/Collier/CM/Notch
+    delta: data/Collier/CM/Delta
+    nicd: data/Collier/CM/NICD
 
   to_plot:
-    CM/Cell_type:
+    cell_type:
       title: Cell Type
-      limits: [0, 2]
       cmap:
         Progenitor: White
         Hair: Red
         Support: Gray
-
-  # Specify the time index (will be ignored, but needs to be specified)
-  time_idx: 0
 
   # Enable animation (disabled by default)
   animation:

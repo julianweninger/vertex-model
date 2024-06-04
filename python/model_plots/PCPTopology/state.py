@@ -901,7 +901,7 @@ def errorbars(*, data: dict, to_plot: dict, hlpr: PlotHelper, property: str,
 
     # Determine whether there will be colours according to a color map
     if cmap is not None:
-        cmap = mpl.cm.get_cmap(cmap)
+        cmap = plt.cm.get_cmap(cmap)
         colors = [cmap(i/max(num_lines-1, 1)) for i in range(num_lines)]
     else:
         colors = [None] * num_lines
@@ -989,7 +989,7 @@ def errorbars_mv(*, data: dict, to_plot: dict, hlpr: PlotHelper,
 
     # Determine whether there will be colours according to a color map
     if cmap is not None:
-        cmap = mpl.cm.get_cmap(cmap)
+        cmap = plt.cm.get_cmap(cmap)
         colors = [cmap(i/max(num_lines-1, 1)) for i in range(num_lines)]
     else:
         colors = [None] * num_lines
