@@ -26,6 +26,7 @@
 
 #include "work_function.hh"
 #include "work_function_2Dplus.hh"
+#include "work_function_2Dplus__triangle_method.hh"
 #include "minimization.hh"
 #include "boundary.hh"
 
@@ -873,6 +874,14 @@ public:
                 )
             );
         }
+        else if (term == "volume_elasticity_triangle") {
+            register_work_function_term(
+                name,
+                std::make_shared<VolumeElasticityTriangle<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else {
             throw std::runtime_error(fmt::format(
                 "No term `{}` known in PCPVertex namespace. "
@@ -903,6 +912,7 @@ public:
                 " - height_setter\n"
                 " - shape_elasticity\n"
                 " - volume_elasticity\n"
+                " - volume_elasticity_triangle\n"
                 "", term
             ));
         }
