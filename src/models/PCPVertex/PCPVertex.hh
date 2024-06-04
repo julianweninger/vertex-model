@@ -858,6 +858,14 @@ public:
                 )
             );
         }
+        else if (term == "surface_elasticity") {
+            register_work_function_term(
+                name,
+                std::make_shared<SurfaceElasticity<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "surface_tension") {
             register_work_function_term(
                 name,
@@ -911,6 +919,8 @@ public:
                 " - height_monitor\n"
                 " - height_setter\n"
                 " - shape_elasticity\n"
+                " - surface_elasticity\n"
+                " - surface_tension\n"
                 " - volume_elasticity\n"
                 " - volume_elasticity_triangle\n"
                 "", term

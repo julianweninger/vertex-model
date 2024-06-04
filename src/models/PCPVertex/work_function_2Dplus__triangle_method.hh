@@ -481,7 +481,318 @@ public:
     }
 };
 
+template <typename Model>
+class SurfaceElasticity : public WorkFunction::WorkFunctionTerm<Model>
+{
+protected:
+    using Base = WorkFunction::WorkFunctionTerm<Model>;
 
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+    /// @brief  Elastic constant associated with volume elasticity
+    double _elastic_modulus;
+
+    /// @brief The target volume for a cell at which there is no pressure
+    double _preferential_surface;
+
+    /// @brief The height of the tissue, defining a maximum height for every cell
+    double _tissue_height;
+
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height;
+
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height_derivative;
+    
+    /// @brief Check whether cell has a basal contact
+    /// @param height The height of considered cell
+    /// @return Whether cell has a basal contact
+    bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for Basal contact on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                );
+            }
+        #endif
+
+        return cell->state.type != 1;
+    }
+
+    /// @brief The length ("perimeter") of basal contacts
+    /// excluding neighbours with basal contacts
+    /// @param cell 
+    /// @return The number of neighbors that have basal contact
+    double normalization_basal_contact (const std::shared_ptr<Cell>& cell) const {
+        double length = 0;
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            auto [c, n] = this->_am.adjoints_of(edge);
+            if (c != cell) { std::swap(c, n); }
+
+            if (n and has_basal_contact(n)) {
+                length += std::pow(this->_am.length_of(edge), 2);
+            }
+        }
+        return length;
+    }
+
+    inline double height_of (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for height on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                );
+            }
+        #endif
+
+        return cell->state.get_parameter(_height);
+    }
+
+    /// @brief The volume of a cell
+    /** If cell does not have a basal contact, it is considered columnar.
+     *  Else, it is columnar and occupies an equal share of those neighbours
+     *  that do not have a basal contact.
+     *  
+     *  @param cell Pointer to cell
+     *  @return Volume of cell
+     */
+    double surface_of (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for Volume on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                );
+            }
+        #endif
+
+        const double height = cell->state.get_parameter(_height);
+        const double perimeter = this->_am.perimeter_of(cell);
+
+        double surface = perimeter * height;
+
+        // It is columnar itself, so no neighbour contributions
+        if (not has_basal_contact(cell)) {
+            return surface;
+        }
+
+        // check neighbours for basal detachment
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            auto [c, n] = this->_am.adjoints_of(edge);
+            if (c != cell) { std::swap(c, n); }
+
+            // if neighbour has basal contact, does not contribute
+            if (n and not has_basal_contact(n)) {
+                surface += this->_am.length_of(edge) 
+                           * (_tissue_height - n->state.get_parameter(_height));
+                        //    * (
+                        //         std::sqrt(
+                        //             std::pow(4 * this->_am.area_of(n) 
+                        //                      / normalization_basal_contact(n),
+                        //                      2)
+                        //             + 1
+                        //         )
+                        //         - 1
+                        //      )
+                        //     * (1. - n->state.get_parameter(_height));
+            }
+        }
+
+        return surface;
+    }
+
+public:
+    SurfaceElasticity (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
+        _preferential_surface(get_as<double>("preferential_surface", cfg)),
+        _tissue_height(get_as<double>("tissue_height", cfg)),
+        _height(get_as<std::string>("VolumeElasticity_term", cfg) 
+                + "_" + get_as<std::string>("height_parameter_name", cfg)),
+        _height_derivative(_height + "_derivative")
+    { }
+
+    void compute_and_set_forces () final {
+        for (const auto& cell : this->_am.cells()) {
+            const double H = cell->state.get_parameter(_height);
+            double surface = surface_of(cell);
+            double dH = 0.;
+            // double L = 0;
+            if (not has_basal_contact(cell)) {
+                dH += _elastic_modulus
+                      * (surface - _preferential_surface)
+                      / std::pow(_preferential_surface, 2)
+                      * this->_am.perimeter_of(cell);
+                // L = normalization_basal_contact(cell);
+                // if (L < 1.e-8) {
+                //     throw std::runtime_error("Cell has no basal length!");
+                // }
+            }
+
+
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
+
+                SpaceVec displ = this->_am.displacement(edge);
+                double l = arma::norm(displ);
+
+                double T = (
+                    _elastic_modulus * H
+                    * (surface - _preferential_surface)
+                    / std::pow(_preferential_surface, 2)
+                );
+
+                const auto& a = edge->custom_links().a;
+                const auto& b = edge->custom_links().b;
+
+                a->state.add_force(+ T * displ / l);
+                b->state.add_force(- T * displ / l);
+
+                if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
+                    dH -= _elastic_modulus
+                          * (surface_of(n) - _preferential_surface)
+                          / std::pow(_preferential_surface, 2)
+                          * l;
+                }
+            }
+
+            // for (const auto& [edge, flip] : cell->custom_links().edges) {
+            //     SpaceVec displ = this->_am.displacement(edge);
+                
+            //     SpaceVec normal({displ[1], -displ[0]});
+            //     if (flip) {
+            //         normal *= -1;
+            //     }
+
+            //     auto [c, n] = this->_am.adjoints_of(edge);
+            //     if (c != cell) { std::swap(c, n); }
+
+            //     if (cell->state.type == 1 and n and has_basal_contact(n)) {
+            //         // dH -= _elastic_modulus
+            //         //       * (volume_of(n) - _preferential_volume)
+            //         //       / std::pow(_preferential_volume, 2)
+            //         //       * area
+            //         //       * std::pow(arma::norm(displ), 2) / L;
+            //     }
+            // }
+
+            // The contribution of perimeter and interfaces
+            if (not has_basal_contact(cell)) {
+                for (const auto& [edge, flip] : cell->custom_links().edges) {
+                    auto [c, n] = this->_am.adjoints_of(edge);
+                    if (c != cell) { std::swap(c, n); }
+                    if (not n) { continue; }
+
+                    SpaceVec displ = this->_am.displacement(edge);
+                    double l = arma::norm(displ);
+
+                    double T = (
+                        _elastic_modulus * (_tissue_height - H)
+                        * (surface_of(n) - _preferential_surface)
+                        / std::pow(_preferential_surface, 2)
+                    );
+
+                    const auto& a = edge->custom_links().a;
+                    const auto& b = edge->custom_links().b;
+
+                    a->state.add_force(+ T * displ / l);
+                    b->state.add_force(- T * displ / l);
+                }
+            }
+
+            if (not has_basal_contact(cell)) {
+                dH += cell->state.get_parameter(_height_derivative);
+                cell->state.update_parameter(_height_derivative, dH);
+            }
+        }
+    }
+
+    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
+        double S = surface_of(cell);
+        return 0.5*_elastic_modulus * std::pow(S/_preferential_surface - 1., 2);
+    }
+
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        const AgentContainer<Cell>& cells
+    ) const final
+    {
+        double energy = 0.;
+        for (const auto& cell : cells) {
+            energy += compute_energy(cell);
+        }
+        return energy;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        _preferential_surface = get_as<double>("preferential_surface", cfg, 
+                                               _preferential_surface);
+        double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
+        if (fabs(tmp - _tissue_height) > 1.e-8) {
+            _tissue_height = tmp;
+            this->_am.get_logger()->debug("Setting height of cells excluding "
+                "type 1 to {}", _tissue_height);
+            for (const auto& cell : this->_am.cells()) {
+                if (cell->state.type != 1) {
+                    cell->state.update_parameter(_height, _tissue_height);
+
+                }
+            }
+        }
+
+        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
+                                          _elastic_modulus);
+    }
+
+    std::vector<std::string> write_task_cell_properties_names () const final {
+        return std::vector<std::string>({"surface"});
+    }
+
+    std::vector<std::vector<double>> write_cell_properties () const final {
+        std::vector<double> surfaces({});
+
+        for (const auto& cell : this->_am.cells()) {
+            surfaces.push_back(surface_of(cell));
+        }
+        return std::vector<std::vector<double>>({
+            surfaces
+        });
+    }
+    
+
+    std::vector<std::string> write_task_cell_energies_names () const final {
+        return std::vector<std::string>({
+            "energy",
+        });
+    }
+
+    std::vector<std::vector<double>> write_cell_energies () const final {
+        std::vector<double> energies({});
+        
+        for (const auto& cell : this->_am.cells()) {
+            energies.push_back(compute_energy(cell));
+        }
+
+        return std::vector<std::vector<double>>({
+            energies,
+        });
+    }
+};
 
 } // namespace WorkFunction2DplusTriangle
 } // namespace PCPVertex

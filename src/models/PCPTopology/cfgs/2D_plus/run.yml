@@ -169,7 +169,8 @@ parameter_space:
       log_level: warning
 
       work_function_terms:
-      - volume_elasticity_triangle:
+      - volume_elasticity:
+      # - volume_elasticity_triangle:
           name: volume_elasticity
           elastic_modulus: 1
           preferential_volume: 1
@@ -177,15 +178,12 @@ parameter_space:
           minimum_height: 0.10
           gamma: 0.
           height_parameter_name: height
-      - area_elasticity:
-          elastic_modulus: 0.02
-          preferential_area: 1.
-      - perimeter_contractility:
-          contractility: 0.005
-      - surface_tension:
-          surface_tension: -0.01
+      - surface_elasticity:
           VolumeElasticity_term: volume_elasticity
           height_parameter_name: height
+          elastic_modulus: 1.
+          preferential_surface: 3.81
+          tissue_height: 1.
       - edge_contractility_heterotypic:
           boundary_type: 1
           contractility: [[0., 0.], [0., 0.]]
