@@ -16,20 +16,19 @@ state_anim:
   based_on: state_anim
 
   to_plot:
-    CM/Cell_type:
+    cell_type:
       title: Cell Type
-      limits: [0, 2]
       cmap:
         Progenitor: White
         Hair: Red
         Support: Gray
-    CM/Notch:
+    notch:
       title: Notch
       cmap: gray
-    CM/Delta:
+    delta:
       title: Delta
       cmap: Blues
-    CM/NICD:
+    nicd:
       title: NICD
       cmap: Oranges
 
