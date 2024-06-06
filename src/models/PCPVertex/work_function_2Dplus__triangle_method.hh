@@ -575,9 +575,9 @@ protected:
         #endif
 
         const double height = cell->state.get_parameter(_height);
-        const double perimeter = this->_am.perimeter_of(cell);
 
-        double surface = perimeter * height;
+        double surface = this->_am.perimeter_of(cell) * height;
+        surface += 2 * this->_am.area_of(cell);
 
         // It is columnar itself, so no neighbour contributions
         if (not has_basal_contact(cell)) {
@@ -662,6 +662,19 @@ public:
                 a->state.add_force(+ T * displ / l);
                 b->state.add_force(- T * displ / l);
 
+                SpaceVec normal({displ[1], -displ[0]});
+                if (flip) {
+                    normal *= -1;
+                }
+                // calculate pressure force
+                SpaceVec force = - _elastic_modulus
+                                 * (surface - _preferential_surface) 
+                                 / std::pow(_preferential_surface, 2)
+                                 * normal;
+                
+                edge->custom_links().a->state.add_force(force);
+                edge->custom_links().b->state.add_force(force);
+
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
                     dH -= _elastic_modulus
                           * (surface_of(n) - _preferential_surface)
@@ -669,26 +682,6 @@ public:
                           * l;
                 }
             }
-
-            // for (const auto& [edge, flip] : cell->custom_links().edges) {
-            //     SpaceVec displ = this->_am.displacement(edge);
-                
-            //     SpaceVec normal({displ[1], -displ[0]});
-            //     if (flip) {
-            //         normal *= -1;
-            //     }
-
-            //     auto [c, n] = this->_am.adjoints_of(edge);
-            //     if (c != cell) { std::swap(c, n); }
-
-            //     if (cell->state.type == 1 and n and has_basal_contact(n)) {
-            //         // dH -= _elastic_modulus
-            //         //       * (volume_of(n) - _preferential_volume)
-            //         //       / std::pow(_preferential_volume, 2)
-            //         //       * area
-            //         //       * std::pow(arma::norm(displ), 2) / L;
-            //     }
-            // }
 
             // The contribution of perimeter and interfaces
             if (not has_basal_contact(cell)) {

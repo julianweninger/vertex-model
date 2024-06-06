@@ -352,7 +352,7 @@ test_work_function_terms:
       - non-periodic
 - surface_elasticity:
     elastic_modulus: 0.9
-    preferential_surface: 1.1
+    preferential_surface: 5.3
     tissue_height: 0.7
     VolumeElasticity_term: volume_elasticity
     height_parameter_name: height
@@ -471,7 +471,7 @@ test_update_2D_plus:
     gamma: 0.05
 - surface_elasticity:
     elastic_modulus: 0.9
-    preferential_surface: 1.1
+    preferential_surface: 5.3
     tissue_height: 0.7
     VolumeElasticity_term: volume_elasticity
     height_parameter_name: height
