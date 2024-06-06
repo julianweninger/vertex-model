@@ -14,7 +14,10 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
 from scipy.interpolate import griddata
+import skimage
 
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
@@ -376,7 +379,7 @@ def cellular_structure(
 
             dx, dy = displacement(ax, ay, bx, by)
 
-            def quiver_and_colors(x, y, dx, dy, *, colorbar=False):
+            def quiver_and_colors(x, y, dx, dy, *, colorbar=False, axis=hlpr.ax):
                 if data['periodic']:
                     # only plot within box + excess length
                     x = xr.where(x > -2 * L, x, np.nan)
@@ -404,11 +407,11 @@ def cellular_structure(
                         # append coloring
                         quiver_args.append(e_prop_data)
 
-                        quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+                        quiver = axis.quiver(*quiver_args, **_quiver_kwargs)
 
                         if colorbar:
                             edges_cbar = hlpr.fig.colorbar(
-                                quiver, ax=hlpr.ax, extend='both',
+                                quiver, ax=axis, extend='both',
                                 fraction=0.046, pad=0.04
                             )
                             edges_cbar.set_label(e_prop_data.name)
@@ -435,18 +438,18 @@ def cellular_structure(
                             _y = y + dy / N * i
                             name_0=e_prop_coords[i]
                             name_1=e_prop_coords[N+i]
-                            hlpr.ax.quiver(
+                            axis.quiver(
                                 _x+shift_x, _y+shift_y, dx / N, dy / N, 
                                 e_prop_data.sel({e_prop_dim: name_0}),
                                 **__quiver_kwargs)
 
-                            quiver = hlpr.ax.quiver(
+                            quiver = axis.quiver(
                                 _x-shift_x, _y-shift_y, dx / N, dy / N, 
                                 e_prop_data.sel({e_prop_dim: name_1}),
                                 **__quiver_kwargs)
                         
                         if colorbar:
-                            edges_cbar = hlpr.fig.colorbar(quiver, ax=hlpr.ax,
+                            edges_cbar = hlpr.fig.colorbar(quiver, ax=axis,
                                                      extend='both')
                             edges_cbar.set_label(e_prop_data.name)
                             edges_cbar.minorticks_on()
@@ -454,7 +457,7 @@ def cellular_structure(
                         raise
 
                 else:
-                    quiver = hlpr.ax.quiver(*quiver_args, **_quiver_kwargs)
+                    quiver = axis.quiver(*quiver_args, **_quiver_kwargs)
 
 
             quiver_and_colors(ax, ay, dx, dy, colorbar=True)
@@ -505,50 +508,7 @@ def cellular_structure(
                 c=[cell_marker_colors[d.data] for d in cell_type],
                 **_cell_center_marker_kwargs
             )
-            
-            # plot cell data
-            if 'property' in data:
-                prop_data = data['property'].sel(time=time)
 
-                # Assign property to every cell
-                if not 'x' in prop_data.coords or not 'y' in prop_data.coords:
-                    if not 'id' in prop_data.dims:
-                        raise ValueError("Expected `id` in property_data dims "
-                            "(were {}).", prop_data.dims)
-                    else:
-                        prop_data = prop_data.assign_coords({'x': x, 'y': y})
-
-                # # perform the interpolation
-                # if abs(prop_data.min().data - prop_data.max().data) < 1.e-12:
-                #     prop_data.data[0] = prop_data.data[0] + 1.e-10
-
-                min_x = floor(domain_size_min_x)
-                max_x = ceil(domain_size_max_x)
-                min_y = floor(domain_size_min_y)
-                max_y = ceil(domain_size_max_y)
-                
-                Nx = property_resolution[0]
-                Ny = property_resolution[1]
-                
-                grid_x, grid_y = np.mgrid[min_x:max_x:Nx*1j, min_y:max_y:Ny*1j]
-                grid_z1 = griddata((prop_data.x, prop_data.y),
-                                   prop_data.squeeze(),
-                                   (grid_x, grid_y),
-                                   **_property_interpolation_kwargs)
-
-                interpol = hlpr.ax.imshow(grid_z1.T,
-                                          extent=(min_x,
-                                                  max_x,
-                                                  min_y,
-                                                  max_y),
-                                          origin='lower',
-                                          **_property_interpolation_plot_kwargs)
-
-                cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
-
-                cbar.set_label(label=prop_data.name)
-                    
-                cbar.minorticks_on()
             
             if 'vector_property' in data:
                 prop_v_data = data['vector_property'].sel(time=time) #.dropna(dim='id')
@@ -598,12 +558,12 @@ def cellular_structure(
                     'x', (domain_size_min_x, domain_size_max_x))
                 __set_limits['y'] = __set_limits.get(
                     'y', (domain_size_min_y, domain_size_max_y))
-                hlpr.provide_defaults('set_limits', **__set_limits)
 
             else:
-                hlpr.provide_defaults('set_limits',
-                                      x=(domain_size_min_x, domain_size_max_x),
-                                      y=(domain_size_min_y, domain_size_max_y))
+                __set_limits = dict()
+                __set_limits['x'] = (domain_size_min_x, domain_size_max_x)
+                __set_limits['y'] = (domain_size_min_y, domain_size_max_y)
+            hlpr.provide_defaults('set_limits', **__set_limits)
 
             if skew_x > 1.e-12:
                 hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
@@ -619,6 +579,125 @@ def cellular_structure(
                                 linestyle=':', linewidth=0.2)
             
             hlpr.ax.set_aspect('equal')
+            
+            # plot cell data
+            if 'property' in data:
+                prop_data = data['property'].sel(time=time)
+                x = c_data.sel(property="x")
+                y = c_data.sel(property="y")
+
+                # Assign property to every cell
+                if not 'x' in prop_data.coords or not 'y' in prop_data.coords:
+                    if not 'id' in prop_data.dims:
+                        raise ValueError("Expected `id` in property_data dims "
+                            "(were {}).", prop_data.dims)
+                    else:
+                        prop_data = prop_data.assign_coords({'x': x, 'y': y})
+                prop_data = prop_data.dropna('id')
+
+                # create a temporary figure that contains all the edges
+                tmp_fig, tmp_ax = plt.subplots(1, 1)
+                tmp_ax.set_aspect('equal')
+
+                quiver_and_colors(ax, ay, dx, dy, colorbar=False, axis=tmp_ax)
+
+                if data['periodic']:
+                    mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
+                    # NOTE bitwise or
+
+                    _bx = np.where(mask, bx, np.nan)
+                    _by = np.where(mask, by, np.nan)
+
+                    _dx, _dy = displacement(bx, by, ax, ay)
+
+                    # use the inverse arrows
+                    quiver_and_colors((_bx + _dx), (_by + _dy), -_dx, -_dy,
+                                      colorbar=False, axis=tmp_ax)
+
+
+                    ## plot edges that cross 2 boundaries, i.e. corners
+                    mask =  ((abs(bx - ax) > Lx / 2.) & (abs(by - ay) > Ly / 2.))
+                    # NOTE bitwise and
+                    _ax = ax.where(mask)
+                    _ay = ay.where(mask)
+                    _bx = bx.where(mask)
+                    _by = by.where(mask)
+
+                    # rotate corners
+                    _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
+                    _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
+                    _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
+                    _by -= (2. * np.round(_by / Ly) - 1.) * Ly
+                    
+                    
+                    quiver_and_colors(_ax, _ay, dx, dy,
+                                      colorbar=False, axis=tmp_ax)
+                    
+                    __dx, __dy = displacement(_bx, _by, _ax, _ay)
+                    quiver_and_colors((_bx + __dx), (_by + __dy), -__dx, -__dy,
+                                      colorbar=False, axis=tmp_ax)
+
+                tmp_ax.set_xlim(__set_limits['x'])
+                tmp_ax.set_ylim(__set_limits['y'])
+
+                # Render the plot to a numpy array
+                tmp_fig.tight_layout()
+                tmp_ax.axis('off')
+                tmp_fig.tight_layout(pad=0)
+
+                # To remove the huge white borders
+                tmp_ax.margins(0)
+                canvas = FigureCanvas(tmp_fig)
+                canvas.draw()
+
+                # Convert to a numpy array
+                image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+                width, height = canvas.get_width_height()
+                image = image.reshape((height, width, 3))
+
+                # Convert to grayscale
+                # Using the luminosity method: 0.21*R + 0.72*G + 0.07*B
+                gray_image = 0.21 * image[:, :, 0] + 0.72 * image[:, :, 1] + 0.07 * image[:, :, 2]
+
+                # Normalize to 0-255 and convert to uint8
+                intensity_image = np.uint8(gray_image)
+
+                # crop the image to the y-axis
+                sum__ = np.sum(intensity_image, axis=1).max()
+                intensity_image = intensity_image[:][np.sum(intensity_image, axis=1) < sum__]
+
+                cell_mask = intensity_image < intensity_image.max()
+                cell_mask = np.asarray(cell_mask, dtype=int).transpose()
+
+                cell_properties = np.zeros_like(cell_mask, dtype=float) + np.nan
+
+                coords_x = prop_data.x - domain_size_min_x
+                coords_x /= (domain_size_max_x - domain_size_min_x)
+                coords_x *= cell_mask.shape[0]
+                coords_x = coords_x.astype(int)
+
+                coords_y = prop_data.y - domain_size_min_y
+                coords_y /= (domain_size_max_y - domain_size_min_y)
+                coords_y *= cell_mask.shape[1]
+                coords_y = cell_mask.shape[1]-1 - coords_y.astype(int)
+
+                for p, coord_x, coord_y in zip(prop_data, coords_x, coords_y):
+                    cell_properties = np.where(skimage.segmentation.flood_fill(cell_mask, (coord_x, coord_y), 2) == 2, p.data, cell_properties)
+                
+                cell_properties = np.where(cell_mask==0, cell_properties, np.nan)
+
+                interpol = hlpr.ax.imshow(
+                    cell_properties.transpose(),
+                    extent=(domain_size_min_x, domain_size_max_x,
+                            domain_size_min_y, domain_size_max_y),
+                    **_property_interpolation_plot_kwargs
+                )
+
+                cbar = hlpr.fig.colorbar(interpol, ax=hlpr.ax, extend='both')
+
+                cbar.set_label(label=prop_data.name)
+                    
+                cbar.minorticks_on()
 
             # end update here
             yield
