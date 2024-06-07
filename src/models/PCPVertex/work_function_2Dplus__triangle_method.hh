@@ -509,6 +509,8 @@ protected:
 
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height_derivative;
+
+    const std::string _triangle_factor;
     
     /// @brief Check whether cell has a basal contact
     /// @param height The height of considered cell
@@ -518,7 +520,7 @@ protected:
             if (not cell) {
                 throw std::runtime_error(
                     "Checking for Basal contact on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                    "PCPVertex::WorkFunction::SurfaceElasticity!"
                 );
             }
         #endif
@@ -548,7 +550,7 @@ protected:
             if (not cell) {
                 throw std::runtime_error(
                     "Checking for height on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                    "PCPVertex::WorkFunction::SurfaceElasticity!"
                 );
             }
         #endif
@@ -591,18 +593,10 @@ protected:
 
             // if neighbour has basal contact, does not contribute
             if (n and not has_basal_contact(n)) {
+                double f2 = std::pow(n->state.get_parameter(_triangle_factor),2);
                 surface += this->_am.length_of(edge) 
+                           * (std::sqrt(1 + 3 * f2) - 1)
                            * (_tissue_height - n->state.get_parameter(_height));
-                        //    * (
-                        //         std::sqrt(
-                        //             std::pow(4 * this->_am.area_of(n) 
-                        //                      / normalization_basal_contact(n),
-                        //                      2)
-                        //             + 1
-                        //         )
-                        //         - 1
-                        //      )
-                        //     * (1. - n->state.get_parameter(_height));
             }
         }
 
@@ -622,24 +616,30 @@ public:
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _height(get_as<std::string>("VolumeElasticity_term", cfg) 
                 + "_" + get_as<std::string>("height_parameter_name", cfg)),
-        _height_derivative(_height + "_derivative")
-    { }
+        _height_derivative(_height + "_derivative"),
+        _triangle_factor(name + "_triangle_factor")
+    {
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.register_parameter(_triangle_factor, 1.);
+        }
+    }
+
+    ~SurfaceElasticity () {
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.unregister_parameter(_triangle_factor);
+        }
+    }
 
     void compute_and_set_forces () final {
         for (const auto& cell : this->_am.cells()) {
             const double H = cell->state.get_parameter(_height);
             double surface = surface_of(cell);
             double dH = 0.;
-            // double L = 0;
             if (not has_basal_contact(cell)) {
                 dH += _elastic_modulus
                       * (surface - _preferential_surface)
                       / std::pow(_preferential_surface, 2)
                       * this->_am.perimeter_of(cell);
-                // L = normalization_basal_contact(cell);
-                // if (L < 1.e-8) {
-                //     throw std::runtime_error("Cell has no basal length!");
-                // }
             }
 
 
@@ -650,6 +650,7 @@ public:
                 SpaceVec displ = this->_am.displacement(edge);
                 double l = arma::norm(displ);
 
+                // calculate tension force
                 double T = (
                     _elastic_modulus * H
                     * (surface - _preferential_surface)
@@ -662,11 +663,11 @@ public:
                 a->state.add_force(+ T * displ / l);
                 b->state.add_force(- T * displ / l);
 
+                // calculate pressure force
                 SpaceVec normal({displ[1], -displ[0]});
                 if (flip) {
                     normal *= -1;
                 }
-                // calculate pressure force
                 SpaceVec force = - _elastic_modulus
                                  * (surface - _preferential_surface) 
                                  / std::pow(_preferential_surface, 2)
@@ -676,9 +677,13 @@ public:
                 edge->custom_links().b->state.add_force(force);
 
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
+                    double f2 = std::pow(
+                        n->state.get_parameter(_triangle_factor), 2
+                    );
                     dH -= _elastic_modulus
                           * (surface_of(n) - _preferential_surface)
                           / std::pow(_preferential_surface, 2)
+                          * (std::sqrt(1 + 3 * f2) - 1)
                           * l;
                 }
             }
@@ -693,10 +698,14 @@ public:
                     SpaceVec displ = this->_am.displacement(edge);
                     double l = arma::norm(displ);
 
+                    double f2 = std::pow(
+                        n->state.get_parameter(_triangle_factor), 2
+                    );
                     double T = (
                         _elastic_modulus * (_tissue_height - H)
                         * (surface_of(n) - _preferential_surface)
                         / std::pow(_preferential_surface, 2)
+                        * (std::sqrt(1 + 3 * f2) - 1)
                     );
 
                     const auto& a = edge->custom_links().a;
@@ -705,12 +714,12 @@ public:
                     a->state.add_force(+ T * displ / l);
                     b->state.add_force(- T * displ / l);
                 }
-            }
 
-            if (not has_basal_contact(cell)) {
                 dH += cell->state.get_parameter(_height_derivative);
                 cell->state.update_parameter(_height_derivative, dH);
             }
+
+            // NOTE triangle factor is assumed constant
         }
     }
 
@@ -730,6 +739,19 @@ public:
             energy += compute_energy(cell);
         }
         return energy;
+    }
+    
+    /// Performs the update of \f$ H_\alpha \f$
+    void update (double dt) final {
+        for (const auto& cell : this->_am.cells()) {
+            if (cell->state.type != 1) {
+                continue;
+            }
+            cell->state.update_parameter(
+                _triangle_factor,
+                triangle_factor(cell)
+            );
+        }
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
