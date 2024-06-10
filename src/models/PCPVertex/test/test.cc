@@ -729,18 +729,20 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 const auto& cell = cells[cells.size() / 2];
                 cell->state.type = 1;
                 cell->state.update_parameter(_height, 0.65);
-                const auto nb = am.neighbors_of(cell)[0];
-
-                nb->state.type = 1;
-                nb->state.update_parameter(_height, 0.6);
-
                 BOOST_TEST(term_fct->test_constraints(logger));
 
+                // test a duplet of cells
+                const auto nb = am.neighbors_of(cell)[0];
+                nb->state.type = 1;
+                double h0 = nb->state.get_parameter(_height);
+                nb->state.update_parameter(_height, 0.6);
+                BOOST_TEST(term_fct->test_constraints(logger));
+
+                // reset
                 nb->state.type = 0;
-                nb->state.update_parameter(_height, 0.9);
+                nb->state.update_parameter(_height, h0);
                 cell->state.update_parameter(_height, 0.699);
                 BOOST_TEST(term_fct->test_constraints(logger));
-
 
                 double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
 
