@@ -491,8 +491,6 @@ cell_segmentation:
   enabled: false
   universes: *subspace
 
-  property_interpolation_kwargs:
-    method: nearest
 
 cell_segmentation__edge_contractility:
   based_on:
@@ -516,8 +514,6 @@ cell_segmentation__polarity:
   enabled: false
 
   property: {property: polarity}
-  property_interpolation_kwargs:
-    method: nearest
   property_interpolation_plot_kwargs:
     cmap: twilight
     vmin: 0.

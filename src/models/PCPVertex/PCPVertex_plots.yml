@@ -83,3 +83,7 @@ cellular_structure__area:
       transform:
         - .sel: [!dag_prev , {property: area}]
         - .rename: [!dag_prev , Area]
+  property_interpolation_plot_kwargs:
+    cmap: cool
+    interpolation: nearest
+    vmin: 0.

@@ -345,8 +345,6 @@ equilibrium_cellular_structure:
   based_on:
     - cellular_structure
 
-  property_interpolation_kwargs:
-    method: nearest
   property_interpolation_plot_kwargs:
     cmap: Reds
 
