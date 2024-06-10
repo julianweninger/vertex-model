@@ -4,3 +4,4 @@
 
 dantro>=0.18
 seaborn>=0.13
+scikit-image>=0.23.2
