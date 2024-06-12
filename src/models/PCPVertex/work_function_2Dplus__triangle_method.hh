@@ -37,7 +37,7 @@ namespace WorkFunction2Dplus {
 template <typename Model>
 class VolumeElasticityTriangle : public WorkFunction::WorkFunctionTerm<Model>
 {
-protected:
+public:
     using Base = WorkFunction::WorkFunctionTerm<Model>;
 
     using SpaceVec = typename Base::AgentManager::SpaceVec;
@@ -48,6 +48,7 @@ protected:
 
     using Cell = typename Base::Cell;
 
+protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
@@ -196,7 +197,7 @@ public:
         }
     }
 
-    void compute_and_set_forces () final {
+    void compute_and_set_forces () override {
         for (const auto& cell : this->_am.cells()) {
             double pressure = compute_pressure(cell);
 
@@ -276,7 +277,7 @@ public:
     /// @brief The derivative of W to area of this cell
     /// @param cell 
     /// @return apical pressure
-    double compute_pressure(const std::shared_ptr<Cell>& cell) const final {
+    double compute_pressure(const std::shared_ptr<Cell>& cell) const override {
         const double H = cell->state.get_parameter(_height);
         double P = _elastic_modulus * H
                    * (volume_of(cell) - _preferential_volume)
@@ -285,7 +286,7 @@ public:
         return P;
     }
 
-    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
+    double compute_energy(const std::shared_ptr<Cell>& cell) const override {
         double V = volume_of(cell);
         return 0.5*_elastic_modulus * std::pow(V/_preferential_volume - 1., 2);
     }
@@ -294,7 +295,7 @@ public:
         [[maybe_unused]] const AgentContainer<Vertex>& vertices,
         [[maybe_unused]] const AgentContainer<Edge>& edges,
         const AgentContainer<Cell>& cells
-    ) const final
+    ) const override
     {
         double energy = 0.;
         for (const auto& cell : cells) {
@@ -304,7 +305,7 @@ public:
     }
     
     /// Performs the update of \f$ H_\alpha \f$
-    void update (double dt) final {
+    void update (double dt) override {
         for (const auto& cell : this->_am.cells()) {
             if (has_basal_contact(cell)) {
                 continue;
@@ -421,11 +422,11 @@ public:
         return PASS_TEST;
     }
 
-    std::vector<std::string> write_task_cell_properties_names () const final {
+    std::vector<std::string> write_task_cell_properties_names () const override {
         return std::vector<std::string>({"height", "volume"});
     }
 
-    std::vector<std::vector<double>> write_cell_properties () const final {
+    std::vector<std::vector<double>> write_cell_properties () const override {
         std::vector<double> heights({});
         std::vector<double> volumes({});
 
@@ -439,7 +440,7 @@ public:
     }
     
 
-    std::vector<std::string> write_task_cell_energies_names () const final {
+    std::vector<std::string> write_task_cell_energies_names () const override {
         return std::vector<std::string>({
             "energy",
             "pressure",
@@ -447,7 +448,7 @@ public:
         });
     }
 
-    std::vector<std::vector<double>> write_cell_energies () const final {
+    std::vector<std::vector<double>> write_cell_energies () const override {
         std::vector<double> energies({});
         std::vector<double> pressures({});
         std::vector<double> dHs({});
@@ -605,7 +606,7 @@ public:
         _height_derivative(_height + "_derivative")
     { }
 
-    void compute_and_set_forces () final {
+    void compute_and_set_forces () override {
         for (const auto& cell : this->_am.cells()) {
             const double H = cell->state.get_parameter(_height);
             double surface = surface_of(cell);
@@ -695,7 +696,7 @@ public:
         }
     }
 
-    double compute_energy(const std::shared_ptr<Cell>& cell) const final {
+    double compute_energy(const std::shared_ptr<Cell>& cell) const override {
         double S = surface_of(cell);
         return 0.5*_elastic_modulus * std::pow(S/_preferential_surface - 1., 2);
     }
@@ -704,7 +705,7 @@ public:
         [[maybe_unused]] const AgentContainer<Vertex>& vertices,
         [[maybe_unused]] const AgentContainer<Edge>& edges,
         const AgentContainer<Cell>& cells
-    ) const final
+    ) const override
     {
         double energy = 0.;
         for (const auto& cell : cells) {
@@ -733,11 +734,11 @@ public:
                                           _elastic_modulus);
     }
 
-    std::vector<std::string> write_task_cell_properties_names () const final {
+    std::vector<std::string> write_task_cell_properties_names () const override {
         return std::vector<std::string>({"surface"});
     }
 
-    std::vector<std::vector<double>> write_cell_properties () const final {
+    std::vector<std::vector<double>> write_cell_properties () const override {
         std::vector<double> surfaces({});
 
         for (const auto& cell : this->_am.cells()) {
@@ -749,13 +750,13 @@ public:
     }
     
 
-    std::vector<std::string> write_task_cell_energies_names () const final {
+    std::vector<std::string> write_task_cell_energies_names () const override {
         return std::vector<std::string>({
             "energy",
         });
     }
 
-    std::vector<std::vector<double>> write_cell_energies () const final {
+    std::vector<std::vector<double>> write_cell_energies () const override {
         std::vector<double> energies({});
         
         for (const auto& cell : this->_am.cells()) {

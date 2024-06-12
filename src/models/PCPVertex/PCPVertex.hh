@@ -802,6 +802,22 @@ public:
                 )
             );
         }
+        else if (term == "height_monitor") {
+            register_work_function_term(
+                name,
+                std::make_shared<HeightMonitor<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "height_setter") {
+            register_work_function_term(
+                name,
+                std::make_shared<HeightSetter<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "linetension") {
             register_work_function_term(
                 name,
@@ -822,22 +838,6 @@ public:
             register_work_function_term(
                 name,
                 std::make_shared<LinetensionHeterotypic<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
-        else if (term == "height_monitor") {
-            register_work_function_term(
-                name,
-                std::make_shared<HeightMonitor<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
-        else if (term == "height_setter") {
-            register_work_function_term(
-                name,
-                std::make_shared<HeightSetter<PCPVertex>>(
                     name, params, *this
                 )
             );
@@ -912,12 +912,16 @@ public:
                 " - edge_contractility_heterotypic_boundary\n"
                 " - edge_contractility_axial\n"
                 " - edge_contractility_polar\n"
-                " - linetension\n"
-                " - linetension_fluctuations\n"
-                " - perimeter_contractility\n"
-                " - linetension_heterotypic\n"
                 " - height_monitor\n"
                 " - height_setter\n"
+                " - linetension\n"
+                " - linetension_fluctuations\n"
+                " - linetension_heterotypic\n"
+                " - minimize_parameters__linetension\n"
+                " - minimize_parameters__edge_contractility\n"
+                " - minimize_parameters__volume_elasticity\n"
+                " - minimize_parameters__surface_elasticity\n"
+                " - perimeter_contractility\n"
                 " - shape_elasticity\n"
                 " - surface_elasticity\n"
                 " - surface_tension\n"
