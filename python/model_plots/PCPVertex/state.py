@@ -129,7 +129,6 @@ def cellular_structure(
     cell_center_marker_kwargs: dict=None,
     plot_vertices: bool=False,
     plot_excess_length: float=1.,
-    property_interpolation_kwargs: dict=None,
     property_interpolation_plot_kwargs: dict=None,
     property_resolution: Tuple[int, int]=[512,512],
     quiver_kwargs: dict=None,
@@ -162,8 +161,6 @@ def cellular_structure(
             only for support cells
         property_bulk_cells_only (bool, default: false): Whether to plot only 
             for non-boundary cells
-        property_interpolation_kwargs (dict, optional): Kwargs passed on to 
-            scipy.interpolate.griddata.
         property_interpolation_plot_kwargs (dict, optional): Kwargs passed on to
             imshow on interpolated griddata,
         property_ignore_nan (bool, default: False): Whether to generate the
@@ -212,12 +209,6 @@ def cellular_structure(
         )
     cell_marker_colors = _cell_center_marker_kwargs.pop('colors')
 
-    _property_interpolation_kwargs=dict({})
-    if property_interpolation_kwargs is not None:
-        _property_interpolation_kwargs = recursive_update(
-            _property_interpolation_kwargs,
-            property_interpolation_kwargs
-        )
     _property_interpolation_plot_kwargs=dict({})
     if property_interpolation_plot_kwargs is not None:
         _property_interpolation_plot_kwargs = recursive_update(
@@ -249,10 +240,10 @@ def cellular_structure(
         Cells = data['Cells'].transpose('id', 'time', 'property')
 
         if (not data['periodic']):
-            domain_size_min_x = Vertices.sel(property="x").min()
-            domain_size_max_x = Vertices.sel(property="x").max()
-            domain_size_min_y = Vertices.sel(property="y").min()
-            domain_size_max_y = Vertices.sel(property="y").max()
+            domain_size_min_x = Vertices.sel(property="x").min().data
+            domain_size_max_x = Vertices.sel(property="x").max().data
+            domain_size_min_y = Vertices.sel(property="y").min().data
+            domain_size_max_y = Vertices.sel(property="y").max().data
         elif semi_periodic_space:
             xs = Vertices.sel(property='x')
             xs = xr.where(xs > data['Lx'] / 2, xs - data['Lx'], xs)
@@ -262,10 +253,10 @@ def cellular_structure(
             xs = xr.where(xs > data['Lx'] / 2, xs-data['Lx'], xs)
             Cells.loc[:, :, 'x'] = xs - xs.mean()
 
-            domain_size_min_x = Vertices.sel(property="x").min()
-            domain_size_max_x = Vertices.sel(property="x").max()
-            domain_size_min_y = Vertices.sel(property="y").min()
-            domain_size_max_y = Vertices.sel(property="y").max()
+            domain_size_min_x = Vertices.sel(property="x").min().data
+            domain_size_max_x = Vertices.sel(property="x").max().data
+            domain_size_min_y = Vertices.sel(property="y").min().data
+            domain_size_max_y = Vertices.sel(property="y").max().data
 
         if select_times is not None:
             times = select_times
@@ -285,6 +276,18 @@ def cellular_structure(
             if data['periodic'] and not semi_periodic_space:
                 domain_size_max_x = Lx
                 domain_size_max_y = Ly
+
+            if set_limits is not None:
+                __set_limits = set_limits.copy()
+                __set_limits['x'] = __set_limits.get(
+                    'x', (domain_size_min_x, domain_size_max_x))
+                __set_limits['y'] = __set_limits.get(
+                    'y', (domain_size_min_y, domain_size_max_y))
+
+            else:
+                __set_limits = dict()
+                __set_limits['x'] = (domain_size_min_x, domain_size_max_x)
+                __set_limits['y'] = (domain_size_min_y, domain_size_max_y)
             
             # periodic skewed boundary condition
             if 'skew_x' in data:
@@ -509,77 +512,6 @@ def cellular_structure(
                 **_cell_center_marker_kwargs
             )
 
-            
-            if 'vector_property' in data:
-                prop_v_data = data['vector_property'].sel(time=time) #.dropna(dim='id')
-
-                # Assign property to every cell
-                if not 'x' in prop_v_data.coords or not 'y' in prop_v_data.coords:
-                    if not 'id' in prop_v_data.dims:
-                        raise ValueError("Expected `id` in property_data dims "
-                            "(were {}).", prop_v_data.dims)
-                    else:
-                        prop_v_data = prop_v_data.assign_coords({'x': x, 'y': y})
-
-                if len(prop_v_data.dims) == 2:
-                    prop_v_dim = [d for d in prop_v_data.dims if d != 'id'][0]
-                    prop_x_data = prop_v_data.isel({prop_v_dim: 0})
-                    prop_y_data = prop_v_data.isel({prop_v_dim: 1})
-                elif len(prop_v_data.dims) == 1:
-                    prop_x_data = np.cos(prop_v_data)
-                    prop_y_data = np.sin(prop_v_data)
-                else:
-                    raise ValueError("Expected dict with 2 entries (x and y) "
-                                     "or 1 entry (angle), but received {}!"
-                                     "".format(prop_v_data))
-
-                _v_property_kwargs = dict(angles='xy', scale_units='xy',
-                                          scale=3.)
-                if vector_property_kwargs is not None:
-                    _v_property_kwargs.update(vector_property_kwargs)
-
-                hlpr.ax.quiver(x, y, prop_x_data, prop_y_data,
-                               **_v_property_kwargs)
-                if vector_property_is_nematic:
-                    hlpr.ax.quiver(x, y, -prop_x_data, -prop_y_data,
-                                **_v_property_kwargs)
-
-
-
-
-            hlpr.provide_defaults('set_title', title="Time {}".format(time))
-            hlpr.provide_defaults('set_labels',
-                               x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
-
-            
-            if set_limits is not None:
-                __set_limits = set_limits.copy()
-                __set_limits['x'] = __set_limits.get(
-                    'x', (domain_size_min_x, domain_size_max_x))
-                __set_limits['y'] = __set_limits.get(
-                    'y', (domain_size_min_y, domain_size_max_y))
-
-            else:
-                __set_limits = dict()
-                __set_limits['x'] = (domain_size_min_x, domain_size_max_x)
-                __set_limits['y'] = (domain_size_min_y, domain_size_max_y)
-            hlpr.provide_defaults('set_limits', **__set_limits)
-
-            if skew_x > 1.e-12:
-                hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
-                                linestyle=':', linewidth=0.2)
-            elif skew_x < -1.e-12:
-                hlpr.ax.axvline(x=Lx-skew_x, ymax = 0.5 / Ly, c='gray',
-                                linestyle=':', linewidth=0.2)
-            if skew_y > 1.e-12:                    
-                hlpr.ax.axhline(y=skew_y, xmin=1. - 0.5 / Lx, c='gray',
-                                linestyle=':', linewidth=0.2)
-            elif skew_y < -1.e-12:                    
-                hlpr.ax.axhline(y=skew_y, xmax = 0.5 / Lx, c='gray', 
-                                linestyle=':', linewidth=0.2)
-            
-            hlpr.ax.set_aspect('equal')
-            
             # plot cell data
             if 'property' in data:
                 prop_data = data['property'].sel(time=time)
@@ -596,8 +528,10 @@ def cellular_structure(
                 prop_data = prop_data.dropna('id')
 
                 # create a temporary figure that contains all the edges
-                tmp_fig, tmp_ax = plt.subplots(1, 1)
-                tmp_ax.set_aspect('equal')
+                tmp_fig, tmp_ax = plt.subplots(
+                    1, 1,
+                    figsize=hlpr.fig.get_size_inches()
+                )
 
                 quiver_and_colors(ax, ay, dx, dy, colorbar=False, axis=tmp_ax)
 
@@ -636,7 +570,10 @@ def cellular_structure(
                     __dx, __dy = displacement(_bx, _by, _ax, _ay)
                     quiver_and_colors((_bx + __dx), (_by + __dy), -__dx, -__dy,
                                       colorbar=False, axis=tmp_ax)
+                tmp_ax.scatter(__set_limits['x'][0], __set_limits['y'][0], c='black', s=1)
+                tmp_ax.scatter(__set_limits['x'][1], __set_limits['y'][1], c='black', s=1)
 
+                tmp_ax.set_aspect('equal')
                 tmp_ax.set_xlim(__set_limits['x'])
                 tmp_ax.set_ylim(__set_limits['y'])
 
@@ -665,6 +602,10 @@ def cellular_structure(
                 # crop the image to the y-axis
                 sum__ = np.sum(intensity_image, axis=1).max()
                 intensity_image = intensity_image[:][np.sum(intensity_image, axis=1) < sum__]
+                intensity_image = intensity_image.transpose()
+                sum__ = np.sum(intensity_image, axis=1).max()
+                intensity_image = intensity_image[:][np.sum(intensity_image, axis=1) < sum__]
+                intensity_image = intensity_image.transpose()
 
                 cell_mask = intensity_image < intensity_image.max()
                 cell_mask = np.asarray(cell_mask, dtype=int).transpose()
@@ -698,6 +639,63 @@ def cellular_structure(
                 cbar.set_label(label=prop_data.name)
                     
                 cbar.minorticks_on()
+
+            
+            if 'vector_property' in data:
+                prop_v_data = data['vector_property'].sel(time=time) #.dropna(dim='id')
+
+                # Assign property to every cell
+                if not 'x' in prop_v_data.coords or not 'y' in prop_v_data.coords:
+                    if not 'id' in prop_v_data.dims:
+                        raise ValueError("Expected `id` in property_data dims "
+                            "(were {}).", prop_v_data.dims)
+                    else:
+                        prop_v_data = prop_v_data.assign_coords({'x': x, 'y': y})
+
+                if len(prop_v_data.dims) == 2:
+                    prop_v_dim = [d for d in prop_v_data.dims if d != 'id'][0]
+                    prop_x_data = prop_v_data.isel({prop_v_dim: 0})
+                    prop_y_data = prop_v_data.isel({prop_v_dim: 1})
+                elif len(prop_v_data.dims) == 1:
+                    prop_x_data = np.cos(prop_v_data)
+                    prop_y_data = np.sin(prop_v_data)
+                else:
+                    raise ValueError("Expected dict with 2 entries (x and y) "
+                                     "or 1 entry (angle), but received {}!"
+                                     "".format(prop_v_data))
+
+                _v_property_kwargs = dict(angles='xy', scale_units='xy',
+                                          scale=3.)
+                if vector_property_kwargs is not None:
+                    _v_property_kwargs.update(vector_property_kwargs)
+
+                hlpr.ax.quiver(x, y, prop_x_data, prop_y_data,
+                               **_v_property_kwargs)
+                if vector_property_is_nematic:
+                    hlpr.ax.quiver(x, y, -prop_x_data, -prop_y_data,
+                                **_v_property_kwargs)
+
+            
+            hlpr.provide_defaults('set_title', title="Time {}".format(time))
+            hlpr.provide_defaults('set_labels',
+                               x=r"$x \ [A_0^{1/2}]$", y=r"$y \ [A_0^{1/2}]$")
+
+            hlpr.provide_defaults('set_limits', **__set_limits)
+
+            if skew_x > 1.e-12:
+                hlpr.ax.axvline(x=skew_x, ymin=1. - 0.5 / Ly, c='gray',
+                                linestyle=':', linewidth=0.2)
+            elif skew_x < -1.e-12:
+                hlpr.ax.axvline(x=Lx-skew_x, ymax = 0.5 / Ly, c='gray',
+                                linestyle=':', linewidth=0.2)
+            if skew_y > 1.e-12:                    
+                hlpr.ax.axhline(y=skew_y, xmin=1. - 0.5 / Lx, c='gray',
+                                linestyle=':', linewidth=0.2)
+            elif skew_y < -1.e-12:                    
+                hlpr.ax.axhline(y=skew_y, xmax = 0.5 / Lx, c='gray', 
+                                linestyle=':', linewidth=0.2)
+            
+            hlpr.ax.set_aspect('equal')
 
             # end update here
             yield

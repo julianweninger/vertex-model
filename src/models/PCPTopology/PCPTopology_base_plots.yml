@@ -787,8 +787,6 @@ cellular_structure:
   cell_center_marker_kwargs:
     colors: ['white', 'r', 'gray']
 
-  property_interpolation_kwargs:
-    method: nearest
   property_interpolation_plot_kwargs: ~
   
   vector_property_is_nematic: False
