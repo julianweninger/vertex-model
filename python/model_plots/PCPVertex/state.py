@@ -570,8 +570,8 @@ def cellular_structure(
                     __dx, __dy = displacement(_bx, _by, _ax, _ay)
                     quiver_and_colors((_bx + __dx), (_by + __dy), -__dx, -__dy,
                                       colorbar=False, axis=tmp_ax)
-                tmp_ax.scatter(__set_limits['x'][0], __set_limits['y'][0], c='black', s=1)
-                tmp_ax.scatter(__set_limits['x'][1], __set_limits['y'][1], c='black', s=1)
+                tmp_ax.scatter(__set_limits['x'][0], __set_limits['y'][0], c='black', s=10)
+                tmp_ax.scatter(__set_limits['x'][1], __set_limits['y'][1], c='black', s=10)
 
                 tmp_ax.set_aspect('equal')
                 tmp_ax.set_xlim(__set_limits['x'])
@@ -609,6 +609,10 @@ def cellular_structure(
 
                 cell_mask = intensity_image < intensity_image.max()
                 cell_mask = np.asarray(cell_mask, dtype=int).transpose()
+                cell_mask[:,  0] = 1
+                cell_mask[:, -1] = 1
+                cell_mask[ 0, :] = 1
+                cell_mask[-1, :] = 1
 
                 cell_properties = np.zeros_like(cell_mask, dtype=float) + np.nan
 
