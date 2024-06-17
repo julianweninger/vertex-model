@@ -12,6 +12,40 @@ multiverse:
   creator: multiverse
   file_ext: png
 
+my_style:
+  file_ext: svg
+  style:
+    base_style: seaborn-v0_8-paper
+    font.size: 10
+    font.family: sans-serif
+    font.sans-serif: helvetica
+    figure.titlesize: &Titlesize medium
+    legend.title_fontsize: &Labelsize small
+    legend.fontsize: &Ticksize x-small
+    axes.labelsize: *Labelsize
+    xtick.labelsize: *Ticksize
+    ytick.labelsize: *Ticksize
+    figure.autolayout: False
+    axes.linewidth: &Linewidth 0.25
+    xtick.major.width: *Linewidth
+    xtick.minor.width: 0.2
+    ytick.major.width: *Linewidth
+    ytick.minor.width: 0.2
+    grid.linewidth: *Linewidth
+    patch.linewidth: *Linewidth
+
+  helpers:
+    setup_figure:
+      figsize: [!expr 5.90 / 2, !expr 5.90 / 2 * 2 / 3]
+
+__definitions:
+  enabled: False
+  linewidth_theory: &linewidth_theory 0.75
+  Gamma: &Gamma_best_fit 0.1
+  color_homogeneous_theory: &color_homogeneous_theory m
+  color_heterogeneous_theory: &color_heterogeneous_theory red
+  palette_data_scatter: &palette_data_scatter gist_heat
+
 select.uni.energy_terms:
   select:
     energy: 
