@@ -215,15 +215,25 @@ public:
             }
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
+
+                const auto& a = edge->custom_links().a;
+                const auto& b = edge->custom_links().b;
+
                 SpaceVec displ = this->_am.displacement(edge);
+                double l = arma::norm(displ);
                 
                 SpaceVec normal({displ[1], -displ[0]});
                 if (flip) {
                     normal *= -1;
                 }
 
-                auto [c, n] = this->_am.adjoints_of(edge);
-                if (c != cell) { std::swap(c, n); }
+                // calculate force
+                SpaceVec force = - pressure / 2. * normal;
+                a->state.add_force(force);
+                b->state.add_force(force);
+
 
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
                     dH -= _elastic_modulus
@@ -232,26 +242,9 @@ public:
                           * std::pow(arma::norm(displ), 2)
                           * std::sqrt(3) / 4.
                           * f;
-                }
 
-                // calculate force
-                SpaceVec force = - pressure / 2. * normal;
-                
-                edge->custom_links().a->state.add_force(force);
-                edge->custom_links().b->state.add_force(force);
-            }
-
-            // The contribution of perimeter and interfaces
-            if (not has_basal_contact(cell)) {
-                for (const auto& [edge, flip] : cell->custom_links().edges) {
-                    auto [c, n] = this->_am.adjoints_of(edge);
-                    if (c != cell) { std::swap(c, n); }
-                    if (not n) { continue; }    
-
-                    SpaceVec displ = this->_am.displacement(edge);
-                    double l = arma::norm(displ);
-
-                    double T = (
+                // The contribution of perimeter and interfaces
+                    double Tn = (
                           _elastic_modulus
                         * (volume_of(n) - _preferential_volume)
                         / std::pow(_preferential_volume, 2)
@@ -261,11 +254,8 @@ public:
                         * (_tissue_height - H)
                     );
 
-                    const auto& a = edge->custom_links().a;
-                    const auto& b = edge->custom_links().b;
-
-                    a->state.add_force(+ T * displ / l);
-                    b->state.add_force(- T * displ / l);
+                    a->state.add_force(+ Tn * displ / l);
+                    b->state.add_force(- Tn * displ / l);
                 }
 
                 dH += cell->state.get_parameter(_height_derivative);
@@ -619,6 +609,22 @@ public:
             }
 
 
+            // calculate tension force
+            double T = (
+                _elastic_modulus * H
+                * (surface - _preferential_surface)
+                / std::pow(_preferential_surface, 2)
+            );
+                // calculate pressure force
+            double pressure = (
+                _elastic_modulus
+                * (surface - _preferential_surface) 
+                / std::pow(_preferential_surface, 2)
+            );
+            
+            double f2 = std::pow(triangle_factor(cell), 2);
+            // NOTE triangle factor is assumed constant
+
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
                 if (c != cell) { std::swap(c, n); }
@@ -626,73 +632,47 @@ public:
                 SpaceVec displ = this->_am.displacement(edge);
                 double l = arma::norm(displ);
 
-                // calculate tension force
-                double T = (
-                    _elastic_modulus * H
-                    * (surface - _preferential_surface)
-                    / std::pow(_preferential_surface, 2)
-                );
-
                 const auto& a = edge->custom_links().a;
                 const auto& b = edge->custom_links().b;
 
+                // calculate forces from tension
                 a->state.add_force(+ T * displ / l);
                 b->state.add_force(- T * displ / l);
 
-                // calculate pressure force
+                // calculate forces from pressure
                 SpaceVec normal({displ[1], -displ[0]});
                 if (flip) {
                     normal *= -1;
-                }
-                SpaceVec force = - _elastic_modulus
-                                 * (surface - _preferential_surface) 
-                                 / std::pow(_preferential_surface, 2)
-                                 * normal;
-                
-                edge->custom_links().a->state.add_force(force);
-                edge->custom_links().b->state.add_force(force);
+                }                
+                edge->custom_links().a->state.add_force(- pressure * normal);
+                edge->custom_links().b->state.add_force(- pressure * normal);
 
-                // calculate the derivative of H 
+                // calculate the contributions of 2D+ deformations 
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
-                    double f2 = std::pow(triangle_factor(cell), 2);
-                    dH -= _elastic_modulus
-                          * (surface_of(n) - _preferential_surface)
-                          / std::pow(_preferential_surface, 2)
-                          * (std::sqrt(1 + 3 * f2) - 1)
-                          * l;
-                }
-            }
+                    // derivative of H
+                    dH -= (
+                        _elastic_modulus
+                        * (surface_of(n) - _preferential_surface)
+                        / std::pow(_preferential_surface, 2)
+                        * (std::sqrt(1 + 3 * f2) - 1)
+                        * l
+                    );
 
-            // The contribution of perimeter and interfaces
-            if (not has_basal_contact(cell)) {
-                for (const auto& [edge, flip] : cell->custom_links().edges) {
-                    auto [c, n] = this->_am.adjoints_of(edge);
-                    if (c != cell) { std::swap(c, n); }
-                    if (not n) { continue; }
-
-                    SpaceVec displ = this->_am.displacement(edge);
-                    double l = arma::norm(displ);
-
-                    double f2 = std::pow(triangle_factor(cell), 2);
-                    double T = (
+                    // The contribution of perimeter and interfaces
+                    double Tn = (
                         _elastic_modulus * (_tissue_height - H)
                         * (surface_of(n) - _preferential_surface)
                         / std::pow(_preferential_surface, 2)
                         * (std::sqrt(1 + 3 * f2) - 1)
                     );
 
-                    const auto& a = edge->custom_links().a;
-                    const auto& b = edge->custom_links().b;
-
-                    a->state.add_force(+ T * displ / l);
-                    b->state.add_force(- T * displ / l);
+                    a->state.add_force(+ Tn * displ / l);
+                    b->state.add_force(- Tn * displ / l);
                 }
-
-                dH += cell->state.get_parameter(_height_derivative);
-                cell->state.update_parameter(_height_derivative, dH);
             }
 
-            // NOTE triangle factor is assumed constant
+            dH += cell->state.get_parameter(_height_derivative);
+            cell->state.update_parameter(_height_derivative, dH);
         }
     }
 
