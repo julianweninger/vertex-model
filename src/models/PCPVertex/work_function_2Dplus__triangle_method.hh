@@ -338,7 +338,9 @@ public:
             this->_am.get_logger()->debug("Setting height of cells with type 1 "
                 "to {}", height);
             for (const auto& cell : this->_am.cells()) {
-                cell->state.update_parameter(_height, height);
+                if (not has_basal_contact(cell)) {
+                    cell->state.update_parameter(_height, height);
+                }
             }
         }
 
