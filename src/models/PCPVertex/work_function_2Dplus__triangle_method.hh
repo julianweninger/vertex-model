@@ -98,14 +98,10 @@ protected:
 
         double l2 = 0.;
         for (const auto& [edge, flip] : cell->custom_links().edges) {
-            auto [c, n] = this->_am.adjoints_of(edge);
-            if (c != cell) { std::swap(c, n); }
-            if (n and has_basal_contact(n)) {
-                l2 += std::pow(this->_am.length_of(edge), 2);
-            }
+            l2 += std::pow(this->_am.length_of(edge), 2);
         }
 
-        return 4. / std::sqrt(3.) * this->_am.area_of(cell) / l2;
+        return 2 * this->_am.area_of(cell) / l2;
     }
 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
@@ -157,9 +153,8 @@ protected:
             // if neighbour has basal contact, does not contribute
             if (n and not has_basal_contact(n)) {
                 volume += std::pow(this->_am.length_of(edge), 2)
-                        * std::sqrt(3) / 4
                         * (_tissue_height - height_of(n))
-                        * triangle_factor(n);
+                        * triangle_factor(n) / 2;
             }
         }
 
@@ -240,18 +235,14 @@ public:
                           * (volume_of(n) - _preferential_volume)
                           / std::pow(_preferential_volume, 2)
                           * std::pow(arma::norm(displ), 2)
-                          * std::sqrt(3) / 4.
-                          * f;
+                          * f / 2;
 
                 // The contribution of perimeter and interfaces
                     double Tn = (
                           _elastic_modulus
                         * (volume_of(n) - _preferential_volume)
                         / std::pow(_preferential_volume, 2)
-                        * std::sqrt(3.) / 2. 
-                        * l 
-                        * f
-                        * (_tissue_height - H)
+                        * l * f * (_tissue_height - H)
                     );
 
                     a->state.add_force(+ Tn * displ / l);
@@ -515,13 +506,10 @@ protected:
 
         double l2 = 0.;
         for (const auto& [edge, flip] : cell->custom_links().edges) {
-            auto [c, n] = this->_am.adjoints_of(edge);
-            if (c != cell) { std::swap(c, n); }
-            if (n and has_basal_contact(n)) {
-                l2 += std::pow(this->_am.length_of(edge), 2);
-            }
+            l2 += std::pow(this->_am.length_of(edge), 2);
         }
-        return 4. / std::sqrt(3.) * this->_am.area_of(cell) / l2;
+
+        return 2 * this->_am.area_of(cell) / l2;
     }
 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
@@ -574,7 +562,7 @@ protected:
             if (n and not has_basal_contact(n)) {
                 double f2 = std::pow(triangle_factor(n),2);
                 surface += this->_am.length_of(edge) 
-                           * (std::sqrt(1 + 3 * f2) - 1)
+                           * (std::sqrt(1 + 4. * f2) - 1)
                            * (_tissue_height - height_of(n));
             }
         }
@@ -656,7 +644,7 @@ public:
                         _elastic_modulus
                         * (surface_of(n) - _preferential_surface)
                         / std::pow(_preferential_surface, 2)
-                        * (std::sqrt(1 + 3 * f2) - 1)
+                        * (std::sqrt(1 + 4. * f2) - 1)
                         * l
                     );
 
@@ -665,7 +653,7 @@ public:
                         _elastic_modulus * (_tissue_height - H)
                         * (surface_of(n) - _preferential_surface)
                         / std::pow(_preferential_surface, 2)
-                        * (std::sqrt(1 + 3 * f2) - 1)
+                        * (std::sqrt(1 + 4. * f2) - 1)
                     );
 
                     a->state.add_force(+ Tn * displ / l);
