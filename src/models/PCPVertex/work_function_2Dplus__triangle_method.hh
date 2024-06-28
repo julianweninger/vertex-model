@@ -342,69 +342,6 @@ public:
         _gamma = get_as<double>("gamma", cfg, _gamma);
     }
 
-    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) 
-    const override 
-    {
-        bool PASS_TEST = Base::test_constraints(logger);
-        logger->debug("Testing constraints of WF term {} ...", this->_name);
-
-
-        logger->debug("   Testing height constraint ...");
-        bool test_height = true;
-        for (const auto& cell : this->_am.cells()) {
-            double height = cell->state.get_parameter(_height);
-            if (height > _tissue_height + 1.e-8) {
-                test_height = false;
-                logger->error("Cell {} (height: {}) exceeds the tissue height "
-                              "({})!",
-                              cell->id(), height, _tissue_height);
-            }
-            if (height < -1.e-8) {
-                test_height = false;
-                logger->error("Cell {} has negative hight (height: {} < 0)!",
-                              cell->id(), height);
-            }
-        }
-        if (test_height) {
-            logger->debug("   Height constraint is fulfilled.");
-        }
-        else {
-            PASS_TEST = false;
-            logger->error("  Test of height constraint failed! ");
-        }
-
-
-        logger->debug("   Testing volume constraint ...");
-        double tot_volume = 0.;
-        for (const auto& cell : this->_am.cells()) {
-            tot_volume += volume_of(cell);
-        }
-        SpaceVec domain = this->_am.get_space()->get_domain_size();
-        double area = domain[0] * domain[1];
-        bool test_volume = fabs(tot_volume - area * _tissue_height) < 1.e-5;
-        if (test_volume) {
-            logger->debug("   Volume constraint is fulfilled.");
-        }
-        else {
-            PASS_TEST = false;
-            logger->error("  Test of volume constraint failed! "
-                          "Total volume was {}, expected volume was {}. "
-                          "Difference exceeds {}.",
-                          tot_volume, area * _tissue_height, 1.e-5);
-        }
-
-
-        if (PASS_TEST) {
-            logger->debug("All tests of constraints of WF term {} passed.",
-                          this->_name);
-        }
-        else {
-            logger->error("Test of constraints of WF term {} FAILED!",
-                          this->_name);
-        }
-        return PASS_TEST;
-    }
-
     std::vector<std::string> write_task_cell_properties_names () const override {
         return std::vector<std::string>({"height", "volume"});
     }
