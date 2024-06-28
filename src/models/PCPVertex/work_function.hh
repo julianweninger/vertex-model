@@ -775,7 +775,9 @@ public:
  *  Parameters:
  *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
  *              The i,j coordinates map to the type of cell on left and right
- *              side. 
+ *              side.
+ *      - `increment_contractility` (only update): Add incremental value to 
+ *              `contractility`. Cannot be update together with `contractility`.
  *      - `boundary_type`: To which value a boundary cell is mapped.
  */
 template <typename Model>
@@ -833,7 +835,12 @@ public:
     { }
 
     void update_parameters (const DataIO::Config& cfg) override {
-        if (cfg["contractility"]) {
+        if (cfg["increment_contractility"]) {
+            _contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_contractility", cfg
+            ));
+        }
+        else if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
             ));
@@ -1054,6 +1061,8 @@ public:
  *              dependent on the cell types adjacent to a junction. A symmetric 
  *              matrix. The i,j coordinates map to the type of cell on left and 
  *              right side.
+ *      - `increment_contractility` (only update): Add incremental value to 
+ *              `contractility`. Cannot be update together with `contractility`.
  *      - `gradient_contractility`: The gradient in contractility 
  *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
  *              dependent on the cell types adjacent to a junction. A symmetric 
@@ -1061,6 +1070,9 @@ public:
  *              right side. In relative units, i.e. for x = Lx, 
  *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
  *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `increment_gradient_contractility` (only update): Add incremental
+ *              value to `gradient_contractility`. Cannot be update together
+ *              with `gradient_contractility`.
  *      - `boundary_type`: To which value a boundary cell is mapped.
 */
 template <typename Model>
@@ -1130,13 +1142,24 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
-        if (cfg["contractility"]) {
+        if (cfg["increment_contractility"]) {
+            _contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_contractility", cfg
+            ));
+        }
+        else if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
             ));
         }
 
-        if (cfg["gradient_contractility"]) {
+
+        if (cfg["increment_gradient_contractility"]) {
+            _gradient_contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_gradient_contractility", cfg
+            ));
+        }
+        else if (cfg["gradient_contractility"]) {
             _gradient_contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "gradient_contractility", cfg
             ));
