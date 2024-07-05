@@ -197,18 +197,17 @@ public:
             double pressure = compute_pressure(cell);
 
             const double H = cell->state.get_parameter(_height);
-            double area = 0.;
-            double dH = 0.;
-            double f = 0.;
+            double dH = 0.;     // the derivative to height
+            double f = 0.;      // the triangle factor
             if (not has_basal_contact(cell)) {
-                area += this->_am.area_of(cell);
                 dH += _elastic_modulus
                       * (volume_of(cell) - _preferential_volume)
                       / std::pow(_preferential_volume, 2)
-                      * area;
+                      * this->_am.area_of(cell);
                 f += triangle_factor(cell);
             }
 
+            // apply forces via edges
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
                 if (c != cell) { std::swap(c, n); }
@@ -224,20 +223,21 @@ public:
                     normal *= -1;
                 }
 
-                // calculate force
+                // calculate force from pressure orthogonal to junction
                 SpaceVec force = - pressure / 2. * normal;
                 a->state.add_force(force);
                 b->state.add_force(force);
 
 
+                // consider the neighbours of extruded cell
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
                     dH -= _elastic_modulus
                           * (volume_of(n) - _preferential_volume)
                           / std::pow(_preferential_volume, 2)
-                          * std::pow(arma::norm(displ), 2)
+                          * std::pow(l, 2)
                           * f / 2;
 
-                // The contribution of perimeter and interfaces
+                    // The contribution of perimeter and interfaces
                     double Tn = (
                           _elastic_modulus
                         * (volume_of(n) - _preferential_volume)
@@ -248,10 +248,12 @@ public:
                     a->state.add_force(+ Tn * displ / l);
                     b->state.add_force(- Tn * displ / l);
                 }
-
-                dH += cell->state.get_parameter(_height_derivative);
-                cell->state.update_parameter(_height_derivative, dH);
             }
+
+            cell->state.update_parameter(
+                _height_derivative, 
+                cell->state.get_parameter(_height_derivative) + dH
+            );
         }
     }
 
@@ -415,6 +417,7 @@ protected:
 
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height_derivative;
+
     /// @brief Check whether cell has a basal contact
     /// @param height The height of considered cell
     /// @return Whether cell has a basal contact
@@ -528,11 +531,15 @@ public:
             const double H = cell->state.get_parameter(_height);
             double surface = surface_of(cell);
             double dH = 0.;
+            double f2 = 1.;  // the triangle factor
             if (not has_basal_contact(cell)) {
                 dH += _elastic_modulus
                       * (surface - _preferential_surface)
                       / std::pow(_preferential_surface, 2)
                       * this->_am.perimeter_of(cell);
+                
+                f2 = std::pow(triangle_factor(cell), 2);
+                // NOTE triangle factor is assumed constant
             }
 
 
@@ -549,8 +556,6 @@ public:
                 / std::pow(_preferential_surface, 2)
             );
             
-            double f2 = std::pow(triangle_factor(cell), 2);
-            // NOTE triangle factor is assumed constant
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
