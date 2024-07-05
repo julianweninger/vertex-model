@@ -128,6 +128,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         // check that last instance of edge in this function
         BOOST_TEST(edge.use_count() == 1);
+        BOOST_TEST(a.use_count() == 1);
+        BOOST_TEST(b.use_count() == 1);
 
         // check that the number of objects did not change
         BOOST_TEST(cells.size() == num_cells);
@@ -199,28 +201,26 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         const std::size_t adj_b_num_es = adj_b->custom_links().edges.size();
 
         // restrict test
-        auto vertex_a = edge->custom_links().a;
-        auto vertex_b = edge->custom_links().b;
-        if (not am.is_boundary(vertex_b)) {
-            std::swap(vertex_a, vertex_b);
+        auto a = edge->custom_links().a;
+        auto b = edge->custom_links().b;
+        if (not am.is_boundary(b)) {
+            std::swap(a, b);
         }
-        BOOST_TEST(not am.is_boundary(vertex_a));
-        BOOST_TEST(am.is_boundary(vertex_b));
-        BOOST_TEST(am.is_3_fold_boundary_vertex(vertex_b));
+        BOOST_TEST(not am.is_boundary(a));
+        BOOST_TEST(am.is_boundary(b));
+        BOOST_TEST(am.is_3_fold_boundary_vertex(b));
 
-        auto adj_cs_a = am.adjoint_cells_of(vertex_a);
+        auto adj_cs_a = am.adjoint_cells_of(a);
         BOOST_TEST(adj_cs_a.size() == 3);
         const std::size_t adj_c_num_es = std::accumulate(
             adj_cs_a.begin(), adj_cs_a.end(), 0.,
             [](double val, const auto& c) {
                 return val + c->custom_links().edges.size();
             }) - adj_a_num_es - adj_b_num_es;
-        auto adj_cs_b = am.adjoint_cells_of(vertex_b);
+        auto adj_cs_b = am.adjoint_cells_of(b);
         BOOST_TEST(adj_cs_b.size() == 2);
 
         // move both vertices to the center of the edge
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
         PCPVertex::SpaceVec center = .5*(am.position_of(a) + am.position_of(b));
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
@@ -245,6 +245,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         // check that last instance of edge in this function
         BOOST_TEST(edge.use_count() == 1);
+        BOOST_TEST(a.use_count() == 1);
+        BOOST_TEST(b.use_count() == 1);
 
         // check that the number of objects did not change
         BOOST_TEST(cells.size() == num_cells);
@@ -342,21 +344,19 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         const std::size_t adj_a_num_es = adj_a->custom_links().edges.size();
 
         // restrict test
-        auto vertex_a = edge->custom_links().a;
-        auto vertex_b = edge->custom_links().b;
-        BOOST_TEST(am.is_boundary(vertex_a));
-        BOOST_TEST(am.is_2_fold_boundary_vertex(vertex_a));
-        BOOST_TEST(am.is_boundary(vertex_b));
-        BOOST_TEST(am.is_2_fold_boundary_vertex(vertex_b));
+        auto a = edge->custom_links().a;
+        auto b = edge->custom_links().b;
+        BOOST_TEST(am.is_boundary(a));
+        BOOST_TEST(am.is_2_fold_boundary_vertex(a));
+        BOOST_TEST(am.is_boundary(b));
+        BOOST_TEST(am.is_2_fold_boundary_vertex(b));
 
-        auto adj_cs_a = am.adjoint_cells_of(vertex_a);
+        auto adj_cs_a = am.adjoint_cells_of(a);
         BOOST_TEST(adj_cs_a.size() == 1);
-        auto adj_cs_b = am.adjoint_cells_of(vertex_b);
+        auto adj_cs_b = am.adjoint_cells_of(b);
         BOOST_TEST(adj_cs_b.size() == 1);
 
         // move both vertices to the center of the edge
-        auto a = edge->custom_links().a;
-        auto b = edge->custom_links().b;
         PCPVertex::SpaceVec center = .5*(am.position_of(a) + am.position_of(b));
         am.move_to(a, 0.999*center);
         am.move_to(b, center);
@@ -374,6 +374,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
 
         // check that last instance of edge in this function
         BOOST_TEST(edge.use_count() == 1);
+        BOOST_TEST(a.use_count() == 1);
+        BOOST_TEST(b.use_count() == 1);
 
         // check that the number of objects did not change
         BOOST_TEST(cells.size() == num_cells);
@@ -448,6 +450,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                     "triangular cell.");
             }
         }
+
+        // save the elements that are going to be removed alongside the cell
+        const auto removed_vertices = cell->custom_links().vertices;
+        const auto removed_edges = cell->custom_links().edges;
         
         // move all vertices close to center
         SpaceVec center = am.barycenter_of(cell);
@@ -466,16 +472,28 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             am.move_by(vertex, 0.99 * displ);
         }
 
+        // iterate model to trigger T2 transition
         model.iterate();
 
+        // check that transition was actually performed
         BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
                     == cells.end()));
 
-        BOOST_TEST(cell.use_count() == 1);
-
+        // check that the entities were correctly removed
         BOOST_TEST(cells.size() == num_cells - 1);
         BOOST_TEST(edges.size() == num_edges - 3);
         BOOST_TEST(vertices.size() == num_vertices - 2);
+
+        // check that there are no trailing shared_ptr of those entities
+        BOOST_TEST(cell.use_count() == 1);
+        for (const auto& v : removed_vertices) {
+            BOOST_TEST(v->state.remove);
+            BOOST_TEST(v.use_count() == 1);
+        }
+        for (const auto& [e, flip] : removed_edges) {
+            BOOST_TEST(e->state.remove);
+            BOOST_TEST(e.use_count() == 1);
+        }
 
         test_custom_links(model);
     } // test T2 cell removal
@@ -501,6 +519,10 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
                                     return am.is_boundary(cell);
                                 });
         BOOST_TEST(am.is_boundary(cell));
+
+        // save the elements that are going to be removed alongside the cell
+        const auto removed_vertices = cell->custom_links().vertices;
+        const auto removed_edges = cell->custom_links().edges;
         
         // move all vertices close to center
         SpaceVec center = am.barycenter_of(cell);
@@ -519,17 +541,28 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
             am.move_by(vertex, 0.99 * displ);
         }
 
+        // iterate model to trigger T2 transition
         model.iterate();
 
+        // check that transition was actually performed
         BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
                     == cells.end()));
-
-        BOOST_TEST(cell.use_count() == 1);
 
         BOOST_TEST(cells.size() == num_cells - 1);
         BOOST_TEST(edges.size() <= num_edges - 3);
         BOOST_TEST(vertices.size() <= num_vertices - 2);
         // NOTE T1 boundary edge removal possible
+
+        // check that there are no trailing shared_ptr of those entities
+        BOOST_TEST(cell.use_count() == 1);
+        for (const auto& v : removed_vertices) {
+            BOOST_TEST(v->state.remove);
+            BOOST_TEST(v.use_count() == 1);
+        }
+        for (const auto& [e, flip] : removed_edges) {
+            BOOST_TEST(e->state.remove);
+            BOOST_TEST(e.use_count() == 1);
+        }
 
         test_custom_links(model);
     }
@@ -570,6 +603,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         // set arbitrary values and check inheritance
         cell->state.type = 1;
         cell->state.register_parameter("some_cell_value", 1.);
+        BOOST_TEST(not cell->state.remove);
         model.divide_cell(cell, 0.);
 
 

@@ -34,7 +34,6 @@ EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
 
     // The cell to be divided
     cell->state.remove = true;
-    remove_cell(cell);
 
     const SpaceVec cell_center = this->barycenter_of(cell);
 
@@ -275,6 +274,8 @@ EntitiesManager<Model>::divide_cell(const std::shared_ptr<Cell> cell,
                                                            adj_cell_b);
         }
     }
+
+    remove_cell(cell);
 
     this->_log->info("Successfully divided cell.");
 
@@ -682,9 +683,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
             c->custom_links().edges = adj_cells_es_copies.at(c->id());
         }
 
-        remove_edge(new_edge);
         remove_vertex(new_v_a);
         remove_vertex(new_v_b);
+        remove_edge(new_edge);
 
         return false;
     }
@@ -696,9 +697,9 @@ bool EntitiesManager<Model>::remove_edge_T1 (const std::shared_ptr<Edge> edge,
     }
 
     // remove the entities
-    remove_edge(edge);
     remove_vertex(vertex_a);
     remove_vertex(vertex_b);
+    remove_edge(edge);
 
     new_edge->state.last_T1_attempt = time;
 
@@ -1000,26 +1001,23 @@ bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
                           cell->id());
     }
 
+    // tag objects to be removed
     cell->state.remove = true;
-    for (auto &v : cell->custom_links().vertices) {
-        v->state.remove = true;
-    }
     for (auto [e, flip] : cell->custom_links().edges) {
         e->state.remove = true;
     }
+    for (auto &v : cell->custom_links().vertices) {
+        v->state.remove = true;
+    }
 
+    // add new vertex at current center of cells
     auto new_vertex = add_vertex(barycenter_of(cell));
 
-    for (auto v : cell->custom_links().vertices) {
-        remove_vertex(v); // remove it from the vertex manager
-    }
-
-    for (auto [e, flip] : cell->custom_links().edges) {
-        remove_edge(e); // remove it from the edge manager
-    }
 
     // update the custom_links to objects that will be removed
     for (auto& e : edges()) {
+        if (e->state.remove) { continue; }
+
         if (e->custom_links().a->state.remove) {
             e->custom_links().a = new_vertex;
             _vertices_adjoint_edges[new_vertex->id()].push_back(e);
@@ -1030,10 +1028,10 @@ bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
         }
     }
 
-    remove_cell(cell); // remove it from the cell manager
-
     // update the custom_links to objects that will be removed
     for (auto& c : cells()) {
+        if (c->state.remove) { continue; }
+
         auto& vertices = c->custom_links().vertices;
         unsigned int num_vertices = vertices.size();
         vertices.erase(std::remove_if(vertices.begin(), vertices.end(),
@@ -1051,6 +1049,18 @@ bool EntitiesManager<Model>::remove_cell_T2 (const std::shared_ptr<Cell> cell)
                     edges.end());
         // NOTE the edges are still ordered
     }
+
+    // remove the entities
+    for (auto v : cell->custom_links().vertices) {
+        remove_vertex(v);
+    }
+
+    for (auto [e, flip] : cell->custom_links().edges) {
+        remove_edge(e);
+    }
+
+    remove_cell(cell);
+
 
     return true;
 } // remove edge T1

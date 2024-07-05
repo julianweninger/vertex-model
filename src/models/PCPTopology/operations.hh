@@ -391,9 +391,9 @@ OperationBundle build_proliferate (
             // reset parameters, but don't update
             cell->state.area_preferential = A0;
         }
-    else {
-        vertex_model.increase_domain_size(cell->state.area_preferential);
-    }
+        else {
+            vertex_model.increase_domain_size(cell->state.area_preferential);
+        }
 
         double angle;
         if (normal_distr.stddev() > 1.e-11) {
