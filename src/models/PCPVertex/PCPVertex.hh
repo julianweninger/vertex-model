@@ -890,6 +890,15 @@ public:
                 )
             );
         }
+        else if (term == "volume_elasticity_triangle_heterotypic") {
+            register_work_function_term(
+                name,
+                std::make_shared<VolumeElasticityTriangleHeterotypic<PCPVertex>>
+                (
+                    name, params, *this
+                )
+            );
+        }
         else {
             throw std::runtime_error(fmt::format(
                 "No term `{}` known in PCPVertex namespace. "
@@ -927,6 +936,7 @@ public:
                 " - surface_tension\n"
                 " - volume_elasticity\n"
                 " - volume_elasticity_triangle\n"
+                " - volume_elasticity_triangle_heterotypic\n"
                 "", term
             ));
         }

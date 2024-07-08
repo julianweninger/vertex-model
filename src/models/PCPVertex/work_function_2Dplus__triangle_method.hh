@@ -7,9 +7,11 @@ namespace Models {
 namespace PCPVertex {
 namespace WorkFunction2Dplus {
 
-/// @brief The volume elasticity of a cell
+/// @brief The volume elasticity of a cell base class
 /** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)\f$, an elastic penalty on 
  *  cell volume  \f$ V_\alpha \f$.
+ *
+ *  Requires an implementation of preferential_volume(cell).
  *  
  *  Cell volume is calculated from a columnar model, using cell apical area and 
  *  a cell height variable H. In this columnar model, cells of type 1 can detach
@@ -22,7 +24,6 @@ namespace WorkFunction2Dplus {
  * 
  *  Parameters:
  *      - `elastic_modulus`: the elastic modulus \f$ k \f$
- *      - `preferential_volume`: the preferential volume \f$ V^{(0)} \f$
  *      - `tissue_height`: The height of cells of type other than 1, also used
  *              for initialisation for \f$ H_\alpha \f$.
  *      - `minimum_height`: The minimum value for \f$ H_\alpha \f$. 
@@ -35,7 +36,7 @@ namespace WorkFunction2Dplus {
  *              to numeric step size
  */
 template <typename Model>
-class VolumeElasticityTriangle : public WorkFunction::WorkFunctionTerm<Model>
+class VolumeElasticityTriangleBase : public WorkFunction::WorkFunctionTerm<Model>
 {
 public:
     using Base = WorkFunction::WorkFunctionTerm<Model>;
@@ -52,8 +53,7 @@ protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
-    /// @brief The target volume for a cell at which there is no pressure
-    double _preferential_volume;
+    virtual double preferential_volume(const std::shared_ptr<Cell>& cell) const=0;
 
     /// @brief The height of the tissue, defining a maximum height for every cell
     double _tissue_height;
@@ -162,7 +162,7 @@ protected:
     }
 
 public:
-    VolumeElasticityTriangle (
+    VolumeElasticityTriangleBase (
         std::string name,
         const DataIO::Config& cfg,
         const Model& model
@@ -170,7 +170,6 @@ public:
     :
         Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
-        _preferential_volume(get_as<double>("preferential_volume", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _minimum_height(get_as<double>("minimum_height", cfg)),
         _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
@@ -184,7 +183,7 @@ public:
         }
     }
 
-    ~VolumeElasticityTriangle () {
+    ~VolumeElasticityTriangleBase () {
         for (const auto& cell : this->_am.cells()) {
             cell->state.unregister_parameter(_height);
             cell->state.unregister_parameter(_height_derivative);
@@ -197,12 +196,12 @@ public:
             double pressure = compute_pressure(cell);
 
             const double H = cell->state.get_parameter(_height);
+            double V0 = preferential_volume(cell);
             double dH = 0.;     // the derivative to height
             double f = 0.;      // the triangle factor
             if (not has_basal_contact(cell)) {
                 dH += _elastic_modulus
-                      * (volume_of(cell) - _preferential_volume)
-                      / std::pow(_preferential_volume, 2)
+                      * (volume_of(cell) - V0) / std::pow(V0, 2)
                       * this->_am.area_of(cell);
                 f += triangle_factor(cell);
             }
@@ -232,16 +231,14 @@ public:
                 // consider the neighbours of extruded cell
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
                     dH -= _elastic_modulus
-                          * (volume_of(n) - _preferential_volume)
-                          / std::pow(_preferential_volume, 2)
+                          * (volume_of(n) - V0) / std::pow(V0, 2)
                           * std::pow(l, 2)
                           * f / 2;
 
                     // The contribution of perimeter and interfaces
                     double Tn = (
                           _elastic_modulus
-                        * (volume_of(n) - _preferential_volume)
-                        / std::pow(_preferential_volume, 2)
+                        * (volume_of(n) - V0) / std::pow(V0, 2)
                         * l * f * (_tissue_height - H)
                     );
 
@@ -262,16 +259,17 @@ public:
     /// @return apical pressure
     double compute_pressure(const std::shared_ptr<Cell>& cell) const override {
         const double H = cell->state.get_parameter(_height);
+        double V0 = preferential_volume(cell);
         double P = _elastic_modulus * H
-                   * (volume_of(cell) - _preferential_volume)
-                   / std::pow(_preferential_volume, 2);
+                   * (volume_of(cell) - V0) / std::pow(V0, 2);
 
         return P;
     }
 
     double compute_energy(const std::shared_ptr<Cell>& cell) const override {
         double V = volume_of(cell);
-        return 0.5*_elastic_modulus * std::pow(V/_preferential_volume - 1., 2);
+        double V0 = preferential_volume(cell);
+        return 0.5 * _elastic_modulus * std::pow(V / V0 - 1., 2);
     }
 
     double compute_energy (
@@ -312,8 +310,6 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
-        _preferential_volume = get_as<double>("preferential_volume", cfg, 
-                                              _preferential_volume);
         double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
         if (fabs(tmp - _tissue_height) > 1.e-8) {
             _tissue_height = tmp;
@@ -389,10 +385,167 @@ public:
     }
 };
 
+
+/// @brief The volume elasticity of a cell
+/** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)\f$, an elastic penalty on 
+ *  cell volume  \f$ V_\alpha \f$.
+ *  
+ *  Cell volume is calculated from a columnar model, using cell apical area and 
+ *  a cell height variable H. In this columnar model, cells of type 1 can detach
+ *  basally, with \f$ H < H_{tissue} \f$. This basal space is filled up by 
+ *  neighboring cells of other types, having a columnar core and basal 
+ *  extensions.
+ *  
+ *  The variables \f$ H_\alpha \f$ develop according to the derivative 
+ *  \f$ \frac{dH_\alpha}{dt} = - \gamma \frac{dE}{dH_\alpha} \f$.
+ * 
+ *  Parameters:
+ *      - `elastic_modulus`: the elastic modulus \f$ k \f$
+ *      - `preferential_volume`: the preferential volume \f$ V^{(0)} \f$
+ *      - `tissue_height`: The height of cells of type other than 1, also used
+ *              for initialisation for \f$ H_\alpha \f$.
+ *      - `minimum_height`: The minimum value for \f$ H_\alpha \f$. 
+ *      - `height_parameter_name`: Name used for the height variable in 
+ *              properties of the cell. Can be accessed by other terms. 
+ *              The derivative \f$ H_\alpha^\prime \f$ is saved as 
+ *              <height_parameter_name>_derivative. Additive contributions from
+ *              terms are considered during update.
+ *      - `gamma`: The damping factor for H temporal development, additional 
+ *              to numeric step size
+ */
+template <typename Model>
+class VolumeElasticityTriangle : public VolumeElasticityTriangleBase<Model>
+{
+public:
+    using Base = VolumeElasticityTriangleBase<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// @brief The target volume for a cell at which there is no pressure
+    double _preferential_volume;
+
+    inline double preferential_volume
+            ([[maybe_unused]] const std::shared_ptr<Cell>& cell) const override
+    {
+        return _preferential_volume;
+    }
+
+public:
+    VolumeElasticityTriangle (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _preferential_volume(get_as<double>("preferential_volume", cfg))
+    { }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        _preferential_volume = get_as<double>("preferential_volume", cfg, 
+                                              _preferential_volume);
+        
+        Base::update_parameters(cfg);
+    }
+};
+
+/// @brief The volume elasticity of cells, dependent on cell type
+/** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)\f$, an elastic penalty on 
+ *  cell volume  \f$ V_\alpha \f$.
+ *  
+ *  Cell volume is calculated from a columnar model, using cell apical area and 
+ *  a cell height variable H. In this columnar model, cells of type 1 can detach
+ *  basally, with \f$ H < H_{tissue} \f$. This basal space is filled up by 
+ *  neighboring cells of other types, having a columnar core and basal 
+ *  extensions.
+ *  
+ *  The variables \f$ H_\alpha \f$ develop according to the derivative 
+ *  \f$ \frac{dH_\alpha}{dt} = - \gamma \frac{dE}{dH_\alpha} \f$.
+ * 
+ *  Parameters:
+ *      - `elastic_modulus`: the elastic modulus \f$ k \f$
+ *      - `preferential_volume`: the preferential volume \f$ V^{(0)} \f$ 
+ *              provided as a vector of doubles, with incrementing cell type.
+ *      - `tissue_height`: The height of cells of type other than 1, also used
+ *              for initialisation for \f$ H_\alpha \f$.
+ *      - `minimum_height`: The minimum value for \f$ H_\alpha \f$. 
+ *      - `height_parameter_name`: Name used for the height variable in 
+ *              properties of the cell. Can be accessed by other terms. 
+ *              The derivative \f$ H_\alpha^\prime \f$ is saved as 
+ *              <height_parameter_name>_derivative. Additive contributions from
+ *              terms are considered during update.
+ *      - `gamma`: The damping factor for H temporal development, additional 
+ *              to numeric step size
+ */
+template <typename Model>
+class VolumeElasticityTriangleHeterotypic : public VolumeElasticityTriangleBase<Model>
+{
+public:
+    using Base = VolumeElasticityTriangleBase<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// @brief The target volume for cells dependent on their cell-type
+    std::vector<double> _preferential_volume;
+
+    double preferential_volume (const std::shared_ptr<Cell>& cell)
+    const override
+    {
+        if (cell->state.type > _preferential_volume.size())
+        {
+            throw std::runtime_error(fmt::format(
+                "In WF-term VolumeElasticityTriangleHeterotypic, no "
+                "preferential volume registered for cells of type {}. "
+                "Parameters only for {} types registered.",
+                cell->state.type,
+                _preferential_volume.size()
+            ));
+        }
+        return _preferential_volume[cell->state.type];
+    }
+
+public:
+    VolumeElasticityTriangleHeterotypic (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _preferential_volume(
+            get_as<std::vector<double>>("preferential_volume", cfg))
+    { }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        _preferential_volume = get_as<std::vector<double>>(
+            "preferential_volume", 
+            cfg,
+            _preferential_volume
+        );
+        
+        Base::update_parameters(cfg);
+    }
+};
+
+
 template <typename Model>
 class SurfaceElasticity : public WorkFunction::WorkFunctionTerm<Model>
 {
-protected:
+public:
     using Base = WorkFunction::WorkFunctionTerm<Model>;
 
     using SpaceVec = typename Base::AgentManager::SpaceVec;
@@ -403,6 +556,7 @@ protected:
 
     using Cell = typename Base::Cell;
 
+protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
