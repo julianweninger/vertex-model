@@ -1,6 +1,5 @@
 ---
 default_minimization:
-  update_scheme: steepest_gradient
   dt: 0.01
 
   tolerance: 1.e-8
@@ -92,7 +91,6 @@ void:
 void__linetension_fluctuations_1:
   times: []
   minimization:
-    update_scheme: steepest_gradient
     jiggle_intensity: 0.
     linetension_fluctuations: 0.3
     linetension_fluctuations_tau: 1.
@@ -104,7 +102,6 @@ void__linetension_fluctuations_1:
 void__linetension_fluctuations_2:
   times: []
   minimization:
-    update_scheme: steepest_gradient
     jiggle_intensity: 0.
     linetension_fluctuations: 0.
     linetension_fluctuations_tau: 1.
@@ -115,7 +112,6 @@ void__linetension_fluctuations_2:
 void__linetension_fluctuations_3:
   times: []
   minimization:
-    update_scheme: steepest_gradient
     jiggle_intensity: 0.
     linetension_fluctuations: 0.4
     linetension_fluctuations_tau: 1.
@@ -126,7 +122,6 @@ void__linetension_fluctuations_3:
 void__area_fluctuations_1:
   times: []
   minimization:
-    update_scheme: steepest_gradient
     jiggle_intensity: 0.
     linetension_fluctuations: 0.
 
@@ -140,7 +135,6 @@ void__area_fluctuations_1:
 void__area_fluctuations_2:
   times: []
   minimization:
-    update_scheme: steepest_gradient
     jiggle_intensity: 0.
     linetension_fluctuations: 0.
 
@@ -153,7 +147,6 @@ void__area_fluctuations_2:
 void__area_fluctuations_3:
   times: []
   minimization:
-    update_scheme: steepest_gradient
     jiggle_intensity: 0.
     linetension_fluctuations: 0.
 

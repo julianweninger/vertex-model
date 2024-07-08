@@ -226,7 +226,6 @@ parameter_space:
     # --- Dynamics
     # Minimization parameter
     minimization:
-      update_scheme: steepest_gradient
       dt: 0.05  # this was evaluated in the previous test to be a good dt
       num_steps: 20
       jiggle_intensity: 0.

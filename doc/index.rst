@@ -26,4 +26,4 @@ to build it locally yourself!
 
 .. note::
 
-  If you notice any errors in this documentation, even minor, or have suggestions for improvements, please inform `Benni <herdeanu@iup.uni-heidelberg.de>`_ and/or `Yunus <yunus.sevinchan@iup.uni-heidelberg.de>`_ of them. Thank you! :)
+  If you notice any errors in this documentation, even minor, or have suggestions for improvements, please inform `Julian <julian.weninger@unige.ch>`_. Thank you! :)

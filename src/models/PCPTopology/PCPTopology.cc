@@ -4,14 +4,19 @@
 #include "PCPTopology_write_tasks.hh"
 #include "../PlanarCellPolarity/PlanarCellPolarity_write_tasks.hh"
 
-using namespace Utopia::Models::PCPVertex;
-using namespace DataIO;
-using Utopia::get_as;
+using namespace Utopia::Models::PCPTopology;
+
+using TopologyModel = PCPTopology;
 
 /// Factory for model 
 template<typename ParentType>
 auto model_factory(ParentType parent) {
-    return PCPTopology("PCPTopology", parent, {}, std::make_tuple(
+    using VertexModel = Utopia::Models::PCPVertex::PCPVertex;
+
+    using namespace Utopia::Models;
+    using namespace Utopia::Models::PCPVertex::DataIO;
+    
+    return TopologyModel("PCPTopology", parent, {}, std::make_tuple(
         // energy adaptors
         continuous_time_adaptor, time_energy_adaptor, energy_adaptor,
         // transitions
@@ -19,16 +24,17 @@ auto model_factory(ParentType parent) {
         // statistics
         interface_length_adaptor,
         // the position adaptors
-        vertices_adaptor<typename PCPVertex::Space::SpaceVec>,
-        cells_adaptor<typename PCPVertex::Space::SpaceVec>,
-        edges_adaptor<typename PCPVertex::Space::SpaceVec>,
+        vertices_adaptor<VertexModel::SpaceVec>,
+        cells_adaptor<VertexModel::SpaceVec>,
+        edges_adaptor<VertexModel::SpaceVec>,
         cell_energies_adaptor, edge_energies_adaptor,
         cell_cluster_adaptor,
         // PlanarCellPolarity spatial data
-        Utopia::Models::PlanarCellPolarity::DataIO::pcp_cells_adaptor
-        <typename PCPVertex::Space::SpaceVec, typename PCPTopology::ProteinVec>,
-        Utopia::Models::PlanarCellPolarity::DataIO::pcp_edges_adaptor
-        <typename PCPTopology::ProteinVec>
+        PlanarCellPolarity::DataIO::pcp_cells_adaptor<
+            VertexModel::SpaceVec,
+            typename TopologyModel::ProteinVec >,
+        PlanarCellPolarity::DataIO::pcp_edges_adaptor<
+            typename TopologyModel::ProteinVec>
     ));
 }
 

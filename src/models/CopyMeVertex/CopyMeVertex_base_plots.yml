@@ -1,0 +1,415 @@
+# Base plot configuration for this model
+#
+# The configurations given here can be used in the <model_name>_plots.yml file
+---
+universe:
+  based_on:
+    - .defaults.style
+    - .creator.universe.all
+  file_ext: png
+
+
+multiverse:
+  creator: multiverse
+  file_ext: png
+
+
+_energy:
+  based_on:
+    - .plot.multiplot
+    
+  to_plot:
+  - function: sns.lineplot
+    data: !dag_result energy
+
+  x: time
+  y: energy
+  hue: term
+
+  helpers:
+    set_labels:
+      x: time
+      y: energy [a.u.]
+
+
+select.uni.energy_terms:
+  select:
+    energy: 
+      path: data/CopyMeVertex/Energy/Terms
+      transform:
+        - .rename: [!dag_prev , energy]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+
+
+select.uni.continuous_energy_terms:
+  select:
+    energy: 
+      path: data/CopyMeVertex/PCPVertex/Energy/Terms
+      transform:
+        - .rename: [!dag_prev , energy]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+
+
+energy:
+  based_on:
+    - universe
+    - _energy
+    - select.uni.energy_terms
+
+
+select.uni.transitions:
+  select:
+    transitions: 
+      path: data/CopyMeVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+
+
+select.uni.continuous_transitions:
+  select:
+    transitions_continous: 
+      path: data/CopyMeVertex/PCPVertex/Energy/Transitions
+      transform:
+        - .rename: [!dag_prev , transitions]
+        - import_and_call:
+          args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+
+
+transitions:
+  based_on:
+    - universe
+    - .plot.multiplot
+    - select.uni.energy_terms
+    - select.uni.transitions
+
+  x: time
+
+  to_plot:
+    [0, 0]:
+    - function: sns.lineplot
+      data: !dag_result energy
+      hue: term
+      y: energy
+
+    [1, 0]:
+    - function: sns.lineplot
+      data: !dag_result transitions
+      y: transitions
+      hue: type
+      hue_order: [num_T1s, num_T1s_attempted, num_T2s]
+
+  helpers:
+    setup_figure:
+      ncols: 2
+      constrained_layout: True
+    set_labels:
+      x: time
+
+
+select_cells_properties:
+  select:
+    # NOTE the order in which datasets are created is alphabetically!
+    #      (underscores) `_` are treated first
+
+    # the data containing all cells
+    _cells: data/CopyMeVertex/Cells
+    
+    # a mask to select only bulk cells
+    _is_bulk:
+      path: data/CopyMeVertex/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: is_boundary
+        - .rename:
+          args: [!dag_prev , is_bulk]
+        - create_mask:
+          args: [!dag_prev , <, 0.5] # not boundary
+
+    # the type of the cells
+    __cell_type:
+      path: data/CopyMeVertex/Cells
+      transform:
+        - .sel:
+          args: [!dag_prev ]
+          kwargs:
+            property: cell_type
+        - .rename:
+          args: [!dag_prev , cell_types]
+
+    # a mask to select only hair cells
+    _hair_cells:
+      path: data/CopyMeVertex/Cells
+      transform:
+        - create_mask:
+          args: [!dag_tag __cell_type, ==, 1]
+    
+    # a mask to select only support cells
+    _support_cells:
+      path: data/CopyMeVertex/Cells
+      transform:
+        - create_mask:
+          args: [!dag_tag __cell_type, '!=', 1]
+    
+  transform:
+    # the data for all cells
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_tag property]
+      tag: all_cells
+
+    # the data for hair cells
+    - .where: [!dag_tag property, !dag_tag _hair_cells]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
+      tag: hair_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: hair_cells
+
+    # the data for support cells
+    - .where: [!dag_tag property, !dag_tag _support_cells]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
+      tag: support_cells_xarray
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: support_cells
+
+    # the data for bulk cells
+    - .where: [!dag_tag property, !dag_tag _is_bulk]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: all_cells_bulk
+    
+    - .where: [!dag_tag hair_cells_xarray, !dag_tag _is_bulk]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: hair_cells_bulk
+    
+    - .where: [!dag_tag support_cells_xarray, !dag_tag _is_bulk]
+    - .dropna: [!dag_prev , id]
+      kwargs: {how: all}
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: support_cells_bulk
+
+      
+select_cells_properties_mv:
+  select_and_combine:
+    allow_missing_or_failing: True
+    fields:
+      # the type of the cells
+      _cell_type:
+        path: data/CopyMeVertex/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: cell_type
+          - .rename:
+            args: [!dag_prev , cell_types]
+
+      _is_boundary:
+        path: data/CopyMeVertex/Cells
+        transform:
+          - .sel:
+            args: [!dag_prev ]
+            kwargs:
+              property: is_boundary
+          - .rename:
+            args: [!dag_prev , is_boundary]
+    
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: all_cells
+
+
+# Extract averaged data from edges dataset
+select_edges_properties:
+  select:
+      # the type of the cells
+      bond_type:
+        path: data/CopyMeVertex/Edges
+        transform:
+          - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
+          - import_and_call:
+            args: [model_plots.PCPTopology.data_ops, classify_edges, !dag_prev ]
+          - .rename:
+            args: [!dag_prev , cell_types]
+    
+  transform:
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_tag property]
+      tag: all_edges
+
+
+select_edges_properties_mv:
+  select_and_combine:
+    allow_missing_or_failing: True
+    fields:
+      # the type of the cells
+      _bond_type:
+        path: data/CopyMeVertex/Edges
+        transform:
+          - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
+          - import_and_call:
+            args: [model_plots.PCPTopology.data_ops, classify_edges, !dag_prev ]
+          - .rename:
+            args: [!dag_prev , cell_types]
+    
+  transform:
+    # stack the seeds
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, stack, !dag_tag _property,
+             {ids: [seed, id]}]
+    - .squeeze: [!dag_prev ]
+      tag: property
+    - import_and_call:
+      args: [model_plots.PCPTopology.data_ops, to_dataframe, !dag_prev ]
+      tag: all_edges
+
+
+cellular_structure:
+  based_on: universe
+
+  module: model_plots.PCPVertex
+  plot_func: cellular_structure
+
+  select:
+    Vertices:
+      path: data/CopyMeVertex/Vertices
+      transform:
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['x', 'y']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+    Edges:
+      path: data/CopyMeVertex/Edges
+      transform:
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['vertex_a', 'vertex_b']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+    Cells:
+      path: data/CopyMeVertex/Cells
+      transform:
+        - call_lambda:
+          - "lambda data: xr.concat([data[t].sel(property=['x', 'y', 'cell_type']) for t in data], dim='time')"
+          - !dag_prev
+        - call_lambda:
+          - "lambda data, time_series: data.assign_coords(time=[int(t) for t in time_series])"
+          - !dag_node -1
+          - !dag_node -2
+    # vector_property:
+    #   path: data/CopyMeVertex/Cells
+    #   transform:
+    #     - .sel: [!dag_prev , {property: polarity}]
+    #     - .sel: [!dag_node -2, {property: cell_type}]
+    #     - call_lambda:
+    #       - "lambda d, type: d.where(type==1)"
+    #       - !dag_node -2
+    #       - !dag_node -1
+    #     - .rename: [!dag_prev , Polarity]
+    # edge_property:
+    #   path: data/CopyMeVertex/Edges
+    #   transform:
+    #     - .sel: [!dag_prev , {property: [type_alpha, type_beta]}]
+    #     - .rename: [!dag_prev , Cell type]
+
+    periodic: 
+      path: cfg/CopyMeVertex
+      transform:
+        - call_lambda:
+          - "lambda kv: kv['PCPVertex']['space']['periodic']"
+          - !dag_prev
+    Lx:
+      path: data/CopyMeVertex/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Lx'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    Ly:
+      path: data/CopyMeVertex/Vertices
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['Ly'][0] for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    skew_x:
+      path: data/CopyMeVertex/Edges
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['skew_x'][0] if 'skew_x' in d[t].attrs else 0. for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    skew_y:
+      path: data/CopyMeVertex/Edges
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['skew_y'][0] if 'skew_y' in d[t].attrs else 0. for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+    curvature:
+      path: data/CopyMeVertex/Edges
+      transform:
+      - call_lambda:
+        - "lambda d: xr.DataArray([d[t].attrs['curvature'][0] if 'curvature' in d[t].attrs else 0. for t in d], dims=['time'], coords=dict(time=[int(t) for t in d]))"
+        - !dag_prev
+
+  plot_vertices: false
+  cell_center_marker_kwargs:
+    colors: ['white', 'r', 'gray']
+
+  property_interpolation_plot_kwargs: ~
+  
+  vector_property_is_nematic: False
+  vector_property_kwargs:
+    scale: 1
+    headlength: 2.5
+    # headwidth: 3
+    headaxislength: 2.5
+
+  quiver_kwargs:
+    cmap: Blues
+
+  animation:
+    enabled: true
+    writer: frames
+    writer_kwargs:
+      ffmpeg:
+        init:
+          fps: 10
+        saving:
+          dpi: 300
+      frames:
+        saving:
+          dpi: 300
+
+    animation_update_kwargs: {}
+
+  helpers:
+    save_figure: {bbox_inches: tight}
+
+  # Can use constrained layout, because axis labels don't change
+  style:
+    figure.constrained_layout.use: true
+    axes.grid: false

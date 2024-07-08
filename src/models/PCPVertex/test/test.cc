@@ -394,6 +394,69 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
         }
     }
     
+    BOOST_AUTO_TEST_CASE(test_custom_WF_terms) 
+    {
+        Fixture<Case::periodic> fixture;
+        auto& model = fixture.vertex_model;
+
+        // Define a custom WF term
+        class CustomConst : public PCPVertex::WFTerm
+        {
+            using Base = PCPVertex::WFTerm;
+
+        private:
+            double _constant; // the constant parameter
+
+        public:
+            CustomConst (
+                std::string name,
+                const Config& params,
+                const PCPVertex& vertex_model
+            )
+            :
+                Base(name, params, vertex_model),
+                _constant(get_as<double>("constant", params))
+            { }
+
+            void compute_and_set_forces () final { }
+
+            double compute_energy (
+                [[maybe_unused]] const Utopia::AgentContainer<Base::Vertex>& vertices,
+                [[maybe_unused]] const Utopia::AgentContainer<Base::Edge>& edges,
+                [[maybe_unused]] const Utopia::AgentContainer<Base::Cell>& cells
+            ) const final
+            {
+                return _constant;
+            }
+
+            void update_parameters (const Config& params) final {
+                _constant  = get_as<double>("constant", params, _constant);
+            }
+        };
+
+        /// The builder wrapping the CustomConst WFTerm
+        PCPVertex::WFTermBuilder custom_const_builder = [](
+                std::string name, const Config& params,
+                const PCPVertex& model
+        ) {
+            return std::make_shared<CustomConst>(name, params, model);
+        };
+
+        // register the builder with identifier 'custom_const'
+        model.register_work_function_builder(
+            "custom_const",
+            custom_const_builder
+        );
+
+        // register an actual WF term by the name of 'custom_const'
+        Config custom_const_cfg;
+        custom_const_cfg["constant"] = 1.1;
+        model.register_work_function_term(
+            "custom_const", "custom_const", custom_const_cfg
+        );
+
+    }
+
     BOOST_AUTO_TEST_CASE (test_update_area_elasticity_heterotypic)
     {
         const double precision = 1.e-3;
