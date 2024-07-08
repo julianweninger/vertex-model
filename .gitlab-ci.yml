@@ -247,11 +247,12 @@ test:model_defaults:
   script:
     - $ENTER_UTOPIA_ENV
 
-    - utopia run ActiveSLS --debug
-    - utopia run BendSplay --debug
+    - utopia run ActiveSLS --debug --num-steps 3
+    - utopia run BendSplay --debug --num-steps 3
     - utopia run Collier --debug --num-steps 500
-    - utopia run NotchDelta --debug
-    - utopia run PCPVertex --debug
+    - utopia run CopyMeVertex --debug --num-steps 3
+    - utopia run NotchDelta --debug --num-steps 3
+    - utopia run PCPVertex --debug --num-steps 3
     - utopia run PCPTopology --debug --num-steps 5
 
 

@@ -1,0 +1,91 @@
+# The evaluation of default_proliferation_minimal
+---
+# --- Temporal development of energy ------------------------------------------
+energy:
+  based_on: energy
+
+energy_continuous:
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
+
+transitions:
+  based_on: transitions
+
+
+# --- Time averages of cell properties ----------------------------------------
+cell_properties:
+  based_on:
+    - .plot.multiplot
+    - universe
+    - select_cells_properties
+  enabled: False
+
+  select:
+    property:
+      path: data/CopyMeVertex/Cells
+
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+      errorbar: sd
+
+  x: time
+
+  helpers:
+    set_labels:
+      x: time
+
+cell_properties/area:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , area]
+  y: area
+  helpers:
+    set_labels:
+      y: average area
+
+
+cell_properties/shape:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+      
+      
+# --- Spatial plots -----------------------------------------------------------
+cell_segmentation:
+  based_on: cellular_structure
+
+continuous_cell_segmentation:
+  based_on: cellular_structure
+  select:
+    Vertices:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    Edges:
+      path: data/CopyMeVertex/PCPVertex/Edges
+    Cells:
+      path: data/CopyMeVertex/PCPVertex/Cells
+    Lx:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    Ly:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    skew_x:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    skew_y:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    curvature:
+      path: data/CopyMeVertex/PCPVertex/Vertices

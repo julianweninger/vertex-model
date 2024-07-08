@@ -12,12 +12,18 @@
 
 namespace Utopia {
 namespace Models {
-namespace PCPVertex {
+namespace PCPTopology {
 namespace OperationCollection {
+
+/// The type of the vertex model
+using VertexModel = PCPVertex::PCPVertex;
+
+/// The type defining parameters for minimization of the VertexModel
+using MinimizationParams = PCPVertex::MinimizationParams;
 
 /// Parameters on how and when to apply operations
 struct OperationParams {
-    using Time = typename PCPVertex::Time;
+    using Time = typename VertexModel::Time;
 
     /// Name of the operation
     const std::string name;
@@ -183,9 +189,13 @@ struct OperationParams {
     }
 };
 
-using Operation = std::function<void(PCPVertex& vertex_model)>;
+using Operation = std::function<void(VertexModel& vertex_model)>;
 
-using OperationBundle = typename std::pair<Operation, OperationParams>;
+using OperationBundle = typename std::pair<Operation, OperationParams>;                         
+
+using OperationBundleBuilder = std::function<OperationBundle(
+    std::string, const Config&, const MinimizationParams&
+)>;
 
 
 /// The operation to do nothing
@@ -195,7 +205,7 @@ OperationBundle build_void (
 {
     OperationParams params(name, cfg, default_minim_params);
 
-    Operation operation = [] ([[maybe_unused]] PCPVertex& vertex_model) { };
+    Operation operation = [] ([[maybe_unused]] VertexModel& vertex_model) { };
 
     return std::make_pair(operation, params);
 }
@@ -215,7 +225,7 @@ OperationBundle build_update_work_function_term (
     auto wf_name = get_as<std::string>("name", cfg);
     auto update_params = get_as<Config>("parameters", cfg);
 
-    Operation operation = [wf_name, update_params] (PCPVertex& vertex_model)
+    Operation operation = [wf_name, update_params] (VertexModel& vertex_model)
     {
         auto registered = vertex_model.is_registered_term(wf_name);
         if (registered) {
@@ -247,7 +257,7 @@ OperationBundle build_register_work_function_term (
     auto wf_name = get_as<std::string>("name", cfg, term);
     auto wf_params = get_as<Config>("parameters", cfg);
 
-    Operation operation = [term, wf_name, wf_params] (PCPVertex& vertex_model)
+    Operation operation = [term, wf_name, wf_params] (VertexModel& vertex_model)
     {
         vertex_model.register_work_function_term(term, wf_name, wf_params);
     };
@@ -267,7 +277,7 @@ OperationBundle build_unregister_work_function_term (
 
     auto wf_name = get_as<std::string>("name", cfg);
 
-    Operation operation = [wf_name] (PCPVertex& vertex_model)
+    Operation operation = [wf_name] (VertexModel& vertex_model)
     {
         vertex_model.erase_work_function_term(wf_name);
     };
@@ -331,13 +341,14 @@ OperationBundle build_proliferate (
     std::normal_distribution<double> normal_distr(mean, stddev);
     std::uniform_real_distribution<double> uniform_distr(0., M_PI);
 
-    Operation divide_cell = [num_increases, minimization_after_increase,
-                             threshold, generation_max_id,
-                             uniform_distr{std::move(uniform_distr)},
-                             normal_distr{std::move(normal_distr)}, params]
-            (PCPVertex& vertex_model) mutable
+    Operation divide_cell = [
+            num_increases, minimization_after_increase,
+            threshold, generation_max_id,
+            uniform_distr{std::move(uniform_distr)},
+            normal_distr{std::move(normal_distr)}, params]
+            (VertexModel& vertex_model) mutable
     {
-        using Cell = typename PCPVertex::Cell;
+        using Cell = typename VertexModel::Cell;
 
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
@@ -391,9 +402,9 @@ OperationBundle build_proliferate (
             // reset parameters, but don't update
             cell->state.area_preferential = A0;
         }
-    else {
-        vertex_model.increase_domain_size(cell->state.area_preferential);
-    }
+        else {
+            vertex_model.increase_domain_size(cell->state.area_preferential);
+        }
 
         double angle;
         if (normal_distr.stddev() > 1.e-11) {
@@ -421,7 +432,7 @@ OperationBundle build_proliferate (
         }
         operation = [num_divs, minimization_after_division, minimize,
                      divide_cell, logger, monitor]
-                    (PCPVertex& vertex_model)
+                    (VertexModel& vertex_model)
         {
             logger->debug(" Proliferating {} cells ...", num_divs);
             for (std::size_t i = 0; i < num_divs; i++) {
@@ -493,7 +504,7 @@ OperationBundle build_proliferate_generations (
 
     Operation operation = [proliferate, num_generations,
                            minimization_between_generations, logger, monitor]
-            (PCPVertex& vertex_model)
+            (VertexModel& vertex_model)
     {
         if (not vertex_model.get_space()->periodic) {
             throw std::runtime_error("Proliferation of cells in generations "
@@ -558,14 +569,14 @@ OperationBundle build_pure_shear (
 
     Operation operation =
         [rho, v0, Lx0, Ly0,initialised, deform_plastic]
-        (PCPVertex& vertex_model)
+        (VertexModel& vertex_model)
     {
         if (not vertex_model.get_space()->periodic) {
             throw std::runtime_error("Space needs to be periodic to apply "
                 "`pure shear` operation");
         }
 
-        using SpaceVec = typename PCPVertex::SpaceVec;
+        using SpaceVec = typename VertexModel::SpaceVec;
         auto space = vertex_model.get_space();
 
         if (not *initialised) {
@@ -624,13 +635,13 @@ OperationBundle build_pure_shear (
  *      - `deform_plastic` (bool): Whether the cells are deformed according
  *              to the shear deformation.
  * 
- *  See PCPVertex::skew_domain for further information.
+ *  See VertexModel::skew_domain for further information.
  */
 OperationBundle build_simple_shear (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
-    using SpaceVec = PCPVertex::SpaceVec;
+    using SpaceVec = VertexModel::SpaceVec;
 
     OperationParams params(name, cfg, default_minim_params);
 
@@ -639,7 +650,7 @@ OperationBundle build_simple_shear (
     bool deform_plastic = get_as<bool>("deform_plastic", cfg);
 
     Operation operation = [v0, absolute, deform_plastic](
-            PCPVertex& vertex_model
+            VertexModel& vertex_model
     )
     {
         const auto& space = vertex_model.get_space();
@@ -657,7 +668,7 @@ OperationBundle build_simple_shear (
 
 
 } // namespace OperationCollection
-} // namespace PCPVertex
+} // namespace PCPTopology
 } // namespace Models
 } // namespace Utopia
 #endif

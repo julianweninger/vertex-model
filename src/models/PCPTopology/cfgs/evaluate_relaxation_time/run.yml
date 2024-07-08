@@ -64,7 +64,6 @@ parameter_space:
     # --- Dynamics
     # Minimization parameter
     minimization:
-      update_scheme: steepest_gradient
       dt: 0.05
       num_repeat: 1
       num_steps: 20

@@ -41,7 +41,6 @@ PCPVertex:
         args: {time: 0}
         type: once
   minimization: &Minimization
-    update_scheme: steepest_gradient
     dt: 0.01
     jiggle_intensity: 0.01
     jiggle_tolerance: 1e-06

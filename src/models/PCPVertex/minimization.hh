@@ -11,12 +11,6 @@ struct MinimizationParams {
     /// The tolerance in energy change 
     double tolerance;
 
-    enum UpdateScheme {
-        SteepestGradient,
-        SteepestGradientAdaptive,
-        ConjugateGradient
-    } update_scheme;
-
     /// The default timestep
     double dt;
 

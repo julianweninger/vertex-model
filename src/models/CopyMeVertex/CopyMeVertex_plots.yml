@@ -1,0 +1,131 @@
+# The default plots of this model
+#
+# These can use the `based_on` feature with configurations specified in the
+# accompanying *_base_plots.yml file and in the utopya base plot configs.
+---
+energy:
+  based_on:
+    - energy
+
+energy_continuous:
+  based_on: 
+    - energy
+    - select.uni.continuous_energy_terms
+
+transitions:
+  based_on: transitions
+
+
+# Cell properties from cell data ----------------------------------------------
+cell_properties:
+  based_on:
+    - .plot.multiplot
+    - universe
+    - select_cells_properties
+  enabled: False
+
+  select:
+    property:
+      path: data/CopyMeVertex/Cells
+
+  to_plot: 
+    - function: sns.lineplot
+      data: !dag_result all_cells
+      label: all cells
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      label: hair cells
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      label: support cells
+
+  x: time
+  errorbar: sd
+
+  helpers:
+    set_labels:
+      x: time
+
+cell_properties/area:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , area]
+  y: area
+  helpers:
+    set_labels:
+      y: average area
+
+cell_properties/area_preferential:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+        - .sel: [!dag_prev , {property: area_preferential}]
+        - .rename: [!dag_prev , area_preferential]
+  y: area_preferential
+  helpers:
+    set_labels:
+      y: average pref. area
+
+cell_properties/shape:
+  based_on: cell_properties
+  select:
+    property:
+      transform:
+          - .sel: [!dag_prev , {property: perimeter}]
+          - .sel: [!dag_node -2, {property: area_preferential}]
+          - pow: [!dag_node -1 , 0.5]
+          - div: [!dag_node -3, !dag_node -1]
+          - .rename: [!dag_prev , shape_index]
+  y: shape_index
+  helpers:
+    set_labels:
+      y: average shape index
+
+      
+# --- Equilibrium cellular structures -----------------------------------------
+equilibrium_cellular_structure:
+  based_on:
+    - cellular_structure
+
+  property_interpolation_plot_kwargs:
+    cmap: Reds
+
+
+equilibrium_cellular_structure__area:
+  based_on: equilibrium_cellular_structure
+  enabled: false
+
+  select:
+    property:
+      path: data/CopyMeVertex/Cells
+      transform:
+        - .sel: [!dag_prev , {property: area}]
+        - .rename: [!dag_prev , Area]
+
+
+
+# --- Continuous cellular structures ------------------------------------------
+cellular_structure_continuous:
+  based_on:
+    - cellular_structure
+  select:
+    Vertices:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    Edges:
+      path: data/CopyMeVertex/PCPVertex/Edges
+    Cells:
+      path: data/CopyMeVertex/PCPVertex/Cells
+    Lx:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    Ly:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    skew_x:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    skew_y:
+      path: data/CopyMeVertex/PCPVertex/Vertices
+    curvature:
+      path: data/CopyMeVertex/PCPVertex/Vertices
