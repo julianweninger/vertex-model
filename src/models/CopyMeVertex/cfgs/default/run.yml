@@ -1,0 +1,97 @@
+# An example configuration to a custom vertex-topology model
+#
+# The model can be run by typing : 
+# $ cd /path-to-Utopia/vertex-model
+# $ utopia run CopyMeVertex --cfg-set default
+# or
+# $ utopia run CopyMeVertex path/to/my/custom/run_cfg.yml --plots-cfg path/to/my/custom/eval_cfg.yml
+# See Utopia docs -> Tutorial -> Running a Simulation for more information.
+#
+# The content of this file is used to update the corresponding entries in
+# ../CopyMeVertex_cfg.yml
+# 
+# Note that the utopia structure applies while updating configuration. 
+# See Utopia docs -> Tutorial -> Running a Simulation -> Update parameters
+# for more information.
+---
+paths:
+  model_note: default
+
+parameter_space:
+  seed: 0
+  num_steps: 100
+
+  CopyMeVertex:
+    log_level: debug
+
+    initialisation:
+      1_by_proliferation:
+        enabled: false
+
+    # How to define a minimization routine        
+    minimization:
+      dt: 0.05        # numerical step size
+      num_steps: 20   # number of numerical iterations of step size `dt`
+      num_repeat: 1   # numer of repetitions
+
+      linetension_fluctuations: &dL 0.0001        # parameter fluctuations
+      linetension_fluctuations_tau: &tau_dL 1.e6  # and their timescale
+
+    # The operations to do
+    operations:
+      - copy_me_operation:
+          # when to call operation
+          times: 
+            start: 1
+            stop: 1001
+            step: 1
+          iterations: 1 # how often to call it each time
+          iterations_prolog: 0    # how often to call it before time 0
+
+          # put all needed parameters here
+          my_parameter: 42.
+          my_vector: [0, 1]
+
+          # minimization instructions
+          minimization: ~
+            # put all minimzation parameters here that differ from default
+      
+    # Instructions to the vertex model
+    PCPVertex:
+      log_level: info       # At which level to monitor the vertex model
+      # available: [trace, debug, info, warn, error]
+
+      # Define the work function
+      work_function_terms:
+      - area_elasticity:
+          elastic_modulus: 1.
+          preferential_area: 1.
+      - cell_contractility:
+          contractility: 1.
+          preferential_shape: 3.72
+      - copy_me_const:
+          constant: 1.1
+          cell_parameter_mean: 1.2
+          cell_parameter_std: 0.1
+      - linetension_fluctuations:
+          amplitude: 0.02
+          timescale: 24
+
+    data_manager:
+      deciders:
+        write_interval: &Interval
+          type: interval
+          args:
+            intervals:
+              - [0, 5, 1]
+              - [5, 20, 5]
+              - [20, 100, 10]
+              - [100, 200, 50]
+              - [200, 1000, 100]
+              - [1000, 2000, 200]
+              - [2000, 10000, 1000]
+              - [10000, 20000, 2000]
+              - [20000, 100000, 10000]
+              - [100000, 200000, 20000]
+      triggers:
+        build_interval: *Interval

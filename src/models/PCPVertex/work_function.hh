@@ -13,22 +13,40 @@ namespace WorkFunction {
 template <typename Model>
 class WorkFunctionTerm {
 public:
+    /// The type of {x, y} coordinates
     using SpaceVec = typename Model::SpaceVec;
 
+    /// The type of Agent manager
+    /** Here the Vertices, Edges, and Cells are stored, 
+     *  as well as how to calculate their properties, e.g.
+     *  - position of vertices
+     *  - distance between vertices
+     *  - length of edges
+     *  - area or perimeter cells
+     *  - adjoint cells to edges
+     *  - neighbors to a cell
+     */ 
     using AgentManager = typename Model::AgentManager;
 
+    /// The type of a vertex
     using Vertex = typename Model::Vertex;
 
+    /// The type of an edge
     using Edge = typename Model::Edge;
 
+    /// The type of a cell
     using Cell = typename Model::Cell;
 
 protected:
+    /// The name of this work-function term
     const std::string _name;
 
+    /// The manager of vertices, edges, cells, and their relations
+    /** See entities_manager.hh */
     const AgentManager& _am;
 
 public:
+    // --- Constructors and destructors ---------------------------------------
     WorkFunctionTerm (std::string name,
                       [[maybe_unused]] const DataIO::Config& cfg,
                       const Model& model)
@@ -39,22 +57,48 @@ public:
 
     virtual ~WorkFunctionTerm() { }
 
-
+    // --- Force calculations  -------------------------------------------------
+    /// @brief The instruction how to calculate forces acting on vertices
+    ///        from this term, i.e the derivative of the energy.
     virtual void compute_and_set_forces () = 0;
 
 
+    /// @brief  The force acting on a vertex
+    /** i.e. the derivate of the work-function w.r.t the position of vertex i.
+     * 
+     *  Note, needs to be included in compute_and_set_forces () to be effective.
+     *  
+     *  @param vertex     The vertex i
+     *  @return force (double, double)
+    **/ 
     virtual SpaceVec compute_force
     ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const
     {
         return SpaceVec({0., 0.});
     }
 
+    /// @brief  The tension of an edge
+    /** i.e. the derivate of the work-function w.r.t the length of edge <i,j>.
+     * 
+     *  Note, needs to be included in compute_and_set_forces () to be effective.
+     *  
+     *  @param edge     The edge <i,j>
+     *  @return tension (double)
+    **/ 
     virtual double compute_tension
     ([[maybe_unused]] const std::shared_ptr<Edge>& edge) const
     {
         return 0.;
     }
 
+    /// @brief  The pressure of a cell
+    /** i.e. the derivate of the work-function w.r.t the area of cell \alpha.
+     * 
+     *  Note, needs to be included in compute_and_set_forces () to be effective.
+     *  
+     *  @param cell     The cell \alpha
+     *  @return pressure (double)
+    **/ 
     virtual double compute_pressure
     ([[maybe_unused]] const std::shared_ptr<Cell>& cell) const
     {
@@ -62,30 +106,65 @@ public:
     }
     
 
+    // --- Energy calculations  -----------------------------------------------
+    /// @brief  The energy associated with vertex i.
+    /** Note, needs to be included in compute_energy(vertices, ...) to be 
+     *  effective.
+     * 
+     *  @param vertex     The vertex i
+     *  @return energy (double)
+    **/ 
     virtual double compute_energy
     ([[maybe_unused]] const std::shared_ptr<Vertex>& vertex) const 
     {
         return 0.;
     }
     
+    /// @brief  The energy associated with edge <i,j>.
+    /** Note, needs to be included in compute_energy(..., edges, ...) to be 
+     *  effective.
+     * 
+     *  @param edge     The edge <i,j>
+     *  @return energy (double)
+    **/ 
     virtual double compute_energy
     ([[maybe_unused]] const std::shared_ptr<Edge>& edge) const 
     {
         return 0.;
     }
     
+    /// @brief  The energy associated with cell \alpha.
+    /** Note, needs to be included in compute_energy(..., cells) to be 
+     *  effective.
+     * 
+     *  @param cell     The cell \alpha
+     *  
+     *  @return energy (double)
+    **/ 
     virtual double compute_energy
     ([[maybe_unused]] const std::shared_ptr<Cell>& cell) const 
     {
         return 0.;
     }
 
+
+    /// @brief  The total energy for a subset of entities.
+    /** @param vertices  The container of vertices
+     *  @param edges     The container of edges
+     *  @param cells     The container of cells
+     *  
+     *  @return energy (double)
+    **/ 
     virtual double compute_energy (
         const AgentContainer<Vertex>& vertices,
         const AgentContainer<Edge>& edges,
         const AgentContainer<Cell>& cells
     ) const = 0;
 
+    /// @brief  The total energy for all entities.
+    /** 
+     *  @return energy (double)
+    **/ 
     double compute_energy () const {
         return compute_energy(
             this->_am.vertices(),
@@ -95,69 +174,89 @@ public:
     }
 
 
+    // --- Continuous updates -------------------------------------------------
+    /// Continuous update to WF-term
+    /** This function is continuously called alongside compute_and_set_forces.
+     */
     virtual void update ([[maybe_unused]] double dt) { return; }
 
+
+    // --- Setters and Getters ------------------------------------------------
+    /// Update the parameter values
     virtual void update_parameters (const DataIO::Config& cfg) = 0;
 
-    virtual bool test_constraints 
-    ([[maybe_unused]] const std::shared_ptr<spdlog::logger>& logger) const 
-    {
-        return true;
-    }
-
-
+    /// The name of the WF-term
     const std::string& get_name () const {
         return _name;
     }
 
-
+    // --- Data writers -------------------------------------------------------
+    /// The names to provide the data writer task for each vertex
     virtual std::vector<std::string> write_task_vertex_properties_names () const {
         return std::vector<std::string>({});
     }
 
+    /// The data for each vertex to be written by the data writer
     virtual std::vector<std::vector<double>> write_vertex_properties () const {
         return std::vector<std::vector<double>>({});
     }
 
+    /// The names to provide the data writer task for each edge
     virtual std::vector<std::string> write_task_edge_properties_names () const {
         return std::vector<std::string>({});
     }
 
+    /// The data for each edge to be written by the data writer
     virtual std::vector<std::vector<double>> write_edge_properties () const {
         return std::vector<std::vector<double>>({});
     }
-
+    
+    /// The names to provide the data writer task for each cell
     virtual std::vector<std::string> write_task_cell_properties_names () const {
         return std::vector<std::string>({});
     }
-
+    
+    /// The data for each cell to be written by the data writer
     virtual std::vector<std::vector<double>> write_cell_properties () const {
         return std::vector<std::vector<double>>({});
     }
 
 
+    /// The names to provide the data writer task for each vertex-energy
     virtual std::vector<std::string> write_task_vertex_energies_names () const {
         return std::vector<std::string>({});
     }
 
+    /// The energy-data for each vertex to be written by the data writer
     virtual std::vector<std::vector<double>> write_vertex_energies () const {
         return std::vector<std::vector<double>>({});
     }
 
+    /// The names to provide the data writer task for each edge-energy
     virtual std::vector<std::string> write_task_edge_energies_names () const {
         return std::vector<std::string>({});
     }
 
+    /// The energy-data for each edge to be written by the data writer
     virtual std::vector<std::vector<double>> write_edge_energies () const {
         return std::vector<std::vector<double>>({});
     }
 
+    /// The names to provide the data writer task for each cell-energy
     virtual std::vector<std::string> write_task_cell_energies_names () const {
         return std::vector<std::string>({});
     }
 
+    /// The energy-data for each cell to be written by the data writer
     virtual std::vector<std::vector<double>> write_cell_energies () const {
         return std::vector<std::vector<double>>({});
+    }
+
+    // --- Tests --------------------------------------------------------------
+    virtual bool test_constraints 
+    ([[maybe_unused]] const std::shared_ptr<spdlog::logger>& logger) const 
+    {
+        return true;
     }
 };
 

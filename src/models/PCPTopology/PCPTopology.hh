@@ -21,8 +21,6 @@
 
 #include "PCPTopology_write_tasks.hh"
 
-#include "work_function.hh"
-
 #include "operations.hh"
 #include "operations_differentiation.hh"
 
@@ -40,13 +38,17 @@
 
 namespace Utopia {
 namespace Models {
-namespace PCPVertex {
+namespace PCPTopology {
+
+using VertexModel = PCPVertex::PCPVertex;
+
 // ++ Type definitions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 using namespace OperationCollection;
 
 /// Type helper to define types used by the model
-using PCPTopologyModelTypes = Utopia::ModelTypes<DefaultRNG, WriteMode::managed,
-                                                 Space::CustomSpace<2>>;
+using PCPTopologyModelTypes = Utopia::ModelTypes<
+    DefaultRNG, WriteMode::managed, PCPVertex::Space::CustomSpace<2>
+>;
 
 // ++ Model definition ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 /// The PCPTopology Model; the bare-basics a model needs
@@ -60,32 +62,32 @@ public:
     /// Type of the config
     using typename Base::Config;
 
-    using AgentManager = typename PCPVertex::AgentManager;
+    using AgentManager = typename VertexModel::AgentManager;
 
     /// The type of a vertex
-    using Vertex = typename PCPVertex::Vertex;
+    using Vertex = typename VertexModel::Vertex;
 
     /// The type of an edge
-    using Edge = typename PCPVertex::Edge;
+    using Edge = typename VertexModel::Edge;
 
     /// The type of a cell
-    using Cell = typename PCPVertex::Cell;
+    using Cell = typename VertexModel::Cell;
 
     /// The type of a rule function acting on vertices of the agent manager
-    using RuleFuncVertex = typename PCPVertex::RuleFuncVertex;
+    using RuleFuncVertex = typename VertexModel::RuleFuncVertex;
     
     /// The type of a rule function acting on edges of the agent manager
-    using RuleFuncEdge = typename PCPVertex::RuleFuncEdge;
+    using RuleFuncEdge = typename VertexModel::RuleFuncEdge;
     
     /// The type of a rule function acting on cells of the agent manager
-    using RuleFuncCell = typename PCPVertex::RuleFuncCell;
+    using RuleFuncCell = typename VertexModel::RuleFuncCell;
 
     /// The type of coordinates and vectors in space
-    using SpaceVec = typename PCPVertex::SpaceVec;
+    using SpaceVec = typename VertexModel::SpaceVec;
 
     /// The type of Proteins
     using ProteinVec = typename PlanarCellPolarity::\
-                                PlanarCellPolarity<PCPVertex::AgentManager>::\
+                                PlanarCellPolarity<VertexModel::AgentManager>::\
                                 ProteinVec;
                                     
 
@@ -95,7 +97,7 @@ private:
 
     // -- Members -------------------------------------------------------------
     /// The Vertex model
-    PCPVertex _vertex_model;
+    VertexModel _vertex_model;
 
     /// The parameter for energy minimization
     MinimizationParams _minimization_params;
@@ -108,6 +110,8 @@ private:
      *  Operations can duplicate with same or different parameter.
      */
     std::vector<OperationBundle> _operations;
+
+    std::unordered_map<std::string, OperationBundleBuilder> _operation_builders;
 
     /// The instance of the Collier model used by proliferation tasks
     /** \note Only initialized when needed
@@ -129,7 +133,7 @@ private:
     /** \note Only initialized when needed
      */
     std::shared_ptr<
-        PlanarCellPolarity::PlanarCellPolarity<PCPVertex::AgentManager>> _pcp;
+        PlanarCellPolarity::PlanarCellPolarity<VertexModel::AgentManager>> _pcp;
 
     /// Whether the _notch_delta model's prolog was performed
     std::shared_ptr<bool> _pcp_prolog;
@@ -193,19 +197,21 @@ public:
         _vertex_model("PCPVertex", *this, {},
             std::make_tuple(
                 // energy adaptors
-                DataIO::time_energy_adaptor, DataIO::energy_adaptor,
+                PCPVertex::DataIO::time_energy_adaptor, 
+                PCPVertex::DataIO::energy_adaptor,
                 // transition adaptors
-                DataIO::transition_adaptor,
+                PCPVertex::DataIO::transition_adaptor,
                 // statistics
-                DataIO::interface_length_adaptor,
+                PCPVertex::DataIO::interface_length_adaptor,
                 // position adaptors
-                DataIO::vertices_adaptor<SpaceVec>,
-                DataIO::cells_adaptor<SpaceVec>,
-                DataIO::edges_adaptor<SpaceVec>,
-                DataIO::cell_energies_adaptor,
-                DataIO::edge_energies_adaptor
+                PCPVertex::DataIO::vertices_adaptor<SpaceVec>,
+                PCPVertex::DataIO::cells_adaptor<SpaceVec>,
+                PCPVertex::DataIO::edges_adaptor<SpaceVec>,
+                PCPVertex::DataIO::cell_energies_adaptor,
+                PCPVertex::DataIO::edge_energies_adaptor
                 ),
-            DataIO::build_custom_deciders<PCPVertex>()),
+            PCPVertex::DataIO::build_custom_deciders<VertexModel>()
+        ),
         
         // the parameter
         _minimization_params(get_as<Config>("minimization", this->_cfg)),
@@ -224,9 +230,7 @@ public:
     {
         this->_space = _vertex_model.get_space();
 
-        setup_operations(get_as<Config>("operations", this->_cfg));
-
-        this->_log->info("Model set up.");
+        this->_log->info("Model initialised.");
     }
 
 
@@ -257,7 +261,13 @@ private:
                 const auto& op_cfg = op_pair.second;
                 this->_log->trace("  Adding operation '{}' ...", name);
 
-                if (false) { }
+                if (_operation_builders.find(name) != _operation_builders.end())
+                {
+                    OperationBundleBuilder opb = _operation_builders[name];
+                    _operations.push_back(
+                        opb(name, op_cfg, _minimization_params)
+                    );
+                }
                 else if (name == "differentiate_Collier") {
                     this->setup_collier(
                             get_as<Config>("Collier", op_cfg, {}));
@@ -684,6 +694,12 @@ public:
         }
 
 
+
+        this->_log->info("Setting up operations ...");
+
+        setup_operations(get_as<Config>("operations", this->_cfg));
+
+
         this->_log->info("Running prolog operations ...");
 
         for (auto& operation : _operations) {
@@ -871,7 +887,7 @@ public:
         return _vertex_model.get_am();
     }
 
-    /// PCPVertex::get_cluster_ids
+    /// VertexModel::get_cluster_ids
     auto get_cluster_ids (const std::size_t& type) {
         return _vertex_model.get_cluster_ids(type);
     }
@@ -884,6 +900,41 @@ public:
 
         _estimate_minimizations += params.get_num_minimizations(
                                                 this->_time_max);
+    }
+    
+    /// Add an operation
+    void register_operation_builder (
+        std::string name, 
+        OperationBundleBuilder opb, 
+        bool overwrite=false
+    ) {
+        if (_operation_builders.find(name) != _operation_builders.end()) {
+            if (not overwrite) {
+                throw std::runtime_error(fmt::format(
+                    "An operation builder with name {} is already registered!",
+                    name
+                ));
+            }
+            this->_log->warn("An operation builder with name {} is already "
+                "registered but was told to overwrite entry!");
+            _operation_builders.erase(name);
+        }
+        _operation_builders.insert({{name, opb}});
+        this->_log->debug("Registered operation builder '{}'", name);
+    }
+    
+
+    /// To register additional work-function builder
+    /** see VertexModel::register_work_function_builder */
+    void register_work_function_builder (
+        std::string name, 
+        VertexModel::WFTermBuilder wfb,
+        bool overwrite=false
+    ) 
+    {
+        return _vertex_model.register_work_function_builder(
+            name, wfb, overwrite
+        );
     }
 
     /// Return polarity proteins of this edge

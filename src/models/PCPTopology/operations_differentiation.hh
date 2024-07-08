@@ -11,8 +11,15 @@
 
 namespace Utopia {
 namespace Models {
-namespace PCPVertex {
+namespace PCPTopology {
 namespace OperationCollection {
+
+
+/// The type of the vertex model
+using VertexModel = PCPVertex::PCPVertex;
+
+/// The type defining parameters for minimization of the VertexModel
+using MinimizationParams = PCPVertex::MinimizationParams;
 
 
 /// The operation differentiate cells using the Collier model
@@ -49,7 +56,7 @@ OperationBundle build_differentiate_Collier (
 
     std::size_t steps(get_as<std::size_t>("steps", cfg, 1));
 
-    Operation operation = [collier, prolog, steps] (PCPVertex& vertex_model)
+    Operation operation = [collier, prolog, steps] (VertexModel& vertex_model)
     {
         // Collier model cells
         using CCellType = typename Collier::CellType;
@@ -164,9 +171,9 @@ OperationBundle build_differentiate_domain (
             sum_x, sum_y));
     }
 
-    Operation operation = [xs, ys, types](PCPVertex& vertex_model)
+    Operation operation = [xs, ys, types](VertexModel& vertex_model)
     {
-        using SpaceVec = PCPVertex::SpaceVec;
+        using SpaceVec = VertexModel::SpaceVec;
         
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
@@ -261,18 +268,18 @@ OperationBundle build_differentiate_cluster (
             params.iterations_epilog));
     }
 
-    Operation operation = [num_seeds, cluster_size](PCPVertex& vertex_model)
+    Operation operation = [num_seeds, cluster_size](VertexModel& vertex_model)
     {
         const auto& am = vertex_model.get_am();
         const auto& cells = am.cells();
-        AgentContainer<PCPVertex::Cell> cluster_seeds{};
+        AgentContainer<VertexModel::Cell> cluster_seeds{};
         cluster_seeds.reserve(num_seeds);
         std::sample(cells.begin(), cells.end(),
                     std::back_inserter(cluster_seeds),
                     num_seeds, *vertex_model.get_rng());
 
         for (const auto& cell : cluster_seeds) {
-            AgentContainer<PCPVertex::Cell> cluster({cell});
+            AgentContainer<VertexModel::Cell> cluster({cell});
             std::size_t iterations = 0;
             while (    (cluster.size() < cluster_size)
                    and (iterations++ < 10 * cluster_size))
@@ -290,7 +297,7 @@ OperationBundle build_differentiate_cluster (
                 }
             }
 
-            PCPVertex::RuleFuncCell differentiate = [](const auto& cell)
+            VertexModel::RuleFuncCell differentiate = [](const auto& cell)
             {
                 cell->state.type = 1;
                 return cell->state;
@@ -344,7 +351,7 @@ OperationBundle build_differentiate_NotchDelta (
                                              false));
 
     Operation operation = [notch_delta, prolog, steps,
-                           discard_initialisation] (PCPVertex& vertex_model)
+                           discard_initialisation] (VertexModel& vertex_model)
     {
         using NDCellType = typename NotchDelta::CellType;
 
@@ -497,7 +504,7 @@ OperationBundle build_differentiate_random (
     Operation operation;
 
     if (method == Method::Fraction) {
-        operation = [distribution, overwrite] (PCPVertex& vertex_model)
+        operation = [distribution, overwrite] (VertexModel& vertex_model)
         {
             auto cells = vertex_model.get_am().cells();
             if (not overwrite) {
@@ -523,7 +530,7 @@ OperationBundle build_differentiate_random (
         };
     }
     else if (method == Method::Probability) {
-        operation = [distribution, overwrite] (PCPVertex& vertex_model)
+        operation = [distribution, overwrite] (VertexModel& vertex_model)
         {
             std::uniform_real_distribution<double> prob_distr(0., 1.);
 
@@ -580,7 +587,7 @@ OperationBundle build_minimize_cell_contacts(
     auto probability(get_as<double>("neutral_probability", cfg));
 
     Operation operation = [num_steps, type, probability]
-    (PCPVertex& vertex_model)
+    (VertexModel& vertex_model)
     {
         const auto& am = vertex_model.get_am();
         auto cells = am.cells();
@@ -617,7 +624,7 @@ OperationBundle build_minimize_cell_contacts(
             }
 
             std::size_t min_n = cnt+1;
-            std::vector<std::shared_ptr<PCPVertex::Cell>> candidates{};
+            std::vector<std::shared_ptr<VertexModel::Cell>> candidates{};
             for (std::size_t n = 0; n < nbs.size(); n++) {
                 if (nbs[n]->state.type == type) {
                     continue;
@@ -662,7 +669,7 @@ OperationBundle build_minimize_cell_contacts(
 }
 
 } // namespace OperationCollection
-} // namespace PCPVertex
+} // namespace PCPTopology
 } // namespace Models
 } // namespace Utopia
 #endif

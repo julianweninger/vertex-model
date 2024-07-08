@@ -2,7 +2,6 @@
 PCPTopology:
   log_level: debug
   minimization: &Minimization
-    update_scheme: steepest_gradient_adaptive
     dt: 0.01
     jiggle_intensity: 0.01
     jiggle_tolerance: 1e-06

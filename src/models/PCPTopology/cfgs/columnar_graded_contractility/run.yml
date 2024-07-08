@@ -35,7 +35,6 @@ parameter_space:
         num_generations: 0
         
     minimization:
-      update_scheme: steepest_gradient
       dt: 0.01  # this was evaluated in the previous test to be a good dt
       num_steps: 100
       jiggle_intensity: 0.

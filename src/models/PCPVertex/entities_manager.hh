@@ -469,8 +469,9 @@ public:
                       "for 2 dimensional space!");
 
         if (boundary.size() < 3) {
-            throw std::runtime_error("Cannot calculate barycenter of an"
-                "edge collection with less than 3 edges!");
+            throw std::runtime_error(fmt::format(
+                "Cannot calculate barycenter of an edge collection with less "
+                "than 3 edges (had {} edges)!", boundary.size()));
         }
 
         // define a reference in space
@@ -1689,6 +1690,10 @@ private:
      */
     void remove_edge (const std::shared_ptr<Edge>& edge) {
         edge->state.remove = true;
+        
+        edge->custom_links().a = nullptr;
+        edge->custom_links().b = nullptr;
+        
         _edges_adjoint_cells.erase(edge->id());
         _edge_manager.remove_agent(edge);
     }
@@ -1705,14 +1710,23 @@ private:
      *           objects
      */
     void remove_cell (const std::shared_ptr<Cell>& cell) {
+        // set remove tag
         cell->state.remove = true;
+
+        // remove the custom_links
+        cell->custom_links().vertices = {};
+        cell->custom_links().edges = {};
+
+        // remove dependent cells
         if (cell->custom_links().nd_cell) {
             cell->custom_links().nd_cell->state.cell_type = 
                 Utopia::Models::NotchDelta::CellState::StateType::inactive;
+            cell->custom_links().nd_cell = nullptr;
         }
         if (cell->custom_links().c_cell) {
             cell->custom_links().c_cell->state.cell_type = 
                 Utopia::Models::Collier::CellState::StateType::inactive;
+            cell->custom_links().c_cell = nullptr;
         }
         _cell_manager.remove_agent(cell);
     }

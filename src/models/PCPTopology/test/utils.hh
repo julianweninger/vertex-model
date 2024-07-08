@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <iostream>
 #include <boost/test/unit_test.hpp>
+#include <numeric>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -45,5 +46,17 @@ struct ModelFixture {
         spdlog::drop_all();
     }
 };
+
+std::pair<double, double> get_statistics (std::vector<double>& values)
+{
+    double sum = std::accumulate(values.begin(), values.end(), 0.0);
+    double mean = sum / values.size();
+
+    double sq_sum = std::inner_product(values.begin(), values.end(),
+                                       values.begin(), 0.0);
+    double stddev = std::sqrt(sq_sum / values.size() - mean * mean);
+
+    return std::make_pair(mean, stddev);
+}
 
 #endif // UTOPIA_MODELS_PCPVERTEX_TEST_UTILS_HH

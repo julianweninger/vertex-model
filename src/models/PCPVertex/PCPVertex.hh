@@ -106,8 +106,13 @@ public:
     /// The type of a rule function acting on cells of the agent manager
     using RuleFuncCell = typename AgentManager::RuleFuncCell;
 
-
+    /// The type of a work-function term
     using WFTerm = WorkFunction::WorkFunctionTerm<PCPVertex>;
+
+    /// The type of the builder to a work-function term
+    using WFTermBuilder = std::function<std::shared_ptr<WFTerm>(
+        std::string, const Config&, const PCPVertex&
+    )>;
 
 
 private:
@@ -132,14 +137,26 @@ private:
 
 
     // -- Mechanical parameters -----------------------------------------------
-    std::unordered_map<std::string,
-                       std::shared_ptr<WFTerm>> _work_function_terms;
+    /// The map name -> wf-term containing
+    /** Together this defines the complete work-function */
+    std::unordered_map<
+        std::string,
+        std::shared_ptr<WFTerm>
+    > _work_function_terms;
+
+    /// Additional WFTerms prior to their initialization
+    /** NOTE that all terms need to be registered in prolog 
+     *  but can be initialized thereafter.
+     */
     std::unordered_set<std::string> _work_function_term_register;
     bool _freeze_work_function_term_register;
 
 
     /// The length of the work_function terms
     std::pair<bool, std::size_t> _fix_number_work_function_terms;
+
+    /// Additional builders from which to construct work-function terms
+    std::unordered_map<std::string, WFTermBuilder> _work_function_builders;
 
 
     // -- transition parameters -----------------------------------------------
@@ -295,16 +312,6 @@ public:
         _T2_frequency_acc(0.),
         _num_minimizations(0)
     {
-        this->setup_work_function(get_as<Config>(
-            "work_function_terms",
-            this->_cfg
-        ));
-
-        double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
-        if (initial_jiggle > 1.e-12) {
-            jiggle_vertices(initial_jiggle);
-        }
-        
         this->_log->info("Model initialized.");
     }
 
@@ -314,7 +321,7 @@ private:
     void setup_work_function (const Config& cfg) {
         using namespace WorkFunction;
 
-        this->_log->info("Setting up work-function from {} configuration entr{}"
+        this->_log->debug("Setting up work-function from {} configuration entr{}"
                          " ...", cfg.size(), cfg.size() != 1 ? "ies" : "y");
 
         // if (not cfg.size()) {
@@ -343,6 +350,10 @@ private:
                 register_work_function_term(term, name, params);
             }
         }
+
+        this->_log->info("Successfully set up work-function from {} "
+                         "configuration entr{}.",
+                         cfg.size(), cfg.size() != 1 ? "ies" : "y");
     }
 
     // .. Force setter functions ..............................................
@@ -454,6 +465,18 @@ public:
     }
 
     void prolog () {
+        this->setup_work_function(get_as<Config>(
+            "work_function_terms",
+            this->_cfg
+        ));
+
+        this->_log->info("Work function terms initialised");
+
+        double initial_jiggle(get_as<double>("initial_jiggle", this->_cfg, 0.));
+        if (initial_jiggle > 1.e-12) {
+            jiggle_vertices(initial_jiggle);
+        }
+
         this->init_minimization();
 
         return this->__prolog();
@@ -640,7 +663,36 @@ public:
 
 
 public:
+    /// To register additional work-function builder
+    /** This is how the Collection of WFTerms can be extended */
+    void register_work_function_builder (
+        std::string name, 
+        WFTermBuilder wfb,
+        bool overwrite=false
+    )
+    {
+        if (_work_function_builders.find(name)!=_work_function_builders.end()) {
+            if (not overwrite) {
+                throw std::runtime_error(fmt::format(
+                    "A work function builder with name {} is already "
+                    "registered!",
+                    name
+                ));
+            }
+            this->_log->warn("A work function builder with name {} is already "
+                "registered but was told to overwrite entry!");
+            _work_function_builders.erase(name);
+        }
+        _work_function_builders.insert({{name, wfb}});
+        this->_log->debug("Registered work function builder '{}'", name);
+    }
+
     // .. Public energy terms .................................................
+    /// To add a work function term from the PCPVertex::WorkFunctionCollection
+    /// or the registered builders
+    /// @param term     The unique name identifying a WFTerm
+    /// @param name     Under which name to register this WFTerm
+    /// @param params   The configuration from which to extract the parameters
     void register_work_function_term(
             std::string term,
             std::string name,
@@ -655,6 +707,15 @@ public:
 
         if (not get_as<bool>("register", params, true)) {
             register_work_function_term(name, nullptr);
+        }
+        else if (_work_function_builders.find(name)
+                 != _work_function_builders.end())
+        {
+            auto term_builder = _work_function_builders[name];
+            register_work_function_term(
+                name,
+                term_builder(name, params, *this)
+            );
         }
         else if (term == "area_elasticity") {
             register_work_function_term(
