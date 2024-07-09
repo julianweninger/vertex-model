@@ -334,6 +334,17 @@ test_work_function_terms:
       - columnar
       - columnar-periodic
       - non-periodic
+- volume_elasticity_triangle_heterotypic:
+    elastic_modulus: 1.1
+    preferential_volume: [0.95, 0.85]
+    tissue_height: 0.8
+    minimum_height: 0.2
+    height_parameter_name: height
+    gamma: 0.05
+    skip_test_cases:
+      - columnar
+      - columnar-periodic
+      - non-periodic
 - surface_tension:
     surface_tension: 0.9
     VolumeElasticity_term: volume_elasticity
@@ -465,6 +476,13 @@ test_update_2D_plus:
 - volume_elasticity_triangle:
     elastic_modulus: 1.1
     preferential_volume: 0.9
+    tissue_height: 0.9
+    minimum_height: 0.2
+    height_parameter_name: height
+    gamma: 0.05
+- volume_elasticity_triangle_heterotypic:
+    elastic_modulus: 1.1
+    preferential_volume: [0.95, 0.85]
     tissue_height: 0.9
     minimum_height: 0.2
     height_parameter_name: height

@@ -230,15 +230,16 @@ public:
 
                 // consider the neighbours of extruded cell
                 if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
+                    double V0n = preferential_volume(n);
                     dH -= _elastic_modulus
-                          * (volume_of(n) - V0) / std::pow(V0, 2)
+                          * (volume_of(n) - V0n) / std::pow(V0n, 2)
                           * std::pow(l, 2)
                           * f / 2;
 
                     // The contribution of perimeter and interfaces
                     double Tn = (
                           _elastic_modulus
-                        * (volume_of(n) - V0) / std::pow(V0, 2)
+                        * (volume_of(n) - V0n) / std::pow(V0n, 2)
                         * l * f * (_tissue_height - H)
                     );
 
