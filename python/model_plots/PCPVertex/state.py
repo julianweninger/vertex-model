@@ -234,7 +234,6 @@ def cellular_structure(
         domain_size_min_y = 0.
         domain_size_max_y = 0.
 
-
         Vertices = data['Vertices'].transpose('id', 'time', 'property')
         Edges = data['Edges'].transpose('id', 'time', 'property')
         Cells = data['Cells'].transpose('id', 'time', 'property')
@@ -301,7 +300,11 @@ def cellular_structure(
 
 
             if not semi_periodic_space:
-                L = plot_excess_length
+                L = max(plot_excess_length, max(skew_x, skew_y))
+                if skew_x > Lx or skew_y > Ly:
+                    log.warn("Skew exceeds the domain size. Not plotting "
+                             "periodicity correctly in time {}.".format(time))
+
             else: 
                 L = max(
                     abs(np.nanmin(v_data.sel(property="x").data)),
@@ -380,16 +383,8 @@ def cellular_structure(
                 return (dx - np.round(dx/Lx) * Lx,
                         dy - np.round(dy/Ly) * Ly)
 
-            dx, dy = displacement(ax, ay, bx, by)
 
             def quiver_and_colors(x, y, dx, dy, *, colorbar=False, axis=hlpr.ax):
-                if data['periodic']:
-                    # only plot within box + excess length
-                    x = xr.where(x > -2 * L, x, np.nan)
-                    x = xr.where(x < Lx + 2 * L, x, np.nan)
-                    y = xr.where(y > -2 * L, y, np.nan)
-                    y = xr.where(y < Ly + 2 * L, y, np.nan)
-
                 quiver_args = [x, y, dx, dy]
                 _quiver_kwargs = dict(headlength=0., headaxislength=0.,
                                     headwidth=0., scale=1, scale_units='xy',
@@ -462,45 +457,82 @@ def cellular_structure(
                 else:
                     quiver = axis.quiver(*quiver_args, **_quiver_kwargs)
 
-
-            quiver_and_colors(ax, ay, dx, dy, colorbar=True)
-
-            ### plot duplicates of periodic edges
-            if data['periodic']:
-                mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
-                # NOTE bitwise or
-
-                _bx = np.where(mask, bx, np.nan)
-                _by = np.where(mask, by, np.nan)
-
-                _dx, _dy = displacement(bx, by, ax, ay)
-
-                # use the inverse arrows
-                quiver_and_colors((_bx + _dx), (_by + _dy), -_dx, -_dy,
-                                  colorbar=False)
-
-
-                ## plot edges that cross 2 boundaries, i.e. corners
-                mask =  ((abs(bx - ax) > Lx / 2.) & (abs(by - ay) > Ly / 2.))
-                # NOTE bitwise and
-                _ax = ax.where(mask)
-                _ay = ay.where(mask)
-                _bx = bx.where(mask)
-                _by = by.where(mask)
-
-                # rotate corners
-                _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
-                _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
-                _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
-                _by -= (2. * np.round(_by / Ly) - 1.) * Ly
+            def plot_edges(axis=hlpr.ax, colorbar=True):
+                dx, dy = displacement(ax, ay, bx, by)
                 
-                
-                quiver_and_colors(_ax, _ay, dx, dy,
-                                  colorbar=False)
-                
-                __dx, __dy = displacement(_bx, _by, _ax, _ay)
-                quiver_and_colors((_bx + __dx), (_by + __dy), -__dx, -__dy,
-                                  colorbar=False)
+                quiver_and_colors(
+                    ax, ay, dx, dy, colorbar=colorbar, axis=axis
+                )
+
+                ### plot duplicates of periodic edges
+                if data['periodic']:
+                    _ax = xr.where(ax < L, ax, np.nan) + Lx
+                    _dx, _dy = displacement(_ax, ay + skew_y, bx + Lx, by + skew_y)
+                    quiver_and_colors(
+                        _ax, ay + skew_y, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    _ax = xr.where(ax > Lx - L, ax, np.nan) - Lx
+                    _dx, _dy = displacement(_ax, ay - skew_y, bx - Lx, by - skew_y)
+                    quiver_and_colors(
+                        _ax, ay - skew_y, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    _ax = xr.where(ay < L, ax, np.nan) + skew_x
+                    _dx, _dy = displacement(_ax, ay + Ly, bx + skew_x, by + Ly)
+                    quiver_and_colors(
+                        _ax, ay + Ly, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    _ax = xr.where(ay > Ly - L, ax, np.nan) - skew_x
+                    _dx, _dy = displacement(_ax, ay - Ly, bx - skew_x, by - Ly)
+                    quiver_and_colors(
+                        _ax, ay - Ly, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    # diagonals
+                    _ax = xr.where(ax < L, ax, np.nan) + Lx + skew_x
+                    _ay = xr.where(ay < L, ay, np.nan) + Ly + skew_y
+                    _dx, _dy = displacement(_ax, _ay, bx+Lx+skew_x, by+Ly+skew_y)
+                    quiver_and_colors(
+                        _ax, _ay, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    _ax = xr.where(ax > Lx - L, ax, np.nan) - Lx + skew_x
+                    _ay = xr.where(ay < L     , ay, np.nan) + Ly - skew_y
+                    _dx, _dy = displacement(_ax, _ay, bx-Lx+skew_x, by+Ly-skew_y)
+                    quiver_and_colors(
+                        _ax, _ay, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    _ax = xr.where(ax > Lx - L, ax, np.nan) - Lx - skew_x
+                    _ay = xr.where(ay > Ly - L, ay, np.nan) - Ly - skew_y
+                    _dx, _dy = displacement(_ax, _ay, bx-Lx-skew_x, by-Ly-skew_y)
+                    quiver_and_colors(
+                        _ax, _ay, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    _ax = xr.where(ax < L     , ax, np.nan) + Lx - skew_x
+                    _ay = xr.where(ay > Ly - L, ay, np.nan) - Ly + skew_y
+                    _dx, _dy = displacement(_ax, _ay, bx+Lx-skew_x, by-Ly+skew_y)
+                    quiver_and_colors(
+                        _ax, _ay, _dx, _dy, colorbar=False, axis=axis
+                    )
+
+                    # Skew exceeds domain size
+                    # apply best available periodic copies
+                    if skew_x > Lx or skew_y > Ly:
+                        mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
+
+                        _bx = xr.where(mask, bx, np.nan)
+                        _by = xr.where(mask, by, np.nan)
+                        
+                        # use the inverse arrows
+                        _dx, _dy = displacement(bx, by, ax, ay)
+                        quiver_and_colors((bx + _dx), (by + _dy), -_dx, -_dy,
+                                          colorbar=False)
+
+            plot_edges()
 
             ### plot cells
             cell_type = c_data.sel(property="cell_type").dropna(dim='id').astype(int)
@@ -533,43 +565,8 @@ def cellular_structure(
                     figsize=hlpr.fig.get_size_inches()
                 )
 
-                quiver_and_colors(ax, ay, dx, dy, colorbar=False, axis=tmp_ax)
+                plot_edges(colorbar=False, axis=tmp_ax)
 
-                if data['periodic']:
-                    mask = ((abs(bx - ax) > Lx / 2.) | (abs(by - ay) > Ly / 2.))
-                    # NOTE bitwise or
-
-                    _bx = np.where(mask, bx, np.nan)
-                    _by = np.where(mask, by, np.nan)
-
-                    _dx, _dy = displacement(bx, by, ax, ay)
-
-                    # use the inverse arrows
-                    quiver_and_colors((_bx + _dx), (_by + _dy), -_dx, -_dy,
-                                      colorbar=False, axis=tmp_ax)
-
-
-                    ## plot edges that cross 2 boundaries, i.e. corners
-                    mask =  ((abs(bx - ax) > Lx / 2.) & (abs(by - ay) > Ly / 2.))
-                    # NOTE bitwise and
-                    _ax = ax.where(mask)
-                    _ay = ay.where(mask)
-                    _bx = bx.where(mask)
-                    _by = by.where(mask)
-
-                    # rotate corners
-                    _ax += (2. * np.round(_ay / Ly) - 1.) * skew_x
-                    _ay -= (2. * np.round(_ay / Ly) - 1.) * Ly
-                    _bx += (2. * np.round(_by / Ly) - 1.) * skew_x
-                    _by -= (2. * np.round(_by / Ly) - 1.) * Ly
-                    
-                    
-                    quiver_and_colors(_ax, _ay, dx, dy,
-                                      colorbar=False, axis=tmp_ax)
-                    
-                    __dx, __dy = displacement(_bx, _by, _ax, _ay)
-                    quiver_and_colors((_bx + __dx), (_by + __dy), -__dx, -__dy,
-                                      colorbar=False, axis=tmp_ax)
                 tmp_ax.scatter(__set_limits['x'][0], __set_limits['y'][0], c='black', s=10)
                 tmp_ax.scatter(__set_limits['x'][1], __set_limits['y'][1], c='black', s=10)
 
