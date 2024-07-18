@@ -105,10 +105,7 @@ public:
 
 
 /// The Edge object
-/** It is defined as the shortest connection between two vertices a and b
- * 
- *  Every edge has two adjoint cells, one to either side, except boundary edges
- *  have only one.
+/** It is defined as the straight connection between two vertices a and b
  */
 class EdgeState {
 private:
@@ -202,6 +199,11 @@ public:
     /// The type of a cell
     std::size_t type;
 
+    /// The target area often used in the work function
+    /** \note can be accessed and changed by all WFTerms, do not combine
+     *      WFTerms that alter preferential area. Instead register an 
+     *      independent parameter value.
+     */
     double area_preferential;
 
     /// Whether this object is to be removed 
@@ -241,7 +243,7 @@ public:
     auto get_parameter (const std::string& name) const {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
-                "Cannot find EdgeState parameter with name `{}`", name));
+                "Cannot find CellState parameter with name `{}`", name));
         }
         return _parameters.at(name);
     }
@@ -251,7 +253,7 @@ public:
                              const double& value) {
         if (_parameters.find(name) != _parameters.end()) {
             throw std::runtime_error(fmt::format(
-                "Cannot register EdgeState parameter with name `{}`! "
+                "Cannot register CellState parameter with name `{}`! "
                 "A parameter with such a name is already registered.", name));
         }
         _parameters[name] = value;
@@ -267,7 +269,7 @@ public:
                            const double& value) {
         if (_parameters.find(name) == _parameters.end()) {
             throw std::runtime_error(fmt::format(
-                "Cannot find EdgeState parameter registered with name `{}`. "
+                "Cannot find CellState parameter registered with name `{}`. "
                 "Please register the parameter first.", name));
         }
         _parameters[name] = value;
