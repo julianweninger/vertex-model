@@ -140,8 +140,26 @@ protected:
 
         double volume = area * height;
 
-        // It is columnar itself, so no neighbour contributions
+        // It is columnar itself, no neighbour contributions
+        // but consider triangles not contributed by neighbors
         if (not has_basal_contact(cell)) {
+            double f = triangle_factor(cell);
+
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
+
+                // skip cells with basal contacts
+                if (n and has_basal_contact(n)) {
+                    continue;
+                }
+
+                // cell occupies the volume itself
+                volume += std::pow(this->_am.length_of(edge), 2)
+                        * (_tissue_height - height)
+                        * f / 2;
+            }
+
             return volume;
         }
 
@@ -196,13 +214,15 @@ public:
             double pressure = compute_pressure(cell);
 
             const double H = cell->state.get_parameter(_height);
+            double volume = 0.;
             double V0 = preferential_volume(cell);
             double dH = 0.;     // the derivative to height
             double f = 0.;      // the triangle factor
+            double dW_dV = 0.;
             if (not has_basal_contact(cell)) {
-                dH += _elastic_modulus
-                      * (volume_of(cell) - V0) / std::pow(V0, 2)
-                      * this->_am.area_of(cell);
+                volume = volume_of(cell);
+                dW_dV = _elastic_modulus * (volume - V0) / std::pow(V0, 2);
+                dH += dW_dV * this->_am.area_of(cell);
                 f += triangle_factor(cell);
             }
 
@@ -229,22 +249,29 @@ public:
 
 
                 // consider the neighbours of extruded cell
-                if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
-                    double V0n = preferential_volume(n);
-                    dH -= _elastic_modulus
-                          * (volume_of(n) - V0n) / std::pow(V0n, 2)
-                          * std::pow(l, 2)
-                          * f / 2;
+                if (not has_basal_contact(cell)) {
+                    if (n and has_basal_contact(n)) {
+                        double V0n = preferential_volume(n);
+                        double Vn = volume_of(n);
+                        double dW_dVn = _elastic_modulus * (Vn - V0n)
+                                                         / std::pow(V0n, 2);
+                        dH -= dW_dVn * std::pow(l, 2) * f / 2;
 
-                    // The contribution of perimeter and interfaces
-                    double Tn = (
-                          _elastic_modulus
-                        * (volume_of(n) - V0n) / std::pow(V0n, 2)
-                        * l * f * (_tissue_height - H)
-                    );
+                        // The contribution of perimeter and interfaces
+                        double Tn = dW_dVn * l * f * (_tissue_height - H);
 
-                    a->state.add_force(+ Tn * displ / l);
-                    b->state.add_force(- Tn * displ / l);
+                        a->state.add_force(+ Tn * displ / l);
+                        b->state.add_force(- Tn * displ / l);
+                    }
+                    else {
+                        dH -= dW_dV * std::pow(l, 2) * f / 2;
+
+                        // The contribution of perimeter and interfaces
+                        double T = dW_dV * l * f * (_tissue_height - H);
+
+                        a->state.add_force(+ T * displ / l);
+                        b->state.add_force(- T * displ / l);
+                    }
                 }
             }
 
@@ -339,6 +366,69 @@ public:
                                           _elastic_modulus);
 
         _gamma = get_as<double>("gamma", cfg, _gamma);
+    }
+
+    bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) 
+    const override 
+    {
+        bool PASS_TEST = Base::test_constraints(logger);
+        logger->debug("Testing constraints of WF term {} ...", this->_name);
+
+
+        logger->debug("   Testing height constraint ...");
+        bool test_height = true;
+        for (const auto& cell : this->_am.cells()) {
+            double height = cell->state.get_parameter(_height);
+            if (height > _tissue_height + 1.e-8) {
+                test_height = false;
+                logger->error("Cell {} (height: {}) exceeds the tissue height "
+                              "({})!",
+                              cell->id(), height, _tissue_height);
+            }
+            if (height < -1.e-8) {
+                test_height = false;
+                logger->error("Cell {} has negative hight (height: {} < 0)!",
+                              cell->id(), height);
+            }
+        }
+        if (test_height) {
+            logger->debug("   Height constraint is fulfilled.");
+        }
+        else {
+            PASS_TEST = false;
+            logger->error("  Test of height constraint failed! ");
+        }
+
+
+        logger->debug("   Testing volume constraint ...");
+        double tot_volume = 0.;
+        for (const auto& cell : this->_am.cells()) {
+            tot_volume += volume_of(cell);
+        }
+        SpaceVec domain = this->_am.get_space()->get_domain_size();
+        double area = domain[0] * domain[1];
+        bool test_volume = fabs(tot_volume - area * _tissue_height) < 1.e-8;
+        if (test_volume) {
+            logger->debug("   Volume constraint is fulfilled.");
+        }
+        else {
+            PASS_TEST = false;
+            logger->error("  Test of volume constraint failed! "
+                          "Total volume was {}, expected volume was {}. "
+                          "Difference exceeds {}.",
+                          tot_volume, area * _tissue_height, 1.e-8);
+        }
+
+
+        if (PASS_TEST) {
+            logger->debug("All tests of constraints of WF term {} passed.",
+                          this->_name);
+        }
+        else {
+            logger->error("Test of constraints of WF term {} FAILED!",
+                          this->_name);
+        }
+        return PASS_TEST;
     }
 
     std::vector<std::string> write_task_cell_properties_names () const override {
