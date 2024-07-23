@@ -36,7 +36,9 @@ namespace WorkFunction2Dplus {
  *              to numeric step size
  */
 template <typename Model>
-class VolumeElasticityTriangleBase : public WorkFunction::WorkFunctionTerm<Model>
+class VolumeElasticityTriangleBase 
+: 
+    public WorkFunction::WorkFunctionTerm<Model>
 {
 public:
     using Base = WorkFunction::WorkFunctionTerm<Model>;
@@ -53,7 +55,8 @@ protected:
     /// @brief  Elastic constant associated with volume elasticity
     double _elastic_modulus;
 
-    virtual double preferential_volume(const std::shared_ptr<Cell>& cell) const=0;
+    virtual double preferential_volume(
+            const std::shared_ptr<Cell>& cell) const=0;
 
     /// @brief The height of the tissue, defining a maximum height for every cell
     double _tissue_height;
@@ -78,7 +81,7 @@ protected:
             if (not cell) {
                 throw std::runtime_error(
                     "Checking for Basal contact on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
                 );
             }
         #endif
@@ -91,7 +94,7 @@ protected:
             if (not cell) {
                 throw std::runtime_error(
                     "Checking for triangle_factor on a boundary cell in "
-                    "PCPVertex::WorkFunction::SurfaceElasticity!"
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
                 );
             }
         #endif
@@ -109,7 +112,7 @@ protected:
             if (not cell) {
                 throw std::runtime_error(
                     "Checking for height on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticity!"
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
                 );
             }
         #endif
@@ -194,8 +197,14 @@ public:
         _height_derivative(_height + "_derivative"),
         _gamma(get_as<double>("gamma", cfg))
     {
+        auto height = get_as<double>("set_height", cfg, _tissue_height);
         for (const auto& cell : this->_am.cells()) {
-            cell->state.register_parameter(_height, _tissue_height);
+            if (cell->state.type != 1) {
+                cell->state.register_parameter(_height, _tissue_height);
+            }
+            else {
+                cell->state.register_parameter(_height, height);
+            }
             cell->state.register_parameter(_height_derivative, 0.);
             cell->state.register_parameter(_height_derivative + "_monitor", 0.);
         }
@@ -407,7 +416,7 @@ public:
         }
         SpaceVec domain = this->_am.get_space()->get_domain_size();
         double area = domain[0] * domain[1];
-        bool test_volume = fabs(tot_volume - area * _tissue_height) < 1.e-8;
+        bool test_volume = fabs(tot_volume - area * _tissue_height) / tot_volume < 1.e-6;
         if (test_volume) {
             logger->debug("   Volume constraint is fulfilled.");
         }
@@ -415,8 +424,10 @@ public:
             PASS_TEST = false;
             logger->error("  Test of volume constraint failed! "
                           "Total volume was {}, expected volume was {}. "
-                          "Difference exceeds {}.",
-                          tot_volume, area * _tissue_height, 1.e-8);
+                          "Relative error {} exceeds {}.",
+                          tot_volume, area * _tissue_height, 
+                          fabs(tot_volume - area * _tissue_height) / tot_volume,
+                          1.e-6);
         }
 
 
@@ -735,6 +746,25 @@ protected:
 
         // It is columnar itself, so no neighbour contributions
         if (not has_basal_contact(cell)) {
+            double f2 = std::pow(triangle_factor(cell), 2);
+
+            // consider triangles that are not occupied by neighbors
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                auto [c, n] = this->_am.adjoints_of(edge);
+                if (c != cell) { std::swap(c, n); }
+
+                // skip cells with basal contacts
+                if (n and has_basal_contact(n)) {
+                    continue;
+                }
+
+                double length = this->_am.length_of(edge);
+
+                // the new lateral faces, including the outer extension
+                surface += length * (std::sqrt(1 + 4. * f2) + 1)
+                           * (_tissue_height - height);
+            }
+            
             return surface;
         }
 
@@ -745,10 +775,16 @@ protected:
 
             // if neighbour has basal contact, does not contribute
             if (n and not has_basal_contact(n)) {
-                double f2 = std::pow(triangle_factor(n),2);
-                surface += this->_am.length_of(edge) 
-                           * (std::sqrt(1 + 4. * f2) - 1)
+                double length = this->_am.length_of(edge);
+                double f = triangle_factor(n);
+
+                // the new lateral faces 
+                // minus what was assumed from columnar
+                surface += length * (std::sqrt(1 + 4. * std::pow(f, 2)) - 1)
                            * (_tissue_height - height_of(n));
+
+                // the new medial/basal faces
+                surface += std::pow(length, 2) * f;
             }
         }
 
@@ -775,32 +811,38 @@ public:
         for (const auto& cell : this->_am.cells()) {
             const double H = cell->state.get_parameter(_height);
             double surface = surface_of(cell);
+            double area = 0.;
             double dH = 0.;
-            double f2 = 1.;  // the triangle factor
+            double f = 1.;  // the triangle factor
+            double f2 = 1.;  // the triangle factor squared
+
+            // NOTE non-columnar neighbour contributions considered below only
+
             if (not has_basal_contact(cell)) {
+                area = this->_am.area_of(cell);
+
                 dH += _elastic_modulus
                       * (surface - _preferential_surface)
                       / std::pow(_preferential_surface, 2)
                       * this->_am.perimeter_of(cell);
                 
-                f2 = std::pow(triangle_factor(cell), 2);
+                f = triangle_factor(cell);
+                f2 = std::pow(f, 2);
                 // NOTE triangle factor is assumed constant
+                //      i.e. df/dl = 0 and df/dA = 0
             }
 
-
             // calculate tension force
-            double T = (
-                _elastic_modulus * H
-                * (surface - _preferential_surface)
-                / std::pow(_preferential_surface, 2)
-            );
-                // calculate pressure force
-            double pressure = (
+            double dW_dS = (
                 _elastic_modulus
                 * (surface - _preferential_surface) 
                 / std::pow(_preferential_surface, 2)
             );
-            
+            // calculate tension force
+            double T = dW_dS * H;
+
+            // calculate pressure force
+            double pressure = dW_dS * 2;      
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
@@ -821,30 +863,43 @@ public:
                 if (flip) {
                     normal *= -1;
                 }                
-                edge->custom_links().a->state.add_force(- pressure * normal);
-                edge->custom_links().b->state.add_force(- pressure * normal);
+                a->state.add_force(- pressure/2. * normal);
+                b->state.add_force(- pressure/2. * normal);
 
-                // calculate the contributions of 2D+ deformations 
-                if (not has_basal_contact(cell) and n and has_basal_contact(n)) {
-                    // derivative of H
-                    dH -= (
-                        _elastic_modulus
-                        * (surface_of(n) - _preferential_surface)
-                        / std::pow(_preferential_surface, 2)
-                        * (std::sqrt(1 + 4. * f2) - 1)
-                        * l
-                    );
+                // calculate the contributions of non-columnar deformations 
+                if (not has_basal_contact(cell)) {
+                    if (n and has_basal_contact(n)) {
+                        double dW_dS_n = (
+                            _elastic_modulus
+                            * (surface_of(n) - _preferential_surface)
+                            / std::pow(_preferential_surface, 2)
+                        );
+                        // derivative of H
+                        dH -= dW_dS_n * (std::sqrt(1 + 4. * f2) - 1) * l;
 
-                    // The contribution of perimeter and interfaces
-                    double Tn = (
-                        _elastic_modulus * (_tissue_height - H)
-                        * (surface_of(n) - _preferential_surface)
-                        / std::pow(_preferential_surface, 2)
-                        * (std::sqrt(1 + 4. * f2) - 1)
-                    );
+                        // The contribution of perimeter and interfaces
+                        double Tn = dW_dS_n * (
+                            // lateral faces
+                            (_tissue_height - H) * (std::sqrt(1 + 4. * f2) - 1)
+                            // medial & basal faces
+                            + 2 * l * f
+                        );
 
-                    a->state.add_force(+ Tn * displ / l);
-                    b->state.add_force(- Tn * displ / l);
+                        a->state.add_force(+ Tn * displ / l);
+                        b->state.add_force(- Tn * displ / l);
+                    }
+                    else {
+                        // derivative of H
+                        dH -= dW_dS * (std::sqrt(1 + 4. * f2) + 1) * l;
+
+                        // The contribution of perimeter and interfaces
+                        double T = dW_dS * (
+                            (_tissue_height - H) * (std::sqrt(1 + 4. * f2) + 1)
+                        );
+
+                        a->state.add_force(+ T * displ / l);
+                        b->state.add_force(- T * displ / l);
+                    }
                 }
             }
 

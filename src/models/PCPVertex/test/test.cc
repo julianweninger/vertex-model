@@ -335,7 +335,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
                     // chose a random direction of motion
                     double random_angle = uniform_distr(*model.get_rng());
-                    SpaceVec displ = 0.01 * SpaceVec({cos(random_angle),
+                    SpaceVec displ = 0.05 * SpaceVec({cos(random_angle),
                                                       sin(random_angle)});
 
                     // calculate current force

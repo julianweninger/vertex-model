@@ -175,8 +175,14 @@ public:
         _height_derivative(_height + "_derivative"),
         _gamma(get_as<double>("gamma", cfg))
     {
+        auto height = get_as<double>("set_height", cfg, _tissue_height);
         for (const auto& cell : this->_am.cells()) {
-            cell->state.register_parameter(_height, _tissue_height);
+            if (cell->state.type != 1) {
+                cell->state.register_parameter(_height, _tissue_height);
+            }
+            else {
+                cell->state.register_parameter(_height, height);
+            }
             cell->state.register_parameter(_height_derivative, 0.);
             cell->state.register_parameter(_height_derivative + "_monitor", 0.);
         }
