@@ -268,6 +268,16 @@ private:
                         opb(name, op_cfg, _minimization_params)
                     );
                 }
+                else if (name == "cell_parameter_incrementer") {
+                    _operations.push_back(
+                        build_cell_parameter_incrementer(name, op_cfg,
+                                                         _minimization_params));
+                }
+                else if (name == "cell_parameter_setter") {
+                    _operations.push_back(
+                        build_cell_parameter_setter(name, op_cfg,
+                                                         _minimization_params));
+                }
                 else if (name == "differentiate_Collier") {
                     this->setup_collier(
                             get_as<Config>("Collier", op_cfg, {}));
@@ -357,6 +367,8 @@ private:
                         "Choose from:\n"
                         "{}",
                         name,
+                        "- cell_parameter_incrementer\n"
+                        "- cell_parameter_setter\n"
                         "- differentiate_Collier\n"
                         "- differentiate_domain\n"
                         "- differentiate_hair_cluster\n"
