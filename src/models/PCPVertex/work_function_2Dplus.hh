@@ -171,7 +171,7 @@ public:
         _preferential_volume(get_as<double>("preferential_volume", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _minimum_height(get_as<double>("minimum_height", cfg)),
-        _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
+        _height(name + "__" + get_as<std::string>("height_parameter_name",cfg)),
         _height_derivative(_height + "_derivative"),
         _gamma(get_as<double>("gamma", cfg))
     {
@@ -522,7 +522,7 @@ public:
     :
         Base(name, cfg, model),
         _height_name(get_as<std::string>("VolumeElasticity_term", cfg) 
-                     + "_"
+                     + "__"
                      + get_as<std::string>("height_parameter_name", cfg))
     { }
 
@@ -598,7 +598,7 @@ public:
     :
         Base(name, cfg, model),
         _height_name(get_as<std::string>("VolumeElasticity_term", cfg) 
-                     + "_"
+                     + "__"
                      + get_as<std::string>("height_parameter_name", cfg)),
         _height(get_as<double>("tissue_height", cfg)),
         _increment(get_as<double>("increment", cfg))
@@ -699,7 +699,7 @@ public:
         Base(name, cfg, model),
         _surface_tension(get_as<double>("surface_tension", cfg)),
         _cell_height(get_as<std::string>("VolumeElasticity_term", cfg) 
-                     + "_"
+                     + "__"
                      + get_as<std::string>("height_parameter_name", cfg)),
         _cell_height_derivative(_cell_height + "_derivative")
     { }

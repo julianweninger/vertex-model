@@ -316,7 +316,7 @@ test_work_function_terms:
     elastic_modulus: 1.1
     preferential_volume: 0.9
     tissue_height: 0.8
-    set_height: 0.7
+    set_height: 0.4
     minimum_height: 0.2
     height_parameter_name: height
     gamma: 0.05
@@ -328,7 +328,8 @@ test_work_function_terms:
     elastic_modulus: 1.1
     preferential_volume: 0.9
     tissue_height: 0.8
-    set_height: 0.7
+    critical_height: 0.75
+    set_height: 0.4
     minimum_height: 0.2
     height_parameter_name: height
     gamma: 0.05
@@ -341,7 +342,8 @@ test_work_function_terms:
     elastic_modulus: 1.1
     preferential_volume: [0.95, 0.85]
     tissue_height: 0.8
-    set_height: 0.7
+    set_height: 0.4
+    critical_height: 0.75
     minimum_height: 0.2
     height_parameter_name: height
     gamma: 0.05
@@ -358,8 +360,9 @@ test_work_function_terms:
     - term: volume_elasticity
       elastic_modulus: 0.
       preferential_volume: 0.9
-      tissue_height: 0.7
-      set_height: 0.6
+      tissue_height: 0.8
+      critical_height: 0.75
+      set_height: 0.4
       minimum_height: 0.2
       height_parameter_name: height
       gamma: 0.05
@@ -370,15 +373,17 @@ test_work_function_terms:
 - surface_elasticity:
     elastic_modulus: 0.9
     preferential_surface: 5.3
-    tissue_height: 0.7
+    tissue_height: 0.8
+    critical_height: 0.75
     VolumeElasticity_term: volume_elasticity_triangle
     height_parameter_name: height
     required_WF_terms:
     - term: volume_elasticity_triangle
       elastic_modulus: 0.
       preferential_volume: 0.9
-      tissue_height: 0.7
-      set_height: 0.6
+      tissue_height: 0.8
+      critical_height: 0.75
+      set_height: 0.4
       minimum_height: 0.2
       height_parameter_name: height
       gamma: 0.05
@@ -463,7 +468,7 @@ test_update_2D_plus:
 - volume_elasticity:
     elastic_modulus: 1.1
     preferential_volume: 0.9
-    tissue_height: 0.9
+    tissue_height: 0.8
     set_height: 0.8
     minimum_height: 0.2
     height_parameter_name: height
@@ -476,7 +481,7 @@ test_update_2D_plus:
     - term: volume_elasticity
       elastic_modulus: 0.
       preferential_volume: 0.9
-      tissue_height: 0.9
+      tissue_height: 0.8
       set_height: 0.8
       minimum_height: 0.2
       height_parameter_name: height
@@ -485,7 +490,8 @@ test_update_2D_plus:
 - volume_elasticity_triangle:
     elastic_modulus: 1.1
     preferential_volume: 0.9
-    tissue_height: 0.9
+    tissue_height: 0.8
+    critical_height: 0.75
     set_height: 0.8
     minimum_height: 0.2
     height_parameter_name: height
@@ -493,7 +499,8 @@ test_update_2D_plus:
 - volume_elasticity_triangle_heterotypic:
     elastic_modulus: 1.1
     preferential_volume: [0.95, 0.85]
-    tissue_height: 0.9
+    tissue_height: 0.8
+    critical_height: 0.75
     set_height: 0.8
     minimum_height: 0.2
     height_parameter_name: height
@@ -501,15 +508,17 @@ test_update_2D_plus:
 - surface_elasticity:
     elastic_modulus: 0.9
     preferential_surface: 5.3
-    tissue_height: 0.7
+    tissue_height: 0.8
+    critical_height: 0.75
     VolumeElasticity_term: volume_elasticity_triangle
     height_parameter_name: height
     required_WF_terms:
     - term: volume_elasticity_triangle
       elastic_modulus: 0.
       preferential_volume: 0.9
-      tissue_height: 0.7
-      set_height: 0.6
+      tissue_height: 0.8
+      critical_height: 0.75
+      set_height: 0.4
       minimum_height: 0.2
       height_parameter_name: height
       gamma: 0.05

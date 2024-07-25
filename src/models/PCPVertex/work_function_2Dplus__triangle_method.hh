@@ -8,7 +8,7 @@ namespace PCPVertex {
 namespace WorkFunction2Dplus {
 
 /// @brief The volume elasticity of a cell base class
-/** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)\f$, an elastic penalty on 
+/** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)^2\f$, an elastic penalty on 
  *  cell volume  \f$ V_\alpha \f$.
  *
  *  Requires an implementation of preferential_volume(cell).
@@ -23,17 +23,21 @@ namespace WorkFunction2Dplus {
  *  \f$ \frac{dH_\alpha}{dt} = - \gamma \frac{dE}{dH_\alpha} \f$.
  * 
  *  Parameters:
- *      - `elastic_modulus`: the elastic modulus \f$ k \f$
- *      - `tissue_height`: The height of cells of type other than 1, also used
- *              for initialisation for \f$ H_\alpha \f$.
- *      - `minimum_height`: The minimum value for \f$ H_\alpha \f$. 
- *      - `height_parameter_name`: Name used for the height variable in 
+ *      - `elastic_modulus`: (double) the elastic modulus \f$ k \f$
+ *      - `preferential_volume`: (double) the preferential volume 
+ *              \f$ V^{(0)} \f$
+ *      - `tissue_height`: (double) The height of cells of type other than 1, 
+ *              also used for initialisation for \f$ H_\alpha \f$.
+ *      - `critical_height`: (double) The crossover height at which HCs loose 
+ *              basal contact.
+ *      - `minimum_height`: (double) The minimum value for \f$ H_\alpha \f$. 
+ *      - `height_parameter_name`: (string) Name used for the height variable in 
  *              properties of the cell. Can be accessed by other terms. 
  *              The derivative \f$ H_\alpha^\prime \f$ is saved as 
  *              <height_parameter_name>_derivative. Additive contributions from
  *              terms are considered during update.
- *      - `gamma`: The damping factor for H temporal development, additional 
- *              to numeric step size
+ *      - `gamma`: (double) The damping factor for H temporal development, 
+ *              additional to numeric step size
  */
 template <typename Model>
 class VolumeElasticityTriangleBase 
@@ -64,6 +68,9 @@ protected:
     /// @brief Minimum value for cell height
     double _minimum_height;
 
+    /// The crossover hight for loss of basal contact
+    double _critical_height;
+
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height;
 
@@ -89,6 +96,7 @@ protected:
         return cell->state.type != 1;
     }
 
+    /// @brief  A factor that rescales depth of triangles to match cell's area
     double triangle_factor (const std::shared_ptr<Cell>& cell) const {
         #if UTOPIA_DEBUG
             if (not cell) {
@@ -105,6 +113,26 @@ protected:
         }
 
         return 2 * this->_am.area_of(cell) / l2;
+    }
+
+    /// @brief A factor for crossover from attached to detached state
+    /** A crossover between full basal attachment to basal detachment occurs
+     *  at `_critical_height`. It is implemented as a sigmoidal factor, where
+     *  depth of triangles is rescales with `distribution_factor`.
+     */
+    double distribution_factor (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for distribution_factor on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
+                );
+            }
+        #endif
+
+        double H = this->height_of(cell);
+        double k = 5. / (_tissue_height - _critical_height);
+        return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
     }
 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
@@ -147,22 +175,25 @@ protected:
         // but consider triangles not contributed by neighbors
         if (not has_basal_contact(cell)) {
             double f = triangle_factor(cell);
+            double d = distribution_factor(cell);
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
                 if (c != cell) { std::swap(c, n); }
 
-                // skip cells with basal contacts
+                // the triangle volume
+                double V3 = std::pow(this->_am.length_of(edge), 2)
+                            * (_tissue_height - height)
+                            * f / 2;
+
+                // the distribution
                 if (n and has_basal_contact(n)) {
-                    continue;
+                    volume += (1 - d) * V3;
                 }
-
-                // cell occupies the volume itself
-                volume += std::pow(this->_am.length_of(edge), 2)
-                        * (_tissue_height - height)
-                        * f / 2;
+                else {
+                    volume += V3;
+                }
             }
-
             return volume;
         }
 
@@ -172,8 +203,9 @@ protected:
             if (c != cell) { std::swap(c, n); }
 
             // if neighbour has basal contact, does not contribute
-            if (n and not has_basal_contact(n)) {
-                volume += std::pow(this->_am.length_of(edge), 2)
+            if (n and not has_basal_contact(n)) { 
+                volume += distribution_factor(n)
+                        * std::pow(this->_am.length_of(edge), 2)
                         * (_tissue_height - height_of(n))
                         * triangle_factor(n) / 2;
             }
@@ -192,8 +224,9 @@ public:
         Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
+        _critical_height(get_as<double>("critical_height", cfg)),
         _minimum_height(get_as<double>("minimum_height", cfg)),
-        _height(name + "_" + get_as<std::string>("height_parameter_name", cfg)),
+        _height(name + "__" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
         _gamma(get_as<double>("gamma", cfg))
     {
@@ -227,12 +260,15 @@ public:
             double V0 = preferential_volume(cell);
             double dH = 0.;     // the derivative to height
             double f = 0.;      // the triangle factor
+            double d = 0.;      // the distribution factor
             double dW_dV = 0.;
             if (not has_basal_contact(cell)) {
                 volume = volume_of(cell);
+                f = triangle_factor(cell);
+                d = distribution_factor(cell);
+
                 dW_dV = _elastic_modulus * (volume - V0) / std::pow(V0, 2);
                 dH += dW_dV * this->_am.area_of(cell);
-                f += triangle_factor(cell);
             }
 
             // apply forces via edges
@@ -256,30 +292,32 @@ public:
                 a->state.add_force(force);
                 b->state.add_force(force);
 
-
-                // consider the neighbours of extruded cell
+                // consider the basal triangle volumes
                 if (not has_basal_contact(cell)) {
                     if (n and has_basal_contact(n)) {
                         double V0n = preferential_volume(n);
                         double Vn = volume_of(n);
                         double dW_dVn = _elastic_modulus * (Vn - V0n)
                                                          / std::pow(V0n, 2);
-                        dH -= dW_dVn * std::pow(l, 2) * f / 2;
 
-                        // The contribution of perimeter and interfaces
-                        double Tn = dW_dVn * l * f * (_tissue_height - H);
+                        // The own and neighbor contributions to tension
+                        double Tn = (dW_dV * (1-d) + dW_dVn * d)
+                                    * l * f * (_tissue_height - H);
 
                         a->state.add_force(+ Tn * displ / l);
                         b->state.add_force(- Tn * displ / l);
+
+                        dH -= (dW_dV * (1-d) + dW_dVn * d)
+                              * std::pow(l, 2) * f / 2;
                     }
                     else {
-                        dH -= dW_dV * std::pow(l, 2) * f / 2;
-
                         // The contribution of perimeter and interfaces
                         double T = dW_dV * l * f * (_tissue_height - H);
 
                         a->state.add_force(+ T * displ / l);
                         b->state.add_force(- T * displ / l);
+
+                        dH -= dW_dV * std::pow(l, 2) * f / 2;
                     }
                 }
             }
@@ -370,6 +408,8 @@ public:
             }
         }
 
+        _critical_height = get_as<double>("critical_height", cfg,
+                                          _critical_height);
         _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
@@ -488,32 +528,24 @@ public:
 };
 
 
-/// @brief The volume elasticity of a cell
-/** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)\f$, an elastic penalty on 
- *  cell volume  \f$ V_\alpha \f$.
- *  
- *  Cell volume is calculated from a columnar model, using cell apical area and 
- *  a cell height variable H. In this columnar model, cells of type 1 can detach
- *  basally, with \f$ H < H_{tissue} \f$. This basal space is filled up by 
- *  neighboring cells of other types, having a columnar core and basal 
- *  extensions.
- *  
- *  The variables \f$ H_\alpha \f$ develop according to the derivative 
- *  \f$ \frac{dH_\alpha}{dt} = - \gamma \frac{dE}{dH_\alpha} \f$.
- * 
+/// @brief The volume elasticity of a cell with heterotypic target volume
+/** Specialisation of the VolumeElasticityTriangleBase class.
  *  Parameters:
- *      - `elastic_modulus`: the elastic modulus \f$ k \f$
- *      - `preferential_volume`: the preferential volume \f$ V^{(0)} \f$
- *      - `tissue_height`: The height of cells of type other than 1, also used
- *              for initialisation for \f$ H_\alpha \f$.
- *      - `minimum_height`: The minimum value for \f$ H_\alpha \f$. 
- *      - `height_parameter_name`: Name used for the height variable in 
+ *      - `elastic_modulus`: (double) the elastic modulus \f$ k \f$
+ *      - `preferential_volume`: (list(double))the preferential volume 
+ *              \f$ V^{(0)} \f$ per cell type.
+ *      - `tissue_height`: (double) The height of cells of type other than 1, 
+ *              also used for initialisation for \f$ H_\alpha \f$.
+ *      - `critical_height`: (double) The crossover height at which HCs loose 
+ *              basal contact.
+ *      - `minimum_height`: (double) The minimum value for \f$ H_\alpha \f$. 
+ *      - `height_parameter_name`: (string) Name used for the height variable in 
  *              properties of the cell. Can be accessed by other terms. 
  *              The derivative \f$ H_\alpha^\prime \f$ is saved as 
  *              <height_parameter_name>_derivative. Additive contributions from
  *              terms are considered during update.
- *      - `gamma`: The damping factor for H temporal development, additional 
- *              to numeric step size
+ *      - `gamma`: (double) The damping factor for H temporal development, 
+ *              additional to numeric step size
  */
 template <typename Model>
 class VolumeElasticityTriangle : public VolumeElasticityTriangleBase<Model>
@@ -644,6 +676,37 @@ public:
 };
 
 
+/// @brief The surface elasticity of a cell
+/** \f$ E_\alpha = k/2 (S_\alpha / S^{(0)} - 1)^2\f$, an elastic penalty on 
+ *  cell volume  \f$ V_\alpha \f$.
+ *
+ *  Requires an implementation of preferential_volume(cell).
+ *  
+ *  Cell volume is calculated from a columnar model, using cell apical area and 
+ *  a cell height variable H. In this columnar model, cells of type 1 can detach
+ *  basally, with \f$ H < H_{tissue} \f$. This basal space is filled up by 
+ *  neighboring cells of other types, having a columnar core and basal 
+ *  extensions.
+ *  
+ *  The variables \f$ H_\alpha \f$ develop according to the derivative 
+ *  \f$ \frac{dH_\alpha}{dt} = - \gamma \frac{dE}{dH_\alpha} \f$.
+ * 
+ *  Parameters:
+ *      - `elastic_modulus`: (double) the elastic modulus \f$ k \f$
+ *      - `preferential_shape`: (double) the target shape
+ *              \f$ S^{(0)} \f$
+ *      - `tissue_height`: (double) The height of cells of type other than 1, 
+ *              also used for initialisation for \f$ H_\alpha \f$.
+ *      - `critical_height`: (double) The crossover height at which HCs loose 
+ *              basal contact.
+ *      - `minimum_height`: (double) The minimum value for \f$ H_\alpha \f$. 
+ *      - `VolumeElasticity_term`: (string) Name of the workfunction registering
+ *              the height parameter.
+ *      - `height_parameter_name`: (string) Name used for the height variable in 
+ *              properties of the cell. Needs to be same as registered in 
+ *              `VolumeElasticityTerm`. `VolumeElasticityTerm` needs to update
+ *              height parameter from gradient.
+ */
 template <typename Model>
 class SurfaceElasticity : public WorkFunction::WorkFunctionTerm<Model>
 {
@@ -668,6 +731,9 @@ protected:
     /// @brief The height of the tissue, defining a maximum height for every cell
     double _tissue_height;
 
+    /// The crossover hight for loss of basal contact
+    double _critical_height;
+
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height;
 
@@ -690,6 +756,7 @@ protected:
         return cell->state.type != 1;
     }
 
+    /// @brief  A factor that rescales depth of triangles to match cell's area
     double triangle_factor (const std::shared_ptr<Cell>& cell) const {
         #if UTOPIA_DEBUG
             if (not cell) {
@@ -706,6 +773,29 @@ protected:
         }
 
         return 2 * this->_am.area_of(cell) / l2;
+    }
+
+    /// @brief A factor for crossover from attached to detached state
+    /** A crossover between full basal attachment to basal detachment occurs
+     *  at `_critical_height`. It is implemented as a sigmoidal factor, where
+     *  depth of triangles is rescales with `distribution_factor`.
+     */
+    double distribution_factor (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for distribution_factor on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
+                );
+            }
+        #endif
+
+        // double k = 5. / (_tissue_height - _critical_height);
+        // return 1. - 1. / (1. + exp(- k * (0.98 - _critical_height)));
+
+        double H = this->height_of(cell);
+        double k = 5. / (_tissue_height - _critical_height);
+        return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
     }
 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
@@ -746,23 +836,30 @@ protected:
 
         // It is columnar itself, so no neighbour contributions
         if (not has_basal_contact(cell)) {
-            double f2 = std::pow(triangle_factor(cell), 2);
+            double f = triangle_factor(cell);
+            double d = distribution_factor(cell);
 
             // consider triangles that are not occupied by neighbors
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
                 if (c != cell) { std::swap(c, n); }
 
-                // skip cells with basal contacts
-                if (n and has_basal_contact(n)) {
-                    continue;
-                }
-
                 double length = this->_am.length_of(edge);
+                if (n and has_basal_contact(n)) {
+                    // the new lateral faces
+                    double S3 = length * std::sqrt(1 + 4. * std::pow(f*d, 2))
+                                * (_tissue_height - height);
 
-                // the new lateral faces, including the outer extension
-                surface += length * (std::sqrt(1 + 4. * f2) + 1)
-                           * (_tissue_height - height);
+                    // additional rescaling subtracting approximated
+                    // triangle-triangle interface
+                    surface += (1. - d) * S3;
+                }
+                // no neighbor to occupy triangle
+                else {
+                    // the new lateral faces, including the outer extension
+                    surface += length * (std::sqrt(1 + 4. * std::pow(f,2)) + 1)
+                               * (_tissue_height - height);
+                }
             }
             
             return surface;
@@ -777,14 +874,17 @@ protected:
             if (n and not has_basal_contact(n)) {
                 double length = this->_am.length_of(edge);
                 double f = triangle_factor(n);
+                double d = distribution_factor(n);
 
                 // the new lateral faces 
                 // minus what was assumed from columnar
-                surface += length * (std::sqrt(1 + 4. * std::pow(f, 2)) - 1)
-                           * (_tissue_height - height_of(n));
+                double S3 = length * (std::sqrt(1 + 4. * std::pow(f*d, 2)) - 1)
+                            * (_tissue_height - height_of(n));
 
-                // the new medial/basal faces
-                surface += std::pow(length, 2) * f;
+                surface += S3;
+
+                // the new medial & basal faces
+                surface += std::pow(length, 2) * f * d;
             }
         }
 
@@ -802,8 +902,9 @@ public:
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _preferential_surface(get_as<double>("preferential_surface", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
+        _critical_height(get_as<double>("critical_height", cfg)),
         _height(get_as<std::string>("VolumeElasticity_term", cfg) 
-                + "_" + get_as<std::string>("height_parameter_name", cfg)),
+                + "__" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative")
     { }
 
@@ -814,35 +915,34 @@ public:
             double area = 0.;
             double dH = 0.;
             double f = 1.;  // the triangle factor
-            double f2 = 1.;  // the triangle factor squared
+            double d = 1.;  // the distribution factor
 
-            // NOTE non-columnar neighbour contributions considered below only
-
-            if (not has_basal_contact(cell)) {
-                area = this->_am.area_of(cell);
-
-                dH += _elastic_modulus
-                      * (surface - _preferential_surface)
-                      / std::pow(_preferential_surface, 2)
-                      * this->_am.perimeter_of(cell);
-                
-                f = triangle_factor(cell);
-                f2 = std::pow(f, 2);
-                // NOTE triangle factor is assumed constant
-                //      i.e. df/dl = 0 and df/dA = 0
-            }
-
-            // calculate tension force
+            // derivative to S
             double dW_dS = (
                 _elastic_modulus
                 * (surface - _preferential_surface) 
                 / std::pow(_preferential_surface, 2)
             );
-            // calculate tension force
+
+            // NOTE non-columnar neighbour contributions considered below only
+            if (not has_basal_contact(cell)) {
+                area = this->_am.area_of(cell);
+
+                dH += dW_dS * this->_am.perimeter_of(cell);
+                
+                f = triangle_factor(cell);
+                d = distribution_factor(cell);
+                // NOTE factors are assumed constant
+                //      i.e. df/dl = 0 and df/dA = 0
+                //           dd/dl = 0 and dd/dA = 0
+            }
+
+            // derivative perimeter contribution
             double T = dW_dS * H;
 
-            // calculate pressure force
-            double pressure = dW_dS * 2;      
+            // derivative apical & basal contributions
+            double pressure = dW_dS * 2;
+
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
@@ -854,11 +954,11 @@ public:
                 const auto& a = edge->custom_links().a;
                 const auto& b = edge->custom_links().b;
 
-                // calculate forces from tension
+                // calculate forces from perimeter contribution
                 a->state.add_force(+ T * displ / l);
                 b->state.add_force(- T * displ / l);
 
-                // calculate forces from pressure
+                // calculate forces from apical & basal contribution
                 SpaceVec normal({displ[1], -displ[0]});
                 if (flip) {
                     normal *= -1;
@@ -866,39 +966,67 @@ public:
                 a->state.add_force(- pressure/2. * normal);
                 b->state.add_force(- pressure/2. * normal);
 
-                // calculate the contributions of non-columnar deformations 
+                // calculate the basal triangle contributions
                 if (not has_basal_contact(cell)) {
                     if (n and has_basal_contact(n)) {
+                        // Derivative to l of cell's S3 contribution
+                        double Tn = dW_dS * (1. - d) * (
+                            // lateral faces of triangle
+                            (_tissue_height - H) 
+                            * std::sqrt(1 + 4. * std::pow(f * d, 2))
+                        );
+
+                        // derivative to S of neighbor n
                         double dW_dS_n = (
                             _elastic_modulus
                             * (surface_of(n) - _preferential_surface)
                             / std::pow(_preferential_surface, 2)
                         );
-                        // derivative of H
-                        dH -= dW_dS_n * (std::sqrt(1 + 4. * f2) - 1) * l;
 
-                        // The contribution of perimeter and interfaces
-                        double Tn = dW_dS_n * (
+                        // Derivative to l of neighbor's S3 contribution
+                        Tn += dW_dS_n * (
                             // lateral faces
-                            (_tissue_height - H) * (std::sqrt(1 + 4. * f2) - 1)
+                            // minus what was assumed from columnar
+                            (_tissue_height - H) 
+                            * (std::sqrt(1 + 4. * std::pow(f * d, 2)) - 1)
                             // medial & basal faces
-                            + 2 * l * f
+                            + 2 * l * f * d
                         );
 
+                        // Force from neighbor's S3 contribution
                         a->state.add_force(+ Tn * displ / l);
                         b->state.add_force(- Tn * displ / l);
+                        
+                        // derivative S3 to H for cell
+                        dH -= dW_dS * l * (1 - d)
+                              * std::sqrt(1 + 4. * std::pow(f * d, 2));
+
+                        // derivative S3 to H for cell
+                        // the change in distribution factor contribution
+                        double k = 5. / (_tissue_height - _critical_height);
+                        double expo = exp(-k * (H - _critical_height));
+                        dH += dW_dS * l * (_tissue_height - H)
+                              * std::sqrt(1 + 4. * std::pow(f * d, 2))
+                              * std::pow(1./(1+expo), 2) * k * expo;
+                        
+                        // derivative S3 to H for neighbor n
+                        dH -= dW_dS_n * l 
+                              * (std::sqrt(1 + 4. * std::pow(f * d, 2)) - 1);
+                        dH -= dW_dS_n * std::pow(l, 2) * f
+                              * std::pow(1./(1+expo), 2) * k * expo;
                     }
                     else {
-                        // derivative of H
-                        dH -= dW_dS * (std::sqrt(1 + 4. * f2) + 1) * l;
-
-                        // The contribution of perimeter and interfaces
+                        // derivative to l of unoccupied triangles
                         double T = dW_dS * (
-                            (_tissue_height - H) * (std::sqrt(1 + 4. * f2) + 1)
+                            (_tissue_height - H) 
+                            * (std::sqrt(1 + 4. * std::pow(f, 2)) + 1)
                         );
 
                         a->state.add_force(+ T * displ / l);
                         b->state.add_force(- T * displ / l);
+
+                        // derivative to H of unoccupied triangles
+                        dH -= dW_dS * (std::sqrt(1 + 4 * std::pow(f, 2)) + 1)*l;
                     }
                 }
             }
@@ -927,8 +1055,12 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
+        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
+                                          _elastic_modulus);
         _preferential_surface = get_as<double>("preferential_surface", cfg, 
                                                _preferential_surface);
+        
+        // update tissue height within all cells
         double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
         if (fabs(tmp - _tissue_height) > 1.e-8) {
             _tissue_height = tmp;
@@ -942,8 +1074,8 @@ public:
             }
         }
 
-        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
-                                          _elastic_modulus);
+        _critical_height = get_as<double>("critical_height", cfg,
+                                          _critical_height);
     }
 
     std::vector<std::string> write_task_cell_properties_names () const override {

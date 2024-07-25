@@ -744,6 +744,11 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 for (std::size_t i = 0; i < 50; i++) {
                     model.iterate();
                 }
+
+
+                // test a particular cell to deal well with heights
+                const auto& cell = cells[cells.size() / 2];
+                cell->state.type = 1;
                 
                 // erase all work function terms
                 while (model.get_work_function_terms().size() > 0) {
@@ -779,7 +784,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 std::string _height = get_as<std::string>(
                         "VolumeElasticity_term", params, term_fct->get_name()
                     ) 
-                    + "_" + 
+                    + "__" + 
                     get_as<std::string>(
                         "height_parameter_name", params
                     );
@@ -788,23 +793,24 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 BOOST_TEST(term_fct->test_constraints(logger));
 
 
-                // test a particular cell to deal well with heights
-                const auto& cell = cells[cells.size() / 2];
-                cell->state.type = 1;
-                cell->state.update_parameter(_height, 0.65);
+                double H0 = cell->state.get_parameter(_height);
+
+                cell->state.update_parameter(_height, H0 + 0.05);
                 BOOST_TEST(term_fct->test_constraints(logger));
 
                 // test a duplet of cells
                 const auto nb = am.neighbors_of(cell)[0];
                 nb->state.type = 1;
                 double h0 = nb->state.get_parameter(_height);
-                nb->state.update_parameter(_height, 0.6);
+                BOOST_TEST(H0 != h0);
+
+                nb->state.update_parameter(_height, H0 + 0.1);
                 BOOST_TEST(term_fct->test_constraints(logger));
 
                 // reset
                 nb->state.type = 0;
                 nb->state.update_parameter(_height, h0);
-                cell->state.update_parameter(_height, 0.699);
+                cell->state.update_parameter(_height, H0);
                 BOOST_TEST(term_fct->test_constraints(logger));
 
                 double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
@@ -817,7 +823,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                     double dW_dH = cell->state.get_parameter(_height_derivative);
 
                     double tmp_H = cell->state.get_parameter(_height);
-                    cell->state.update_parameter(_height, tmp_H - 0.1 / 100.);
+                    cell->state.update_parameter(_height, tmp_H + 0.1 / 100.);
 
                     double dH = cell->state.get_parameter(_height) - tmp_H;
                     cell->state.update_parameter(_height_derivative, 0.);
@@ -835,7 +841,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
 
                 BOOST_TEST(term_fct->test_constraints(logger));
 
-                cell->state.update_parameter(_height, 0.7);
+                cell->state.update_parameter(_height, H0);
             }
 
             // the machine epsilon has to be scaled to the magnitude of the 
