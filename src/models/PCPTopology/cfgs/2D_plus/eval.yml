@@ -2,28 +2,31 @@
 single_universe:
   enabled: False
   universes:
-    seed: 0
+    seed: 1
     
 _definitions:
   enabled: false
-  hue: &HUE Gamma
-  subspace_slice: &subspace_slice
+  subspace_slice: &subspace_slice ~
+    # Hc: !sweep
+    #   default: 0.9
+    #   values: [0.7, 0.8, 0.85, 0.9, 0.95]
+
+    #   default: 0.2
+    #   values: 
+    #     - 0.2
+    #     # - 0.26
+
+  hue: &HUE ~
+  subspace: &subspace ~
+    # <<: *subspace_slice
     # Gamma: !sweep
     #   default: 0.
     #   values: 
     #     - &Gamma_0 0.
     #     - &Gamma_10 0.1
-    rho: !sweep
-      default: 0.2
-      values: 
-        - 0.2
-        # - 0.26
-
-  subspace: &subspace
-    <<: *subspace_slice
-    kp: !sweep
-      default: 0.005
-      linspace: [0.005, 0.02, 3]
+    #     - &Gamma_20 0.2
+    #     - &Gamma_30 0.3
+    # rho: !sweep
 
   Gamma_best_fit: &Gamma_best_fit 0.4
 
@@ -35,14 +38,48 @@ _definitions:
 
 
 # The energy at uniform t distances
-energy:
-  based_on: [energy, single_universe]
+energy: !pspace
+  based_on:
+    - .plot.multiplot
+    - multiverse
+    
+  to_plot:
+  - function: sns.lineplot
+    data: !dag_result energy
+    style: seed
+  select_and_combine:
+    fields:
+      _energy: 
+        path: data/PCPTopology/Energy/Terms
+    subspace: *subspace
 
-# The energy at uniform numerical step distances
-energy_continuous:
-  based_on: [energy, single_universe]
-  model_name: PCPTopology/PCPVertex
-  enabled: False
+  transform:
+    - .rename: [!dag_prev , energy]
+    - import_and_call:
+      args: [model_plots.PCPVertex.data_ops, to_dataframe, !dag_prev ]
+      tag: energy
+
+  x: time
+  y: energy
+  hue: term
+
+  helpers:
+    set_labels:
+      x: time
+      y: energy [a.u.]
+
+energy_net: !pspace
+  based_on: energy
+  select_and_combine:
+    allow_missing_or_failing: silent
+    fields:
+      _energy: 
+        path: data/PCPTopology/Energy/Terms
+        transform:
+          - .sel: [!dag_node -1 , {term: total}]
+          - .sel: [!dag_node -2 , {term: linetension_fluctuations}]
+          - sub: [!dag_node -2, !dag_node -1]
+  hue: ~
 
 # Number of T1 and T2 transitions
 transitions:
@@ -64,9 +101,21 @@ cell_properties: !pspace
   enabled: False
   to_plot: 
     - function: sns.lineplot
+      data: !dag_result all_cells
+      color: black
+      errorbar: sd
+      palette: Grays
+      hue: ~
+    - function: sns.lineplot
+      data: !dag_result support_cells
+      color: blue
+      errorbar: sd
+      palette: Blues
+    - function: sns.lineplot
       data: !dag_result hair_cells
       color: red
       errorbar: sd
+      palette: Reds
   select_and_combine:
     allow_missing_or_failing: silent
     subspace: *subspace_slice
@@ -94,36 +143,8 @@ cell_properties/area: !pspace
   helpers:
     set_labels:
       y: average area
-
-
-# The average cell area
-cell_properties/area__max: !pspace
-  based_on: cell_properties/area
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      color: red
-      estimator: max
-
-  y: area
-  helpers:
-    set_labels:
-      y: area variance
-
-
-# The average cell area
-cell_properties/area__median: !pspace
-  based_on: cell_properties/area
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      color: red
-      estimator: median
-
-  y: area
-  helpers:
-    set_labels:
-      y: area variance
+    # set_limits: 
+    #   y: [0., 4]
 
 # The average cell area
 cell_properties/height: !pspace
@@ -131,6 +152,23 @@ cell_properties/height: !pspace
   to_plot:
     - function: sns.lineplot
       data: !dag_result hair_cells
+      color: red
+      errorbar: sd
+      palette: Reds
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      errorbar: ~
+      estimator: median
+      palette: Reds
+      linestyle: dashed
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      errorbar: ~
+      estimator: max
+      palette: Reds
+      linestyle: dotted
   select_and_combine:
     fields:
       _property:
@@ -143,41 +181,31 @@ cell_properties/height: !pspace
   helpers:
     set_labels:
       y: average height
-    set_limits: 
-      y: [0., 1]
-
-# The average cell area
-cell_properties/height_max: !pspace
-  based_on: cell_properties/height
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      estimator: max
-
-  y: height
-  helpers:
-    set_labels:
-      y: max HC height
-
-# The average cell area
-cell_properties/height_median: !pspace
-  based_on: cell_properties/height
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      estimator: median
-
-  y: height
-  helpers:
-    set_labels:
-      y: max HC height
-
-
+    # set_limits: 
+    #   y: [0., 1]
 cell_properties/extrusiveness: !pspace
   based_on: cell_properties
   to_plot:
     - function: sns.lineplot
       data: !dag_result hair_cells
+      color: red
+      errorbar: sd
+      palette: Reds
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      estimator: median
+      linestyle: dashed
+      # errorbar: sd
+      palette: Reds
+    - function: sns.lineplot
+      data: !dag_result hair_cells
+      color: red
+      hue: id
+      # estimator: median
+      linestyle: dotted
+      # errorbar: sd
+      palette: Reds
   select_and_combine:
     fields:
       _property:
@@ -187,9 +215,13 @@ cell_properties/extrusiveness: !pspace
           - .rename: [!dag_prev , extrusiveness]
 
   y: extrusiveness
+  helpers:
+    set_labels:
+      y: extrusiveness
+    # set_limits: 
+    #   y: [0., 1]
+    
 
-
-# The average cell area
 cell_properties/volume: !pspace
   based_on: cell_properties
   select_and_combine:
@@ -205,51 +237,27 @@ cell_properties/volume: !pspace
     set_labels:
       y: average volume
 
-# The average cell shape
-cell_properties/shape: !pspace
+cell_properties/surface: !pspace
   based_on: cell_properties
-  enabled: False
+  
   select_and_combine:
     fields:
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: perimeter}]
-          - .sel: [!dag_node -2, {property: area_preferential}]
-          - pow: [!dag_node -1 , 0.5]
-          - div: [!dag_node -3, !dag_node -1]
-          - .rename: [!dag_prev , shape_index]
-  y: shape_index
+          - .sel: [!dag_prev , {property: surface_elasticity__surface}]
+          - .rename: [!dag_prev , surface]
+
+  y: surface
   helpers:
     set_labels:
-      y: average shape index
-    set_limits:
-      y: [3.72, 4.4]
+      y: average surface
+    # set_limits: 
+    #   y: [5.0, ~]
 
-cell_properties/elongation: !pspace
-  based_on: cell_properties
-  enabled: False
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cells
-        transform:
-          - .sel: [!dag_node -1, {property: q_x}]
-          - .sel: [!dag_node -2, {property: q_y}]
-          - call_lambda:
-            - "lambda qx, qy: (qx**2 + qy**2)**0.5"
-            - !dag_node -2
-            - !dag_node -1
-          - .rename: [!dag_prev , elongation]
-  y: elongation
-  helpers:
-    set_labels:
-      y: average elongation
-
-# The average cell geometry
 cell_properties/neighbors: !pspace
   based_on: cell_properties
-  enabled: False
+  enabled: True
   select_and_combine:
     fields:
       _property:
@@ -264,23 +272,14 @@ cell_properties/neighbors: !pspace
     set_limits:
       y: [3, 10]
 
-cell_properties/coordination: !pspace
-  based_on: cell_properties/neighbors
+cell_properties/HH_neighbors: !pspace
+  based_on: cell_properties
   to_plot: 
     - function: sns.lineplot
       data: !dag_result hair_cells
+      color: red
       errorbar: sd
-
-cell_properties/subordination: !pspace
-  based_on: cell_properties/neighbors
-  enabled: False
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result support_cells
-      errorbar: sd
-
-cell_properties/HH_neighbors: !pspace
-  based_on: cell_properties
+      palette: Reds
   select_and_combine:
     fields:
       _property:
@@ -296,46 +295,11 @@ cell_properties/HH_neighbors: !pspace
             - !dag_node -1
           - .rename: [!dag_prev , num_hair_neighbors]
   y: num_hair_neighbors
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      errorbar: sd
   helpers:
     set_labels:
       y: average neighbors
     set_limits:
       y: [0, 4]
-
-
-edge_properties/min_length: !pspace
-  enabled: False
-  based_on:
-    - .plot.multiplot
-    - multiverse
-    - select_edges_properties_mv
-  to_plot: 
-    - function: sns.lineplot
-      data: !dag_result all_edges
-      errorbar: sd
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Edges
-        transform:
-          - .sel: [!dag_prev , {property: length}]
-          - .min: [!dag_prev , id]
-          - .expand_dims: [!dag_prev , id]
-          - .rename: [!dag_prev , length]
-    subspace: *subspace_slice
-
-  x: time
-  y: length
-  hue: *HUE
-
-  helpers:
-    set_labels:
-      x: time
-      y: average area
 
 
 # A 2D representation of the cells by their edges
@@ -347,6 +311,7 @@ cell_segmentation:
 
 cell_segmentation__height:
   based_on: cell_segmentation
+  # enabled: False
 
   select:
     property:
@@ -357,6 +322,11 @@ cell_segmentation__height:
         - create_mask: [!dag_prev , ==, 1]
         - .where: [!dag_node -3, !dag_node -1]
         - .rename: [!dag_prev , Height]
+    edge_property:
+      path: data/PCPTopology/Edges
+      transform:
+        - .sel: [!dag_node -1, {property: edge_contractility__contractility}]
+        - .rename: [!dag_prev , contractility]
 
 
   property_interpolation_plot_kwargs:
@@ -368,7 +338,7 @@ cell_segmentation__height:
 
 cell_segmentation__volume:
   based_on: cell_segmentation
-  enabled: False
+  # enabled: False
 
   select:
     property:
@@ -399,3 +369,39 @@ cell_segmentation__area:
     vmin: 0.5
     vmax: 1.5
     cmap: seismic
+
+
+cell_segmentation__surface:
+  based_on: cell_segmentation
+  # enabled: False
+
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+        - .sel: [!dag_node -1, {property: surface_elasticity__surface}]
+        - .rename: [!dag_prev , Surface]
+
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: 2.
+    vmax: 6.5
+    cmap: magma
+
+
+cell_segmentation__extrusiveness:
+  based_on: cell_segmentation
+  # enabled: False
+
+  select:
+    property:
+      path: data/PCPTopology/Cell_energies
+      transform:
+        - .sel: [!dag_node -1, {term: volume_elasticity__extrusiveness}]
+        - .rename: [!dag_prev , extrusiveness]
+
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: ~
+    vmax: ~
+    cmap: magma

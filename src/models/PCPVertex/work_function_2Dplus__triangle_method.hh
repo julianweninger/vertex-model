@@ -65,11 +65,17 @@ protected:
     /// @brief The height of the tissue, defining a maximum height for every cell
     double _tissue_height;
 
+    /// @brief Maximum value for cell height
+    double _maximum_height;
+
     /// @brief Minimum value for cell height
     double _minimum_height;
 
     /// The crossover hight for loss of basal contact
     double _critical_height;
+
+    /// The normalized crossover steepness for loss of basal contact
+    double _steepness;
 
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height;
@@ -131,7 +137,7 @@ protected:
         #endif
 
         double H = this->height_of(cell);
-        double k = 5. / (_tissue_height - _critical_height);
+        double k = _steepness / (_tissue_height - _critical_height);
         return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
     }
 
@@ -225,6 +231,8 @@ public:
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _critical_height(get_as<double>("critical_height", cfg)),
+        _steepness(get_as<double>("steepness", cfg)),
+        _maximum_height(get_as<double>("maximum_height", cfg)),
         _minimum_height(get_as<double>("minimum_height", cfg)),
         _height(name + "__" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative"),
@@ -372,7 +380,7 @@ public:
             cell->state.update_parameter(
                 _height,
                 std::max(
-                    std::min(H - dt * _gamma * dH, _tissue_height), 
+                    std::min(H - dt * _gamma * dH, _maximum_height), 
                     _minimum_height
                 )
             );
@@ -385,6 +393,9 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
+        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
+                                          _elastic_modulus);
+
         double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
         if (fabs(tmp - _tissue_height) > 1.e-8) {
             _tissue_height = tmp;
@@ -408,11 +419,11 @@ public:
             }
         }
 
+        _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
+
         _critical_height = get_as<double>("critical_height", cfg,
                                           _critical_height);
-        _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
-        _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
-                                          _elastic_modulus);
+        _steepness = get_as<double>("steepness", cfg, _steepness);
 
         _gamma = get_as<double>("gamma", cfg, _gamma);
     }
@@ -734,6 +745,9 @@ protected:
     /// The crossover hight for loss of basal contact
     double _critical_height;
 
+    /// The normalized crossover steepness for loss of basal contact
+    double _steepness;
+
     /// @brief  The name of the cell's parameter referring to cell's height
     const std::string _height;
 
@@ -790,11 +804,8 @@ protected:
             }
         #endif
 
-        // double k = 5. / (_tissue_height - _critical_height);
-        // return 1. - 1. / (1. + exp(- k * (0.98 - _critical_height)));
-
         double H = this->height_of(cell);
-        double k = 5. / (_tissue_height - _critical_height);
+        double k = _steepness / (_tissue_height - _critical_height);
         return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
     }
 
@@ -903,6 +914,7 @@ public:
         _preferential_surface(get_as<double>("preferential_surface", cfg)),
         _tissue_height(get_as<double>("tissue_height", cfg)),
         _critical_height(get_as<double>("critical_height", cfg)),
+        _steepness(get_as<double>("steepness", cfg)),
         _height(get_as<std::string>("VolumeElasticity_term", cfg) 
                 + "__" + get_as<std::string>("height_parameter_name", cfg)),
         _height_derivative(_height + "_derivative")
@@ -1076,6 +1088,7 @@ public:
 
         _critical_height = get_as<double>("critical_height", cfg,
                                           _critical_height);
+        _steepness = get_as<double>("steepness", cfg, _steepness);
     }
 
     std::vector<std::string> write_task_cell_properties_names () const override {
