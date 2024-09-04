@@ -87,14 +87,14 @@ parameter_space:
           neutral_probability: 0.2
           minimization:
             mode: manual
-      - update_work_function_term:
-          times: []
-          iterations_prolog: 1
-          name: edge_contractility
-          parameters:
-            contractility: [[0.05, 0.], [0., 0.]]
-          minimization:
-            mode: manual
+      # - update_work_function_term:
+      #     times: []
+      #     iterations_prolog: 1
+      #     name: edge_contractility
+      #     parameters:
+      #       contractility: [[0.0, 0.], [0., 0.]]
+      #     minimization:
+      #       mode: manual
       #       Gamma: !sweep
       #         name: Gamma
       #         default: 0.04
@@ -161,27 +161,27 @@ parameter_space:
       #     minimization:
       #       mode: manual
 
-      - update_work_function_term:
-          times: [1]
-          name: volume_elasticity
-          parameters:
-            gamma: 1.
-          minimization:
-            mode: manual
+      # - update_work_function_term:
+      #     times: [1]
+      #     name: volume_elasticity
+      #     parameters:
+      #       gamma: 1.
+      #     minimization:
+      #       mode: manual
 
       # Minimize the energy using different fluctuation intensities
-      - update_work_function_term:
-          times: 
-            start: 1
-            stop: 100001
-            step: 1
-          name: edge_contractility
-          parameters:
-            increment_contractility: [[!expr 0.3/5000, 0.], [0., 0.]]
-          minimization:
-            mode: manual
+      # - update_work_function_term:
+      #     times: 
+      #       start: 1
+      #       stop: 100001
+      #       step: 1
+      #     name: edge_contractility
+      #     parameters:
+      #       increment_contractility: [[!expr 0.3/5000, 0.], [0., 0.]]
+      #     minimization:
+      #       mode: manual
       - void:
-          iterations_prolog: 50
+          iterations_prolog: 0
           times:
             start: 1
             stop: 100001
@@ -235,21 +235,21 @@ parameter_space:
       log_level: warning
 
       work_function_terms:
-      - volume_elasticity_triangle:
-          name: &volume_elasticity_name volume_elasticity
-          elastic_modulus: 1.
-          preferential_volume: 1.
+      - triangle_approximation_update:
+          gamma: 1.
           tissue_height: &tissue_height 1.
-          maximum_height: 0.96
+          maximum_height: 1.
+          minimum_height: 0.1
           critical_height: &critical_height 0.9
           steepness: &steepness 3
-          minimum_height: 0.85
-          gamma: 0.
-          # gamma: !expr 1./(50*24)
-          height_parameter_name: &height_parameter_name height
+      - volume_elasticity_triangle:
+          name: volume_elasticity
+          elastic_modulus: 1.
+          preferential_volume: 1.
+          tissue_height: *tissue_height
+          critical_height: *critical_height
+          steepness: *steepness
       - surface_elasticity:
-          VolumeElasticity_term: *volume_elasticity_name
-          height_parameter_name: *height_parameter_name
           elastic_modulus: 1.
           preferential_surface: 5.78
           tissue_height: *tissue_height

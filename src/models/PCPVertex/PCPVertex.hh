@@ -935,6 +935,14 @@ public:
                 )
             );
         }
+        else if (term == "triangle_approximation_update") {
+            register_work_function_term(
+                name,
+                std::make_shared<TriangleApproximationUpdate<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "volume_elasticity") {
             register_work_function_term(
                 name,

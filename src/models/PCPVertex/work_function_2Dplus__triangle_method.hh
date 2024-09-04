@@ -7,6 +7,300 @@ namespace Models {
 namespace PCPVertex {
 namespace WorkFunction2Dplus {
 
+template <typename Model>
+class TriangleApproximationBase : public WorkFunction::WorkFunctionTerm<Model>
+{
+public:
+    using Base = WorkFunction::WorkFunctionTerm<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// @brief The height of the tissue, defining a maximum height for every cell
+    double _tissue_height;
+
+    /// The crossover hight for loss of basal contact
+    double _critical_height;
+
+    /// The normalized crossover steepness for loss of basal contact
+    double _steepness;
+
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height;
+
+    /// @brief  The name of the cell's parameter referring to cell's height
+    const std::string _height_derivative;
+
+public:
+    /// @brief Check whether cell has a basal contact
+    /// @param height The height of considered cell
+    /// @return Whether cell has a basal contact
+    bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for Basal contact on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
+                );
+            }
+        #endif
+
+        return cell->state.type != 1;
+    }
+
+    /// @brief  A factor that rescales depth of triangles to match cell's area
+    double triangle_factor (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for triangle_factor on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
+                );
+            }
+        #endif
+
+        double l2 = 0.;
+        for (const auto& [edge, flip] : cell->custom_links().edges) {
+            auto [__c, nb] = this->_am.adjoints_of(edge);
+            if (__c != cell) { std::swap(__c, nb); }
+
+            // Exclude HCs and boundary
+            if (not nb or nb->state.type == 1) {
+                continue;
+            }
+
+            l2 += std::pow(this->_am.length_of(edge), 2);
+        }
+
+        return 2 * this->_am.area_of(cell) / l2;
+    }
+
+    /// @brief A factor for crossover from attached to detached state
+    /** A crossover between full basal attachment to basal detachment occurs
+     *  at `_critical_height`. It is implemented as a sigmoidal factor, where
+     *  depth of triangles is rescales with `distribution_factor`.
+     */
+    double distribution_factor (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for distribution_factor on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
+                );
+            }
+        #endif
+
+        return 1.;
+
+        // double H = this->height_of(cell);
+        // double k = _steepness / (_tissue_height - _critical_height);
+        // return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
+        // TODO
+    }
+
+    inline double height_of (const std::shared_ptr<Cell>& cell) const {
+        #if UTOPIA_DEBUG
+            if (not cell) {
+                throw std::runtime_error(
+                    "Checking for height on a boundary cell in "
+                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
+                );
+            }
+        #endif
+
+        return cell->state.get_parameter(_height);
+    }
+    
+    TriangleApproximationBase (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _tissue_height(get_as<double>("tissue_height", cfg)),
+        _critical_height(get_as<double>("critical_height", cfg)),
+        _steepness(get_as<double>("steepness", cfg)),
+        _height("TriangleApproximation__height"),
+        _height_derivative(_height + "_derivative")
+    {}
+
+    /// @brief The instruction how to calculate forces acting on vertices
+    ///        from this term, i.e the derivative of the energy.
+    void compute_and_set_forces () override { }
+
+    /// @brief  The total energy for a subset of entities.
+    /** @param vertices  The container of vertices
+     *  @param edges     The container of edges
+     *  @param cells     The container of cells
+     *  
+     *  @return energy (double)
+    **/ 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const override
+    {
+        return 0.;
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
+        if (fabs(tmp - _tissue_height) > 1.e-8) {
+            _tissue_height = tmp;
+            this->_am.get_logger()->debug("Setting height of cells excluding "
+                "type 1 to {}", _tissue_height);
+            for (const auto& cell : this->_am.cells()) {
+                if (has_basal_contact(cell)) {
+                    cell->state.update_parameter(_height, _tissue_height);
+
+                }
+            }
+        }
+        if (cfg["set_height"]) {
+            auto height = get_as<double>("set_height", cfg);
+            this->_am.get_logger()->debug("Setting height of cells with type 1 "
+                "to {}", height);
+            for (const auto& cell : this->_am.cells()) {
+                if (not has_basal_contact(cell)) {
+                    cell->state.update_parameter(_height, height);
+                }
+            }
+        }
+
+        _critical_height = get_as<double>("critical_height", cfg,
+                                          _critical_height);
+        _steepness = get_as<double>("steepness", cfg, _steepness);
+    }
+
+};
+
+template <typename Model>
+class TriangleApproximationUpdate : public TriangleApproximationBase<Model>
+{
+public:
+    using Base = TriangleApproximationBase<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// @brief  Damping factor for hight development additional to dt
+    double _gamma;
+
+    /// @brief Maximum value for cell height
+    double _maximum_height;
+
+    /// @brief Minimum value for cell height
+    double _minimum_height;
+
+public:
+    TriangleApproximationUpdate (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _gamma(get_as<double>("gamma", cfg)),
+        _maximum_height(get_as<double>("maximum_height", cfg)),
+        _minimum_height(get_as<double>("minimum_height", cfg))
+    {
+        auto height = get_as<double>("set_height", cfg, this->_tissue_height);
+        for (const auto& cell : this->_am.cells()) {
+            if (cell->state.type != 1) {
+                cell->state.register_parameter(this->_height, this->_tissue_height);
+            }
+            else {
+                cell->state.register_parameter(this->_height, height);
+            }
+            cell->state.register_parameter(this->_height_derivative, 0.);
+            cell->state.register_parameter(this->_height_derivative + "_monitor", 0.);
+        }
+    }
+
+    ~TriangleApproximationUpdate () {
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.unregister_parameter(this->_height);
+            cell->state.unregister_parameter(this->_height_derivative);
+            cell->state.unregister_parameter(this->_height_derivative + "_monitor");
+        }
+    }
+
+    /// @brief The instruction how to calculate forces acting on vertices
+    ///        from this term, i.e the derivative of the energy.
+    void compute_and_set_forces () override { }
+
+    /// @brief  The total energy for a subset of entities.
+    /** @param vertices  The container of vertices
+     *  @param edges     The container of edges
+     *  @param cells     The container of cells
+     *  
+     *  @return energy (double)
+    **/ 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const override
+    {
+        return 0.;
+    }
+    
+    /// Performs the update of \f$ H_\alpha \f$
+    void update (double dt) override {
+        for (const auto& cell : this->_am.cells()) {
+            if (this->has_basal_contact(cell)) {
+                continue;
+            }
+
+            double H = cell->state.get_parameter(this->_height);
+            double dH = cell->state.get_parameter(this->_height_derivative);
+            H -= dt * _gamma * dH;
+            H = std::max( std::min(H, _maximum_height), _minimum_height );
+            cell->state.update_parameter(this->_height, H);
+            cell->state.update_parameter(
+                this->_height_derivative + "_monitor", dH
+            );
+            cell->state.update_parameter(this->_height_derivative, 0.);
+        }
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        Base::update_parameters(cfg);
+        _gamma = get_as<double>("gamma", cfg, _gamma);
+        _maximum_height = get_as<double>("maximum_height",cfg,_maximum_height);
+        _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
+    }
+
+    std::vector<std::string> write_task_cell_properties_names () const override
+    {
+        return std::vector<std::string>({"height"});
+    }
+
+    std::vector<std::vector<double>> write_cell_properties () const override {
+        std::vector<double> heights({});
+        for (const auto& cell : this->_am.cells()) {
+            heights.push_back(cell->state.get_parameter(this->_height));
+        }
+        return std::vector<std::vector<double>>({ heights });
+    }
+};
+
+
+
 /// @brief The volume elasticity of a cell base class
 /** \f$ E_\alpha = k/2 (V_\alpha / V^{(0)} - 1)^2\f$, an elastic penalty on 
  *  cell volume  \f$ V_\alpha \f$.
@@ -40,12 +334,10 @@ namespace WorkFunction2Dplus {
  *              additional to numeric step size
  */
 template <typename Model>
-class VolumeElasticityTriangleBase 
-: 
-    public WorkFunction::WorkFunctionTerm<Model>
+class VolumeElasticityTriangleBase : public TriangleApproximationBase<Model>
 {
 public:
-    using Base = WorkFunction::WorkFunctionTerm<Model>;
+    using Base = TriangleApproximationBase<Model>;
 
     using SpaceVec = typename Base::AgentManager::SpaceVec;
 
@@ -61,98 +353,6 @@ protected:
 
     virtual double preferential_volume(
             const std::shared_ptr<Cell>& cell) const=0;
-
-    /// @brief The height of the tissue, defining a maximum height for every cell
-    double _tissue_height;
-
-    /// @brief Maximum value for cell height
-    double _maximum_height;
-
-    /// @brief Minimum value for cell height
-    double _minimum_height;
-
-    /// The crossover hight for loss of basal contact
-    double _critical_height;
-
-    /// The normalized crossover steepness for loss of basal contact
-    double _steepness;
-
-    /// @brief  The name of the cell's parameter referring to cell's height
-    const std::string _height;
-
-    /// @brief  The name of the cell's parameter referring to cell's height
-    const std::string _height_derivative;
-
-    /// @brief  Damping factor for hight development additional to dt
-    double _gamma;
-    
-    /// @brief Check whether cell has a basal contact
-    /// @param height The height of considered cell
-    /// @return Whether cell has a basal contact
-    bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for Basal contact on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
-                );
-            }
-        #endif
-
-        return cell->state.type != 1;
-    }
-
-    /// @brief  A factor that rescales depth of triangles to match cell's area
-    double triangle_factor (const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for triangle_factor on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
-                );
-            }
-        #endif
-
-        double l2 = 0.;
-        for (const auto& [edge, flip] : cell->custom_links().edges) {
-            l2 += std::pow(this->_am.length_of(edge), 2);
-        }
-
-        return 2 * this->_am.area_of(cell) / l2;
-    }
-
-    /// @brief A factor for crossover from attached to detached state
-    /** A crossover between full basal attachment to basal detachment occurs
-     *  at `_critical_height`. It is implemented as a sigmoidal factor, where
-     *  depth of triangles is rescales with `distribution_factor`.
-     */
-    double distribution_factor (const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for distribution_factor on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
-                );
-            }
-        #endif
-
-        double H = this->height_of(cell);
-        double k = _steepness / (_tissue_height - _critical_height);
-        return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
-    }
-
-    inline double height_of (const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for height on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
-                );
-            }
-        #endif
-
-        return cell->state.get_parameter(_height);
-    }
 
     /// @brief The volume of a cell
     /** If cell does not have a basal contact, it is considered columnar.
@@ -172,16 +372,16 @@ protected:
             }
         #endif
 
-        const double height = height_of(cell);
+        const double height = this->height_of(cell);
         const double area = this->_am.area_of(cell);
 
         double volume = area * height;
 
         // It is columnar itself, no neighbour contributions
         // but consider triangles not contributed by neighbors
-        if (not has_basal_contact(cell)) {
-            double f = triangle_factor(cell);
-            double d = distribution_factor(cell);
+        if (not this->has_basal_contact(cell)) {
+            double f = this->triangle_factor(cell);
+            double d = this->distribution_factor(cell);
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
                 auto [c, n] = this->_am.adjoints_of(edge);
@@ -189,11 +389,11 @@ protected:
 
                 // the triangle volume
                 double V3 = std::pow(this->_am.length_of(edge), 2)
-                            * (_tissue_height - height)
+                            * (this->_tissue_height - height)
                             * f / 2;
 
                 // the distribution
-                if (n and has_basal_contact(n)) {
+                if (n and this->has_basal_contact(n)) {
                     volume += (1 - d) * V3;
                 }
                 else {
@@ -209,11 +409,11 @@ protected:
             if (c != cell) { std::swap(c, n); }
 
             // if neighbour has basal contact, does not contribute
-            if (n and not has_basal_contact(n)) { 
-                volume += distribution_factor(n)
+            if (n and not this->has_basal_contact(n)) { 
+                volume += this->distribution_factor(n)
                         * std::pow(this->_am.length_of(edge), 2)
-                        * (_tissue_height - height_of(n))
-                        * triangle_factor(n) / 2;
+                        * (this->_tissue_height - this->height_of(n))
+                        * this->triangle_factor(n) / 2;
             }
         }
 
@@ -228,52 +428,24 @@ public:
     )
     :
         Base(name, cfg, model),
-        _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
-        _tissue_height(get_as<double>("tissue_height", cfg)),
-        _critical_height(get_as<double>("critical_height", cfg)),
-        _steepness(get_as<double>("steepness", cfg)),
-        _maximum_height(get_as<double>("maximum_height", cfg)),
-        _minimum_height(get_as<double>("minimum_height", cfg)),
-        _height(name + "__" + get_as<std::string>("height_parameter_name", cfg)),
-        _height_derivative(_height + "_derivative"),
-        _gamma(get_as<double>("gamma", cfg))
-    {
-        auto height = get_as<double>("set_height", cfg, _tissue_height);
-        for (const auto& cell : this->_am.cells()) {
-            if (cell->state.type != 1) {
-                cell->state.register_parameter(_height, _tissue_height);
-            }
-            else {
-                cell->state.register_parameter(_height, height);
-            }
-            cell->state.register_parameter(_height_derivative, 0.);
-            cell->state.register_parameter(_height_derivative + "_monitor", 0.);
-        }
-    }
-
-    ~VolumeElasticityTriangleBase () {
-        for (const auto& cell : this->_am.cells()) {
-            cell->state.unregister_parameter(_height);
-            cell->state.unregister_parameter(_height_derivative);
-            cell->state.unregister_parameter(_height_derivative + "_monitor");
-        }
-    }
+        _elastic_modulus(get_as<double>("elastic_modulus", cfg))
+    { }
 
     void compute_and_set_forces () override {
         for (const auto& cell : this->_am.cells()) {
             double pressure = compute_pressure(cell);
 
-            const double H = cell->state.get_parameter(_height);
+            const double H = cell->state.get_parameter(this->_height);
             double volume = 0.;
             double V0 = preferential_volume(cell);
             double dH = 0.;     // the derivative to height
             double f = 0.;      // the triangle factor
             double d = 0.;      // the distribution factor
             double dW_dV = 0.;
-            if (not has_basal_contact(cell)) {
+            if (not this->has_basal_contact(cell)) {
                 volume = volume_of(cell);
-                f = triangle_factor(cell);
-                d = distribution_factor(cell);
+                f = this->triangle_factor(cell);
+                d = this->distribution_factor(cell);
 
                 dW_dV = _elastic_modulus * (volume - V0) / std::pow(V0, 2);
                 dH += dW_dV * this->_am.area_of(cell);
@@ -301,8 +473,8 @@ public:
                 b->state.add_force(force);
 
                 // consider the basal triangle volumes
-                if (not has_basal_contact(cell)) {
-                    if (n and has_basal_contact(n)) {
+                if (not this->has_basal_contact(cell)) {
+                    if (n and this->has_basal_contact(n)) {
                         double V0n = preferential_volume(n);
                         double Vn = volume_of(n);
                         double dW_dVn = _elastic_modulus * (Vn - V0n)
@@ -310,7 +482,7 @@ public:
 
                         // The own and neighbor contributions to tension
                         double Tn = (dW_dV * (1-d) + dW_dVn * d)
-                                    * l * f * (_tissue_height - H);
+                                    * l * f * (this->_tissue_height - H);
 
                         a->state.add_force(+ Tn * displ / l);
                         b->state.add_force(- Tn * displ / l);
@@ -320,7 +492,7 @@ public:
                     }
                     else {
                         // The contribution of perimeter and interfaces
-                        double T = dW_dV * l * f * (_tissue_height - H);
+                        double T = dW_dV * l * f * (this->_tissue_height - H);
 
                         a->state.add_force(+ T * displ / l);
                         b->state.add_force(- T * displ / l);
@@ -331,8 +503,8 @@ public:
             }
 
             cell->state.update_parameter(
-                _height_derivative, 
-                cell->state.get_parameter(_height_derivative) + dH
+                this->_height_derivative, 
+                cell->state.get_parameter(this->_height_derivative) + dH
             );
         }
     }
@@ -341,7 +513,7 @@ public:
     /// @param cell 
     /// @return apical pressure
     double compute_pressure(const std::shared_ptr<Cell>& cell) const override {
-        const double H = cell->state.get_parameter(_height);
+        const double H = cell->state.get_parameter(this->_height);
         double V0 = preferential_volume(cell);
         double P = _elastic_modulus * H
                    * (volume_of(cell) - V0) / std::pow(V0, 2);
@@ -367,65 +539,12 @@ public:
         }
         return energy;
     }
-    
-    /// Performs the update of \f$ H_\alpha \f$
-    void update (double dt) override {
-        for (const auto& cell : this->_am.cells()) {
-            if (has_basal_contact(cell)) {
-                continue;
-            }
-
-            double H = cell->state.get_parameter(_height);
-            double dH = cell->state.get_parameter(_height_derivative);
-            cell->state.update_parameter(
-                _height,
-                std::max(
-                    std::min(H - dt * _gamma * dH, _maximum_height), 
-                    _minimum_height
-                )
-            );
-            cell->state.update_parameter(
-                _height_derivative + "_monitor", 
-                cell->state.get_parameter(_height_derivative)
-            );
-            cell->state.update_parameter(_height_derivative, 0.);
-        }
-    }
 
     void update_parameters (const DataIO::Config& cfg) override {
+        Base::update_parameters(cfg);
+
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
-
-        double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
-        if (fabs(tmp - _tissue_height) > 1.e-8) {
-            _tissue_height = tmp;
-            this->_am.get_logger()->debug("Setting height of cells excluding "
-                "type 1 to {}", _tissue_height);
-            for (const auto& cell : this->_am.cells()) {
-                if (has_basal_contact(cell)) {
-                    cell->state.update_parameter(_height, _tissue_height);
-
-                }
-            }
-        }
-        if (cfg["set_height"]) {
-            auto height = get_as<double>("set_height", cfg);
-            this->_am.get_logger()->debug("Setting height of cells with type 1 "
-                "to {}", height);
-            for (const auto& cell : this->_am.cells()) {
-                if (not has_basal_contact(cell)) {
-                    cell->state.update_parameter(_height, height);
-                }
-            }
-        }
-
-        _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
-
-        _critical_height = get_as<double>("critical_height", cfg,
-                                          _critical_height);
-        _steepness = get_as<double>("steepness", cfg, _steepness);
-
-        _gamma = get_as<double>("gamma", cfg, _gamma);
     }
 
     bool test_constraints (const std::shared_ptr<spdlog::logger>& logger) 
@@ -438,12 +557,12 @@ public:
         logger->debug("   Testing height constraint ...");
         bool test_height = true;
         for (const auto& cell : this->_am.cells()) {
-            double height = cell->state.get_parameter(_height);
-            if (height > _tissue_height + 1.e-8) {
+            double height = cell->state.get_parameter(this->_height);
+            if (height > this->_tissue_height + 1.e-8) {
                 test_height = false;
                 logger->error("Cell {} (height: {}) exceeds the tissue height "
                               "({})!",
-                              cell->id(), height, _tissue_height);
+                              cell->id(), height, this->_tissue_height);
             }
             if (height < -1.e-8) {
                 test_height = false;
@@ -467,7 +586,7 @@ public:
         }
         SpaceVec domain = this->_am.get_space()->get_domain_size();
         double area = domain[0] * domain[1];
-        bool test_volume = fabs(tot_volume - area * _tissue_height) / tot_volume < 1.e-6;
+        bool test_volume = fabs(tot_volume - area * this->_tissue_height) / tot_volume < 1.e-6;
         if (test_volume) {
             logger->debug("   Volume constraint is fulfilled.");
         }
@@ -476,8 +595,8 @@ public:
             logger->error("  Test of volume constraint failed! "
                           "Total volume was {}, expected volume was {}. "
                           "Relative error {} exceeds {}.",
-                          tot_volume, area * _tissue_height, 
-                          fabs(tot_volume - area * _tissue_height) / tot_volume,
+                          tot_volume, area * this->_tissue_height, 
+                          fabs(tot_volume - area * this->_tissue_height) / tot_volume,
                           1.e-6);
         }
 
@@ -494,20 +613,16 @@ public:
     }
 
     std::vector<std::string> write_task_cell_properties_names () const override {
-        return std::vector<std::string>({"height", "volume"});
+        return std::vector<std::string>({"volume"});
     }
 
     std::vector<std::vector<double>> write_cell_properties () const override {
-        std::vector<double> heights({});
         std::vector<double> volumes({});
 
         for (const auto& cell : this->_am.cells()) {
-            heights.push_back(cell->state.get_parameter(_height));
             volumes.push_back(volume_of(cell));
         }
-        return std::vector<std::vector<double>>({
-            heights, volumes
-        });
+        return std::vector<std::vector<double>>({ volumes });
     }
     
 
@@ -515,25 +630,21 @@ public:
         return std::vector<std::string>({
             "energy",
             "pressure",
-            "extrusiveness"
         });
     }
 
     std::vector<std::vector<double>> write_cell_energies () const override {
         std::vector<double> energies({});
         std::vector<double> pressures({});
-        std::vector<double> dHs({});
         
         for (const auto& cell : this->_am.cells()) {
             energies.push_back(compute_energy(cell));
             pressures.push_back(compute_pressure(cell));
-            dHs.push_back(-1. * cell->state.get_parameter(_height_derivative + "_monitor"));
         }
 
         return std::vector<std::vector<double>>({
             energies,
             pressures,
-            dHs
         });
     }
 };
@@ -719,10 +830,10 @@ public:
  *              height parameter from gradient.
  */
 template <typename Model>
-class SurfaceElasticity : public WorkFunction::WorkFunctionTerm<Model>
+class SurfaceElasticity : public TriangleApproximationBase<Model>
 {
 public:
-    using Base = WorkFunction::WorkFunctionTerm<Model>;
+    using Base = TriangleApproximationBase<Model>;
 
     using SpaceVec = typename Base::AgentManager::SpaceVec;
 
@@ -738,89 +849,6 @@ protected:
 
     /// @brief The target volume for a cell at which there is no pressure
     double _preferential_surface;
-
-    /// @brief The height of the tissue, defining a maximum height for every cell
-    double _tissue_height;
-
-    /// The crossover hight for loss of basal contact
-    double _critical_height;
-
-    /// The normalized crossover steepness for loss of basal contact
-    double _steepness;
-
-    /// @brief  The name of the cell's parameter referring to cell's height
-    const std::string _height;
-
-    /// @brief  The name of the cell's parameter referring to cell's height
-    const std::string _height_derivative;
-
-    /// @brief Check whether cell has a basal contact
-    /// @param height The height of considered cell
-    /// @return Whether cell has a basal contact
-    bool has_basal_contact(const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for Basal contact on a boundary cell in "
-                    "PCPVertex::WorkFunction::SurfaceElasticity!"
-                );
-            }
-        #endif
-
-        return cell->state.type != 1;
-    }
-
-    /// @brief  A factor that rescales depth of triangles to match cell's area
-    double triangle_factor (const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for triangle_factor on a boundary cell in "
-                    "PCPVertex::WorkFunction::SurfaceElasticity!"
-                );
-            }
-        #endif
-
-        double l2 = 0.;
-        for (const auto& [edge, flip] : cell->custom_links().edges) {
-            l2 += std::pow(this->_am.length_of(edge), 2);
-        }
-
-        return 2 * this->_am.area_of(cell) / l2;
-    }
-
-    /// @brief A factor for crossover from attached to detached state
-    /** A crossover between full basal attachment to basal detachment occurs
-     *  at `_critical_height`. It is implemented as a sigmoidal factor, where
-     *  depth of triangles is rescales with `distribution_factor`.
-     */
-    double distribution_factor (const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for distribution_factor on a boundary cell in "
-                    "PCPVertex::WorkFunction::VolumeElasticityTriangle!"
-                );
-            }
-        #endif
-
-        double H = this->height_of(cell);
-        double k = _steepness / (_tissue_height - _critical_height);
-        return 1. - 1. / (1. + exp(- k * (H - _critical_height)));
-    }
-
-    inline double height_of (const std::shared_ptr<Cell>& cell) const {
-        #if UTOPIA_DEBUG
-            if (not cell) {
-                throw std::runtime_error(
-                    "Checking for height on a boundary cell in "
-                    "PCPVertex::WorkFunction::SurfaceElasticity!"
-                );
-            }
-        #endif
-
-        return cell->state.get_parameter(_height);
-    }
 
     /// @brief The volume of a cell
     /** If cell does not have a basal contact, it is considered columnar.
@@ -840,15 +868,15 @@ protected:
             }
         #endif
 
-        const double height = cell->state.get_parameter(_height);
+        const double height = cell->state.get_parameter(this->_height);
 
         double surface = this->_am.perimeter_of(cell) * height;
         surface += 2 * this->_am.area_of(cell);
 
         // It is columnar itself, so no neighbour contributions
-        if (not has_basal_contact(cell)) {
-            double f = triangle_factor(cell);
-            double d = distribution_factor(cell);
+        if (not this->has_basal_contact(cell)) {
+            double f = this->triangle_factor(cell);
+            double d = this->distribution_factor(cell);
 
             // consider triangles that are not occupied by neighbors
             for (const auto& [edge, flip] : cell->custom_links().edges) {
@@ -856,10 +884,10 @@ protected:
                 if (c != cell) { std::swap(c, n); }
 
                 double length = this->_am.length_of(edge);
-                if (n and has_basal_contact(n)) {
+                if (n and this->has_basal_contact(n)) {
                     // the new lateral faces
                     double S3 = length * std::sqrt(1 + 4. * std::pow(f*d, 2))
-                                * (_tissue_height - height);
+                                * (this->_tissue_height - height);
 
                     // additional rescaling subtracting approximated
                     // triangle-triangle interface
@@ -869,7 +897,7 @@ protected:
                 else {
                     // the new lateral faces, including the outer extension
                     surface += length * (std::sqrt(1 + 4. * std::pow(f,2)) + 1)
-                               * (_tissue_height - height);
+                               * (this->_tissue_height - height);
                 }
             }
             
@@ -882,15 +910,15 @@ protected:
             if (c != cell) { std::swap(c, n); }
 
             // if neighbour has basal contact, does not contribute
-            if (n and not has_basal_contact(n)) {
+            if (n and not this->has_basal_contact(n)) {
                 double length = this->_am.length_of(edge);
-                double f = triangle_factor(n);
-                double d = distribution_factor(n);
+                double f = this->triangle_factor(n);
+                double d = this->distribution_factor(n);
 
                 // the new lateral faces 
                 // minus what was assumed from columnar
                 double S3 = length * (std::sqrt(1 + 4. * std::pow(f*d, 2)) - 1)
-                            * (_tissue_height - height_of(n));
+                            * (this->_tissue_height - this->height_of(n));
 
                 surface += S3;
 
@@ -911,18 +939,12 @@ public:
     :
         Base(name, cfg, model),
         _elastic_modulus(get_as<double>("elastic_modulus", cfg)),
-        _preferential_surface(get_as<double>("preferential_surface", cfg)),
-        _tissue_height(get_as<double>("tissue_height", cfg)),
-        _critical_height(get_as<double>("critical_height", cfg)),
-        _steepness(get_as<double>("steepness", cfg)),
-        _height(get_as<std::string>("VolumeElasticity_term", cfg) 
-                + "__" + get_as<std::string>("height_parameter_name", cfg)),
-        _height_derivative(_height + "_derivative")
+        _preferential_surface(get_as<double>("preferential_surface", cfg))
     { }
 
     void compute_and_set_forces () override {
         for (const auto& cell : this->_am.cells()) {
-            const double H = cell->state.get_parameter(_height);
+            const double H = cell->state.get_parameter(this->_height);
             double surface = surface_of(cell);
             double area = 0.;
             double dH = 0.;
@@ -937,13 +959,13 @@ public:
             );
 
             // NOTE non-columnar neighbour contributions considered below only
-            if (not has_basal_contact(cell)) {
+            if (not this->has_basal_contact(cell)) {
                 area = this->_am.area_of(cell);
 
                 dH += dW_dS * this->_am.perimeter_of(cell);
                 
-                f = triangle_factor(cell);
-                d = distribution_factor(cell);
+                f = this->triangle_factor(cell);
+                d = this->distribution_factor(cell);
                 // NOTE factors are assumed constant
                 //      i.e. df/dl = 0 and df/dA = 0
                 //           dd/dl = 0 and dd/dA = 0
@@ -979,12 +1001,12 @@ public:
                 b->state.add_force(- pressure/2. * normal);
 
                 // calculate the basal triangle contributions
-                if (not has_basal_contact(cell)) {
-                    if (n and has_basal_contact(n)) {
+                if (not this->has_basal_contact(cell)) {
+                    if (n and this->has_basal_contact(n)) {
                         // Derivative to l of cell's S3 contribution
                         double Tn = dW_dS * (1. - d) * (
                             // lateral faces of triangle
-                            (_tissue_height - H) 
+                            (this->_tissue_height - H) 
                             * std::sqrt(1 + 4. * std::pow(f * d, 2))
                         );
 
@@ -999,7 +1021,7 @@ public:
                         Tn += dW_dS_n * (
                             // lateral faces
                             // minus what was assumed from columnar
-                            (_tissue_height - H) 
+                            (this->_tissue_height - H) 
                             * (std::sqrt(1 + 4. * std::pow(f * d, 2)) - 1)
                             // medial & basal faces
                             + 2 * l * f * d
@@ -1015,9 +1037,9 @@ public:
 
                         // derivative S3 to H for cell
                         // the change in distribution factor contribution
-                        double k = 5. / (_tissue_height - _critical_height);
-                        double expo = exp(-k * (H - _critical_height));
-                        dH += dW_dS * l * (_tissue_height - H)
+                        double k = 5. / (this->_tissue_height - this->_critical_height);
+                        double expo = exp(-k * (H - this->_critical_height));
+                        dH += dW_dS * l * (this->_tissue_height - H)
                               * std::sqrt(1 + 4. * std::pow(f * d, 2))
                               * std::pow(1./(1+expo), 2) * k * expo;
                         
@@ -1030,7 +1052,7 @@ public:
                     else {
                         // derivative to l of unoccupied triangles
                         double T = dW_dS * (
-                            (_tissue_height - H) 
+                            (this->_tissue_height - H) 
                             * (std::sqrt(1 + 4. * std::pow(f, 2)) + 1)
                         );
 
@@ -1043,8 +1065,8 @@ public:
                 }
             }
 
-            dH += cell->state.get_parameter(_height_derivative);
-            cell->state.update_parameter(_height_derivative, dH);
+            dH += cell->state.get_parameter(this->_height_derivative);
+            cell->state.update_parameter(this->_height_derivative, dH);
         }
     }
 
@@ -1067,28 +1089,12 @@ public:
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
+        Base::update_parameters(cfg);
+
         _elastic_modulus = get_as<double>("elastic_modulus", cfg, 
                                           _elastic_modulus);
         _preferential_surface = get_as<double>("preferential_surface", cfg, 
                                                _preferential_surface);
-        
-        // update tissue height within all cells
-        double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
-        if (fabs(tmp - _tissue_height) > 1.e-8) {
-            _tissue_height = tmp;
-            this->_am.get_logger()->debug("Setting height of cells excluding "
-                "type 1 to {}", _tissue_height);
-            for (const auto& cell : this->_am.cells()) {
-                if (cell->state.type != 1) {
-                    cell->state.update_parameter(_height, _tissue_height);
-
-                }
-            }
-        }
-
-        _critical_height = get_as<double>("critical_height", cfg,
-                                          _critical_height);
-        _steepness = get_as<double>("steepness", cfg, _steepness);
     }
 
     std::vector<std::string> write_task_cell_properties_names () const override {

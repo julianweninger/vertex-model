@@ -2,7 +2,7 @@
 single_universe:
   enabled: False
   universes:
-    seed: 1
+    seed: 0
     
 _definitions:
   enabled: false
@@ -174,50 +174,13 @@ cell_properties/height: !pspace
       _property:
         path: data/PCPTopology/Cells
         transform:
-          - .sel: [!dag_prev , {property: volume_elasticity__height}]
+          - .sel: [!dag_prev , {property: triangle_approximation_update__height}]
           - .rename: [!dag_prev , height]
 
   y: height
   helpers:
     set_labels:
       y: average height
-    # set_limits: 
-    #   y: [0., 1]
-cell_properties/extrusiveness: !pspace
-  based_on: cell_properties
-  to_plot:
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      color: red
-      errorbar: sd
-      palette: Reds
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      color: red
-      estimator: median
-      linestyle: dashed
-      # errorbar: sd
-      palette: Reds
-    - function: sns.lineplot
-      data: !dag_result hair_cells
-      color: red
-      hue: id
-      # estimator: median
-      linestyle: dotted
-      # errorbar: sd
-      palette: Reds
-  select_and_combine:
-    fields:
-      _property:
-        path: data/PCPTopology/Cell_energies
-        transform:
-          - .sel: [!dag_prev , {term: volume_elasticity__extrusiveness}]
-          - .rename: [!dag_prev , extrusiveness]
-
-  y: extrusiveness
-  helpers:
-    set_labels:
-      y: extrusiveness
     # set_limits: 
     #   y: [0., 1]
     
@@ -317,7 +280,7 @@ cell_segmentation__height:
     property:
       path: data/PCPTopology/Cells
       transform:
-        - .sel: [!dag_node -1, {property: volume_elasticity__height}]
+        - .sel: [!dag_node -1, {property: triangle_approximation_update__height}]
         - .sel: [!dag_node -2, {property: cell_type}]
         - create_mask: [!dag_prev , ==, 1]
         - .where: [!dag_node -3, !dag_node -1]
@@ -386,22 +349,4 @@ cell_segmentation__surface:
     interpolation: nearest
     vmin: 2.
     vmax: 6.5
-    cmap: magma
-
-
-cell_segmentation__extrusiveness:
-  based_on: cell_segmentation
-  # enabled: False
-
-  select:
-    property:
-      path: data/PCPTopology/Cell_energies
-      transform:
-        - .sel: [!dag_node -1, {term: volume_elasticity__extrusiveness}]
-        - .rename: [!dag_prev , extrusiveness]
-
-  property_interpolation_plot_kwargs:
-    interpolation: nearest
-    vmin: ~
-    vmax: ~
     cmap: magma
