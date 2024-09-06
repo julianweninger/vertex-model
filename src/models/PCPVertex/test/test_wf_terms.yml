@@ -1,5 +1,5 @@
 ---
-test_work_function_terms: []
+test_work_function_terms:
 # Area elasticity
 - area_elasticity:
     elastic_modulus: 0.5
@@ -312,82 +312,6 @@ test_work_function_terms: []
     elasticity: 0.5
     boundary: periodic
 
-# - volume_elasticity:
-#     elastic_modulus: 1.1
-#     preferential_volume: 0.9
-#     tissue_height: 0.8
-#     set_height: 0.4
-#     minimum_height: 0.2
-#     height_parameter_name: height
-#     gamma: 0.05
-#     skip_test_cases:
-#       - columnar
-#       - columnar-periodic
-#       - non-periodic
-# - volume_elasticity_triangle:
-#     elastic_modulus: 1.1
-#     preferential_volume: 0.9
-#     tissue_height: 0.8
-#     set_height: 0.4
-#     required_WF_terms:
-#     - term: triangle_approximation_update
-#       gamma: 1.
-#       tissue_height: 0.8
-#       maximum_height: 0.8
-#       minimum_height: 0.1
-#     skip_test_cases:
-#       - columnar
-#       - columnar-periodic
-#       - non-periodic
-#     # test_precision: 5.e-3
-# - volume_elasticity_triangle_heterotypic:
-#     elastic_modulus: 1.1
-#     preferential_volume: [0.95, 0.85]
-#     tissue_height: 0.8
-#     set_height: 0.4
-#     required_WF_terms:
-#     - term: triangle_approximation_update
-#       gamma: 1.
-#       tissue_height: 0.8
-#       maximum_height: 0.8
-#       minimum_height: 0.1
-#     skip_test_cases:
-#       - columnar
-#       - columnar-periodic
-#       - non-periodic
-#     # test_precision: 5.e-3
-# - surface_tension:
-#     surface_tension: 0.9
-#     VolumeElasticity_term: volume_elasticity
-#     height_parameter_name: height
-#     required_WF_terms:
-#     - term: volume_elasticity
-#       elastic_modulus: 0.
-#       preferential_volume: 0.9
-#       tissue_height: 0.8
-#       critical_height: 0.75
-#       set_height: 0.4
-#       minimum_height: 0.2
-#       height_parameter_name: height
-#       gamma: 0.05
-#     skip_test_cases:
-#       - columnar
-#       - columnar-periodic
-#       - non-periodic
-# - surface_elasticity:
-#     elastic_modulus: 0.9
-#     preferential_surface: 5.3
-#     tissue_height: 0.8
-#     required_WF_terms:
-#     - term: triangle_approximation_update
-#       gamma: 1.
-#       tissue_height: 0.8
-#       maximum_height: 0.8
-#       minimum_height: 0.1
-#     skip_test_cases:
-#       - columnar
-#       - columnar-periodic
-#       - non-periodic
 
 test_update_area_elasticity_heterotypic:
   area_elasticity_heterotypic:
@@ -498,26 +422,27 @@ test_update_2D_plus:
       maximum_height: 0.8
       minimum_height: 0.1
 
-# - volume_elasticity_triangle_heterotypic:
-#     elastic_modulus: 1.1
-#     preferential_volume: [0.95, 0.85]
-#     tissue_height: 0.8
-#     required_WF_terms:
-#     - term: triangle_approximation_update
-#       gamma: 1.
-#       tissue_height: 0.8
-#       set_height: 0.6
-#       maximum_height: 0.8
-#       minimum_height: 0.1
+- volume_elasticity_triangle_heterotypic:
+    elastic_modulus: 1.1
+    preferential_volume: [0.95, 0.85]
+    tissue_height: 0.8
+    required_WF_terms:
+    - term: triangle_approximation_update
+      gamma: 1.
+      tissue_height: 0.8
+      set_height: 0.6
+      maximum_height: 0.8
+      minimum_height: 0.1
 
-# - surface_elasticity:
-#     elastic_modulus: 0.9
-#     preferential_surface: 5.3
-#     tissue_height: 0.8
-#     required_WF_terms:
-#     - term: triangle_approximation_update
-#       gamma: 1.
-#       tissue_height: 0.8
-#       set_height: 0.6
-#       maximum_height: 0.8
-#       minimum_height: 0.1
+- surface_elasticity:
+    elastic_modulus: 0.9
+    preferential_surface: 5.6
+    tissue_height: 0.8
+    test_precision: 1.e-5
+    required_WF_terms:
+    - term: triangle_approximation_update
+      gamma: 1.
+      tissue_height: 0.8
+      set_height: 0.6
+      maximum_height: 0.8
+      minimum_height: 0.1

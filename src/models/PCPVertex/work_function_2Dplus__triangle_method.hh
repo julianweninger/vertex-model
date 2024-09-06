@@ -29,6 +29,9 @@ protected:
     const std::string _height;
 
     /// @brief  The name of the cell's parameter referring to cell's height
+    /** The derivate dW/dH. 
+     *  Note that the resulting force is F_z = -1/\gamma dW/dH 
+     */
     const std::string _height_derivative;
 
 public:
@@ -240,12 +243,12 @@ public:
             }
 
             double H = cell->state.get_parameter(this->_height);
-            double dH = cell->state.get_parameter(this->_height_derivative);
-            H -= dt * _gamma * dH;
+            double dW_dH = cell->state.get_parameter(this->_height_derivative);
+            H -= dt * _gamma * dW_dH;
             H = std::max( std::min(H, _maximum_height), _minimum_height );
             cell->state.update_parameter(this->_height, H);
             cell->state.update_parameter(
-                this->_height_derivative + "_monitor", dH
+                this->_height_derivative + "_monitor", dW_dH
             );
             cell->state.update_parameter(this->_height_derivative, 0.);
         }
@@ -401,7 +404,7 @@ public:
 
         // iterate all cells
         for (const auto& cell : this->_am.cells()) {
-            double dH = 0.;     // the derivative to height
+            double dW_dH = 0.;     // the derivative to height
             double dW_dV = pressures[cell];
 
             double H = cell->state.get_parameter(this->_height);
@@ -417,7 +420,7 @@ public:
             double dW_df = 0.;
             if (not this->has_basal_contact(cell)) {
                 f = this->triangle_factor(cell);
-                dH += dW_dV * volume / H;
+                dW_dH += dW_dV * volume / H;
                 area += this->_am.area_of(cell);
 
                 // and neighbour derivatives
@@ -466,7 +469,7 @@ public:
                     a->state.add_force(+ dW_dl * displ / l);
                     b->state.add_force(- dW_dl * displ / l);
 
-                    dH -= dW_dVn * std::pow(l, 2) * f / 2;
+                    dW_dH -= dW_dVn * std::pow(l, 2) * f / 2;
                 }
 
 
@@ -478,7 +481,7 @@ public:
 
             cell->state.update_parameter(
                 this->_height_derivative, 
-                cell->state.get_parameter(this->_height_derivative) + dH
+                cell->state.get_parameter(this->_height_derivative) + dW_dH
             );
         }
     }
@@ -839,7 +842,7 @@ protected:
         #endif
 
         
-        // apical and basal area
+        // apical and basal core area
         double surface = 2 * this->_am.area_of(cell);
 
         // Columnar cells, -> lateral contribution uniform
@@ -893,104 +896,126 @@ public:
     { }
 
     void compute_and_set_forces () override {
+        std::unordered_map<std::shared_ptr<Cell>, double> surfaces;
+        std::unordered_map<std::shared_ptr<Cell>, double> tensions;
         for (const auto& cell : this->_am.cells()) {
-            const double H = cell->state.get_parameter(this->_height);
-            double surface = surface_of(cell);
+            double H  = cell->state.get_parameter(this->_height);
+            double S  = surface_of(cell);
+            double S0 = _preferential_surface;
+
+            surfaces[cell] = S;
+            tensions[cell] = _elastic_modulus * (S - S0) / std::pow(S0, 2);
+        }
+        std::unordered_map<std::shared_ptr<Edge>, double> lengths;
+        for (const auto& edge : this->_am.edges()) {
+            lengths[edge] = this->_am.length_of(edge);
+        }
+
+        for (const auto& cell : this->_am.cells()) {
+            double dW_dH = 0.;
+            double dW_dS = tensions[cell];
+            
+            double H = cell->state.get_parameter(this->_height);
+            double S = surfaces[cell];
+            double S0 = _preferential_surface;
+            double f = 0.;  // the triangle factor
             double area = 0.;
-            double dH = 0.;
-            double f = 1.;  // the triangle factor
 
-            // derivative to S
-            double dW_dS = (
-                _elastic_modulus
-                * (surface - _preferential_surface) 
-                / std::pow(_preferential_surface, 2)
-            );
-
+            double dWc_dA = dW_dS * 2.;
+            double dWn_dA = 0.;     // accumulate from neighbors
+            double L2 = 0.;
+            double dW_df = 0.;
             // NOTE non-columnar neighbour contributions considered below only
             if (not this->has_basal_contact(cell)) {
+                f = this->triangle_factor(cell);
                 area = this->_am.area_of(cell);
 
-                dH += dW_dS * this->_am.perimeter_of(cell);
-                
-                f = this->triangle_factor(cell);
+                dW_dH += dW_dS * this->_am.perimeter_of(cell);
+
+                // neighbour derivatives
+                for (const auto& [edge, flip] : cell->custom_links().edges) {
+                    auto [cell__, n] = this->_am.adjoints_of(edge);
+                    if (cell__ != cell) { std::swap(cell__, n); }
+
+                    // account for A in nbs volume (within factor)
+                    if (n and this->has_basal_contact(n)) {
+                        double t = tensions[n];
+                        double l2 = std::pow(lengths[edge], 2);
+                        dW_df += t * (
+                            l2 
+                            + 4 * lengths[edge] * (this->_tissue_height - H) * f
+                              / std::sqrt(1 + 4. * std::pow(f, 2))
+                        );
+                        L2 += l2;
+                    }
+                }
+                dWn_dA = 2 * dW_df / L2;
             }
 
-            // derivative perimeter contribution
-            double T = dW_dS * H;
-
-            // derivative apical & basal contributions
-            double pressure = dW_dS * 2;
-
-
             for (const auto& [edge, flip] : cell->custom_links().edges) {
-                auto [c, n] = this->_am.adjoints_of(edge);
-                if (c != cell) { std::swap(c, n); }
+                auto a = edge->custom_links().a;
+                auto b = edge->custom_links().b;
+                if (flip) { std::swap(a, b); }
 
-                SpaceVec displ = this->_am.displacement(edge);
-                double l = arma::norm(displ);
+                auto [cell__, n] = this->_am.adjoints_of(edge);
+                if (cell__ != cell) { std::swap(cell__, n); }
 
-                const auto& a = edge->custom_links().a;
-                const auto& b = edge->custom_links().b;
-
-                // calculate forces from perimeter contribution
-                a->state.add_force(+ T * displ / l);
-                b->state.add_force(- T * displ / l);
-
-                // calculate forces from apical & basal contribution
+                SpaceVec displ = this->_am.displacement(a, b);
                 SpaceVec normal({displ[1], -displ[0]});
-                if (flip) {
-                    normal *= -1;
-                }                
-                a->state.add_force(- pressure/2. * normal);
-                b->state.add_force(- pressure/2. * normal);
+                double l = lengths[edge];
 
                 // calculate the basal triangle contributions
+                double dWc_dl = 0.;     // the upper lateral contribution
+                double dWn_dl = 0.;     // the lower lateral
                 if (not this->has_basal_contact(cell)) {
+                    dWc_dl = dW_dS * H;
+                    
                     if (n and this->has_basal_contact(n)) {
                         // derivative to S of neighbor n
-                        double dW_dS_n = (
-                            _elastic_modulus
-                            * (surface_of(n) - _preferential_surface)
-                            / std::pow(_preferential_surface, 2)
-                        );
+                        double dW_dSn = tensions[n];
 
                         // Derivative to l of neighbor's S3 contribution
-                        double Tn = dW_dS_n * (
+                        dWn_dl += dW_dSn * (
                             // lateral faces
-                            // minus what was assumed from columnar
                             (this->_tissue_height - H) 
-                            * (std::sqrt(1 + 4. * std::pow(f, 2)) - 1)
+                            * std::sqrt(1 + 4. * std::pow(f, 2))
                             // medial & basal faces
                             + 2 * l * f
                         );
-
-                        // Force from neighbor's S3 contribution
-                        a->state.add_force(+ Tn * displ / l);
-                        b->state.add_force(- Tn * displ / l);
+                        
+                        // factor derivative
+                        dWn_dl -= dW_df * 4 * area / std::pow(L2, 2) * l;
                         
                         // derivative S3 to H for neighbor n
-                        dH -= dW_dS_n * l 
-                              * (std::sqrt(1 + 4. * std::pow(f, 2)) - 1);
-                    }
-                    else {
-                        // derivative to l of unoccupied triangles
-                        double T = dW_dS * (
-                            (this->_tissue_height - H) 
-                            * (std::sqrt(1 + 4. * std::pow(f, 2)) + 1)
-                        );
-
-                        a->state.add_force(+ T * displ / l);
-                        b->state.add_force(- T * displ / l);
-
-                        // derivative to H of unoccupied triangles
-                        dH -= dW_dS * (std::sqrt(1 + 4 * std::pow(f, 2)) + 1)*l;
+                        dW_dH -= dW_dSn * l * std::sqrt(1 + 4. * std::pow(f, 2));
                     }
                 }
+                else {
+                    if (not n or this->has_basal_contact(n)) {
+                        dWc_dl = dW_dS * this->_tissue_height;
+                    }
+                    else {
+                        dWc_dl = dW_dS * this->height_of(n);
+                        n->state.update_parameter(
+                            this->_height_derivative,
+                            n->state.get_parameter(this->_height_derivative)
+                            + dW_dS * l
+                        );
+                    }
+                }
+
+                // calculate forces from perimeter contribution
+                a->state.add_force(+ (dWc_dl + dWn_dl) * displ / l);
+                b->state.add_force(- (dWc_dl + dWn_dl) * displ / l);
+
+                // calculate forces from apical & basal contribution
+                SpaceVec force = -(dWc_dA + dWn_dA) * normal / 2.;
+                a->state.add_force(force);
+                b->state.add_force(force);
             }
 
-            dH += cell->state.get_parameter(this->_height_derivative);
-            cell->state.update_parameter(this->_height_derivative, dH);
+            dW_dH += cell->state.get_parameter(this->_height_derivative);
+            cell->state.update_parameter(this->_height_derivative, dW_dH);
         }
     }
 

@@ -280,14 +280,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 // Differentiate 50 % type 1
                 std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
                 std::size_t cnt_1 = 0;
-                while(cnt_1 != cells.size() / 2) {
+                while(cnt_1 != cells.size() / 5) {
                     auto c_id = distr(*model.get_rng());
                     if (cells[c_id]->state.type == 0) {
                         cells[c_id]->state.type = 1;
                         cnt_1++;
                     }
                 }
-                BOOST_TEST(cnt_1 == cells.size() / 2);
+                BOOST_TEST(cnt_1 == cells.size() / 5);
                 
                 for (std::size_t i = 0; i < 50; i++) {
                     model.iterate();
@@ -838,36 +838,41 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                     am.move_to(vertex, v_pos0);
                 }
 
+                for (const auto& cell : cells) {
+                    if (cell->state.type != 1) { continue; }
 
-                // test energy on height variables
-                double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
-                double integral = 0.;
-                for (std::size_t i = 0; i < steps; i++) {
-                    cell->state.update_parameter(_height_derivative, 0.);
-                    term_fct->compute_and_set_forces();
+                    double h0 = cell->state.get_parameter(_height);
 
-                    double dW_dH = cell->state.get_parameter(_height_derivative);
+                    // test energy on height variables
+                    double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+                    double integral = 0.;
+                    for (std::size_t i = 0; i < steps; i++) {
+                        cell->state.update_parameter(_height_derivative, 0.);
+                        term_fct->compute_and_set_forces();
 
-                    double tmp_H = cell->state.get_parameter(_height);
-                    cell->state.update_parameter(_height, tmp_H + 0.1 / steps);
+                        double dW_dH = cell->state.get_parameter(_height_derivative);
 
-                    double dH = cell->state.get_parameter(_height) - tmp_H;
-                    cell->state.update_parameter(_height_derivative, 0.);
-                    term_fct->compute_and_set_forces();
-                    double mean_deriv = 0.5 * (
-                        dW_dH 
-                        + cell->state.get_parameter(_height_derivative)
-                    );
+                        double tmp_H = cell->state.get_parameter(_height);
+                        cell->state.update_parameter(_height, tmp_H + 0.1 / steps);
 
-                    integral += mean_deriv * dH;
+                        double dH = cell->state.get_parameter(_height) - tmp_H;
+                        cell->state.update_parameter(_height_derivative, 0.);
+                        term_fct->compute_and_set_forces();
+                        double mean_dW_dH = 0.5 * (
+                            dW_dH 
+                            + cell->state.get_parameter(_height_derivative)
+                        );
+
+                        integral += mean_dW_dH * dH;
+                    }
+
+                    double E1 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+                    BOOST_CHECK_CLOSE(E1 - E0, integral, precision);
+
+                    BOOST_TEST(term_fct->test_constraints(logger));
+
+                    cell->state.update_parameter(_height, h0);
                 }
-
-                double E1 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
-                BOOST_CHECK_CLOSE(E1 - E0, integral, precision);
-
-                BOOST_TEST(term_fct->test_constraints(logger));
-
-                cell->state.update_parameter(_height, H0);
 
 
                 // test a duplet of cells
