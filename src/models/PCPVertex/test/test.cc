@@ -328,7 +328,7 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 BOOST_TEST(term_function->test_constraints(model.get_logger()));
 
                 std::uniform_real_distribution<double> uniform_distr(0, 2*M_PI);
-                std::size_t steps = 200;
+                std::size_t steps = 500;
 
                 for (const auto& vertex : am.vertices()) {
                     const SpaceVec v_pos0 = am.position_of(vertex);
