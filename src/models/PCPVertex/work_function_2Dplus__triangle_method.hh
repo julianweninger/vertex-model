@@ -22,7 +22,7 @@ public:
     using Cell = typename Base::Cell;
 
 protected:
-    /// @brief The height of the tissue, defining a maximum height for every cell
+    /// @brief The height of the tissue
     double _tissue_height;
 
     /// @brief  The name of the cell's parameter referring to cell's height
@@ -197,13 +197,15 @@ public:
         auto height = get_as<double>("set_height", cfg, this->_tissue_height);
         for (const auto& cell : this->_am.cells()) {
             if (cell->state.type != 1) {
-                cell->state.register_parameter(this->_height, this->_tissue_height);
+                cell->state.register_parameter(
+                        this->_height,this->_tissue_height);
             }
             else {
                 cell->state.register_parameter(this->_height, height);
             }
             cell->state.register_parameter(this->_height_derivative, 0.);
-            cell->state.register_parameter(this->_height_derivative + "_monitor", 0.);
+            cell->state.register_parameter(
+                    this->_height_derivative + "_monitor", 0.);
         }
     }
 
@@ -211,7 +213,8 @@ public:
         for (const auto& cell : this->_am.cells()) {
             cell->state.unregister_parameter(this->_height);
             cell->state.unregister_parameter(this->_height_derivative);
-            cell->state.unregister_parameter(this->_height_derivative + "_monitor");
+            cell->state.unregister_parameter(
+                    this->_height_derivative + "_monitor");
         }
     }
 
@@ -390,7 +393,6 @@ public:
         std::unordered_map<std::shared_ptr<Cell>, double> volumes;
         std::unordered_map<std::shared_ptr<Cell>, double> pressures;
         for (const auto& cell : this->_am.cells()) {
-            double H  = cell->state.get_parameter(this->_height);
             double V  = volume_of(cell);
             double V0 = preferential_volume(cell);
 
@@ -409,7 +411,6 @@ public:
 
             double H = cell->state.get_parameter(this->_height);
             double volume = volumes[cell];
-            double V0 = preferential_volume(cell);
             double f = 0.;      // the triangle factor
             double area = 0.;
 
@@ -559,7 +560,8 @@ public:
         }
         SpaceVec domain = this->_am.get_space()->get_domain_size();
         double area = domain[0] * domain[1];
-        bool test_volume = fabs(tot_volume - area * this->_tissue_height) / tot_volume < 1.e-6;
+        bool test_volume = fabs(tot_volume - area * this->_tissue_height) 
+                           / tot_volume < 1.e-6;
         if (test_volume) {
             logger->debug("   Volume constraint is fulfilled.");
         }
@@ -569,7 +571,7 @@ public:
                           "Total volume was {}, expected volume was {}. "
                           "Relative error {} exceeds {}.",
                           tot_volume, area * this->_tissue_height, 
-                          fabs(tot_volume - area * this->_tissue_height) / tot_volume,
+                          fabs(tot_volume-area*this->_tissue_height)/tot_volume,
                           1.e-6);
         }
 
@@ -714,7 +716,9 @@ public:
  *              to numeric step size
  */
 template <typename Model>
-class VolumeElasticityTriangleHeterotypic : public VolumeElasticityTriangleBase<Model>
+class VolumeElasticityTriangleHeterotypic 
+: 
+    public VolumeElasticityTriangleBase<Model>
 {
 public:
     using Base = VolumeElasticityTriangleBase<Model>;
@@ -899,7 +903,6 @@ public:
         std::unordered_map<std::shared_ptr<Cell>, double> surfaces;
         std::unordered_map<std::shared_ptr<Cell>, double> tensions;
         for (const auto& cell : this->_am.cells()) {
-            double H  = cell->state.get_parameter(this->_height);
             double S  = surface_of(cell);
             double S0 = _preferential_surface;
 
@@ -916,8 +919,6 @@ public:
             double dW_dS = tensions[cell];
             
             double H = cell->state.get_parameter(this->_height);
-            double S = surfaces[cell];
-            double S0 = _preferential_surface;
             double f = 0.;  // the triangle factor
             double area = 0.;
 
@@ -987,7 +988,7 @@ public:
                         dWn_dl -= dW_df * 4 * area / std::pow(L2, 2) * l;
                         
                         // derivative S3 to H for neighbor n
-                        dW_dH -= dW_dSn * l * std::sqrt(1 + 4. * std::pow(f, 2));
+                        dW_dH -= dW_dSn * l * std::sqrt(1 + 4. * std::pow(f,2));
                     }
                 }
                 else {
@@ -1046,7 +1047,8 @@ public:
                                                _preferential_surface);
     }
 
-    std::vector<std::string> write_task_cell_properties_names () const override {
+    std::vector<std::string> write_task_cell_properties_names () const override
+    {
         return std::vector<std::string>({"surface"});
     }
 

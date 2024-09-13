@@ -290,8 +290,6 @@ OperationBundle build_cell_parameter_incrementer (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
-    using SpaceVec = VertexModel::SpaceVec;
-
     OperationParams params(name, cfg, default_minim_params);
 
     std::string parameter = get_as<std::string>("parameter_name", cfg);
@@ -322,8 +320,6 @@ OperationBundle build_cell_parameter_setter (
         std::string name, const Config& cfg,
         const MinimizationParams& default_minim_params)
 {
-    using SpaceVec = VertexModel::SpaceVec;
-
     OperationParams params(name, cfg, default_minim_params);
 
     std::string parameter = get_as<std::string>("parameter_name", cfg);
