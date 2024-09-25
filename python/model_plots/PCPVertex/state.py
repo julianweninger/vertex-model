@@ -272,10 +272,16 @@ def cellular_structure(
 
             Lx = data['Lx'].sel(time=time).data
             Ly = data['Ly'].sel(time=time).data
-            if data['periodic'] and not semi_periodic_space:
-                domain_size_max_x = Lx
-                domain_size_max_y = Ly
-
+            if data['periodic']:
+                if not semi_periodic_space:
+                    domain_size_min_x = 0.
+                    domain_size_min_y = 0.
+                    domain_size_max_x = Lx
+                    domain_size_max_y = Ly
+                else:
+                    domain_size_min_y = 0.
+                    domain_size_max_y = Ly
+                    
             if set_limits is not None:
                 __set_limits = set_limits.copy()
                 __set_limits['x'] = __set_limits.get(
@@ -567,8 +573,6 @@ def cellular_structure(
 
                 plot_edges(colorbar=False, axis=tmp_ax)
 
-                tmp_ax.scatter(__set_limits['x'][0], __set_limits['y'][0], c='black', s=10)
-                tmp_ax.scatter(__set_limits['x'][1], __set_limits['y'][1], c='black', s=10)
 
                 tmp_ax.set_aspect('equal')
                 tmp_ax.set_xlim(__set_limits['x'])
@@ -596,13 +600,22 @@ def cellular_structure(
                 # Normalize to 0-255 and convert to uint8
                 intensity_image = np.uint8(gray_image)
 
-                # crop the image to the y-axis
-                sum__ = np.sum(intensity_image, axis=1).max()
-                intensity_image = intensity_image[:][np.sum(intensity_image, axis=1) < sum__]
-                intensity_image = intensity_image.transpose()
-                sum__ = np.sum(intensity_image, axis=1).max()
-                intensity_image = intensity_image[:][np.sum(intensity_image, axis=1) < sum__]
-                intensity_image = intensity_image.transpose()
+                # Get the figure DPI and size
+                dpi = tmp_fig.dpi
+                fig_width, fig_height = tmp_fig.get_size_inches() * dpi
+
+                # Get the bounding box of the axes in figure coordinates
+                bbox = tmp_ax.get_position()
+
+                # Convert the axes bounding box to pixel coordinates
+                x0, y0 = bbox.x0 * fig_width, bbox.y0 * fig_height
+                x1, y1 = bbox.x1 * fig_width, bbox.y1 * fig_height
+
+                # Crop the image to coordinates of axes
+                intensity_image = intensity_image[
+                    round(y0):round(y1),
+                    round(x0):round(x1)
+                ]
 
                 cell_mask = intensity_image < intensity_image.max()
                 cell_mask = np.asarray(cell_mask, dtype=int).transpose()

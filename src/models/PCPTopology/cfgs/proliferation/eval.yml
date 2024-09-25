@@ -67,6 +67,18 @@ cell_properties/shape:
       
 equilibrium_cellular_structure:
   based_on: cellular_structure
+  select:
+    property:
+      path: data/PCPTopology/Cells
+      transform:
+          - .sel: [!dag_prev , {property: area}]
+          - .rename: [!dag_prev , area]
+
+  property_interpolation_plot_kwargs:
+    interpolation: nearest
+    vmin: 0.8
+    vmax: 1.2
+    cmap: seismic
 
 continuous_cellular_structure:
   based_on: cellular_structure
