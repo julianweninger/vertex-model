@@ -1025,12 +1025,9 @@ protected:
 
         const auto& space = this->_am.get_space();
         SpaceVec domain = space->get_domain_size();
+        SpaceVec ref = this->_am.position_of(this->_am.vertices()[0]);
         for (const auto& v : this->_am.vertices()) {
-            SpaceVec pos = this->_am.position_of(v);
-            if (space->periodic) {
-                // for semi-periodic space
-                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
-            }
+            SpaceVec pos = space->displacement(ref, this->_am.position_of(v));
             x_min = std::min(x_min, pos[0]);
             x_max = std::max(x_max, pos[0]);
             y_min = std::min(y_min, pos[1]);
@@ -1039,16 +1036,14 @@ protected:
         double Lx = (x_max - x_min);
         double Ly = (y_max - y_min);
 
-        if (space->periodic) {
-            if (Lx > 0.9 * domain[0]) {
-                // is not semi-periodic space
-                Lx = domain[0];
-            }
-            Ly = domain[1];
+        // is truly periodic space
+        if (space->periodic and Lx > 0.9 * domain[0]) {
+            return std::make_pair(domain / 2., domain);
         }
 
         return std::make_pair(
-            SpaceVec({x_min + Lx/2., y_min + Ly/2.}), // origin at center
+            // origin at center
+            SpaceVec({x_min + ref[0] + Lx/2., y_min + ref[1] + Ly/2.}),
             SpaceVec({Lx, Ly})  // extent
         );
     }
@@ -1063,29 +1058,7 @@ protected:
             this->_am.position_of(edge->custom_links().a) + 
             0.5 * this->_am.displacement(edge)
         );
-        if (this->_am.get_space()->periodic) {
-            SpaceVec domain = this->_am.get_space()->get_domain_size();
-            if (extent[0] > 0.9 * domain[0]) {
-                // periodic space
-                pos -= origin;
-                pos -= arma::round(pos/domain) % domain;
-                pos = -(2 * arma::abs(pos) - domain / 2.);
-            }
-            else {
-                // semi-periodic space
-                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
-                pos[0] -= origin[0];
-
-                // y is periodic
-                pos[1] -= origin[1];
-                pos[1] -= std::round(pos[1]/domain[1]) * domain[1];
-                pos[1] = -(2 * std::abs(pos[1]) - domain[1] / 2.);
-            }
-        }
-        else {
-            // non-periodic space
-            pos -= origin;
-        }
+        pos = this->_am.get_space()->displacement(origin, pos);
         SpaceVec rpos = pos / extent;
 
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
@@ -1192,6 +1165,9 @@ protected:
 
     /// The cell-type dependent spatial gradient in contractility
     arma::mat _gradient_contractility;
+
+    /// The cell-type dependent spatial quadratic gradient in contractility
+    arma::mat _quadratic_contractility;
     
     double contractility_at(
         const SpaceVec& rpos,
@@ -1219,9 +1195,11 @@ protected:
                 ));
             }
         #endif
-
         return (_contractility.at(type_a, type_b) 
-                + rpos[0] * _gradient_contractility.at(type_a, type_b));
+                + rpos[0] * _gradient_contractility.at(type_a, type_b)
+                + std::pow(rpos[0]+0.5, 2) * _quadratic_contractility.at(type_a, type_b)
+        );
+        // NOTE rpos in [-0.5, 0.5]
     }
 
 public:
@@ -1235,8 +1213,15 @@ public:
         _contractility(setup_symmetric_matrix(
             get_as<stdmat>("contractility", cfg))),
         _gradient_contractility(setup_symmetric_matrix(
-            get_as<stdmat>("gradient_contractility", cfg)))
+            get_as<stdmat>("gradient_contractility", cfg))),
+        _quadratic_contractility(arma::zeros(arma::size(_contractility)))
     {
+        if (cfg["quadratic_contractility"]) {
+            _quadratic_contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "quadratic_contractility", cfg
+            ));
+        }
+
         this->update_contractility();
     }
 
@@ -1261,6 +1246,18 @@ public:
         else if (cfg["gradient_contractility"]) {
             _gradient_contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "gradient_contractility", cfg
+            ));
+        }
+
+
+        if (cfg["increment_quadratic_contractility"]) {
+            _quadratic_contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_quadratic_contractility", cfg
+            ));
+        }
+        else if (cfg["quadratic_contractility"]) {
+            _quadratic_contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "quadratic_contractility", cfg
             ));
         }
         
