@@ -76,10 +76,6 @@ public:
         }
 
         if (l2 < 1.e-8) {
-            if (height_of(cell) < _tissue_height - 1.e-8) {
-                throw std::runtime_error("Found HC with no SC neighbours that "
-                                         "not of tissue height!");
-            }
             return 0.;
         }
 
@@ -301,8 +297,6 @@ public:
  *              \f$ V^{(0)} \f$
  *      - `tissue_height`: (double) The height of cells of type other than 1, 
  *              also used for initialisation for \f$ H_\alpha \f$.
- *      - `critical_height`: (double) The crossover height at which HCs loose 
- *              basal contact.
  *      - `minimum_height`: (double) The minimum value for \f$ H_\alpha \f$. 
  *      - `height_parameter_name`: (string) Name used for the height variable in 
  *              properties of the cell. Can be accessed by other terms. 
@@ -421,8 +415,8 @@ public:
             double dW_df = 0.;
             if (not this->has_basal_contact(cell)) {
                 f = this->triangle_factor(cell);
-                dW_dH += dW_dV * volume / H;
                 area += this->_am.area_of(cell);
+                dW_dH += dW_dV * area;
 
                 // and neighbour derivatives
                 for (const auto& [edge, flip] : cell->custom_links().edges) {
@@ -438,7 +432,15 @@ public:
                         dW_df += 0.5 * p * l2 * (this->_tissue_height - H);
                     }
                 }
-                dWn_dA = (this->_tissue_height - H) * dWn_dA / L2;
+                if (L2 > 1.e-8) {
+                    dWn_dA = (this->_tissue_height - H) * dWn_dA / L2;
+                }
+                // A fictional neighbour than wants to shrink to 0 volume
+                else {
+                    dW_dH -= _elastic_modulus * std::pow(area, 2)
+                             * (this->_tissue_height - H)
+                             / std::pow(0.01 * preferential_volume(cell), 2);
+                }
             }
 
             // apply forces via edges
@@ -950,7 +952,9 @@ public:
                         L2 += l2;
                     }
                 }
-                dWn_dA = 2 * dW_df / L2;
+                if (L2 > 1.e-8) {
+                    dWn_dA = 2 * dW_df / L2;
+                }
             }
 
             for (const auto& [edge, flip] : cell->custom_links().edges) {
