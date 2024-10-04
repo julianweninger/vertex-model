@@ -162,10 +162,7 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
         }
         else {
             _space->set_domain_size(SpaceVec(
-                {
-                    get_as<double>("extent_x", cfg),
-                    0.75 * num_rows
-                }) % cell_shape
+                {get_as<double>("extent_x", cfg), 0.75 * num_rows}) % cell_shape
             );
         }
     }
@@ -391,6 +388,24 @@ void EntitiesManager<Model>::setup_agents_hexagonal_structure (
 
             for (const auto& v : this->vertices()) {
                 this->move_by(v, -1. * origin);
+            }
+        }
+        else {
+            SpaceVec center({0., 0.});
+            SpaceVec ref = this->position_of(this->vertices()[0]);
+            for (const auto& v : this->vertices()) {
+                SpaceVec pos = ref + this->_space->displacement(ref,
+                        this->position_of(v)
+                );  
+                center += pos;
+            }
+            center /= this->vertices().size();
+            SpaceVec extent = this->_space->get_domain_size();
+            for (const auto& v : this->vertices()) {
+                this->move_by(v, 
+                      SpaceVec({extent[0] / 2., 0 }) % cell_shape
+                    - SpaceVec({center[0] / 2., 0})
+                );
             }
         }
     }
