@@ -935,6 +935,14 @@ public:
                 )
             );
         }
+        else if (term == "triangle_approximation_setter") {
+            register_work_function_term(
+                name,
+                std::make_shared<TriangleApproximationSetter<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "triangle_approximation_update") {
             register_work_function_term(
                 name,
@@ -1003,6 +1011,8 @@ public:
                 " - shape_elasticity\n"
                 " - surface_elasticity\n"
                 " - surface_tension\n"
+                " - triangle_approximation_setter\n"
+                " - triangle_approximation_update\n"
                 " - volume_elasticity\n"
                 " - volume_elasticity_triangle\n"
                 " - volume_elasticity_triangle_heterotypic\n"

@@ -274,6 +274,209 @@ public:
     }
 };
 
+template <typename Model>
+class TriangleApproximationSetter : public TriangleApproximationBase<Model>
+{
+public:
+    using Base = TriangleApproximationBase<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// @brief Cell target volume
+    double _V0;
+
+    /// @brief Mean value of cell area
+    double _area;
+
+    /// @brief Gradient of cell area, where left most is value - grad / 2.
+    double _area_gradient;
+
+    /// @brief Maximum value for cell height
+    double _maximum_height;
+
+    /// @brief Minimum value for cell height
+    double _minimum_height;
+
+    /// The origin and length (horizontal) of the domain
+    std::pair<SpaceVec, SpaceVec> _domain_info;
+
+    /// Caluclate the origin and length of the domain
+    /** Based on the vertex positions and periodicity of space.
+     *  It deals with open, semi-periodic and periodic BC.
+     */
+    std::pair<SpaceVec, SpaceVec> get_domain_info () const {
+        // Establish domain size
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = std::numeric_limits<double>::min();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = std::numeric_limits<double>::min();
+
+        const auto& space = this->_am.get_space();
+        SpaceVec domain = space->get_domain_size();
+        SpaceVec ref = this->_am.position_of(this->_am.vertices()[0]);
+        for (const auto& v : this->_am.vertices()) {
+            SpaceVec pos = space->displacement(ref, this->_am.position_of(v));
+            x_min = std::min(x_min, pos[0]);
+            x_max = std::max(x_max, pos[0]);
+            y_min = std::min(y_min, pos[1]);
+            y_max = std::max(y_max, pos[1]);
+        }
+        double Lx = (x_max - x_min);
+        double Ly = (y_max - y_min);
+
+        // is truly periodic space
+        if (space->periodic and Lx > 0.9 * domain[0]) {
+            return std::make_pair(domain / 2., domain);
+        }
+
+        return std::make_pair(
+            // origin at center
+            SpaceVec({x_min + ref[0] + Lx/2., y_min + ref[1] + Ly/2.}),
+            SpaceVec({Lx, Ly})  // extent
+        );
+    }
+
+    /// @brief  Update the height parameter of a cell
+    /// @param cell 
+    void update_height (const std::shared_ptr<Cell>& cell) const { 
+        SpaceVec origin = std::get<0>(_domain_info);
+        SpaceVec extent = std::get<1>(_domain_info);
+
+        SpaceVec pos = this->_am.barycenter_of(cell);
+        pos = this->_am.get_space()->displacement(origin, pos);
+        SpaceVec rpos = pos / extent;
+
+        // NOTE rpos in [-0.5, 0.5] for x and y
+        double area = _area + rpos[0] * _area_gradient;
+        double height = _V0 / area;        
+        height = std::min(std::max(height, _minimum_height), _maximum_height);
+
+        cell->state.update_parameter(this->_height, height);
+    }
+
+public:
+    TriangleApproximationSetter (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _V0(get_as<double>("target_volume", cfg)),
+        _area(get_as<double>("area", cfg)),
+        _area_gradient(get_as<double>("area_gradient", cfg)),
+        _maximum_height(get_as<double>("maximum_height", cfg)),
+        _minimum_height(get_as<double>("minimum_height", cfg)),
+        _domain_info(get_domain_info())
+    {
+        for (const auto& cell : this->_am.cells()) {
+            if (cell->state.type != 1) {
+                cell->state.register_parameter(
+                        this->_height, this->_tissue_height);
+            }
+            else {
+                cell->state.register_parameter(this->_height, 0.);
+                update_height(cell);
+            }
+            cell->state.register_parameter(this->_height_derivative, 0.);
+            cell->state.register_parameter(
+                    this->_height_derivative + "_monitor", 0.);
+        }
+    }
+
+    ~TriangleApproximationSetter () {
+        for (const auto& cell : this->_am.cells()) {
+            cell->state.unregister_parameter(this->_height);
+            cell->state.unregister_parameter(this->_height_derivative);
+            cell->state.unregister_parameter(
+                    this->_height_derivative + "_monitor");
+        }
+    }
+
+    /// @brief The instruction how to calculate forces acting on vertices
+    ///        from this term, i.e the derivative of the energy.
+    void compute_and_set_forces () override { }
+
+    /// @brief  The total energy for a subset of entities.
+    /** @param vertices  The container of vertices
+     *  @param edges     The container of edges
+     *  @param cells     The container of cells
+     *  
+     *  @return energy (double)
+    **/ 
+    double compute_energy (
+        [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+        [[maybe_unused]] const AgentContainer<Edge>& edges,
+        [[maybe_unused]] const AgentContainer<Cell>& cells
+    ) const override
+    {
+        return 0.;
+    }
+    
+    /// Performs the update of \f$ H_\alpha \f$
+    void update (double dt) override {
+        _domain_info = get_domain_info();
+
+        for (const auto& cell : this->_am.cells()) {
+            if (this->has_basal_contact(cell)) {
+                continue;
+            }
+            
+            update_height(cell);
+            cell->state.update_parameter(
+                this->_height_derivative + "_monitor",
+                cell->state.get_parameter(this->_height_derivative)
+            );
+            cell->state.update_parameter(this->_height_derivative, 0.);
+        }
+    }
+
+    void update_parameters (const DataIO::Config& cfg) override {
+        Base::update_parameters(cfg);
+        if (cfg["increment_area"]) {
+            _area += get_as<double>("increment_area", cfg);
+        }
+        else {
+            _area = get_as<double>("area", cfg, _area);
+        }
+        if (cfg["increment_area_gradient"]) {
+            _area_gradient += get_as<double>("increment_area_gradient",cfg);
+        }
+        else {
+            _area_gradient = get_as<double>(
+                    "area_gradient", cfg, _area_gradient);
+        }
+
+        _V0 = get_as<double>("target_volume", cfg, _V0);
+        _maximum_height = get_as<double>("maximum_height",cfg,_maximum_height);
+        _minimum_height = get_as<double>("minimum_height",cfg,_minimum_height);
+    }
+
+    std::vector<std::string> write_task_cell_properties_names () const override
+    {
+        return std::vector<std::string>({"height", "height_derivative"});
+    }
+
+    std::vector<std::vector<double>> write_cell_properties () const override {
+        std::vector<double> heights({});
+        std::vector<double> dh({});
+        for (const auto& cell : this->_am.cells()) {
+            heights.push_back(cell->state.get_parameter(this->_height));
+            dh.push_back(
+                cell->state.get_parameter(this->_height_derivative+"_monitor"));
+        }
+        return std::vector<std::vector<double>>({ heights, dh });
+    }
+};
+
+
 
 
 /// @brief The volume elasticity of a cell base class
