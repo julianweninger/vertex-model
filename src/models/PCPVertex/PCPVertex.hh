@@ -951,6 +951,14 @@ public:
                 )
             );
         }
+        else if (term == "triangle_approximation_update_graded") {
+            register_work_function_term(
+                name,
+                std::make_shared<TriangleApproximationUpdateGraded<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
         else if (term == "volume_elasticity") {
             register_work_function_term(
                 name,
@@ -1013,6 +1021,7 @@ public:
                 " - surface_tension\n"
                 " - triangle_approximation_setter\n"
                 " - triangle_approximation_update\n"
+                " - triangle_approximation_update_graded\n"
                 " - volume_elasticity\n"
                 " - volume_elasticity_triangle\n"
                 " - volume_elasticity_triangle_heterotypic\n"

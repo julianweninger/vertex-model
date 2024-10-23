@@ -7,6 +7,15 @@ namespace Models {
 namespace PCPVertex {
 namespace WorkFunction2Dplus {
 
+/// @brief The base class for Triangle Approximation of 2D plus WF class
+/// @tparam Model 
+/** The base class defines the background tissue height, as well as height and 
+ *  height derivative cell parameter names.
+ * 
+ *  Parameters:
+ *      - `tissue_height` (double): height of cells with basal contact
+ * 
+ */
 template <typename Model>
 class TriangleApproximationBase : public WorkFunction::WorkFunctionTerm<Model>
 {
@@ -82,6 +91,9 @@ public:
         return 2 * this->_am.area_of(cell) / l2;
     }
 
+    /// @brief  The height of a cell
+    /// @param cell 
+    /// @return 
     inline double height_of (const std::shared_ptr<Cell>& cell) const {
         #if UTOPIA_DEBUG
             if (not cell) {
@@ -127,6 +139,14 @@ public:
         return 0.;
     }
 
+    /// @brief  Update the WF's parameters
+    /// @param cfg      The update configuration
+    /** Parameters:
+     *      - `tissue_height` (double): Updates the height of the tissue
+     *      - `set_height` (double): Sets the height of cells without basal 
+     *              contact
+     *  
+     */
     void update_parameters (const DataIO::Config& cfg) override {
         double tmp = get_as<double>("tissue_height", cfg, _tissue_height);
         if (fabs(tmp - _tissue_height) > 1.e-8) {
@@ -154,6 +174,20 @@ public:
 
 };
 
+/// The update function to the triangle Approximation
+/** Performs a steepest gradient update of height variables in cells without
+ *  basal contact
+ * 
+ *  Parameters:
+ *      - `gamma` (double): Damping factor relative to time step size of 
+ *              vertex-model.
+ *      - `tissue_height` (double): height of cells with basal contact
+ *      - `maximum_height` (double): Upper limit for cell height
+ *      - `minimum_height` (double): Lower limit for cell height
+ *      - `set_height` (double, default: tissue_height): Initial value
+ *              of cell height for cells without basal contact
+ *      - Parameters of TriangleApproximationBase
+ */
 template <typename Model>
 class TriangleApproximationUpdate : public TriangleApproximationBase<Model>
 {
@@ -234,7 +268,7 @@ public:
         return 0.;
     }
     
-    /// Performs the update of \f$ H_\alpha \f$
+    /// Performs the steepest gradient update of \f$ H_\alpha \f$ variables
     void update (double dt) override {
         for (const auto& cell : this->_am.cells()) {
             if (this->has_basal_contact(cell)) {
@@ -253,6 +287,7 @@ public:
         }
     }
 
+    /// Updates parameter values
     void update_parameters (const DataIO::Config& cfg) override {
         Base::update_parameters(cfg);
         _gamma = get_as<double>("gamma", cfg, _gamma);
@@ -274,6 +309,155 @@ public:
     }
 };
 
+/// The update function to the triangle Approximation using a graded damping factor
+/** Performs a steepest gradient update of height variables in cells without
+ *  basal contact. However, depending on x position of cells height variable
+ *  develops faster or slower.
+ * 
+ *  Parameters:
+ *      - `gamma` (double): Damping factor relative to time step size of 
+ *              vertex-model.
+ *      - `gamma_fold_decrease` (double, > 0): Damping factor fold decrease at right-
+ *          most cells. A fold decrease of 2 indicates, that gamma is halved.
+ *          A fold decrease of 1 indicates a constant gamma. A fold decrease of
+ *          0.5 indicates, that gamma doubles. Note that characteristic time
+ *          scales with 1/gamma.
+ *      - `tissue_height` (double): height of cells with basal contact
+ *      - `maximum_height` (double): Upper limit for cell height
+ *      - `minimum_height` (double): Lower limit for cell height
+ *      - `set_height` (double, default: tissue_height): Initial value
+ *              of cell height for cells without basal contact
+ */
+template <typename Model>
+class TriangleApproximationUpdateGraded : public TriangleApproximationUpdate<Model>
+{
+public:
+    using Base = TriangleApproximationUpdate<Model>;
+
+    using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+    using Vertex = typename Base::Vertex;
+
+    using Edge = typename Base::Edge;
+
+    using Cell = typename Base::Cell;
+
+protected:
+    /// @brief  Fold change in damping factor gamma between left and right
+    /** A fold change  */
+    double _gamma_fold_change;
+
+    /// The origin and length (horizontal) of the domain
+    std::pair<SpaceVec, SpaceVec> _domain_info;
+
+    /// Caluclate the origin and length of the domain
+    /** Based on the vertex positions and periodicity of space.
+     *  It deals with open, semi-periodic and periodic BC.
+     */
+    std::pair<SpaceVec, SpaceVec> get_domain_info () const {
+        // Establish domain size
+        double x_min = std::numeric_limits<double>::max();
+        double x_max = std::numeric_limits<double>::min();
+        double y_min = std::numeric_limits<double>::max();
+        double y_max = std::numeric_limits<double>::min();
+
+        const auto& space = this->_am.get_space();
+        SpaceVec domain = space->get_domain_size();
+        SpaceVec ref = this->_am.position_of(this->_am.vertices()[0]);
+        for (const auto& v : this->_am.vertices()) {
+            SpaceVec pos = space->displacement(ref, this->_am.position_of(v));
+            x_min = std::min(x_min, pos[0]);
+            x_max = std::max(x_max, pos[0]);
+            y_min = std::min(y_min, pos[1]);
+            y_max = std::max(y_max, pos[1]);
+        }
+        double Lx = (x_max - x_min);
+        double Ly = (y_max - y_min);
+
+        // is truly periodic space
+        if (space->periodic and Lx > 0.9 * domain[0]) {
+            return std::make_pair(domain / 2., domain);
+        }
+
+        return std::make_pair(
+            // origin at center
+            SpaceVec({x_min + ref[0] + Lx/2., y_min + ref[1] + Ly/2.}),
+            SpaceVec({Lx, Ly})  // extent
+        );
+    }
+
+    /// @brief  Get the damping factor at cell's position
+    /// @param cell 
+    double get_gamma (const std::shared_ptr<Cell>& cell) const { 
+        SpaceVec origin = std::get<0>(_domain_info);
+        SpaceVec extent = std::get<1>(_domain_info);
+
+        SpaceVec pos = this->_am.barycenter_of(cell);
+        pos = this->_am.get_space()->displacement(origin, pos);
+        SpaceVec rpos = pos / extent;
+
+        // NOTE rpos in [-0.5, 0.5] for x and y
+        return this->_gamma / ((rpos[0] + 0.5)*_gamma_fold_change + 1);
+    }
+
+public:
+    TriangleApproximationUpdateGraded (
+        std::string name,
+        const DataIO::Config& cfg,
+        const Model& model
+    )
+    :
+        Base(name, cfg, model),
+        _gamma_fold_change(get_as<double>("gamma_fold_decrease", cfg)-1),
+        _domain_info(get_domain_info())
+    {
+        if (_gamma_fold_change + 1 < 1.e-8) {
+            throw std::runtime_error(fmt::format(
+                "TriangleApproximationUpdateGraded: "
+                "Fold decrease must be larger than 0., but was {}!",
+                _gamma_fold_change + 1.
+            ));
+        }
+    }
+    
+    /// Performs the update of \f$ H_\alpha \f$, where the damping factor 
+    /// depends on the cell's position
+    void update (double dt) override {
+        _domain_info = get_domain_info();
+
+        for (const auto& cell : this->_am.cells()) {
+            if (this->has_basal_contact(cell)) {
+                continue;
+            }
+
+            double gamma = get_gamma(cell);
+
+            double H = cell->state.get_parameter(this->_height);
+            double dW_dH = cell->state.get_parameter(this->_height_derivative);
+            H -= dt * gamma * dW_dH;
+            H = std::max(std::min(H, this->_maximum_height),
+                         this->_minimum_height);
+            cell->state.update_parameter(this->_height, H);
+            cell->state.update_parameter(
+                this->_height_derivative + "_monitor", dW_dH
+            );
+            cell->state.update_parameter(this->_height_derivative, 0.);
+        }
+    }
+};
+
+/// Setter for height variables in Triangle Approximation
+/** Parameters:
+ *      - `target_volume` (double): Reference volume from which set height
+ *              is calculated as volume/area.
+ *      - `area` (double): The mean set area. Set height is calculated as 
+ *              target_volume / area.
+ *      - `area_gradient` (double): The difference between x=-0.5 and x=0.5,
+ *              mean area (`area`) is set for x=0.
+ *      - `tissue_height` (double): height of cells with basal contact
+ *      - `maximum_height` (double): Upper limit for cell height
+ *      - `minimum_height` (double): Lower limit for cell height
+ */
 template <typename Model>
 class TriangleApproximationSetter : public TriangleApproximationBase<Model>
 {
@@ -438,6 +622,29 @@ public:
         }
     }
 
+    /// Updates parameters
+    /** Parameters:
+     *      - `target_volume` (double, optional):
+     *              Reference volume from which set height is calculated as 
+     *              volume/area.
+     *      - `area` (double, optional):
+     *              The mean set area. Set height is calculated as 
+     *              target_volume / area.
+     *      - `increment_area` (double, optional):
+     *              The incremental to mean set area. 
+     *              Set height is calculated as target_volume / area.
+     *      - `area_gradient` (double, optional):
+     *              The difference between x=-0.5 and x=0.5, mean area (`area`) 
+     *              is set for x=0.
+     *      - `increment_area_gradient` (double): The incremental to gradient 
+     *              area. 
+     *      - `tissue_height` (double, optional):
+     *              height of cells with basal contact
+     *      - `maximum_height` (double, optional):
+     *              Upper limit for cell height
+     *      - `minimum_height` (double, optional):
+     *              Lower limit for cell height
+     */
     void update_parameters (const DataIO::Config& cfg) override {
         Base::update_parameters(cfg);
         if (cfg["increment_area"]) {
