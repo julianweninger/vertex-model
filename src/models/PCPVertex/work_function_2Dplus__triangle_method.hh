@@ -329,7 +329,9 @@ public:
  *              of cell height for cells without basal contact
  */
 template <typename Model>
-class TriangleApproximationUpdateGraded : public TriangleApproximationUpdate<Model>
+class TriangleApproximationUpdateGraded 
+: 
+    public TriangleApproximationUpdate<Model>
 {
 public:
     using Base = TriangleApproximationUpdate<Model>;
@@ -443,6 +445,29 @@ public:
             );
             cell->state.update_parameter(this->_height_derivative, 0.);
         }
+    }
+
+    /// Updates parameter values
+    void update_parameters (const DataIO::Config& cfg) override {
+        Base::update_parameters(cfg);
+        _gamma_fold_change = get_as<double>("gamma_fold_decrease", cfg,
+                                            _gamma_fold_change);
+    }
+
+
+    std::vector<std::string> write_task_cell_properties_names () const override
+    {
+        return std::vector<std::string>({"height", "gamma"});
+    }
+
+    std::vector<std::vector<double>> write_cell_properties () const override {
+        std::vector<double> heights({});
+        std::vector<double> gammas({});
+        for (const auto& cell : this->_am.cells()) {
+            heights.push_back(cell->state.get_parameter(this->_height));
+            gammas.push_back(get_gamma(cell));
+        }
+        return std::vector<std::vector<double>>({ heights, gammas });
     }
 };
 
