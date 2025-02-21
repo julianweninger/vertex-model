@@ -2,5 +2,8 @@
 # These can be related to plotting and/or testing, and are installed alongside
 # the registration of model tests.
 
-dantro>=0.18
-seaborn>=0.12
+dantro==0.19.5
+utopya==1.2.13
+seaborn==0.12.2
+xarray==2024.2.0
+pandas==2.2.0
