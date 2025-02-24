@@ -1,6 +1,7 @@
 # The model configuration for the heterogeneous Savanna Model
 ---
 parameter_space:
+  num_steps: 3
   PCPVertex:
     model_name: PCPVertex
 
