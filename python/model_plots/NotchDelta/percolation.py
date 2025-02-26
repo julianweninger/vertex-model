@@ -108,8 +108,8 @@ def percolation_diagram(*, data: dict, hlpr: PlotHelper, map_dim: str=None,
 
     # only plot fit if reasonable
     if theta <= 1 and theta >= 0 and slope >= 0 and slope <= 1:
-        x = np.linspace(perc.density.min(),
-                        perc.density.max(), 100)
+        x = np.linspace(perc.density.min().data,
+                        perc.density.max().data, 100)
         
         fitlabel = r"fit: $\theta$=%5.3f (%5.3f), s=%5.3f (%5.3f)" \
                     "" % (theta, perr[0], slope, perr[1])
