@@ -128,6 +128,7 @@ rosettes_bifurcation:
       args: [!dag_tag _hair_density, !dag_tag time_mask_hair]
     - .mean:
       args: [!dag_prev , time]
+    - .squeeze: [!dag_prev ]
       tag: hair_density
       # the density of hairs
 
@@ -137,6 +138,7 @@ rosettes_bifurcation:
       args: [!dag_prev ]
       kwargs:
         name: rosette fraction
+    - .squeeze: [!dag_prev ]
       tag: rosette_fraction
 
     - import_and_call:
@@ -149,24 +151,24 @@ rosettes_bifurcation:
       # exchange dimension beta with data from hair_density
 
 state_anim:
-  based_on: .ca.state  
-  file_ext: png
+  based_on: 
+    - .creator.universe
+    - .plot.ca
+    - .animation.ffmpeg
 
-  model_name: NotchDelta
+  select:
+    cell_type: data/NotchDelta/CM/Cell_type
+    atoh1: data/NotchDelta/CM/Atoh1
 
   to_plot:
-    CM/Cell_type:
+    cell_type:
       title: Cell Type
-      limits: [0, 2]
       cmap:
         Progenitor: White
         Hair: Red
         Support: Gray
-    CM/Atoh1:
+    atoh1:
       title: Atoh1
-
-  # Specify the time index (will be ignored, but needs to be specified)
-  time_idx: 0
 
   # Enable animation (disabled by default)
   animation:

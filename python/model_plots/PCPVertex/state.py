@@ -3,27 +3,19 @@
 import logging
 from typing import Tuple, Union
 
-from math import floor, ceil
 import numpy as np
 import math as m
-from numpy.lib.function_base import select
 import xarray as xr
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-import matplotlib.patches as mpatches
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-from scipy.interpolate import griddata
 import skimage
 
 from utopya import DataManager, UniverseGroup
 from utopya.plotting import UniversePlotCreator, is_plot_func, PlotHelper
 from utopya.tools import recursive_update
-
-from ..tools import save_and_close
 
 log = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
@@ -585,13 +577,13 @@ def cellular_structure(
                 canvas.draw()
 
                 # Convert to a numpy array
-                image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+                image = np.frombuffer(canvas.tostring_argb(), dtype='uint8')
                 width, height = canvas.get_width_height()
-                image = image.reshape((height, width, 3))
+                image = image.reshape((height, width, 4))
 
                 # Convert to grayscale
                 # Using the luminosity method: 0.21*R + 0.72*G + 0.07*B
-                gray_image = 0.21 * image[:, :, 0] + 0.72 * image[:, :, 1] + 0.07 * image[:, :, 2]
+                gray_image = 0.21 * image[:, :, 1] + 0.72 * image[:, :, 2] + 0.07 * image[:, :, 3]
 
                 # Normalize to 0-255 and convert to uint8
                 intensity_image = np.uint8(gray_image)

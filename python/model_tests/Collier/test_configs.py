@@ -5,7 +5,7 @@ import pytest
 from utopya.testtools import ModelTest
 
 # Configure the ModelTest class
-mtc = ModelTest("NotchDelta", test_file=__file__)
+mtc = ModelTest("Collier", test_file=__file__)
 
 # Fixtures --------------------------------------------------------------------
 
