@@ -5,12 +5,12 @@ authors:
     given-names: Julian
     orcid: https://orcid.org/0000-0002-4542-9519
 title: "Vertex model for the simulation of multi-cell-type tissue morphogenesis"
-version: 0.2
+version: 0.2.2
 identifiers:
   - type: doi
-    value: 10.21203/rs.3.rs-2508957/v1
+    value: 10.5281/zenodo.14917718
     description: >-
-      Prakash et al., 2023: Junctional Force Patterning
-      drives both Positional and Orientational Order in
-      Auditory Epithelia
-date-released: 2025-02-21
+      Archived version associated with publication: Prakash et al., 2023, 
+      Junctional Force Patterning drives both Positional and Orientational Order
+      in Auditory Epithelia
+date-released: 2025-02-26
