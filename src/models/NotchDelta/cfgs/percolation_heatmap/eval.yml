@@ -31,9 +31,13 @@ percolation_diagram: !pspace
           target_name: swap
       tag: cluster_id
 
-rosettes_bifurcation:
+rosettes_bifurcation: !pspace
   based_on: rosettes_bifurcation
-  hue: swap
+  select_and_combine:
+    subspace:
+      swap: !sweep 
+        default: 0.
+        values: [0., 0.01]
 
 heatmap_density:
   based_on: heatmap_density

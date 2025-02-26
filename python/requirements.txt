@@ -2,6 +2,10 @@
 # These can be related to plotting and/or testing, and are installed alongside
 # the registration of model tests.
 
-dantro>=0.18
-seaborn>=0.13
-scikit-image>=0.23.2
+utopya==1.3.4
+dantro==0.20.2
+xarray==2025.1.2
+pandas==2.2.3
+scikit-image==0.25.2
+matplotlib==3.10.0
+seaborn==0.13.2

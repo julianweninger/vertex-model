@@ -424,32 +424,53 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
         auto num_edges = edges.size();
         auto num_vertices = vertices.size();
 
-        // find the first cell that is not a boundary cell
-        auto cell = *std::find_if(cells.begin(), cells.end(),
-                                  [am](const auto& cell) {
-                                      return (not am.is_boundary(cell));
-                                  });
+        // find the first cell that is not a boundary cell nor has boundary nbs
+        auto cell = *std::find_if(
+            cells.begin(), cells.end(),
+            [am](const auto& cell) {
+                if (am.is_boundary(cell)) {
+                    return false;
+                }
+                for (const auto& n : am.neighbors_of(cell)) {
+                    if (am.is_boundary(n)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        );
+
         BOOST_TEST(not am.is_boundary(cell));
 
         cell->state.type = 1;
 
         // remove edges until cell is triangular
         std::size_t cnt = 0;
+        std::size_t rand = 123456789;
         while (cell->custom_links().edges.size() > 3) {
             const auto& edges = cell->custom_links().edges;
-            const auto& [edge, flip] = edges[123456789 % edges.size()];
+            const auto& [edge, flip] = edges[rand % edges.size()];
+            if (am.is_boundary(edge)) {
+                // pick another edge
+                rand += 1;
+                continue;
+            }
 
             SpaceVec displ = am.displacement(edge);
             am.move_by(edge->custom_links().a,  0.49 * displ);
             am.move_by(edge->custom_links().b, -0.49 * displ);
     
             model.iterate();
-
+            
             if (cnt > 10) {
                 throw std::runtime_error("Unable to remove junctions to reach "
                     "triangular cell.");
             }
+            cnt += 1;
         }
+
+        BOOST_TEST(not am.is_boundary(cell));
+        BOOST_TEST(am.neighbors_of(cell).size() == 3);
 
         // save the elements that are going to be removed alongside the cell
         const auto removed_vertices = cell->custom_links().vertices;
@@ -499,72 +520,119 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex_transitions, ModelFixture)
     } // test T2 cell removal
 
     BOOST_AUTO_TEST_CASE(test_T2_boundary) {
-        Fixture<false> fixture;
-        auto& model = fixture.vertex_model;
-        model.prolog();
-        
-        auto& am = model.get_am();
+        for (std::size_t num_boundary_edges : {4, 3, 2, 1}) {
+            Fixture<false> fixture;
+            auto& model = fixture.vertex_model;
+            model.prolog();
+            
+            auto& am = model.get_am();
 
-        auto& cells = am.cells();
-        auto& edges = am.edges();
-        auto& vertices = am.vertices();
+            auto& cells = am.cells();
+            auto& edges = am.edges();
+            auto& vertices = am.vertices();
 
-        auto num_cells = cells.size();
-        auto num_edges = edges.size();
-        auto num_vertices = vertices.size();
+            auto num_cells = cells.size();
+            auto num_edges = edges.size();
+            auto num_vertices = vertices.size();
+            
+            std::cout << "number of boundary edges of cell undergoing T2 "
+                         "transition: " 
+                      << num_boundary_edges 
+                      << std::endl;
 
-        // find the first cell that is a boundary cell
-        auto cell = *std::find_if(cells.begin(), cells.end(),
-                                [am](const auto& cell) {
-                                    return am.is_boundary(cell);
-                                });
-        BOOST_TEST(am.is_boundary(cell));
+            // find the first cell that is a boundary cell with N boundary edges
+            auto cell_ptr = std::find_if(
+                cells.begin(),
+                cells.end(),
+                [am, num_boundary_edges](const auto& cell) {
+                    std::size_t cnt_boundary_edges = 0;
+                    for (const auto& [edge, flip] : cell->custom_links().edges) {
+                        cnt_boundary_edges += am.is_1_cell_boundary_edge(edge);
+                    }
+                    return cnt_boundary_edges == num_boundary_edges;
+                }
+            );
 
-        // save the elements that are going to be removed alongside the cell
-        const auto removed_vertices = cell->custom_links().vertices;
-        const auto removed_edges = cell->custom_links().edges;
-        
-        // move all vertices close to center
-        SpaceVec center = am.barycenter_of(cell);
-        for (const auto& [edge, flip] : cell->custom_links().edges) {
-            std::shared_ptr<Vertex> vertex;
-            if (not flip) {
-                vertex = edge->custom_links().a;
+            BOOST_TEST((cell_ptr != cells.end()));
+            auto cell = *cell_ptr;
+            
+            BOOST_TEST(am.is_boundary(cell));
+
+            // remove bulk neighbours until it only has 2 neighbours and
+            // can simply be removed
+            while (am.neighbors_of(cell).size() > 2) {
+                auto e = std::get<0>(*std::find_if(
+                    cell->custom_links().edges.begin(),
+                    cell->custom_links().edges.end(),
+                    [am](const auto& e_pair) {
+                        return not am.is_boundary(std::get<0>(e_pair));
+                    }
+                ));
+                auto a = e->custom_links().a;
+                auto b = e->custom_links().b;
+                SpaceVec displ = am.displacement(a, b);
+                am.move_by(a, 0.49 * displ);
+                am.move_by(b, -0.49 * displ);
+                BOOST_TEST(am.distance(a, b) < 0.02);
+                
+                auto N = am.neighbors_of(cell).size();
+                model.iterate();
+
+                BOOST_TEST(am.neighbors_of(cell).size() == N - 1);
+                if (am.neighbors_of(cell).size() > N - 1) {
+                    break;
+                }
             }
-            else {
-                vertex = edge->custom_links().b;
+
+            BOOST_TEST(am.neighbors_of(cell).size() == 2);
+
+
+            // save the elements that are going to be removed alongside the cell
+            const auto removed_vertices = cell->custom_links().vertices;
+            const auto removed_edges = cell->custom_links().edges;
+            
+            // move all vertices close to center
+            SpaceVec center = am.barycenter_of(cell);
+            for (const auto& [edge, flip] : cell->custom_links().edges) {
+                std::shared_ptr<Vertex> vertex;
+                if (not flip) {
+                    vertex = edge->custom_links().a;
+                }
+                else {
+                    vertex = edge->custom_links().b;
+                }
+
+                SpaceVec pos = am.position_of(vertex);
+                SpaceVec displ = model.get_space()->displacement(pos, center);
+
+                am.move_by(vertex, 0.95 * displ);
             }
 
-            SpaceVec pos = am.position_of(vertex);
-            SpaceVec displ = model.get_space()->displacement(pos, center);
+            // iterate model to trigger T2 transition
+            model.iterate();
 
-            am.move_by(vertex, 0.99 * displ);
+            // check that transition was actually performed
+            BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
+                        == cells.end()));
+
+            BOOST_TEST(cells.size() == num_cells - 1);
+            BOOST_TEST(edges.size() == num_edges - num_boundary_edges - 2);
+            BOOST_TEST(vertices.size() == num_vertices-num_boundary_edges-1);
+            // NOTE T1 boundary edge removal possible
+
+            // check that there are no trailing shared_ptr of those entities
+            BOOST_TEST(cell.use_count() == 1);
+            for (const auto& v : removed_vertices) {
+                BOOST_TEST(v->state.remove);
+                BOOST_TEST(v.use_count() == 1);
+            }
+            for (const auto& [e, flip] : removed_edges) {
+                BOOST_TEST(e->state.remove);
+                BOOST_TEST(e.use_count() == 1);
+            }
+
+            test_custom_links(model);
         }
-
-        // iterate model to trigger T2 transition
-        model.iterate();
-
-        // check that transition was actually performed
-        BOOST_TEST((   std::find(cells.begin(), cells.end(), cell)
-                    == cells.end()));
-
-        BOOST_TEST(cells.size() == num_cells - 1);
-        BOOST_TEST(edges.size() <= num_edges - 3);
-        BOOST_TEST(vertices.size() <= num_vertices - 2);
-        // NOTE T1 boundary edge removal possible
-
-        // check that there are no trailing shared_ptr of those entities
-        BOOST_TEST(cell.use_count() == 1);
-        for (const auto& v : removed_vertices) {
-            BOOST_TEST(v->state.remove);
-            BOOST_TEST(v.use_count() == 1);
-        }
-        for (const auto& [e, flip] : removed_edges) {
-            BOOST_TEST(e->state.remove);
-            BOOST_TEST(e.use_count() == 1);
-        }
-
-        test_custom_links(model);
     }
 
     BOOST_AUTO_TEST_CASE_TEMPLATE(test_divide_cell, F, Fixtures) {
