@@ -630,7 +630,7 @@ public:
     }
     
     /// Performs the update of \f$ H_\alpha \f$
-    void update (double dt) override {
+    void update ([[maybe_unused]] double dt) override {
         _domain_info = get_domain_info();
 
         for (const auto& cell : this->_am.cells()) {
@@ -819,13 +819,10 @@ public:
 
     void compute_and_set_forces () override {
         // calculate some quantities
-        std::unordered_map<std::shared_ptr<Cell>, double> volumes;
         std::unordered_map<std::shared_ptr<Cell>, double> pressures;
         for (const auto& cell : this->_am.cells()) {
             double V  = volume_of(cell);
             double V0 = preferential_volume(cell);
-
-            volumes  [cell] = V;
             pressures[cell] = _elastic_modulus * (V - V0) / std::pow(V0, 2);
         }
         std::unordered_map<std::shared_ptr<Edge>, double> lengths;
@@ -839,7 +836,6 @@ public:
             double dW_dV = pressures[cell];
 
             double H = cell->state.get_parameter(this->_height);
-            double volume = volumes[cell];
             double f = 0.;      // the triangle factor
             double area = 0.;
 
