@@ -285,6 +285,63 @@ OperationBundle build_unregister_work_function_term (
     return std::make_pair(operation, params);
 }
 
+/// Increment the parameter value of all cells
+OperationBundle build_cell_parameter_incrementer (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    std::string parameter = get_as<std::string>("parameter_name", cfg);
+    double increment = get_as<double>("increment", cfg);
+    auto exclude = get_as<std::vector<std::size_t>>("exclude_cell_type", cfg);
+
+    Operation operation = [parameter, increment, exclude]
+                          (VertexModel& vertex_model)
+    {
+        const auto& cells = vertex_model.get_am().cells();
+        for (const auto& cell : cells) {
+            if (std::find(exclude.begin(), exclude.end(), cell->state.type)
+                == exclude.end())
+            {
+                cell->state.update_parameter(
+                    parameter,
+                    cell->state.get_parameter(parameter) + increment
+                );
+            }
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+/// Increment the parameter value of all cells
+OperationBundle build_cell_parameter_setter (
+        std::string name, const Config& cfg,
+        const MinimizationParams& default_minim_params)
+{
+    OperationParams params(name, cfg, default_minim_params);
+
+    std::string parameter = get_as<std::string>("parameter_name", cfg);
+    double value = get_as<double>("value", cfg);
+    auto exclude = get_as<std::vector<std::size_t>>("exclude_cell_type", cfg);
+
+    Operation operation = [parameter, value, exclude](VertexModel& vertex_model)
+    {
+        const auto& cells = vertex_model.get_am().cells();
+        for (const auto& cell : cells) {
+            if (std::find(exclude.begin(), exclude.end(), cell->state.type)
+                == exclude.end())
+            {
+                cell->state.update_parameter(parameter, value);
+            }
+        }
+    };
+
+    return std::make_pair(operation, params);
+}
+
+
 
 /// The operation to proliferate cells
 /** Cell division happens as follows:

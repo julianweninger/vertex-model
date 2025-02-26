@@ -165,13 +165,14 @@ def groupby_bins(HC, *, bins: int, **kwargs):
 def spatial_binning(x: xr.DataArray,
                     data: xr.DataArray,
                     co_data: xr.DataArray=None,
-                    *, bins: int, range=[0, 1]):
+                    *, bins: int, range=[0, 1], dataname: str=None):
     """Group spatial system into bins by their x-axis
     
     x: the coordinates along x-axis
     data: The data to be grouped
     co_data (optional): A second set of data
     bins (int): The number of bins
+    dataname: The column name in data to analyze
     """
     _bins = np.linspace(range[0] + 0.5 / bins, range[1] - 0.5 / bins, bins)
 
@@ -186,8 +187,11 @@ def spatial_binning(x: xr.DataArray,
     )
 
     if co_data is not None:
-        __co_data = to_dataframe(co_data)
-        data[co_data.name] = __co_data[co_data.name]
+        if type(co_data) is list:
+            for cd in co_data:
+                data[cd.name] = to_dataframe(cd)[cd.name]
+        else:
+            data[co_data.name] = to_dataframe(co_data)[co_data.name]
     
 
     result = None
@@ -197,6 +201,11 @@ def spatial_binning(x: xr.DataArray,
         __result = frame._get_numeric_data().groupby(by='x_bins').mean()
         __result = __result.reset_index()
         __result['time'] = time
+        if dataname:
+            __result[dataname + " (count)"] = frame[['x_bins', dataname]]._get_numeric_data().groupby(by='x_bins').count().reset_index()[dataname]
+            __result[dataname + " (sum)"] = frame[['x_bins', dataname]]._get_numeric_data().groupby(by='x_bins').sum().reset_index()[dataname]
+            __result[dataname + " (std)"] = frame[['x_bins', dataname]]._get_numeric_data().groupby(by='x_bins').std().reset_index()[dataname]
+            __result[dataname + " (median)"] = frame[['x_bins', dataname]]._get_numeric_data().groupby(by='x_bins').median().reset_index()[dataname]
 
         if result is None:
             result = __result
@@ -207,11 +216,7 @@ def spatial_binning(x: xr.DataArray,
     if 'seed' in result.columns:
         result = result.drop(columns='seed')
 
-    if co_data is not None:
-        return result.sort_values(co_data.name).reset_index()
-
-    else:
-        return result.reset_index()
+    return result.reset_index()
     
 
 def map_stage(data: xr.DataArray, area: xr.DataArray, *,

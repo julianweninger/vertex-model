@@ -874,7 +874,9 @@ public:
  *  Parameters:
  *      - `contractility`: the contractility \f$ \Gamma \f$. A symmetric matrix. 
  *              The i,j coordinates map to the type of cell on left and right
- *              side. 
+ *              side.
+ *      - `increment_contractility` (only update): Add incremental value to 
+ *              `contractility`. Cannot be update together with `contractility`.
  *      - `boundary_type`: To which value a boundary cell is mapped.
  */
 template <typename Model>
@@ -932,7 +934,12 @@ public:
     { }
 
     void update_parameters (const DataIO::Config& cfg) override {
-        if (cfg["contractility"]) {
+        if (cfg["increment_contractility"]) {
+            _contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_contractility", cfg
+            ));
+        }
+        else if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
             ));
@@ -1018,12 +1025,9 @@ protected:
 
         const auto& space = this->_am.get_space();
         SpaceVec domain = space->get_domain_size();
+        SpaceVec ref = this->_am.position_of(this->_am.vertices()[0]);
         for (const auto& v : this->_am.vertices()) {
-            SpaceVec pos = this->_am.position_of(v);
-            if (space->periodic) {
-                // for semi-periodic space
-                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
-            }
+            SpaceVec pos = space->displacement(ref, this->_am.position_of(v));
             x_min = std::min(x_min, pos[0]);
             x_max = std::max(x_max, pos[0]);
             y_min = std::min(y_min, pos[1]);
@@ -1032,16 +1036,14 @@ protected:
         double Lx = (x_max - x_min);
         double Ly = (y_max - y_min);
 
-        if (space->periodic) {
-            if (Lx > 0.9 * domain[0]) {
-                // is not semi-periodic space
-                Lx = domain[0];
-            }
-            Ly = domain[1];
+        // is truly periodic space
+        if (space->periodic and Lx > 0.9 * domain[0]) {
+            return std::make_pair(domain / 2., domain);
         }
 
         return std::make_pair(
-            SpaceVec({x_min + Lx/2., y_min + Ly/2.}), // origin at center
+            // origin at center
+            SpaceVec({x_min + ref[0] + Lx/2., y_min + ref[1] + Ly/2.}),
             SpaceVec({Lx, Ly})  // extent
         );
     }
@@ -1056,29 +1058,7 @@ protected:
             this->_am.position_of(edge->custom_links().a) + 
             0.5 * this->_am.displacement(edge)
         );
-        if (this->_am.get_space()->periodic) {
-            SpaceVec domain = this->_am.get_space()->get_domain_size();
-            if (extent[0] > 0.9 * domain[0]) {
-                // periodic space
-                pos -= origin;
-                pos -= arma::round(pos/domain) % domain;
-                pos = -(2 * arma::abs(pos) - domain / 2.);
-            }
-            else {
-                // semi-periodic space
-                pos[0] -= std::round(pos[0]/domain[0]) * domain[0];
-                pos[0] -= origin[0];
-
-                // y is periodic
-                pos[1] -= origin[1];
-                pos[1] -= std::round(pos[1]/domain[1]) * domain[1];
-                pos[1] = -(2 * std::abs(pos[1]) - domain[1] / 2.);
-            }
-        }
-        else {
-            // non-periodic space
-            pos -= origin;
-        }
+        pos = this->_am.get_space()->displacement(origin, pos);
         SpaceVec rpos = pos / extent;
 
         const auto& [ca, cb] = this->_am.adjoints_of(edge);
@@ -1153,6 +1133,8 @@ public:
  *              dependent on the cell types adjacent to a junction. A symmetric 
  *              matrix. The i,j coordinates map to the type of cell on left and 
  *              right side.
+ *      - `increment_contractility` (only update): Add incremental value to 
+ *              `contractility`. Cannot be update together with `contractility`.
  *      - `gradient_contractility`: The gradient in contractility 
  *              \f$ \Gamma_1^{i,j} \f$ between left and right side of the domain
  *              dependent on the cell types adjacent to a junction. A symmetric 
@@ -1160,6 +1142,9 @@ public:
  *              right side. In relative units, i.e. for x = Lx, 
  *              \f$ \Gamma = \Gamma_0 - \Gamma_1 / 2 \f$ and for x = 0,
  *              \f$ \Gamma = \Gamma_0 + \Gamma_1 / 2 \f$.
+ *      - `increment_gradient_contractility` (only update): Add incremental
+ *              value to `gradient_contractility`. Cannot be update together
+ *              with `gradient_contractility`.
  *      - `boundary_type`: To which value a boundary cell is mapped.
 */
 template <typename Model>
@@ -1180,6 +1165,9 @@ protected:
 
     /// The cell-type dependent spatial gradient in contractility
     arma::mat _gradient_contractility;
+
+    /// The cell-type dependent spatial quadratic gradient in contractility
+    arma::mat _quadratic_contractility;
     
     double contractility_at(
         const SpaceVec& rpos,
@@ -1207,9 +1195,11 @@ protected:
                 ));
             }
         #endif
-
         return (_contractility.at(type_a, type_b) 
-                + rpos[0] * _gradient_contractility.at(type_a, type_b));
+                + rpos[0] * _gradient_contractility.at(type_a, type_b)
+                + std::pow(rpos[0]+0.5, 2) * _quadratic_contractility.at(type_a, type_b)
+        );
+        // NOTE rpos in [-0.5, 0.5]
     }
 
 public:
@@ -1223,21 +1213,51 @@ public:
         _contractility(setup_symmetric_matrix(
             get_as<stdmat>("contractility", cfg))),
         _gradient_contractility(setup_symmetric_matrix(
-            get_as<stdmat>("gradient_contractility", cfg)))
+            get_as<stdmat>("gradient_contractility", cfg))),
+        _quadratic_contractility(arma::zeros(arma::size(_contractility)))
     {
+        if (cfg["quadratic_contractility"]) {
+            _quadratic_contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "quadratic_contractility", cfg
+            ));
+        }
+
         this->update_contractility();
     }
 
     void update_parameters (const DataIO::Config& cfg) override {
-        if (cfg["contractility"]) {
+        if (cfg["increment_contractility"]) {
+            _contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_contractility", cfg
+            ));
+        }
+        else if (cfg["contractility"]) {
             _contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "contractility", cfg
             ));
         }
 
-        if (cfg["gradient_contractility"]) {
+
+        if (cfg["increment_gradient_contractility"]) {
+            _gradient_contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_gradient_contractility", cfg
+            ));
+        }
+        else if (cfg["gradient_contractility"]) {
             _gradient_contractility = setup_symmetric_matrix(get_as<stdmat>(
                 "gradient_contractility", cfg
+            ));
+        }
+
+
+        if (cfg["increment_quadratic_contractility"]) {
+            _quadratic_contractility += setup_symmetric_matrix(get_as<stdmat>(
+                "increment_quadratic_contractility", cfg
+            ));
+        }
+        else if (cfg["quadratic_contractility"]) {
+            _quadratic_contractility = setup_symmetric_matrix(get_as<stdmat>(
+                "quadratic_contractility", cfg
             ));
         }
         

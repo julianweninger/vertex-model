@@ -25,7 +25,7 @@
 #include "utils.hh"
 
 #include "work_function.hh"
-#include "work_function_2Dplus.hh"
+#include "work_function_2Dplus__triangle_method.hh"
 #include "minimization.hh"
 #include "boundary.hh"
 
@@ -886,22 +886,6 @@ public:
                 )
             );
         }
-        else if (term == "height_monitor") {
-            register_work_function_term(
-                name,
-                std::make_shared<HeightMonitor<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
-        else if (term == "height_setter") {
-            register_work_function_term(
-                name,
-                std::make_shared<HeightSetter<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
         else if (term == "perimeter_contractility") {
             register_work_function_term(
                 name,
@@ -918,18 +902,59 @@ public:
                 )
             );
         }
-        else if (term == "surface_tension") {
+        else if (term == "surface_elasticity") {
             register_work_function_term(
                 name,
-                std::make_shared<SurfaceTension<PCPVertex>>(
+                std::make_shared<SurfaceElasticity<PCPVertex>>(
                     name, params, *this
                 )
             );
         }
-        else if (term == "volume_elasticity") {
+        // else if (term == "surface_tension") {
+        //     register_work_function_term(
+        //         name,
+        //         std::make_shared<SurfaceTension<PCPVertex>>(
+        //             name, params, *this
+        //         )
+        //     );
+        // }
+        else if (term == "triangle_approximation_setter") {
             register_work_function_term(
                 name,
-                std::make_shared<VolumeElasticity<PCPVertex>>(
+                std::make_shared<TriangleApproximationSetter<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "triangle_approximation_update") {
+            register_work_function_term(
+                name,
+                std::make_shared<TriangleApproximationUpdate<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "triangle_approximation_update_graded") {
+            register_work_function_term(
+                name,
+                std::make_shared<TriangleApproximationUpdateGraded<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "volume_elasticity_triangle") {
+            register_work_function_term(
+                name,
+                std::make_shared<VolumeElasticityTriangle<PCPVertex>>(
+                    name, params, *this
+                )
+            );
+        }
+        else if (term == "volume_elasticity_triangle_heterotypic") {
+            register_work_function_term(
+                name,
+                std::make_shared<VolumeElasticityTriangleHeterotypic<PCPVertex>>
+                (
                     name, params, *this
                 )
             );
@@ -958,12 +983,20 @@ public:
                 " - edge_contractility_polar\n"
                 " - linetension\n"
                 " - linetension_fluctuations\n"
-                " - perimeter_contractility\n"
                 " - linetension_heterotypic\n"
-                " - height_monitor\n"
-                " - height_setter\n"
+                " - minimize_parameters__linetension\n"
+                " - minimize_parameters__edge_contractility\n"
+                " - minimize_parameters__volume_elasticity\n"
+                " - minimize_parameters__surface_elasticity\n"
+                " - perimeter_contractility\n"
                 " - shape_elasticity\n"
-                " - volume_elasticity\n"
+                " - surface_elasticity\n"
+                // " - surface_tension\n"
+                " - triangle_approximation_setter\n"
+                " - triangle_approximation_update\n"
+                " - triangle_approximation_update_graded\n"
+                " - volume_elasticity_triangle\n"
+                " - volume_elasticity_triangle_heterotypic\n"
                 "", term
             ));
         }

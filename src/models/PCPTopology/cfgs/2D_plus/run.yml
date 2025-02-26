@@ -1,18 +1,21 @@
 ---
 perform_sweep: true
 paths:
-  model_note: default__2d_plus
+  model_note: default_2Dp_model
 
 worker_manager:
   nonzero_exit_handling: warn_all
     
+# run_kwargs:
+#   timeout: !expr 60*60*3.5
+
 parameter_space:
-  num_steps: 200
+  num_steps: 500
 
   seed: !sweep
     default: 42
     range: [1]
-    order: -1
+    order: !expr -np.inf
 
   PCPTopology:
     log_level: info
@@ -20,51 +23,43 @@ parameter_space:
     # --- Dynamics
     # Minimization parameter
     minimization:
-      dt: 0.01
-      num_steps: 100
+      update_scheme: steepest_gradient
+      dt: 0.05
+      num_steps: 20
       jiggle_intensity: 0.
-      linetension_fluctuations: &dL 0.001
+      linetension_fluctuations: &dL 0.024
       linetension_fluctuations_tau: &tau_dL 24
-      num_repeat: 1
+      num_repeat: 24
 
     # -- Initialisation
     initialisation:
       0_add_noise:
         enabled: False
-        minimization:
-          num_repeat: 1
       1_by_proliferation:
-        # enabled: false
-        num_generations: 2
-        minimization_between_generations:
-          linetension_fluctuations: 0.005
-          num_repeat: 24
+        enabled: True
+        num_generations: 3
+        minimization_between_generations: ~
         minimization:
-          linetension_fluctuations: 0.005
           num_repeat: 100
 
     #  --- The sequence of operations ---------------------------------
     operations:
-      # Put some markers into the tissue
       - differentiate_random:
           times: []
           iterations_prolog: 1
-          rho: !sweep
-            name: rho
-            default: 0.26
-            values:
-              - &Rho20 0.2
-              # - &Rho26 0.26
-              # - &Rho10 0.1
           method: fraction
+          density: !sweep
+            name: rho
+            default: 0.25
+            order: 0
+            values: 
+              - &Rho20 0.20
           distribution: !coupled-sweep
             target_name: rho
             name: distribution
-            default: [0.8, 0.2]
-            values:
+            default: [0.75, 0.25]
+            values: 
               - [0.80, *Rho20]
-              # - [0.74, *Rho26]
-              # - [0.90, *Rho10]
           minimization:
             mode: manual
 
@@ -77,78 +72,47 @@ parameter_space:
           neutral_probability: 0.2
           minimization:
             mode: manual
-      
-      - update_work_function_term:
-          times: []
-          iterations_prolog: 1
-          name: edge_contractility_heterotypic
-          Gamma: !sweep
-            name: Gamma
-            default: 0.
-            values: 
-              - &Gamma_0 0.
-              - &Gamma_10 0.1
-            order: 2
-          parameters:
-            contractility: !coupled-sweep
-              target_name: Gamma
-              name: contractility
-              default: [[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]]
-              values:
-              - [[ *Gamma_0, 0.], [0., 0.]]
-              - [[ *Gamma_10, 0.], [0., 0.]]
-
-          minimization:
-            mode: manual
-      # END differentiation
 
       - void:
+          iterations_prolog: 0
           times:
             start: 1
-            stop: 100000
+            stop: 100001
             step: 1
-          minimization:
-            linetension_fluctuations: !coupled-sweep
-              target_name: kp
-              name: dL
-              default: 0.016
-              linspace: [0.016, 0.028, 3]
 
     # --- The solver
     PCPVertex:
       log_level: warning
 
       work_function_terms:
-      - volume_elasticity:
-          elastic_modulus: 1
-          preferential_volume: 1
-          tissue_height: 1
-          minimum_height: 0.25
-          gamma: !expr 1. / 20
-          height_parameter_name: height
+      - triangle_approximation_update:
+          name: 2D_plus_update
+          gamma: 1.
+          tissue_height: &tissue_height 1.
+          maximum_height: 1.
+          minimum_height: 0.001
+      - volume_elasticity_triangle:
+          name: volume_elasticity
+          elastic_modulus: 1.
+          preferential_volume: 1.
+          tissue_height: *tissue_height
+      - surface_elasticity:
+          elastic_modulus: 1.
+          preferential_surface: 5.78
+          tissue_height: *tissue_height
       - perimeter_contractility:
-          contractility: !sweep
-            name: kp
-            default: 0.005
-            linspace: [0.005, 0.02, 3]
-      - linetension_heterotypic:
-          boundary_type: 2
-          linetension:
-            - [0.005, 0.  , 0.05]
-            - [0.   , 0.  , 1.00]
-            - [0.05 , 1.  , 0.  ]
-      - surface_tension:
-          surface_tension: -0.01
-          VolumeElasticity_term: volume_elasticity
-          height_parameter_name: height
+          contractility: 0.01
+      - area_elasticity_minimum:
+          minimum_area: 0.2
+          elastic_modulus: 1.
       - edge_contractility_heterotypic:
+          name: edge_contractility
           boundary_type: 1
-          contractility:
-            - [0., 0.]
-            - [0., 0.]
+          contractility: [[0.4, 0.], [0., 0.]]
+
       - linetension_fluctuations:
-          amplitude: *dL
-          timescale: *tau_dL
+          amplitude: 1.e6
+          timescale: 1.e-6
 
       agent_manager:
         setup_params:
@@ -156,6 +120,8 @@ parameter_space:
             lattice_rows: 4
             lattice_columns: 4
 
+      initial_jiggle: 1.e-1
+      
       T1_barrier: 1.e-2
       T1_probability: 1.
       T1_timeout: 12
@@ -168,11 +134,11 @@ parameter_space:
             type: interval
             args: 
               intervals:
-                - [0, 1000000000, 320]
+                - [0, 1000000000, 480]
         tasks:
           Energy: &energy_continuous
             decider: write_energy
-            active: true
+            active: false
           Energy_time: *energy_continuous
           Transitions: *energy_continuous
           Interface_length: {active: false}
@@ -204,17 +170,21 @@ parameter_space:
           args:
             intervals:
               - [0, 5, 1]
-              - [5, 20, 2]
-              - [20, 50, 5]
-              - [50, 100, 10]
-              - [100, 200, 20]
-              - [200, 500, 50]
-              - [500, 1000, 100]
+              - [5, 20, 5]
+              - [20, 100, 10]
+              - [100, 200, 50]
+              - [200, 1000, 100]
               - [1000, 2000, 200]
-              - [2000, 10001, 1000]
+              - [2000, 10000, 1000]
+              - [10000, 20000, 2000]
+              - [20000, 100000, 10000]
+              - [100000, 200000, 20000]
       triggers:
         build_interval: *interval
       tasks:
+        Vertices: {active: true}
+        Cells: {active: true}
+        Edges: {active: true}
         Interface_length: {active: false}
         Cell_energies: {active: true}
         Edge_energies: {active: false}

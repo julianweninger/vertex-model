@@ -280,14 +280,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 // Differentiate 50 % type 1
                 std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
                 std::size_t cnt_1 = 0;
-                while(cnt_1 != cells.size() / 2) {
+                while(cnt_1 != cells.size() / 5) {
                     auto c_id = distr(*model.get_rng());
                     if (cells[c_id]->state.type == 0) {
                         cells[c_id]->state.type = 1;
                         cnt_1++;
                     }
                 }
-                BOOST_TEST(cnt_1 == cells.size() / 2);
+                BOOST_TEST(cnt_1 == cells.size() / 5);
                 
                 for (std::size_t i = 0; i < 50; i++) {
                     model.iterate();
@@ -328,14 +328,14 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 BOOST_TEST(term_function->test_constraints(model.get_logger()));
 
                 std::uniform_real_distribution<double> uniform_distr(0, 2*M_PI);
-                std::size_t steps = 200;
+                std::size_t steps = 500;
 
                 for (const auto& vertex : am.vertices()) {
                     const SpaceVec v_pos0 = am.position_of(vertex);
 
                     // chose a random direction of motion
                     double random_angle = uniform_distr(*model.get_rng());
-                    SpaceVec displ = 0.01 * SpaceVec({cos(random_angle),
+                    SpaceVec displ = 0.05 * SpaceVec({cos(random_angle),
                                                       sin(random_angle)});
 
                     // calculate current force
@@ -690,6 +690,8 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
     
     BOOST_AUTO_TEST_CASE (test_update_2D_plus)
     {
+        using Cell = Models::PCPVertex::PCPVertex::Cell;
+
         const double _precision = 1.e-6;
 
         std::size_t test_term_index = 0;
@@ -732,14 +734,16 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 // Differentiate 50 % type 1
                 std::uniform_int_distribution<std::size_t> distr(0, cells.size()-1);
                 std::size_t cnt_1 = 0;
-                while(cnt_1 != cells.size() / 2) {
+                std::shared_ptr<Cell> cell;
+                while(cnt_1 != cells.size() / 5) {
                     auto c_id = distr(*model.get_rng());
                     if (cells[c_id]->state.type == 0) {
                         cells[c_id]->state.type = 1;
                         cnt_1++;
+                        cell = cells[c_id];
                     }
                 }
-                BOOST_TEST(cnt_1 == cells.size() / 2);
+                BOOST_TEST(cnt_1 == cells.size() / 5);
                 
                 for (std::size_t i = 0; i < 50; i++) {
                     model.iterate();
@@ -776,64 +780,113 @@ BOOST_FIXTURE_TEST_SUITE (test_PCPVertex, ModelFixture)
                 const auto& term_fct = model.get_work_function_term(name);
                 cumulated_energy += fabs(term_fct->compute_energy());
 
-                std::string _height = get_as<std::string>(
-                        "VolumeElasticity_term", params, term_fct->get_name()
-                    ) 
-                    + "_" + 
-                    get_as<std::string>(
-                        "height_parameter_name", params
-                    );
+                std::string _height = "TriangleApproximation__height";
                 std::string _height_derivative = _height + "_derivative";
 
                 BOOST_TEST(term_fct->test_constraints(logger));
 
 
-                // test a particular cell to deal well with heights
-                const auto& cell = cells[cells.size() / 2];
-                cell->state.type = 1;
-                cell->state.update_parameter(_height, 0.65);
-                const auto nb = am.neighbors_of(cell)[0];
+                double H0 = cell->state.get_parameter(_height);
 
-                nb->state.type = 1;
-                nb->state.update_parameter(_height, 0.6);
-
-                BOOST_TEST(term_fct->test_constraints(logger));
-
-                nb->state.type = 0;
-                nb->state.update_parameter(_height, 0.9);
-                cell->state.update_parameter(_height, 0.699);
+                cell->state.update_parameter(_height, H0 + 0.05);
                 BOOST_TEST(term_fct->test_constraints(logger));
 
 
-                double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+                // test energy on vertices
+                std::uniform_real_distribution<double> uniform_distr(0, 2*M_PI);
+                std::size_t steps = 1000;
+                for (const auto& vertex : am.vertices()) {
+                    const SpaceVec v_pos0 = am.position_of(vertex);
 
-                double integral = 0.;
-                for (std::size_t i = 0; i < 100; i++) {
-                    cell->state.update_parameter(_height_derivative, 0.);
+                    // chose a random direction of motion
+                    double random_angle = uniform_distr(*model.get_rng());
+                    SpaceVec displ = 0.05 * SpaceVec({cos(random_angle),
+                                                      sin(random_angle)});
+
+                    // calculate current force
+                    vertex->state.reset_force();
                     term_fct->compute_and_set_forces();
+                    const double energy = term_fct->compute_energy();
 
-                    double dW_dH = cell->state.get_parameter(_height_derivative);
+                    // integrate force along the displacement
+                    double integral = 0.;
+                    for (std::size_t i = 0; i < steps; i++) {
+                        SpaceVec force = vertex->state.get_force();
 
-                    double tmp_H = cell->state.get_parameter(_height);
-                    cell->state.update_parameter(_height, tmp_H - 0.1 / 100.);
+                        SpaceVec tmp = am.position_of(vertex);
+                        am.move_by(vertex, displ / double(steps));
 
-                    double dH = cell->state.get_parameter(_height) - tmp_H;
-                    cell->state.update_parameter(_height_derivative, 0.);
-                    term_fct->compute_and_set_forces();
-                    double mean_deriv = 0.5 * (
-                        dW_dH 
-                        + cell->state.get_parameter(_height_derivative)
-                    );
+                        SpaceVec delta = am.get_space()->displacement(
+                            tmp,
+                            am.position_of(vertex)
+                        );
+                        vertex->state.reset_force();
+                        term_fct->compute_and_set_forces();
+                        SpaceVec mean_force = 0.5 *(force + vertex->state.get_force());
 
-                    integral += mean_deriv * dH;
+                        integral -= arma::dot(mean_force, delta);
+                    }
+
+                    double delta_E = term_fct->compute_energy() - energy;
+                    if (fabs(delta_E) < 1.e-12) {
+                        BOOST_CHECK_SMALL(integral, 1.e-12);
+                    }
+                    else {
+                        BOOST_CHECK_CLOSE(delta_E, integral, precision);
+                    }
+
+                    am.move_to(vertex, v_pos0);
                 }
 
-                double E1 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
-                BOOST_CHECK_CLOSE(E1 - E0, integral, precision);
+                for (const auto& cell : cells) {
+                    if (cell->state.type != 1) { continue; }
 
+                    double h0 = cell->state.get_parameter(_height);
+
+                    // test energy on height variables
+                    double E0 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+                    double integral = 0.;
+                    for (std::size_t i = 0; i < steps; i++) {
+                        cell->state.update_parameter(_height_derivative, 0.);
+                        term_fct->compute_and_set_forces();
+
+                        double dW_dH = cell->state.get_parameter(_height_derivative);
+
+                        double tmp_H = cell->state.get_parameter(_height);
+                        cell->state.update_parameter(_height, tmp_H + 0.1 / steps);
+
+                        double dH = cell->state.get_parameter(_height) - tmp_H;
+                        cell->state.update_parameter(_height_derivative, 0.);
+                        term_fct->compute_and_set_forces();
+                        double mean_dW_dH = 0.5 * (
+                            dW_dH 
+                            + cell->state.get_parameter(_height_derivative)
+                        );
+
+                        integral += mean_dW_dH * dH;
+                    }
+
+                    double E1 = term_fct->compute_energy(am.vertices(), am.edges(), cells);
+                    BOOST_CHECK_CLOSE(E1 - E0, integral, precision);
+
+                    BOOST_TEST(term_fct->test_constraints(logger));
+
+                    cell->state.update_parameter(_height, h0);
+                }
+
+
+                // test a duplet of cells
+                const auto nb = am.neighbors_of(cell)[0];
+                nb->state.type = 1;
+                double h0 = nb->state.get_parameter(_height);
+                BOOST_TEST(fabs(H0 - h0) > precision);
+                nb->state.update_parameter(_height, H0 + 0.05);
                 BOOST_TEST(term_fct->test_constraints(logger));
 
-                cell->state.update_parameter(_height, 0.7);
+                // reset
+                nb->state.type = 0;
+                nb->state.update_parameter(_height, h0);
+                BOOST_TEST(term_fct->test_constraints(logger));
             }
 
             // the machine epsilon has to be scaled to the magnitude of the 
