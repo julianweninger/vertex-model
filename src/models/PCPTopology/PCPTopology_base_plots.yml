@@ -820,6 +820,7 @@ cellular_structure:
   plot_vertices: false
   cell_center_marker_kwargs:
     colors: ['white', 'r', 'gray']
+    s: 0
 
   property_interpolation_plot_kwargs: ~
   
