@@ -25,7 +25,6 @@
 #include "utils.hh"
 
 #include "work_function.hh"
-#include "work_function_2Dplus.hh"
 #include "work_function_2Dplus__triangle_method.hh"
 #include "minimization.hh"
 #include "boundary.hh"
@@ -863,22 +862,6 @@ public:
                 )
             );
         }
-        else if (term == "height_monitor") {
-            register_work_function_term(
-                name,
-                std::make_shared<HeightMonitor<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
-        else if (term == "height_setter") {
-            register_work_function_term(
-                name,
-                std::make_shared<HeightSetter<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
         else if (term == "linetension") {
             register_work_function_term(
                 name,
@@ -927,14 +910,14 @@ public:
                 )
             );
         }
-        else if (term == "surface_tension") {
-            register_work_function_term(
-                name,
-                std::make_shared<SurfaceTension<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
+        // else if (term == "surface_tension") {
+        //     register_work_function_term(
+        //         name,
+        //         std::make_shared<SurfaceTension<PCPVertex>>(
+        //             name, params, *this
+        //         )
+        //     );
+        // }
         else if (term == "triangle_approximation_setter") {
             register_work_function_term(
                 name,
@@ -955,14 +938,6 @@ public:
             register_work_function_term(
                 name,
                 std::make_shared<TriangleApproximationUpdateGraded<PCPVertex>>(
-                    name, params, *this
-                )
-            );
-        }
-        else if (term == "volume_elasticity") {
-            register_work_function_term(
-                name,
-                std::make_shared<VolumeElasticity<PCPVertex>>(
                     name, params, *this
                 )
             );
@@ -1006,8 +981,6 @@ public:
                 " - edge_contractility_heterotypic_boundary\n"
                 " - edge_contractility_axial\n"
                 " - edge_contractility_polar\n"
-                " - height_monitor\n"
-                " - height_setter\n"
                 " - linetension\n"
                 " - linetension_fluctuations\n"
                 " - linetension_heterotypic\n"
@@ -1018,11 +991,10 @@ public:
                 " - perimeter_contractility\n"
                 " - shape_elasticity\n"
                 " - surface_elasticity\n"
-                " - surface_tension\n"
+                // " - surface_tension\n"
                 " - triangle_approximation_setter\n"
                 " - triangle_approximation_update\n"
                 " - triangle_approximation_update_graded\n"
-                " - volume_elasticity\n"
                 " - volume_elasticity_triangle\n"
                 " - volume_elasticity_triangle_heterotypic\n"
                 "", term

@@ -1518,6 +1518,175 @@ public:
     }
 };
 
+// /// @brief The surface-tension term
+// /** \f$ E_{i,j} = \Lambda l_{i,j} H_[i,j} \f$, a term linear in edge surface.
+//  * 
+//  *  Edge surface is calculated in the geometry proposed in `VolumeElasticity`.
+//  * 
+//  *  Parameters:
+//  *      - `surface_tension`: the tension \f$ \Lambda \f$
+//  *      - `VolumeElasticity_term`: The name of the VolumeElasticity term
+//  *              performing the update of H
+//  *      - `height_parameter_name`: The name of the H variable of cells.
+//  */
+// template <typename Model>
+// class SurfaceTension : public WorkFunction::WorkFunctionTerm<Model>
+// {
+//     using Base = WorkFunction::WorkFunctionTerm<Model>;
+
+//     using SpaceVec = typename Base::AgentManager::SpaceVec;
+
+//     using Vertex = typename Base::Vertex;
+
+//     using Edge = typename Base::Edge;
+
+//     using Cell = typename Base::Cell;
+
+// protected:
+//     /// The surface tension \f$ \Lambda \f$
+//     double _surface_tension;
+
+//     /// Variable name of cell height \f$ H \f$ stored in parameters of cell
+//     const std::string _cell_height;
+
+//     /// Variable name of cell height derivative \f$ H' \f$ in cell parameters
+//     const std::string _cell_height_derivative;
+
+//     /// The height of a junction up to the base of neighbouring cells
+//     double apical_height_of (const std::shared_ptr<Edge>& edge) const {
+//         const auto& [ca, cb] = this->_am.adjoints_of(edge);
+        
+//         double h_a = std::numeric_limits<double>::max();
+//         double h_b = std::numeric_limits<double>::max();
+//         if (ca) { h_a = ca->state.get_parameter(_cell_height); }
+//         if (cb) { h_b = cb->state.get_parameter(_cell_height); }
+
+//         return std::min(h_a, h_b);
+//     }
+
+// public:
+//     SurfaceTension (
+//         std::string name,
+//         const DataIO::Config& cfg,
+//         const Model& model
+//     )
+//     :
+//         Base(name, cfg, model),
+//         _surface_tension(get_as<double>("surface_tension", cfg)),
+//         _cell_height(get_as<std::string>("VolumeElasticity_term", cfg) 
+//                      + "__"
+//                      + get_as<std::string>("height_parameter_name", cfg)),
+//         _cell_height_derivative(_cell_height + "_derivative")
+//     { }
+
+//     void compute_and_set_forces () final {
+//         for (const auto& edge : this->_am.edges()) {
+//             SpaceVec displ = this->_am.displacement(edge);
+//             SpaceVec director = displ / arma::norm(displ);
+//             double H = apical_height_of(edge);
+
+//             const auto& a = edge->custom_links().a;
+//             const auto& b = edge->custom_links().b;
+
+//             a->state.add_force(+ _surface_tension * director * H);
+//             b->state.add_force(- _surface_tension * director * H);
+
+//             auto [ca, cb] = this->_am.adjoints_of(edge);
+        
+//             double h_a = std::numeric_limits<double>::max();
+//             double h_b = std::numeric_limits<double>::max();
+//             if (ca) { h_a = ca->state.get_parameter(_cell_height); }
+//             if (cb) { h_b = cb->state.get_parameter(_cell_height); }
+            
+//             if (h_b < h_a) {
+//                 std::swap(ca, cb);
+//             }
+
+//             if (ca->state.type == 1) {
+//                 auto dH = ca->state.get_parameter(_cell_height_derivative);
+//                 dH += _surface_tension * arma::norm(displ);
+//                 ca->state.update_parameter(_cell_height_derivative, dH);
+//             }
+//         }
+//     }
+
+//     SpaceVec compute_force(const std::shared_ptr<Vertex>& vertex) const final {
+//         SpaceVec force({0., 0.});
+//         for (const auto& edge : this->_am.adjoint_edges_of(vertex)) {
+//             SpaceVec displ = this->_am.displacement(edge);
+//             SpaceVec director = displ / arma::norm(displ);
+//             double H = apical_height_of(edge);
+
+//             if (edge->custom_links().a == vertex) {
+//                 force += _surface_tension * director * H;
+//             }
+//             else {
+//                 force -= _surface_tension * director * H;
+//             }
+//         }
+//         return force;
+//     }
+
+//     double compute_energy(const std::shared_ptr<Edge>& edge) const final {
+//         return _surface_tension * this->_am.length_of(edge)
+//                * apical_height_of(edge);
+//     }
+
+//     double compute_energy (
+//         [[maybe_unused]] const AgentContainer<Vertex>& vertices,
+//         const AgentContainer<Edge>& edges,
+//         [[maybe_unused]] const AgentContainer<Cell>& cells
+//     ) const final
+//     {
+//         double energy = 0.;
+//         for (const auto& edge : edges) {
+//             energy += compute_energy(edge);
+//         }
+//         return energy;
+//     }
+
+//     void update_parameters (const DataIO::Config& cfg) final {
+//         _surface_tension  = get_as<double>("surface_tension", cfg, 
+//                                            _surface_tension);
+//     }
+
+//     std::vector<std::string> write_task_edge_properties_names () const final {
+//         return std::vector<std::string>({
+//             "apical_height",
+//         });
+//     }
+
+//     std::vector<std::vector<double>> write_edge_properties () const final {
+//         std::vector<double> apical_heights({});
+        
+//         for (const auto& edge : this->_am.edges()) {
+//             apical_heights.push_back(apical_height_of(edge));
+//         }
+
+//         return std::vector<std::vector<double>>({
+//             apical_heights
+//         });
+//     }
+
+//     std::vector<std::string> write_task_edge_energies_names () const final {
+//         return std::vector<std::string>({
+//             "energy",
+//         });
+//     }
+
+//     std::vector<std::vector<double>> write_edge_energies () const final {
+//         std::vector<double> energies({});
+        
+//         for (const auto& edge : this->_am.edges()) {
+//             energies.push_back(compute_energy(edge));
+//         }
+
+//         return std::vector<std::vector<double>>({
+//             energies,
+//         });
+//     }
+// };
+
 } // namespace WorkFunction2DplusTriangle
 } // namespace PCPVertex
 } // namespace Models

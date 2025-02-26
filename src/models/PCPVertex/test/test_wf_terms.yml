@@ -386,14 +386,6 @@ test_update_edge_contractility_polar:
     polarity_fluctuations: 0.
 
 test_update_2D_plus:
-# - volume_elasticity:
-#     elastic_modulus: 1.1
-#     preferential_volume: 0.9
-#     tissue_height: 0.8
-#     set_height: 0.6
-#     minimum_height: 0.2
-#     height_parameter_name: height
-#     gamma: 0.05
 # - surface_tension:
 #     surface_tension: 0.9
 #     VolumeElasticity_term: volume_elasticity
