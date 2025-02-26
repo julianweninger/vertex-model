@@ -812,19 +812,28 @@ public:
         _stretch(get_as<bool>("stretch", cfg)),
         _skip_quadrants{}
     {
-        if (this->_am.get_space()->periodic) {
-            throw std::runtime_error("Cannot setup stripe boundary potential "
-                "in periodic space!");
-        }
-
         if (cfg["origin"]) {
             _origin = get_as_SpaceVec<2>("origin", cfg);
         }
         else if (not model.get_space()->periodic) {
             _origin = this->_am.barycenter_of(this->_am.get_boundary_edges());
         }
+        else if (get_as<bool>("semi_periodic", cfg)) {
+            SpaceVec ref = this->_am.position_of(this->_am.vertices()[0]);
+            for (const auto& v : this->_am.vertices()) {
+                SpaceVec pos = ref + model.get_space()->displacement(ref,
+                        this->_am.position_of(v)
+                );  
+                _origin += pos;
+            }
+            _origin /= this->_am.vertices().size();
+            std::cout << _origin.t() << std::endl;
+            _skip_quadrants.insert(Quadrant(2));
+            _skip_quadrants.insert(Quadrant(4));
+        }
         else {
-            _origin = model.get_space()->get_domain_size() / 2.;
+            throw std::runtime_error("Cannot setup stripe boundary potential "
+                "in periodic space!");
         }
 
         if (_height < 1.e-8) {
